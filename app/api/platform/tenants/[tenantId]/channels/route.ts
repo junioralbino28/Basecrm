@@ -18,6 +18,7 @@ const ChannelSchema = z.object({
     apiUrl: z.string().url().optional().or(z.literal('')),
     instanceName: z.string().max(120).optional(),
     webhookUrl: z.string().url().optional().or(z.literal('')),
+    webhookSecret: z.string().max(120).optional(),
     apiKey: z.string().max(300).optional(),
   }).optional(),
   metadata: z.object({
@@ -79,6 +80,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     apiUrl: parsed.data.config?.apiUrl?.trim() || undefined,
     instanceName: parsed.data.config?.instanceName?.trim() || undefined,
     webhookUrl: parsed.data.config?.webhookUrl?.trim() || undefined,
+    webhookSecret:
+      parsed.data.config?.webhookSecret?.trim() || crypto.randomUUID().replace(/-/g, ''),
     apiKey: parsed.data.config?.apiKey?.trim() || undefined,
   };
   const metadata = {

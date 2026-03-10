@@ -16,6 +16,7 @@ const ChannelUpdateSchema = z.object({
     apiUrl: z.string().url().optional().or(z.literal('')),
     instanceName: z.string().max(120).optional(),
     webhookUrl: z.string().url().optional().or(z.literal('')),
+    webhookSecret: z.string().max(120).optional(),
     apiKey: z.string().max(300).optional(),
   }).optional(),
   metadata: z.object({
@@ -74,6 +75,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         apiUrl: parsed.data.config.apiUrl?.trim() || undefined,
         instanceName: parsed.data.config.instanceName?.trim() || undefined,
         webhookUrl: parsed.data.config.webhookUrl?.trim() || undefined,
+        webhookSecret:
+          parsed.data.config.webhookSecret?.trim() ||
+          (current.data.config as any)?.webhookSecret ||
+          crypto.randomUUID().replace(/-/g, ''),
         apiKey: parsed.data.config.apiKey?.trim() || (current.data.config as any)?.apiKey || undefined,
       }
     : current.data.config;

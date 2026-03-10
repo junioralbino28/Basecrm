@@ -300,3 +300,39 @@ Pendencias:
 - sincronizacao real com mensagens da Evolution
 - vinculo automatico com contato/deal
 - inbox operacional completo
+
+## 2026-03-10 - Inbound basico da Evolution em Conversations
+
+Objetivo:
+
+- fazer mensagens reais da Evolution entrarem em `Conversations` sem depender de cadastro manual
+
+Entregas:
+
+- rota publica de webhook por conexao
+- `webhookSecret` gerado automaticamente em novas conexoes
+- URL do webhook do CRM exposta na tela de WhatsApp
+- parse best-effort de payloads comuns da Evolution
+- criacao ou reaproveitamento de `conversation_threads`
+- registro de `conversation_messages`
+- atualizacao de metadata da conexao com ultimo inbound recebido
+
+Arquivos principais:
+
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+- `lib/conversations/evolutionWebhook.ts`
+- `app/api/platform/tenants/[tenantId]/channels/route.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+- `docs/evolution-channels.md`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- ampliar compatibilidade com mais formatos de payload da Evolution
+- sincronizacao outbound real
+- inbox operacional com vinculacao automatica mais profunda

@@ -10,6 +10,7 @@ Este modulo ainda nao e o inbox final de WhatsApp. Ele cobre:
 - healthcheck real
 - solicitacao de pareamento
 - exibicao do ultimo estado retornado
+- webhook inbound do CRM para alimentar `Conversations`
 
 ## Onde fica
 
@@ -25,7 +26,9 @@ Backend:
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck/route.ts`
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/connect/route.ts`
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/disconnect/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
 - `lib/channels/evolution.ts`
+- `lib/conversations/evolutionWebhook.ts`
 
 ## Tabela usada
 
@@ -61,6 +64,7 @@ Channel type ativo:
 - `apiUrl`
 - `instanceName`
 - `webhookUrl`
+- `webhookSecret`
 - `apiKey`
 
 ### `metadata`
@@ -75,6 +79,9 @@ Channel type ativo:
 - `lastPairingPayload`
 - `lastPairingRequestedAt`
 - `lastPairingError`
+- `lastInboundAt`
+- `lastInboundPhone`
+- `lastInboundPreview`
 
 ## Healthcheck
 
@@ -119,6 +126,35 @@ Uso atual:
 - botao `Desconectar` na tela de WhatsApp da clinica
 - apos sucesso, a conexao volta para `disconnected`
 
+## Webhook inbound para Conversations
+
+Rota publica:
+
+- `POST /api/public/channels/evolution/[connectionId]/webhook?secret={webhookSecret}`
+
+Autenticacao aceita:
+
+- query param `secret`
+- header `X-Webhook-Secret`
+- header `Authorization: Bearer ...`
+
+Comportamento atual:
+
+- valida a conexao `evolution` por `connectionId`
+- valida o `webhookSecret` salvo em `channel_connections.config`
+- interpreta payloads comuns de mensagem da Evolution
+- cria ou reutiliza `conversation_threads`
+- grava `conversation_messages`
+- faz dedupe best-effort por `metadata.provider_message_id`
+- atualiza `channel_connections.metadata` com ultimo inbound recebido
+
+Limitacoes atuais:
+
+- foco em mensagens individuais, nao grupos
+- suporte best-effort para formatos comuns de payload
+- ainda nao cria deal automaticamente
+- vinculo com contato depende de telefone igual ao salvo em `contacts.phone`
+
 ## Como testar
 
 1. abrir a clinica
@@ -130,6 +166,9 @@ Uso atual:
    - `Telefone` se desejar
 4. clicar `Testar conexao`
 5. clicar `Gerar pareamento`
+6. copiar o `Webhook do CRM`
+7. configurar essa URL na Evolution
+8. enviar mensagem real para validar entrada em `Conversations`
 
 ## Estado atual da entrega
 
@@ -139,6 +178,9 @@ Ja entregue:
 - healthcheck real
 - solicitacao de pareamento
 - desconexao real
+- geracao automatica de `webhookSecret`
+- exibicao da URL do webhook do CRM
+- ingest inbound basico da Evolution em `Conversations`
 - exibicao do estado e do ultimo codigo
 - exibicao visual do payload de pareamento quando possivel
 - edicao da conexao existente sem recriar o registro
@@ -147,8 +189,8 @@ Ainda pendente:
 
 - renderizacao visual de QR Code
 - fluxo de reconexao guiada mais completo
-- inbox de mensagens
-- sincronizacao inbound/outbound
+- inbox de mensagens mais completo
+- sincronizacao outbound
 - handoff humano dentro da conversa
 
 ## Seguranca

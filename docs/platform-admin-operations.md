@@ -55,6 +55,10 @@ Rotas internas ja entregues:
 - `GET/POST /api/platform/tenants/[tenantId]/conversations/[threadId]/messages`
 - `GET /api/platform/tenant/current`
 
+Rotas publicas ja entregues:
+
+- `POST /api/public/channels/evolution/[connectionId]/webhook`
+
 ## Migrations obrigatorias
 
 Ja aplicadas na instancia `basecrm.vercel.app`:
@@ -124,6 +128,9 @@ Para canais Evolution:
 2. cadastrar conexao Evolution
 3. executar `Testar conexao`
 4. executar `Gerar pareamento`
+5. copiar `Webhook do CRM`
+6. configurar a URL na Evolution
+7. enviar uma mensagem real e validar entrada em `/platform/tenants/[tenantId]/conversations`
 
 ## Comandos locais de validacao
 
@@ -137,6 +144,7 @@ Antes de publicar:
 - o termo tecnico `tenant` ainda existe internamente em nomes de arquivo, hooks e APIs
 - o QR Code visual ainda nao foi implementado; o sistema hoje registra o retorno do pareamento
 - `channel_connections.config.apiKey` esta sendo salvo para permitir operacao real da Evolution; isso deve ser revisado futuramente para endurecimento de seguranca
+- o inbound da Evolution esta em formato best-effort; payloads muito diferentes do esperado podem ser ignorados
 
 ## Checklist de deploy
 
@@ -178,3 +186,12 @@ Causas provaveis:
 - conexao sem `apiUrl`, `instanceName` ou `apiKey`
 - endpoint da Evolution diferente do esperado
 - numero da instancia invalido
+
+### A mensagem nao aparece em `Conversations`
+
+Causas provaveis:
+
+- webhook do CRM nao foi configurado na Evolution
+- `webhookSecret` divergente
+- payload enviado nao contem uma mensagem suportada
+- telefone veio em formato diferente do salvo em `contacts`

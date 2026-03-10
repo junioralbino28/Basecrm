@@ -10,6 +10,7 @@ export type ChannelConnectionConfig = {
   apiUrl?: string;
   instanceName?: string;
   webhookUrl?: string;
+  webhookSecret?: string;
   apiKey?: string;
 };
 

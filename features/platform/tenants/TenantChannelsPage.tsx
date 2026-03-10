@@ -109,6 +109,7 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
 
 export const TenantChannelsPage: React.FC = () => {
   const { tenantId, tenant, loading, error, reload } = useTenantDetail();
+  const [browserOrigin, setBrowserOrigin] = React.useState('');
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
   const [editingConnectionId, setEditingConnectionId] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -121,6 +122,12 @@ export const TenantChannelsPage: React.FC = () => {
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setBrowserOrigin(window.location.origin);
+    }
+  }, []);
 
   function startEditing(connection: NonNullable<typeof tenant>['channel_connections'][number]) {
     setEditingConnectionId(connection.id);
@@ -156,6 +163,12 @@ export const TenantChannelsPage: React.FC = () => {
       setMessageKind('error');
       setMessage(`Nao foi possivel copiar ${label.toLowerCase()}.`);
     }
+  }
+
+  function getCrmWebhookUrl(connection: NonNullable<typeof tenant>['channel_connections'][number]) {
+    const secret = String(connection.config?.webhookSecret || '').trim();
+    if (!browserOrigin || !secret) return null;
+    return `${browserOrigin}/api/public/channels/evolution/${connection.id}/webhook?secret=${encodeURIComponent(secret)}`;
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -423,8 +436,12 @@ export const TenantChannelsPage: React.FC = () => {
                         {String(connection.config?.apiUrl || '-')}
                       </div>
                       <div className="md:col-span-2">
-                        <span className="font-medium text-slate-900 dark:text-white">Webhook:</span>{' '}
+                        <span className="font-medium text-slate-900 dark:text-white">Webhook externo:</span>{' '}
                         {String(connection.config?.webhookUrl || '-')}
+                      </div>
+                      <div className="md:col-span-2">
+                        <span className="font-medium text-slate-900 dark:text-white">Webhook CRM:</span>{' '}
+                        {getCrmWebhookUrl(connection) || '-'}
                       </div>
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Ultimo healthcheck:</span>{' '}
@@ -443,6 +460,10 @@ export const TenantChannelsPage: React.FC = () => {
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Pareamento:</span>{' '}
                         {String(connection.metadata?.lastPairingCode || connection.metadata?.lastPairingError || '-')}
+                      </div>
+                      <div>
+                        <span className="font-medium text-slate-900 dark:text-white">Ultimo inbound:</span>{' '}
+                        {String(connection.metadata?.lastInboundPreview || '-')}
                       </div>
                       {typeof connection.metadata?.lastPairingRequestedAt === 'string' ? (
                         <div className="md:col-span-2">
@@ -492,6 +513,30 @@ export const TenantChannelsPage: React.FC = () => {
                               <span className="font-medium text-slate-900 dark:text-white">Orientacao:</span>{' '}
                               abra o WhatsApp do numero da clinica e use este pareamento para concluir a conexao.
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {getCrmWebhookUrl(connection) ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Webhook do CRM</div>
+                          <button
+                            type="button"
+                            onClick={() => void copyText('Webhook do CRM', getCrmWebhookUrl(connection)!)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          >
+                            Copiar URL
+                          </button>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                          <div className="break-all rounded-2xl bg-slate-50 px-3 py-3 font-mono text-xs dark:bg-white/5">
+                            {getCrmWebhookUrl(connection)}
+                          </div>
+                          <div>
+                            Configure esta URL na Evolution para que mensagens reais caiam em <strong className="font-semibold text-slate-900 dark:text-white">Conversations</strong>.
                           </div>
                         </div>
                       </div>
