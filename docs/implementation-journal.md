@@ -336,3 +336,28 @@ Pendencias:
 - ampliar compatibilidade com mais formatos de payload da Evolution
 - sincronizacao outbound real
 - inbox operacional com vinculacao automatica mais profunda
+
+## 2026-03-10 - Politica de checkpoint estavel
+
+Objetivo:
+
+- garantir ponto formal de retorno para rollback e diagnostico
+
+Entregas:
+
+- documento de checkpoints estaveis
+- convencao de tags para marcos do CRM Clinica
+- primeiro checkpoint registrado para a camada atual de WhatsApp e Conversations
+
+Arquivos principais:
+
+- `docs/release-checkpoints.md`
+
+Validacao:
+
+- checkpoint documentado
+- tag git criada para o estado atual
+
+Pendencias:
+
+- seguir registrando novos checkpoints a cada marco estavel relevante

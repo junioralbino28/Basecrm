@@ -86,6 +86,7 @@ Documentos de arquitetura e evolução da linha de produto:
 - [Operação do Platform Admin](./docs/platform-admin-operations.md)
 - [Canais Evolution](./docs/evolution-channels.md)
 - [Diário de Implementação](./docs/implementation-journal.md)
+- [Release Checkpoints](./docs/release-checkpoints.md)
 
 ---
 
