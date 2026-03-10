@@ -83,6 +83,9 @@ Documentos de arquitetura e evolução da linha de produto:
 
 - [Blueprint do CRM Clínica](./docs/clinic-platform-blueprint.md)
 - [Backlog técnico do CRM Clínica](./docs/clinic-implementation-backlog.md)
+- [Operação do Platform Admin](./docs/platform-admin-operations.md)
+- [Canais Evolution](./docs/evolution-channels.md)
+- [Diário de Implementação](./docs/implementation-journal.md)
 
 ---
 
