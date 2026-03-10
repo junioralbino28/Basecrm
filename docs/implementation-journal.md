@@ -238,5 +238,33 @@ Validacao:
 Pendencias:
 
 - QR Code visual 100% confiavel para todos os formatos de payload
-- desconectar/reconectar guiado
+- reconectar guiado mais completo
+- inbox de conversas
+
+## 2026-03-10 - Desconexao operacional da Evolution
+
+Objetivo:
+
+- permitir que a equipe desconecte um numero da clinica sem apagar a conexao do CRM
+
+Entregas:
+
+- rota de desconexao real via Evolution
+- botao `Desconectar`
+- botao `Reconectar` reaproveitando o fluxo de pareamento
+
+Arquivos principais:
+
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/disconnect/route.ts`
+- `lib/channels/evolution.ts`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- fluxo mais profundo de reconexao guiada
 - inbox de conversas

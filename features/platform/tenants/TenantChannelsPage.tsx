@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2 } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 const FIELD_CLASS =
@@ -114,6 +114,7 @@ export const TenantChannelsPage: React.FC = () => {
   const [saving, setSaving] = React.useState(false);
   const [checkingConnectionId, setCheckingConnectionId] = React.useState<string | null>(null);
   const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
+  const [disconnectingConnectionId, setDisconnectingConnectionId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
 
@@ -268,6 +269,34 @@ export const TenantChannelsPage: React.FC = () => {
     }
   }
 
+  async function disconnectConnection(connectionId: string) {
+    setDisconnectingConnectionId(connectionId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/disconnect`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json',
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao desconectar (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage('Numero desconectado com sucesso.');
+      await reload();
+    } catch (disconnectError) {
+      setMessageKind('error');
+      setMessage(disconnectError instanceof Error ? disconnectError.message : 'Falha ao desconectar numero.');
+      await reload();
+    } finally {
+      setDisconnectingConnectionId(null);
+    }
+  }
+
   return (
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
@@ -360,8 +389,22 @@ export const TenantChannelsPage: React.FC = () => {
                           disabled={pairingConnectionId === connection.id}
                           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                         >
-                          <QrCode size={14} />
-                          {pairingConnectionId === connection.id ? 'Gerando...' : 'Gerar pareamento'}
+                          {connection.status === 'connected' ? <PlugZap size={14} /> : <QrCode size={14} />}
+                          {pairingConnectionId === connection.id
+                            ? 'Gerando...'
+                            : connection.status === 'connected'
+                              ? 'Reconectar'
+                              : 'Gerar pareamento'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void disconnectConnection(connection.id)}
+                          disabled={disconnectingConnectionId === connection.id}
+                          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-slate-950 dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
+                        >
+                          <Plug2 size={14} />
+                          {disconnectingConnectionId === connection.id ? 'Desconectando...' : 'Desconectar'}
                         </button>
                       </div>
                     </div>

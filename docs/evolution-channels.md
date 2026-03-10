@@ -24,6 +24,7 @@ Backend:
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts`
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck/route.ts`
 - `app/api/platform/tenants/[tenantId]/channels/[connectionId]/connect/route.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/disconnect/route.ts`
 - `lib/channels/evolution.ts`
 
 ## Tabela usada
@@ -107,6 +108,17 @@ O sistema persiste:
 - payload bruto retornado
 - horario da ultima solicitacao
 
+## Desconexao
+
+Endpoint usado:
+
+- `DELETE {apiUrl}/instance/logout/{instanceName}`
+
+Uso atual:
+
+- botao `Desconectar` na tela de WhatsApp da clinica
+- apos sucesso, a conexao volta para `disconnected`
+
 ## Como testar
 
 1. abrir a clinica
@@ -126,6 +138,7 @@ Ja entregue:
 - CRUD basico de conexao
 - healthcheck real
 - solicitacao de pareamento
+- desconexao real
 - exibicao do estado e do ultimo codigo
 - exibicao visual do payload de pareamento quando possivel
 - edicao da conexao existente sem recriar o registro
@@ -133,7 +146,7 @@ Ja entregue:
 Ainda pendente:
 
 - renderizacao visual de QR Code
-- fluxo de reconexao guiada
+- fluxo de reconexao guiada mais completo
 - inbox de mensagens
 - sincronizacao inbound/outbound
 - handoff humano dentro da conversa

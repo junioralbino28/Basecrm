@@ -11,6 +11,43 @@ export type EvolutionPairingCode = {
   count: number | null;
 };
 
+export async function logoutEvolutionInstance(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+}): Promise<unknown> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/instance/logout/${encodeURIComponent(params.instanceName)}`;
+
+  const response = await fetch(endpoint, {
+    method: 'DELETE',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+    },
+    cache: 'no-store',
+  });
+
+  const rawText = await response.text();
+  let payload: unknown = rawText;
+
+  try {
+    payload = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    payload = rawText;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      typeof payload === 'string'
+        ? payload || `Evolution respondeu HTTP ${response.status}`
+        : `Evolution respondeu HTTP ${response.status}`
+    );
+  }
+
+  return payload;
+}
+
 function normalizeState(value: unknown) {
   return String(value || '').trim().toLowerCase();
 }
