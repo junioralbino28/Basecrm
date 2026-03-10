@@ -16,6 +16,7 @@ Este modulo ainda nao e o inbox final de WhatsApp. Ele cobre:
 Interface:
 
 - `/platform/tenants/[tenantId]/channels`
+- `/platform/tenants/[tenantId]/whatsapp`
 
 Backend:
 
@@ -126,6 +127,8 @@ Ja entregue:
 - healthcheck real
 - solicitacao de pareamento
 - exibicao do estado e do ultimo codigo
+- exibicao visual do payload de pareamento quando possivel
+- edicao da conexao existente sem recriar o registro
 
 Ainda pendente:
 

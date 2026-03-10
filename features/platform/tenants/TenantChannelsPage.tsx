@@ -171,29 +171,29 @@ export const TenantChannelsPage: React.FC = () => {
           : `/api/platform/tenants/${tenantId}/channels`,
         {
           method: editingConnectionId ? 'PATCH' : 'POST',
-        credentials: 'include',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
-        body: JSON.stringify({
-          provider: form.provider,
-          channel_type: form.channel_type,
-          name: form.name,
-          status: form.status,
-          config: {
-            apiUrl: form.apiUrl,
-            instanceName: form.instanceName,
-            webhookUrl: form.webhookUrl,
-            apiKey: form.apiKey,
+          credentials: 'include',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json',
           },
-          metadata: {
-            phoneNumber: form.phoneNumber,
-            apiKeyLast4: form.apiKeyLast4,
-            notes: form.notes,
-          },
-        }),
-      }
+          body: JSON.stringify({
+            provider: form.provider,
+            channel_type: form.channel_type,
+            name: form.name,
+            status: form.status,
+            config: {
+              apiUrl: form.apiUrl,
+              instanceName: form.instanceName,
+              webhookUrl: form.webhookUrl,
+              apiKey: form.apiKey,
+            },
+            metadata: {
+              phoneNumber: form.phoneNumber,
+              apiKeyLast4: form.apiKeyLast4,
+              notes: form.notes,
+            },
+          }),
+        }
       );
 
       const data = await res.json().catch(() => null);
@@ -279,9 +279,9 @@ export const TenantChannelsPage: React.FC = () => {
             <ArrowLeft size={16} />
             Voltar para clinica
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Canais e conexoes</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">WhatsApp da clinica</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Registro interno de conexoes WhatsApp da clinica, com foco inicial em Evolution.
+            Configure o numero da clinica, valide a Evolution e acompanhe o pareamento em um unico lugar.
           </p>
         </div>
 
@@ -303,7 +303,7 @@ export const TenantChannelsPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Wifi size={16} />
-              Conexoes registradas
+              Numeros e conexoes
             </div>
             <div className="mt-4 space-y-3">
               {tenant.channel_connections.length === 0 ? (
@@ -465,7 +465,7 @@ export const TenantChannelsPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Smartphone size={16} />
-              {editingConnectionId ? 'Editar conexao WhatsApp' : 'Nova conexao WhatsApp'}
+              {editingConnectionId ? 'Editar numero WhatsApp' : 'Conectar novo numero'}
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {editingConnectionId

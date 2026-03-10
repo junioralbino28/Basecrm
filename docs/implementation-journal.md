@@ -208,3 +208,35 @@ Pendencias:
 - QR Code visual
 - inbox
 - sincronizacao de mensagens
+
+## 2026-03-10 - Modulo WhatsApp mais explicito
+
+Objetivo:
+
+- deixar a operacao da Evolution menos tecnica e mais alinhada ao produto clinica
+
+Entregas:
+
+- rota amigavel `/platform/tenants/[tenantId]/whatsapp`
+- card do workspace renomeado para `WhatsApp`
+- tela com linguagem mais operacional
+- edicao de conexao existente
+- exibicao visual do payload de pareamento quando aproveitavel
+
+Arquivos principais:
+
+- `app/(protected)/platform/tenants/[tenantId]/whatsapp/page.tsx`
+- `features/platform/tenants/TenantWorkspacePage.tsx`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+- `docs/evolution-channels.md`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- QR Code visual 100% confiavel para todos os formatos de payload
+- desconectar/reconectar guiado
+- inbox de conversas

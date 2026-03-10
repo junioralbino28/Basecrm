@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Globe, Palette, Radio, Sparkles } from 'lucide-react';
+import { ArrowLeft, Globe, Palette, MessageCircle, Sparkles } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 export const TenantWorkspacePage: React.FC = () => {
@@ -62,15 +62,15 @@ export const TenantWorkspacePage: React.FC = () => {
             </Link>
 
             <Link
-              href={`/platform/tenants/${tenant.id}/channels`}
+              href={`/platform/tenants/${tenant.id}/whatsapp`}
               className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                <Radio size={16} />
-                Canais
+                <MessageCircle size={16} />
+                WhatsApp
               </div>
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Registrar WhatsApp, Evolution e saude operacional da clinica.
+                Conectar numero, validar Evolution e operar o pareamento da clinica.
               </div>
             </Link>
 
@@ -124,7 +124,7 @@ export const TenantWorkspacePage: React.FC = () => {
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-                <div className="text-sm font-semibold text-slate-900 dark:text-white">Canais registrados</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">WhatsApp conectado</div>
                 <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
                   {tenant.channel_connections.length === 0 ? (
                     <div>Nenhuma conexao ainda.</div>
