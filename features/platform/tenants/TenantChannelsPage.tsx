@@ -110,6 +110,7 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
 export const TenantChannelsPage: React.FC = () => {
   const { tenantId, tenant, loading, error, reload } = useTenantDetail();
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
+  const [editingConnectionId, setEditingConnectionId] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [checkingConnectionId, setCheckingConnectionId] = React.useState<string | null>(null);
   const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
@@ -119,6 +120,31 @@ export const TenantChannelsPage: React.FC = () => {
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  function startEditing(connection: NonNullable<typeof tenant>['channel_connections'][number]) {
+    setEditingConnectionId(connection.id);
+    setForm({
+      name: connection.name || INITIAL_FORM.name,
+      provider: 'evolution',
+      channel_type: 'whatsapp',
+      status: connection.status,
+      apiUrl: String(connection.config?.apiUrl || ''),
+      instanceName: String(connection.config?.instanceName || ''),
+      webhookUrl: String(connection.config?.webhookUrl || ''),
+      apiKey: '',
+      phoneNumber: String(connection.metadata?.phoneNumber || ''),
+      apiKeyLast4: String(connection.metadata?.apiKeyLast4 || ''),
+      notes: String(connection.metadata?.notes || ''),
+    });
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEditing() {
+    setEditingConnectionId(null);
+    setForm(INITIAL_FORM);
+    setMessage(null);
+  }
 
   async function copyText(label: string, value: string) {
     try {
@@ -139,8 +165,12 @@ export const TenantChannelsPage: React.FC = () => {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/platform/tenants/${tenantId}/channels`, {
-        method: 'POST',
+      const res = await fetch(
+        editingConnectionId
+          ? `/api/platform/tenants/${tenantId}/channels/${editingConnectionId}`
+          : `/api/platform/tenants/${tenantId}/channels`,
+        {
+          method: editingConnectionId ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: {
           'content-type': 'application/json',
@@ -163,13 +193,15 @@ export const TenantChannelsPage: React.FC = () => {
             notes: form.notes,
           },
         }),
-      });
+      }
+      );
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao salvar conexao (HTTP ${res.status})`);
 
       setMessageKind('success');
-      setMessage('Conexao registrada na clinica.');
+      setMessage(editingConnectionId ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
+      setEditingConnectionId(null);
       setForm(INITIAL_FORM);
       await reload();
     } catch (submitError) {
@@ -306,6 +338,14 @@ export const TenantChannelsPage: React.FC = () => {
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
+                          onClick={() => startEditing(connection)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                        >
+                          Editar conexao
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => void runHealthcheck(connection.id)}
                           disabled={checkingConnectionId === connection.id}
                           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
@@ -425,10 +465,12 @@ export const TenantChannelsPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Smartphone size={16} />
-              Nova conexao WhatsApp
+              {editingConnectionId ? 'Editar conexao WhatsApp' : 'Nova conexao WhatsApp'}
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.
+              {editingConnectionId
+                ? 'Atualize numero, instancia, URL ou chave da Evolution sem recriar o registro.'
+                : 'Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.'}
             </p>
 
             <form className="mt-5 space-y-4" onSubmit={submit}>
@@ -490,7 +532,7 @@ export const TenantChannelsPage: React.FC = () => {
                   className={FIELD_CLASS}
                   value={form.apiKey}
                   onChange={(e) => onChange('apiKey', e.target.value)}
-                  placeholder="Cole a API key completa para habilitar o healthcheck"
+                  placeholder={editingConnectionId ? 'Preencha apenas se quiser trocar a API key' : 'Cole a API key completa para habilitar o healthcheck'}
                 />
               </div>
 
@@ -510,13 +552,25 @@ export const TenantChannelsPage: React.FC = () => {
                 </div>
               ) : null}
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
-              >
-                {saving ? 'Salvando...' : 'Registrar conexao'}
-              </button>
+              <div className="flex gap-3">
+                {editingConnectionId ? (
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20 dark:hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex flex-1 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                >
+                  {saving ? 'Salvando...' : editingConnectionId ? 'Salvar ajustes' : 'Registrar conexao'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
