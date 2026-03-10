@@ -226,6 +226,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
   const brandName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM';
   const isAdmin = profile?.role === 'admin';
+  const isPlatformRoute = pathname.startsWith('/platform');
+  const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Clinica atual';
 
   if (!loading && !user) return null;
 
@@ -454,7 +456,42 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Header */}
-          <header className="h-16 glass border-b border-[var(--color-border-subtle)] flex items-center justify-end px-6 z-40 shrink-0" role="banner">
+          <header className="h-16 glass border-b border-[var(--color-border-subtle)] flex items-center justify-between px-6 z-40 shrink-0" role="banner">
+            <div className="min-w-0">
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    {isPlatformRoute ? 'Modo Plataforma' : 'Workspace da Clinica'}
+                  </div>
+
+                  {!isPlatformRoute ? (
+                    <>
+                      <div className="hidden text-sm font-medium text-slate-700 md:block dark:text-slate-200">
+                        {currentClinicName}
+                      </div>
+                      <Link
+                        href="/platform/tenants"
+                        className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 md:inline-flex dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                      >
+                        Trocar clinica
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href="/platform/tenants/new"
+                      className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 md:inline-flex dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                    >
+                      Nova clinica
+                    </Link>
+                  )}
+                </div>
+              ) : tenant ? (
+                <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  {currentClinicName}
+                </div>
+              ) : null}
+            </div>
+
             <div className="flex items-center gap-4">
               <button
                 type="button"
