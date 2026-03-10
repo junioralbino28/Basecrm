@@ -4,6 +4,13 @@ export type EvolutionConnectionState = {
   stateLabel: string;
 };
 
+export type EvolutionPairingCode = {
+  raw: unknown;
+  pairingCode: string | null;
+  code: string | null;
+  count: number | null;
+};
+
 function normalizeState(value: unknown) {
   return String(value || '').trim().toLowerCase();
 }
@@ -71,5 +78,52 @@ export async function fetchEvolutionConnectionState(params: {
     raw: payload,
     normalizedStatus: normalized ? 'error' : 'disconnected',
     stateLabel: String(candidate || 'unknown'),
+  };
+}
+
+export async function fetchEvolutionPairingCode(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+  number?: string;
+}): Promise<EvolutionPairingCode> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const url = new URL(`${baseUrl}/instance/connect/${encodeURIComponent(params.instanceName)}`);
+
+  if (params.number) {
+    url.searchParams.set('number', params.number);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+    },
+    cache: 'no-store',
+  });
+
+  const rawText = await response.text();
+  let payload: unknown = rawText;
+
+  try {
+    payload = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    payload = rawText;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      typeof payload === 'string'
+        ? payload || `Evolution respondeu HTTP ${response.status}`
+        : `Evolution respondeu HTTP ${response.status}`
+    );
+  }
+
+  return {
+    raw: payload,
+    pairingCode: typeof (payload as any)?.pairingCode === 'string' ? (payload as any).pairingCode : null,
+    code: typeof (payload as any)?.code === 'string' ? (payload as any).code : null,
+    count: typeof (payload as any)?.count === 'number' ? (payload as any).count : null,
   };
 }

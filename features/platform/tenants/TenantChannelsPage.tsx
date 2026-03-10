@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 const FIELD_CLASS =
@@ -48,6 +48,7 @@ export const TenantChannelsPage: React.FC = () => {
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
   const [saving, setSaving] = React.useState(false);
   const [checkingConnectionId, setCheckingConnectionId] = React.useState<string | null>(null);
+  const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
 
@@ -132,6 +133,34 @@ export const TenantChannelsPage: React.FC = () => {
     }
   }
 
+  async function requestPairing(connectionId: string) {
+    setPairingConnectionId(connectionId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/connect`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json',
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao gerar pareamento (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage(`Pareamento solicitado${data?.pairing?.pairingCode ? `: ${data.pairing.pairingCode}` : '.'}`);
+      await reload();
+    } catch (pairingError) {
+      setMessageKind('error');
+      setMessage(pairingError instanceof Error ? pairingError.message : 'Falha ao gerar pareamento.');
+      await reload();
+    } finally {
+      setPairingConnectionId(null);
+    }
+  }
+
   return (
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
@@ -194,15 +223,27 @@ export const TenantChannelsPage: React.FC = () => {
                     </div>
 
                     <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => void runHealthcheck(connection.id)}
-                        disabled={checkingConnectionId === connection.id}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
-                      >
-                        <Activity size={14} />
-                        {checkingConnectionId === connection.id ? 'Testando...' : 'Testar conexao'}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void runHealthcheck(connection.id)}
+                          disabled={checkingConnectionId === connection.id}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                        >
+                          <Activity size={14} />
+                          {checkingConnectionId === connection.id ? 'Testando...' : 'Testar conexao'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void requestPairing(connection.id)}
+                          disabled={pairingConnectionId === connection.id}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                        >
+                          <QrCode size={14} />
+                          {pairingConnectionId === connection.id ? 'Gerando...' : 'Gerar pareamento'}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
@@ -232,6 +273,20 @@ export const TenantChannelsPage: React.FC = () => {
                         <span className="font-medium text-slate-900 dark:text-white">Chave:</span>{' '}
                         {connection.metadata?.apiKeyLast4 ? `••••${String(connection.metadata.apiKeyLast4)}` : '-'}
                       </div>
+                      <div>
+                        <span className="font-medium text-slate-900 dark:text-white">Estado retornado:</span>{' '}
+                        {String(connection.metadata?.lastHealthcheckState || connection.metadata?.lastHealthcheckError || '-')}
+                      </div>
+                      <div>
+                        <span className="font-medium text-slate-900 dark:text-white">Pareamento:</span>{' '}
+                        {String(connection.metadata?.lastPairingCode || connection.metadata?.lastPairingError || '-')}
+                      </div>
+                      {typeof connection.metadata?.lastPairingRequestedAt === 'string' ? (
+                        <div className="md:col-span-2">
+                          <span className="font-medium text-slate-900 dark:text-white">Ultima solicitacao:</span>{' '}
+                          {new Date(String(connection.metadata.lastPairingRequestedAt)).toLocaleString('pt-BR')}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))
