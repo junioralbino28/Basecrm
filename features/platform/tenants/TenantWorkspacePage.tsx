@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Globe, Palette, Sparkles } from 'lucide-react';
+import { ArrowLeft, Globe, Palette, Radio, Sparkles } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 export const TenantWorkspacePage: React.FC = () => {
@@ -10,7 +10,10 @@ export const TenantWorkspacePage: React.FC = () => {
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-2">
-          <Link href="/platform/tenants" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
+          <Link
+            href="/platform/tenants"
+            className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+          >
             <ArrowLeft size={16} />
             Voltar para tenants
           </Link>
@@ -31,21 +34,44 @@ export const TenantWorkspacePage: React.FC = () => {
 
       {tenant ? (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Link href={`/platform/tenants/${tenant.id}/branding`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Link
+              href={`/platform/tenants/${tenant.id}/branding`}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+            >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Palette size={16} />
                 Branding
               </div>
-              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">Editar nome exibido, cor principal e tema.</div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Editar nome exibido, cor principal e tema.
+              </div>
             </Link>
 
-            <Link href={`/platform/tenants/${tenant.id}/domains`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+            <Link
+              href={`/platform/tenants/${tenant.id}/domains`}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+            >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Globe size={16} />
                 Dominios
               </div>
-              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">Gerenciar subdominio e hosts do tenant.</div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Gerenciar subdominio e hosts do tenant.
+              </div>
+            </Link>
+
+            <Link
+              href={`/platform/tenants/${tenant.id}/channels`}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                <Radio size={16} />
+                Canais
+              </div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Registrar WhatsApp, Evolution e saude operacional do tenant.
+              </div>
             </Link>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -59,31 +85,60 @@ export const TenantWorkspacePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
               <div className="text-sm font-semibold text-slate-900 dark:text-white">Metadados do tenant</div>
               <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
-                <div><span className="font-medium text-slate-900 dark:text-white">Especialidade:</span> {String(tenant.metadata?.specialty || '-')}</div>
-                <div><span className="font-medium text-slate-900 dark:text-white">Canal principal:</span> {String(tenant.metadata?.leadChannel || '-')}</div>
-                <div><span className="font-medium text-slate-900 dark:text-white">Modelo de atendimento:</span> {String(tenant.metadata?.serviceModel || '-')}</div>
+                <div>
+                  <span className="font-medium text-slate-900 dark:text-white">Especialidade:</span>{' '}
+                  {String(tenant.metadata?.specialty || '-')}
+                </div>
+                <div>
+                  <span className="font-medium text-slate-900 dark:text-white">Canal principal:</span>{' '}
+                  {String(tenant.metadata?.leadChannel || '-')}
+                </div>
+                <div>
+                  <span className="font-medium text-slate-900 dark:text-white">Modelo de atendimento:</span>{' '}
+                  {String(tenant.metadata?.serviceModel || '-')}
+                </div>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Hosts cadastrados</div>
-              <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                {tenant.domains.length === 0 ? (
-                  <div>Nenhum dominio cadastrado.</div>
-                ) : (
-                  tenant.domains.map((domain) => (
-                    <div key={domain.id} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
-                      <div className="font-medium text-slate-900 dark:text-white">{domain.host}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {domain.is_primary ? 'primario' : 'secundario'} • {domain.status}
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Hosts cadastrados</div>
+                <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                  {tenant.domains.length === 0 ? (
+                    <div>Nenhum dominio cadastrado.</div>
+                  ) : (
+                    tenant.domains.map((domain) => (
+                      <div key={domain.id} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
+                        <div className="font-medium text-slate-900 dark:text-white">{domain.host}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {domain.is_primary ? 'primario' : 'secundario'} • {domain.status}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Canais registrados</div>
+                <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                  {tenant.channel_connections.length === 0 ? (
+                    <div>Nenhuma conexao ainda.</div>
+                  ) : (
+                    tenant.channel_connections.slice(0, 3).map((connection) => (
+                      <div key={connection.id} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
+                        <div className="font-medium text-slate-900 dark:text-white">{connection.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {connection.provider} • {connection.status}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -42,6 +42,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       created_at,
       organization_editions(edition_key, branding_config, enabled_modules, metadata),
       organization_domains(id, host, is_primary, status, created_at),
+      channel_connections(id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at),
       provisioning_runs(id, status, input_payload, result_payload, created_at)
     `)
     .eq('id', tenantId)
@@ -65,6 +66,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       enabled_modules: edition?.enabled_modules || [],
       metadata: edition?.metadata || {},
       domains: (data as any).organization_domains || [],
+      channel_connections: (data as any).channel_connections || [],
       provisioning_runs: (data as any).provisioning_runs || [],
     },
   });

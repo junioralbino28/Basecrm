@@ -21,6 +21,18 @@ export type TenantDetail = {
     status: string;
     created_at: string;
   }>;
+  channel_connections: Array<{
+    id: string;
+    provider: 'evolution';
+    channel_type: 'whatsapp';
+    name: string;
+    status: 'pending' | 'connected' | 'disconnected' | 'error';
+    config?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    last_healthcheck_at: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
   provisioning_runs: Array<{
     id: string;
     status: string;
