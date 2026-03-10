@@ -43,6 +43,70 @@ const STATUS_LABELS: Record<ChannelFormState['status'], string> = {
   error: 'Erro',
 };
 
+function collectPairingCandidates(value: unknown, acc: string[] = []): string[] {
+  if (!value) return acc;
+
+  if (typeof value === 'string') {
+    acc.push(value);
+    return acc;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectPairingCandidates(item, acc);
+    return acc;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value)) {
+      const lower = key.toLowerCase();
+      if (
+        lower.includes('qr') ||
+        lower.includes('base64') ||
+        lower.includes('code') ||
+        lower.includes('pairing')
+      ) {
+        collectPairingCandidates(nested, acc);
+      } else if (typeof nested === 'object') {
+        collectPairingCandidates(nested, acc);
+      }
+    }
+  }
+
+  return acc;
+}
+
+function extractPairingDisplay(metadata?: Record<string, unknown>) {
+  const payload = metadata?.lastPairingPayload;
+  const values = collectPairingCandidates(payload);
+  const firstImageLike = values.find((value) => {
+    const trimmed = value.trim();
+    return (
+      trimmed.startsWith('data:image') ||
+      trimmed.startsWith('/9j/') ||
+      trimmed.startsWith('iVBOR') ||
+      trimmed.startsWith('PHN2Zy')
+    );
+  });
+
+  const imageSrc = firstImageLike
+    ? firstImageLike.startsWith('data:image')
+      ? firstImageLike
+      : firstImageLike.startsWith('PHN2Zy')
+        ? `data:image/svg+xml;base64,${firstImageLike}`
+        : `data:image/png;base64,${firstImageLike}`
+    : null;
+
+  const pairingCode =
+    typeof metadata?.lastPairingCode === 'string' && metadata.lastPairingCode.trim()
+      ? metadata.lastPairingCode.trim()
+      : values.find((value) => value.trim().length > 4 && value.trim().length < 40) || null;
+
+  return {
+    imageSrc,
+    pairingCode,
+  };
+}
+
 export const TenantChannelsPage: React.FC = () => {
   const { tenantId, tenant, loading, error, reload } = useTenantDetail();
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
@@ -55,6 +119,17 @@ export const TenantChannelsPage: React.FC = () => {
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  async function copyText(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessageKind('success');
+      setMessage(`${label} copiado.`);
+    } catch {
+      setMessageKind('error');
+      setMessage(`Nao foi possivel copiar ${label.toLowerCase()}.`);
+    }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -209,6 +284,11 @@ export const TenantChannelsPage: React.FC = () => {
                     key={connection.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
                   >
+                    {(() => {
+                      const pairingDisplay = extractPairingDisplay(connection.metadata);
+
+                      return (
+                        <>
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900 dark:text-white">{connection.name}</div>
@@ -288,6 +368,54 @@ export const TenantChannelsPage: React.FC = () => {
                         </div>
                       ) : null}
                     </div>
+
+                    {pairingDisplay.imageSrc || pairingDisplay.pairingCode ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Pareamento visual</div>
+                          {pairingDisplay.pairingCode ? (
+                            <button
+                              type="button"
+                              onClick={() => void copyText('Codigo de pareamento', pairingDisplay.pairingCode!)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                            >
+                              Copiar codigo
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-3 grid gap-4 md:grid-cols-[180px_1fr]">
+                          <div className="flex min-h-44 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                            {pairingDisplay.imageSrc ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={pairingDisplay.imageSrc}
+                                alt="Pareamento Evolution"
+                                className="max-h-40 max-w-full rounded-lg object-contain"
+                              />
+                            ) : (
+                              <div className="text-center text-xs text-slate-500 dark:text-slate-400">
+                                QR visual nao retornado pela Evolution.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                            <div>
+                              <span className="font-medium text-slate-900 dark:text-white">Codigo:</span>{' '}
+                              {pairingDisplay.pairingCode || '-'}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-900 dark:text-white">Orientacao:</span>{' '}
+                              abra o WhatsApp do numero da clinica e use este pareamento para concluir a conexao.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                        </>
+                      );
+                    })()}
                   </div>
                 ))
               )}
