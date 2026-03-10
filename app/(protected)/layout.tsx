@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/context/ThemeContext'
 import { AuthProvider } from '@/context/AuthContext'
 import { CRMProvider } from '@/context/CRMContext'
 import { AIProvider } from '@/context/AIContext'
+import { TenantProvider } from '@/context/TenantContext'
 import Layout from '@/components/Layout'
 
 /**
@@ -75,11 +76,13 @@ export default function ProtectedLayout({
             <ToastProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <CRMProvider>
-                            <AIProvider>
-                                {shouldUseAppShell ? <Layout>{children}</Layout> : children}
-                            </AIProvider>
-                        </CRMProvider>
+                        <TenantProvider>
+                            <CRMProvider>
+                                <AIProvider>
+                                    {shouldUseAppShell ? <Layout>{children}</Layout> : children}
+                                </AIProvider>
+                            </CRMProvider>
+                        </TenantProvider>
                     </AuthProvider>
                 </ThemeProvider>
             </ToastProvider>

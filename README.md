@@ -77,6 +77,13 @@
 - **API**: Integre com seus sistemas existentes
 - **Importação**: Traga dados de planilhas
 
+## 🧭 Roadmaps Internos
+
+Documentos de arquitetura e evolução da linha de produto:
+
+- [Blueprint do CRM Clínica](./docs/clinic-platform-blueprint.md)
+- [Backlog técnico do CRM Clínica](./docs/clinic-implementation-backlog.md)
+
 ---
 
 ## 🚀 Instalação Rápida
