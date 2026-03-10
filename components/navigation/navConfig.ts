@@ -9,6 +9,8 @@ import {
   BarChart3,
   Settings,
   User,
+  Building2,
+  PlusSquare,
 } from 'lucide-react';
 
 export type PrimaryNavId = 'inbox' | 'boards' | 'contacts' | 'activities' | 'more';
@@ -16,7 +18,6 @@ export type PrimaryNavId = 'inbox' | 'boards' | 'contacts' | 'activities' | 'mor
 export interface PrimaryNavItem {
   id: PrimaryNavId;
   label: string;
-  /** Route to navigate. For "more", this is omitted because it opens a menu/sheet. */
   href?: string;
   icon: ComponentType<{ className?: string }>;
 }
@@ -29,7 +30,14 @@ export const PRIMARY_NAV: PrimaryNavItem[] = [
   { id: 'more', label: 'Mais', icon: MoreHorizontal },
 ];
 
-export type SecondaryNavId = 'dashboard' | 'reports' | 'settings' | 'profile';
+export type SecondaryNavId =
+  | 'dashboard'
+  | 'reports'
+  | 'settings'
+  | 'profile'
+  | 'platform'
+  | 'platform_tenants'
+  | 'platform_new_tenant';
 
 export interface SecondaryNavItem {
   id: SecondaryNavId;
@@ -38,10 +46,20 @@ export interface SecondaryNavItem {
   icon: ComponentType<{ className?: string }>;
 }
 
-/** Mirrors non-primary destinations available in the desktop sidebar/user menu. */
 export const SECONDARY_NAV: SecondaryNavItem[] = [
-  { id: 'dashboard', label: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
-  { id: 'reports', label: 'Relatórios', href: '/reports', icon: BarChart3 },
-  { id: 'settings', label: 'Configurações', href: '/settings', icon: Settings },
+  { id: 'dashboard', label: 'Visao Geral', href: '/dashboard', icon: LayoutDashboard },
+  { id: 'reports', label: 'Relatorios', href: '/reports', icon: BarChart3 },
+  { id: 'settings', label: 'Configuracoes', href: '/settings', icon: Settings },
   { id: 'profile', label: 'Perfil', href: '/profile', icon: User },
 ];
+
+export function getSecondaryNav(isAdmin: boolean): SecondaryNavItem[] {
+  if (!isAdmin) return SECONDARY_NAV;
+
+  return [
+    { id: 'platform', label: 'Platform Admin', href: '/platform', icon: Building2 },
+    { id: 'platform_tenants', label: 'Clinicas', href: '/platform/tenants', icon: Building2 },
+    { id: 'platform_new_tenant', label: 'Nova Clinica', href: '/platform/tenants/new', icon: PlusSquare },
+    ...SECONDARY_NAV,
+  ];
+}

@@ -1,16 +1,18 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils/cn';
-import { PRIMARY_NAV, SECONDARY_NAV } from './navConfig';
+import { PRIMARY_NAV, getSecondaryNav } from './navConfig';
 
 export interface NavigationRailProps {
-  /** Optional: used only if we want to keep "More" as a sheet trigger (mobile-like). */
   onOpenMore?: () => void;
 }
 
-export function NavigationRail({ onOpenMore }: NavigationRailProps) {
+export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps) {
   const pathname = usePathname();
+  const { profile } = useAuth();
+  const secondaryNav = getSecondaryNav(profile?.role === 'admin');
 
   const isHrefActive = (href: string) =>
     pathname === href ||
@@ -19,7 +21,7 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
 
   return (
     <nav
-      aria-label="Navegação principal (tablet)"
+      aria-label="Navegacao principal (tablet)"
       className={cn(
         'flex',
         'flex-col justify-between',
@@ -35,7 +37,7 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
 
       <div className="flex-1 px-3 py-2 overflow-y-auto scrollbar-custom">
         <div className="space-y-2">
-          {PRIMARY_NAV.filter((i) => i.id !== 'more').map((item) => {
+          {PRIMARY_NAV.filter((item) => item.id !== 'more').map((item) => {
             const Icon = item.icon;
             const isActive = item.href ? isHrefActive(item.href) : false;
 
@@ -62,7 +64,7 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
         <div className="my-3 h-px bg-slate-200/60 dark:bg-white/10" />
 
         <div className="space-y-2">
-          {SECONDARY_NAV.map((item) => {
+          {secondaryNav.map((item) => {
             const Icon = item.icon;
             const isActive = isHrefActive(item.href);
             return (
@@ -90,4 +92,3 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
     </nav>
   );
 }
-

@@ -43,7 +43,10 @@ import {
   Bug,
   CheckSquare,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Building2,
+  PlusSquare,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
 import { useAuth } from '../context/AuthContext';
@@ -222,6 +225,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Gera iniciais do email
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
   const brandName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM';
+  const isAdmin = profile?.role === 'admin';
 
   if (!loading && !user) return null;
 
@@ -271,6 +275,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
             { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
             { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
+            ...(isAdmin
+              ? [
+                  { to: '/platform', icon: Building2, label: 'Platform Admin', prefetch: 'dashboard' as const },
+                  { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
+                  { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
+                ]
+              : []),
           ].map((item) => {
             if (sidebarCollapsed) {
               return (
@@ -384,6 +395,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   className={`absolute bottom-full mb-2 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-150 ${sidebarCollapsed ? 'left-0 w-48' : 'left-0 right-0'}`}
                 >
                   <div className="p-1">
+                    {isAdmin ? (
+                      <>
+                        <Link
+                          href="/platform"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          <Building2 className="w-4 h-4 text-slate-400" />
+                          Platform Admin
+                        </Link>
+                        <Link
+                          href="/platform/tenants/new"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          <PlusSquare className="w-4 h-4 text-slate-400" />
+                          Nova Clinica
+                        </Link>
+                        <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
+                      </>
+                    ) : null}
                     <Link
                       href="/profile"
                       onClick={() => setIsUserMenuOpen(false)}
