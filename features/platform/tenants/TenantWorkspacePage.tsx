@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Globe, Palette, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, Globe, Palette, MessageCircle, MessagesSquare, Sparkles } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 export const TenantWorkspacePage: React.FC = () => {
@@ -34,7 +34,7 @@ export const TenantWorkspacePage: React.FC = () => {
 
       {tenant ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <Link
               href={`/platform/tenants/${tenant.id}/branding`}
               className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
@@ -71,6 +71,19 @@ export const TenantWorkspacePage: React.FC = () => {
               </div>
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                 Conectar numero, validar Evolution e operar o pareamento da clinica.
+              </div>
+            </Link>
+
+            <Link
+              href={`/platform/tenants/${tenant.id}/conversations`}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                <MessagesSquare size={16} />
+                Conversations
+              </div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Registrar threads, mensagens e handoff operacional da clinica.
               </div>
             </Link>
 

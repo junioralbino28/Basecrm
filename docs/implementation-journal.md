@@ -268,3 +268,35 @@ Pendencias:
 
 - fluxo mais profundo de reconexao guiada
 - inbox de conversas
+
+## 2026-03-10 - Base de Conversations
+
+Objetivo:
+
+- iniciar a camada de conversas por clinica para suportar WhatsApp, handoff e historico operacional
+
+Entregas:
+
+- tabelas `conversation_threads` e `conversation_messages`
+- APIs para listar/criar conversas
+- APIs para listar/criar mensagens
+- tela inicial de `Conversations` por clinica
+
+Arquivos principais:
+
+- `supabase/migrations/20260310020000_platform_conversations.sql`
+- `app/api/platform/tenants/[tenantId]/conversations/route.ts`
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts`
+- `app/(protected)/platform/tenants/[tenantId]/conversations/page.tsx`
+- `features/platform/tenants/TenantConversationsPage.tsx`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- sincronizacao real com mensagens da Evolution
+- vinculo automatico com contato/deal
+- inbox operacional completo

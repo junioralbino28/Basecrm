@@ -35,6 +35,8 @@ Rotas ja entregues:
 - `/platform/tenants/[tenantId]/branding`
 - `/platform/tenants/[tenantId]/domains`
 - `/platform/tenants/[tenantId]/channels`
+- `/platform/tenants/[tenantId]/whatsapp`
+- `/platform/tenants/[tenantId]/conversations`
 
 ## APIs internas
 
@@ -48,6 +50,9 @@ Rotas internas ja entregues:
 - `PATCH /api/platform/tenants/[tenantId]/channels/[connectionId]`
 - `POST /api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck`
 - `POST /api/platform/tenants/[tenantId]/channels/[connectionId]/connect`
+- `POST /api/platform/tenants/[tenantId]/channels/[connectionId]/disconnect`
+- `GET/POST /api/platform/tenants/[tenantId]/conversations`
+- `GET/POST /api/platform/tenants/[tenantId]/conversations/[threadId]/messages`
 - `GET /api/platform/tenant/current`
 
 ## Migrations obrigatorias
@@ -63,6 +68,8 @@ Essas migrations criam:
 - `organization_domains`
 - `provisioning_runs`
 - `channel_connections`
+- `conversation_threads`
+- `conversation_messages`
 
 ## Dependencias externas
 
