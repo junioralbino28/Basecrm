@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 const FIELD_CLASS =
@@ -16,6 +16,7 @@ type ChannelFormState = {
   apiUrl: string;
   instanceName: string;
   webhookUrl: string;
+  apiKey: string;
   phoneNumber: string;
   apiKeyLast4: string;
   notes: string;
@@ -29,6 +30,7 @@ const INITIAL_FORM: ChannelFormState = {
   apiUrl: '',
   instanceName: '',
   webhookUrl: '',
+  apiKey: '',
   phoneNumber: '',
   apiKeyLast4: '',
   notes: '',
@@ -45,6 +47,7 @@ export const TenantChannelsPage: React.FC = () => {
   const { tenantId, tenant, loading, error, reload } = useTenantDetail();
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
   const [saving, setSaving] = React.useState(false);
+  const [checkingConnectionId, setCheckingConnectionId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
 
@@ -76,6 +79,7 @@ export const TenantChannelsPage: React.FC = () => {
             apiUrl: form.apiUrl,
             instanceName: form.instanceName,
             webhookUrl: form.webhookUrl,
+            apiKey: form.apiKey,
           },
           metadata: {
             phoneNumber: form.phoneNumber,
@@ -97,6 +101,34 @@ export const TenantChannelsPage: React.FC = () => {
       setMessage(submitError instanceof Error ? submitError.message : 'Falha ao registrar conexao.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runHealthcheck(connectionId: string) {
+    setCheckingConnectionId(connectionId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/healthcheck`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json',
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha no healthcheck (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage(`Healthcheck concluido: ${data?.healthcheck?.state || 'sem estado retornado'}.`);
+      await reload();
+    } catch (healthcheckError) {
+      setMessageKind('error');
+      setMessage(healthcheckError instanceof Error ? healthcheckError.message : 'Falha ao testar conexao.');
+      await reload();
+    } finally {
+      setCheckingConnectionId(null);
     }
   }
 
@@ -159,6 +191,18 @@ export const TenantChannelsPage: React.FC = () => {
                       <div className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white dark:bg-cyan-500/20 dark:text-cyan-200">
                         {STATUS_LABELS[connection.status]}
                       </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => void runHealthcheck(connection.id)}
+                        disabled={checkingConnectionId === connection.id}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                      >
+                        <Activity size={14} />
+                        {checkingConnectionId === connection.id ? 'Testando...' : 'Testar conexao'}
+                      </button>
                     </div>
 
                     <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
@@ -254,6 +298,17 @@ export const TenantChannelsPage: React.FC = () => {
                   <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                   <input className={`${FIELD_CLASS} pl-9`} value={form.webhookUrl} onChange={(e) => onChange('webhookUrl', e.target.value)} placeholder="https://n8n.seudominio.com/webhook/..." />
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">API key da Evolution</label>
+                <input
+                  type="password"
+                  className={FIELD_CLASS}
+                  value={form.apiKey}
+                  onChange={(e) => onChange('apiKey', e.target.value)}
+                  placeholder="Cole a API key completa para habilitar o healthcheck"
+                />
               </div>
 
               <div>

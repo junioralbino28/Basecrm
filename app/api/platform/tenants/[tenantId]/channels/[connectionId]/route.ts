@@ -16,6 +16,7 @@ const ChannelUpdateSchema = z.object({
     apiUrl: z.string().url().optional().or(z.literal('')),
     instanceName: z.string().max(120).optional(),
     webhookUrl: z.string().url().optional().or(z.literal('')),
+    apiKey: z.string().max(300).optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -58,7 +59,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
 
   const admin = createStaticAdminClient();
   const current = await admin
-    .from('channel_connections')
+      .from('channel_connections')
     .select('id, config, metadata')
     .eq('id', connectionId)
     .eq('organization_id', tenantId)
@@ -73,6 +74,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         apiUrl: parsed.data.config.apiUrl?.trim() || undefined,
         instanceName: parsed.data.config.instanceName?.trim() || undefined,
         webhookUrl: parsed.data.config.webhookUrl?.trim() || undefined,
+        apiKey: parsed.data.config.apiKey?.trim() || (current.data.config as any)?.apiKey || undefined,
       }
     : current.data.config;
 
@@ -80,7 +82,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
     ? {
         ...(current.data.metadata || {}),
         phoneNumber: parsed.data.metadata.phoneNumber?.trim() || undefined,
-        apiKeyLast4: parsed.data.metadata.apiKeyLast4?.trim() || undefined,
+        apiKeyLast4:
+          (parsed.data.config?.apiKey?.trim() || '').slice(-4) ||
+          parsed.data.metadata.apiKeyLast4?.trim() ||
+          (current.data.metadata as any)?.apiKeyLast4 ||
+          undefined,
         notes: parsed.data.metadata.notes?.trim() || undefined,
       }
     : current.data.metadata;

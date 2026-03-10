@@ -18,6 +18,7 @@ const ChannelSchema = z.object({
     apiUrl: z.string().url().optional().or(z.literal('')),
     instanceName: z.string().max(120).optional(),
     webhookUrl: z.string().url().optional().or(z.literal('')),
+    apiKey: z.string().max(300).optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -78,10 +79,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     apiUrl: parsed.data.config?.apiUrl?.trim() || undefined,
     instanceName: parsed.data.config?.instanceName?.trim() || undefined,
     webhookUrl: parsed.data.config?.webhookUrl?.trim() || undefined,
+    apiKey: parsed.data.config?.apiKey?.trim() || undefined,
   };
   const metadata = {
     phoneNumber: parsed.data.metadata?.phoneNumber?.trim() || undefined,
-    apiKeyLast4: parsed.data.metadata?.apiKeyLast4?.trim() || undefined,
+    apiKeyLast4:
+      (parsed.data.config?.apiKey?.trim() || '').slice(-4) ||
+      parsed.data.metadata?.apiKeyLast4?.trim() ||
+      undefined,
     notes: parsed.data.metadata?.notes?.trim() || undefined,
   };
 
