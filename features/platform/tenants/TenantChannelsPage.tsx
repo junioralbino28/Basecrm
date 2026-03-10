@@ -89,7 +89,7 @@ export const TenantChannelsPage: React.FC = () => {
       if (!res.ok) throw new Error(data?.error || `Falha ao salvar conexao (HTTP ${res.status})`);
 
       setMessageKind('success');
-      setMessage('Conexao registrada no tenant.');
+      setMessage('Conexao registrada na clinica.');
       setForm(INITIAL_FORM);
       await reload();
     } catch (submitError) {
@@ -109,11 +109,11 @@ export const TenantChannelsPage: React.FC = () => {
             className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           >
             <ArrowLeft size={16} />
-            Voltar para tenant
+            Voltar para clinica
           </Link>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Canais e conexoes</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Registry interno de conexoes WhatsApp do tenant, com foco inicial em Evolution.
+            Registro interno de conexoes WhatsApp da clinica, com foco inicial em Evolution.
           </p>
         </div>
 

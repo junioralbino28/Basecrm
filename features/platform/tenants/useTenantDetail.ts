@@ -60,10 +60,10 @@ export function useTenantDetail() {
         headers: { accept: 'application/json' },
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao carregar tenant (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinica (HTTP ${res.status})`);
       setTenant(data?.tenant || null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar tenant.');
+      setError(e instanceof Error ? e.message : 'Falha ao carregar clinica.');
     } finally {
       setLoading(false);
     }

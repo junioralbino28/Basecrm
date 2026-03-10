@@ -40,12 +40,12 @@ export const TenantsPage: React.FC = () => {
           headers: { accept: 'application/json' },
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.error || `Falha ao carregar tenants (HTTP ${res.status})`);
+        if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinicas (HTTP ${res.status})`);
         if (!active) return;
         setTenants(data?.tenants || []);
       } catch (e) {
         if (!active) return;
-        setError(e instanceof Error ? e.message : 'Falha ao carregar tenants.');
+        setError(e instanceof Error ? e.message : 'Falha ao carregar clinicas.');
       } finally {
         if (active) setLoading(false);
       }
@@ -61,7 +61,7 @@ export const TenantsPage: React.FC = () => {
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Tenants</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Clinicas</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Clinicas e ultimos runs de provisionamento.
           </p>
@@ -78,19 +78,19 @@ export const TenantsPage: React.FC = () => {
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="grid grid-cols-[1.8fr_0.8fr_1fr_1fr] gap-4 border-b border-slate-200 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:border-white/10 dark:text-slate-400">
-          <div>Tenant</div>
-          <div>Edition</div>
+          <div>Clinica</div>
+          <div>Edicao</div>
           <div>Ultimo status</div>
-          <div>Board inicial</div>
+          <div>Funil inicial</div>
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">Carregando tenants...</div>
+          <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">Carregando clinicas...</div>
         ) : error ? (
           <div className="px-6 py-12 text-sm text-rose-600 dark:text-rose-300">{error}</div>
         ) : tenants.length === 0 ? (
           <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">
-            Nenhum tenant provisionado ainda.
+            Nenhuma clinica provisionada ainda.
           </div>
         ) : (
           tenants.map((tenant) => (

@@ -35,7 +35,7 @@ export const TenantProvisioningWizard: React.FC<TenantProvisioningWizardProps> =
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Nova Clinica</h1>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Briefing minimo para criar a organization e gerar o board inicial da entrega.
+            Briefing minimo para criar a conta da clinica e gerar o funil inicial da entrega.
           </p>
         </div>
 
@@ -102,11 +102,11 @@ export const TenantProvisioningWizard: React.FC<TenantProvisioningWizardProps> =
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
         <div className="text-sm font-semibold text-slate-900 dark:text-white">O que esta entrega faz agora</div>
         <ul className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
-          <li>Cria a `organization` do tenant.</li>
+          <li>Cria a `organization` da clinica.</li>
           <li>Registra a edition `clinic` com branding base e modulos iniciais.</li>
           <li>Abre um `provisioning_run` auditavel.</li>
-          <li>Gera o board inicial usando a IA do operador atual, com fallback seguro.</li>
-          <li>Persiste o board e suas stages no tenant novo.</li>
+          <li>Gera o funil inicial usando a IA do operador atual, com fallback seguro.</li>
+          <li>Persiste o board e suas stages na nova conta.</li>
         </ul>
       </div>
     </div>
