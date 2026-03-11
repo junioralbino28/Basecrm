@@ -5,18 +5,38 @@ import { APP_PERMISSIONS, type AppPermission, type PermissionOverrideMap } from 
 
 export async function loadPermissionOverrides(userId: string): Promise<PermissionOverrideMap> {
   const admin = createStaticAdminClient();
-  const { data, error } = await admin
-    .from('profile_permissions')
-    .select('permission_key, enabled')
-    .eq('user_id', userId);
+  try {
+    const { data, error } = await admin
+      .from('profile_permissions')
+      .select('permission_key, enabled')
+      .eq('user_id', userId);
 
-  if (error) throw new Error(error.message);
+    if (error) {
+      const message = String(error.message || '');
+      const code = String((error as { code?: string } | null)?.code || '');
+      const shouldFallback =
+        code === '42P01' ||
+        message.toLowerCase().includes('profile_permissions') ||
+        message.toLowerCase().includes('does not exist') ||
+        message.toLowerCase().includes('permission denied');
 
-  return (data ?? []).reduce<PermissionOverrideMap>((acc, row) => {
-    const key = row.permission_key as AppPermission;
-    if (APP_PERMISSIONS.includes(key)) {
-      acc[key] = row.enabled;
+      if (shouldFallback) {
+        return {};
+      }
+
+      throw new Error(error.message);
     }
-    return acc;
-  }, {});
+
+    return (data ?? []).reduce<PermissionOverrideMap>((acc, row) => {
+      const key = row.permission_key as AppPermission;
+      if (APP_PERMISSIONS.includes(key)) {
+        acc[key] = row.enabled;
+      }
+      return acc;
+    }, {});
+  } catch {
+    // Permissions overrides are optional. Fallback to role defaults instead of
+    // breaking tenant-scoped pages when the overrides table is unavailable.
+    return {};
+  }
 }

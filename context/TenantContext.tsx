@@ -29,6 +29,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [tenant, setTenant] = useState<TenantState | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const routeMatch = pathname.match(/^\/platform\/tenants\/([^/]+)(?:\/|$)/);
+  const routeTenantId = routeMatch?.[1] ?? null;
 
   const loadTenant = async () => {
     try {
@@ -55,9 +57,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   useEffect(() => {
-    const routeMatch = pathname.match(/^\/platform\/tenants\/([^/]+)(?:\/|$)/);
-    const routeTenantId = routeMatch?.[1] ?? null;
-
     if (!routeTenantId || routeTenantId === tenant?.organizationId) return;
 
     let active = true;
@@ -86,7 +85,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       active = false;
     };
-  }, [pathname, tenant?.organizationId]);
+  }, [routeTenantId, tenant?.organizationId]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -102,13 +101,27 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     document.title = tenant.brandingConfig.displayName;
   }, [tenant?.brandingConfig?.displayName]);
 
+  const effectiveTenant = useMemo<TenantState | null>(() => {
+    if (!routeTenantId) return tenant;
+    if (tenant?.organizationId === routeTenantId) return tenant;
+
+    return {
+      organizationId: routeTenantId,
+      organizationName: tenant?.organizationName || 'Clinica ativa',
+      editionKey: tenant?.editionKey || null,
+      brandingConfig: tenant?.brandingConfig || {},
+      enabledModules: tenant?.enabledModules || [],
+      source: 'selected',
+    };
+  }, [routeTenantId, tenant]);
+
   const value = useMemo<TenantContextValue>(
     () => ({
-      tenant,
+      tenant: effectiveTenant,
       loading,
       refreshTenant: loadTenant,
     }),
-    [tenant, loading]
+    [effectiveTenant, loading]
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
