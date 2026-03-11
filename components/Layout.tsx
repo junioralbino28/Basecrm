@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @fileoverview Layout Principal da Aplicação
  *
  * Componente de layout que fornece estrutura base para todas as páginas,
@@ -57,6 +57,11 @@ import { isDebugMode, enableDebugMode, disableDebugMode } from '@/lib/debug';
 import { SkipLink } from '@/lib/a11y';
 import { useResponsiveMode } from '@/hooks/useResponsiveMode';
 import { BottomNav, MoreMenuSheet, NavigationRail } from '@/components/navigation';
+import { usePlatformTenantWorkspaceNav } from '@/components/navigation/usePlatformTenantWorkspaceNav';
+import { useTenantScopedHrefBuilder } from '@/components/navigation/useTenantScopedHref';
+import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
+import { getRoleLabel, isAgencyAdminRole } from '@/lib/auth/scope';
+import { isTenantWorkspacePath } from '@/lib/tenancy/workspaceRoutes';
 
 // Lazy load AI Assistant (deprecated - using UIChat now)
 // const AIAssistant = lazy(() => import('./AIAssistant'));
@@ -224,10 +229,51 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Gera iniciais do email
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
-  const brandName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM';
-  const isAdmin = profile?.role === 'admin';
+  const getScopedHref = useTenantScopedHrefBuilder();
+  const isAdmin = isAgencyAdminRole(profile?.role);
   const isPlatformRoute = pathname.startsWith('/platform');
-  const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Clinica atual';
+  const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
+  const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Selecione uma clinica';
+  const brandName = isAdmin
+    ? (isTenantWorkspaceRoute ? currentClinicName : 'BaseCRM Agencia')
+    : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
+  const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
+  const primarySidebarNav = [
+    { to: getScopedHref('/inbox'), icon: Inbox, label: 'Inbox', prefetch: 'inbox' as const },
+    { to: getScopedHref('/dashboard'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
+    { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
+    { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
+    { to: getScopedHref('/activities'), icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
+    { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
+    { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
+  ];
+  const adminSidebarNav = isAdmin
+    ? [
+        { to: '/platform', icon: Building2, label: 'Platform Admin', prefetch: 'dashboard' as const },
+        { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
+        { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
+      ]
+    : [];
+
+  useEffect(() => {
+    const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|reports|settings)(\/|$)/.test(pathname);
+    const isPlatformAdminRoute =
+      pathname === '/platform' ||
+      pathname === '/platform/tenants' ||
+      pathname === '/platform/tenants/new';
+
+    if (isAdmin && tenant?.organizationId && isGlobalWorkspaceRoute && !isTenantWorkspacePath(pathname)) {
+      const scopedHref = getScopedHref(pathname);
+      if (scopedHref !== pathname) {
+        router.replace(scopedHref);
+      }
+      return;
+    }
+
+    if (!isAdmin && isPlatformAdminRoute) {
+      router.replace('/dashboard');
+    }
+  }, [getScopedHref, isAdmin, pathname, router, tenant?.organizationId]);
 
   if (!loading && !user) return null;
 
@@ -270,20 +316,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <nav className={`flex-1 p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
           {[
-            { to: '/inbox', icon: Inbox, label: 'Inbox', prefetch: 'inbox' as const },
-            { to: '/dashboard', icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
-            { to: '/boards', icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
-            { to: '/contacts', icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
-            { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
-            { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
-            { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
-            ...(isAdmin
-              ? [
-                  { to: '/platform', icon: Building2, label: 'Platform Admin', prefetch: 'dashboard' as const },
-                  { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
-                  { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
-                ]
-              : []),
+            ...primarySidebarNav,
+            ...tenantWorkspaceNav.map((item) => ({
+              to: item.href,
+              icon: item.icon,
+              label: item.label,
+              prefetch: 'dashboard' as const,
+            })),
+            ...adminSidebarNav,
           ].map((item) => {
             if (sidebarCollapsed) {
               return (
@@ -368,9 +408,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                       {profile?.nickname || profile?.first_name || profile?.email?.split('@')[0] || 'Usuário'}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {profile?.email || ''}
-                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{getRoleLabel(profile?.role)}</p>
                   </div>
                   <svg
                     className={`w-4 h-4 text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`}
@@ -466,15 +504,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                   {!isPlatformRoute ? (
                     <>
-                      <div className="hidden text-sm font-medium text-slate-700 md:block dark:text-slate-200">
-                        {currentClinicName}
-                      </div>
-                      <Link
-                        href="/platform/tenants"
-                        className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 md:inline-flex dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
-                      >
-                        Trocar clinica
-                      </Link>
+                      <TenantClinicSwitcher />
                     </>
                   ) : (
                     <Link

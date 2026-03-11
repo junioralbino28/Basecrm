@@ -2,7 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
-import { PRIMARY_NAV } from './navConfig';
+import { getPrimaryNav } from './navConfig';
+import { useTenantScopedHrefBuilder } from './useTenantScopedHref';
 
 export interface BottomNavProps {
   onOpenMore: () => void;
@@ -10,6 +11,8 @@ export interface BottomNavProps {
 
 export function BottomNav({ onOpenMore }: BottomNavProps) {
   const pathname = usePathname();
+  const getScopedHref = useTenantScopedHrefBuilder();
+  const primaryNav = getPrimaryNav({ getHref: getScopedHref });
 
   return (
     <nav
@@ -22,7 +25,7 @@ export function BottomNav({ onOpenMore }: BottomNavProps) {
       )}
     >
       <div className="mx-auto flex h-[var(--app-bottom-nav-height,56px)] max-w-screen-sm items-stretch">
-        {PRIMARY_NAV.map((item) => {
+        {primaryNav.map((item) => {
           const isActive =
             item.href
               ? pathname === item.href || (item.href === '/boards' && pathname === '/pipeline')

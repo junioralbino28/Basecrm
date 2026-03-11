@@ -8,9 +8,10 @@
  * - Ready for Realtime integration
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, DEALS_VIEW_KEY } from '../index';
+import { getDealsViewQueryKey, queryKeys } from '../index';
 import { dealsService, contactsService, companiesService, boardStagesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import type { Deal, DealView, DealItem } from '@/types';
 
 // ============ QUERY HOOKS ============
@@ -30,13 +31,15 @@ export interface DealsFilters {
  */
 export const useDeals = (filters?: DealsFilters) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery({
     queryKey: filters
-      ? queryKeys.deals.list(filters as Record<string, unknown>)
-      : queryKeys.deals.lists(),
+      ? [...queryKeys.deals.list(filters as Record<string, unknown>), organizationId]
+      : [...queryKeys.deals.lists(), organizationId],
     queryFn: async () => {
-      const { data, error } = await dealsService.getAll();
+      const { data, error } = await dealsService.getAll(organizationId);
       if (error) throw error;
 
       let deals = data || [];
@@ -59,7 +62,7 @@ export const useDeals = (filters?: DealsFilters) => {
       return deals;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -69,16 +72,18 @@ export const useDeals = (filters?: DealsFilters) => {
  */
 export const useDealsView = (filters?: DealsFilters) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery<DealView[]>({
     queryKey: filters
-      ? [...queryKeys.deals.list(filters as Record<string, unknown>), 'view']
-      : [...queryKeys.deals.lists(), 'view'],
+      ? [...queryKeys.deals.list(filters as Record<string, unknown>), 'view', organizationId]
+      : getDealsViewQueryKey(organizationId),
     queryFn: async () => {
       // Step 1: Fetch deals and stages first (always needed)
       const [dealsResult, stagesResult] = await Promise.all([
-        dealsService.getAll(),
-        boardStagesService.getAll(),
+        dealsService.getAll(organizationId),
+        boardStagesService.getAll(organizationId),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
@@ -92,8 +97,8 @@ export const useDealsView = (filters?: DealsFilters) => {
 
       // Step 3: Fetch only referenced contacts and companies in parallel
       const [contactsResult, companiesResult] = await Promise.all([
-        contactsService.getByIds(contactIds),
-        companiesService.getByIds(companyIds),
+        contactsService.getByIds(contactIds, organizationId),
+        companiesService.getByIds(companyIds, organizationId),
       ]);
 
       const contacts = contactsResult.data || [];
@@ -139,7 +144,7 @@ export const useDealsView = (filters?: DealsFilters) => {
       return enrichedDeals;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -148,15 +153,18 @@ export const useDealsView = (filters?: DealsFilters) => {
  */
 export const useDeal = (id: string | undefined) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.deals.detail(id || ''),
+    queryKey: [...queryKeys.deals.detail(id || ''), organizationId],
     queryFn: async () => {
       if (!id) return null;
       const { data, error } = await dealsService.getById(id);
       if (error) throw error;
+      if (data && data.organizationId !== organizationId) return null;
       return data;
     },
-    enabled: !authLoading && !!user && !!id,
+    enabled: !authLoading && !tenantLoading && !!user && !!id && !!organizationId,
   });
 };
 
@@ -169,14 +177,16 @@ export const useDeal = (id: string | undefined) => {
  */
 export const useDealsByBoard = (boardId: string) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery<DealView[], Error, DealView[]>({
     // CRÍTICO: Usar a mesma query key que useDealsView para compartilhar cache
-    queryKey: [...queryKeys.deals.lists(), 'view'],
+    queryKey: getDealsViewQueryKey(organizationId),
     queryFn: async () => {
       // Step 1: Fetch deals and stages first
       const [dealsResult, stagesResult] = await Promise.all([
-        dealsService.getAll(),
-        boardStagesService.getAll(),
+        dealsService.getAll(organizationId),
+        boardStagesService.getAll(organizationId),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
@@ -190,8 +200,8 @@ export const useDealsByBoard = (boardId: string) => {
 
       // Step 3: Fetch only referenced contacts and companies
       const [contactsResult, companiesResult] = await Promise.all([
-        contactsService.getByIds(contactIds),
-        companiesService.getByIds(companyIds),
+        contactsService.getByIds(contactIds, organizationId),
+        companiesService.getByIds(companyIds, organizationId),
       ]);
 
       const contacts = contactsResult.data || [];
@@ -222,7 +232,7 @@ export const useDealsByBoard = (boardId: string) => {
       return data.filter(d => d.boardId === boardId);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes (same as useDealsView)
-    enabled: !authLoading && !!user && !!boardId && !boardId.startsWith('temp-'),
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId && !!boardId && !boardId.startsWith('temp-'),
   });
 };
 
@@ -240,6 +250,9 @@ export type CreateDealInput = Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'isW
  */
 export const useCreateDeal = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   return useMutation({
     mutationFn: async (deal: CreateDealInput) => {
@@ -278,7 +291,7 @@ export const useCreateDeal = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
       // Usa DEALS_VIEW_KEY - a única fonte de verdade
-      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
+      const previousDeals = queryClient.getQueryData<DealView[]>(dealsViewKey);
 
       // Optimistic update with temp ID - cria DealView parcial
       const tempId = `temp-${Date.now()}`;
@@ -305,7 +318,7 @@ export const useCreateDeal = () => {
       }
       // #endregion
 
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => [tempDealView, ...old]);
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) => [tempDealView, ...old]);
 
       return { previousDeals, tempId };
     },
@@ -333,7 +346,7 @@ export const useCreateDeal = () => {
         stageLabel: '',
       } as DealView;
       
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => {
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) => {
         if (!old) return [dealAsView];
         
         // Check if deal already exists (race condition: Realtime may have already added it)
@@ -368,7 +381,7 @@ export const useCreateDeal = () => {
     onError: (_error, _newDeal, context) => {
       if (context?.previousDeals) {
         // Restaura o estado anterior usando DEALS_VIEW_KEY
-        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
+        queryClient.setQueryData(dealsViewKey, context.previousDeals);
       }
     },
     onSettled: () => {
@@ -386,6 +399,9 @@ export const useCreateDeal = () => {
  */
 export const useUpdateDeal = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Deal> }) => {
@@ -397,16 +413,16 @@ export const useUpdateDeal = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
       // Usa DEALS_VIEW_KEY - a única fonte de verdade
-      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
+      const previousDeals = queryClient.getQueryData<DealView[]>(dealsViewKey);
 
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) =>
         old.map(deal =>
           deal.id === id ? { ...deal, ...updates, updatedAt: new Date().toISOString() } : deal
         )
       );
 
       // Also update detail cache
-      queryClient.setQueryData<Deal>(queryKeys.deals.detail(id), old =>
+      queryClient.setQueryData<Deal>([...queryKeys.deals.detail(id), organizationId], old =>
         old ? { ...old, ...updates, updatedAt: new Date().toISOString() } : old
       );
 
@@ -414,13 +430,13 @@ export const useUpdateDeal = () => {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
+        queryClient.setQueryData(dealsViewKey, context.previousDeals);
       }
     },
     onSettled: (_data, _error, { id }) => {
       // NÃO fazer invalidateQueries para deals - Realtime gerencia a sincronização
       // Apenas invalidar o detalhe específico se necessário
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(id) });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.deals.detail(id), organizationId] });
     },
   });
 };
@@ -432,6 +448,9 @@ export const useUpdateDeal = () => {
  */
 export const useUpdateDealStatus = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   return useMutation({
     mutationFn: async ({
@@ -473,9 +492,9 @@ export const useUpdateDealStatus = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
       // Usa DEALS_VIEW_KEY - única fonte de verdade
-      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
+      const previousDeals = queryClient.getQueryData<DealView[]>(dealsViewKey);
 
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) =>
         old.map(deal =>
           deal.id === id
             ? {
@@ -494,7 +513,7 @@ export const useUpdateDealStatus = () => {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
+        queryClient.setQueryData(dealsViewKey, context.previousDeals);
       }
     },
     onSettled: () => {
@@ -510,6 +529,9 @@ export const useUpdateDealStatus = () => {
  */
 export const useDeleteDeal = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -521,9 +543,9 @@ export const useDeleteDeal = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
       // Usa DEALS_VIEW_KEY - a única fonte de verdade
-      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
+      const previousDeals = queryClient.getQueryData<DealView[]>(dealsViewKey);
 
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) =>
         old.filter(deal => deal.id !== id)
       );
 
@@ -531,7 +553,7 @@ export const useDeleteDeal = () => {
     },
     onError: (_error, _id, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
+        queryClient.setQueryData(dealsViewKey, context.previousDeals);
       }
     },
     onSettled: () => {
@@ -549,6 +571,8 @@ export const useDeleteDeal = () => {
  */
 export const useAddDealItem = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useMutation({
     mutationFn: async ({ dealId, item }: { dealId: string; item: Omit<DealItem, 'id'> }) => {
@@ -557,8 +581,8 @@ export const useAddDealItem = () => {
       return { dealId, item: data! };
     },
     onSettled: (_data, _error, { dealId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(dealId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.lists() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.deals.detail(dealId), organizationId] });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.deals.lists(), organizationId] });
     },
   });
 };
@@ -568,6 +592,8 @@ export const useAddDealItem = () => {
  */
 export const useRemoveDealItem = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useMutation({
     mutationFn: async ({ dealId, itemId }: { dealId: string; itemId: string }) => {
@@ -576,8 +602,8 @@ export const useRemoveDealItem = () => {
       return { dealId, itemId };
     },
     onSettled: (_data, _error, { dealId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(dealId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.lists() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.deals.detail(dealId), organizationId] });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.deals.lists(), organizationId] });
     },
   });
 };
@@ -597,12 +623,15 @@ export const useInvalidateDeals = () => {
  */
 export const usePrefetchDeal = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return async (id: string) => {
     await queryClient.prefetchQuery({
-      queryKey: queryKeys.deals.detail(id),
+      queryKey: [...queryKeys.deals.detail(id), organizationId],
       queryFn: async () => {
         const { data, error } = await dealsService.getById(id);
         if (error) throw error;
+        if (data && data.organizationId !== organizationId) return null;
         return data;
       },
       staleTime: 5 * 60 * 1000,

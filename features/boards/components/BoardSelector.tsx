@@ -46,12 +46,18 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+        aria-label="Selecionar funil da clinica"
       >
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary-500" />
-          <span className="font-medium text-slate-900 dark:text-white">
-            {activeBoard.name}
-          </span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+              Funil
+            </div>
+            <span className="block truncate font-medium text-slate-900 dark:text-white">
+              {activeBoard.name}
+            </span>
+          </div>
         </div>
         <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>

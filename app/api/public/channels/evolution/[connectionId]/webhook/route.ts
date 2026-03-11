@@ -1,5 +1,11 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { parseEvolutionWebhookPayload } from '@/lib/conversations/evolutionWebhook';
+import {
+  buildConversationThreadMetadataUpdate,
+  buildConversationPhoneCandidates,
+  getCanonicalConversationPhone,
+} from '@/lib/conversations/threadMetadata';
+import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -85,11 +91,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   }
 
   let contactId: string | null = null;
+  const phoneCandidates = buildConversationPhoneCandidates(contactPhone);
+  const canonicalPhone = getCanonicalConversationPhone(contactPhone) || contactPhone;
   const contactResult = await admin
     .from('contacts')
     .select('id, name, phone')
     .eq('organization_id', connectionResult.data.organization_id)
-    .eq('phone', contactPhone)
+    .in('phone', phoneCandidates.length > 0 ? phoneCandidates : [contactPhone])
     .limit(1)
     .maybeSingle();
 
@@ -100,11 +108,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   const threadResult = await admin
     .from('conversation_threads')
-    .select('id, metadata')
+    .select('id, status, metadata')
     .eq('organization_id', connectionResult.data.organization_id)
     .eq('channel_connection_id', connectionId)
-    .eq('contact_phone', contactPhone)
-    .in('status', ['open', 'waiting'])
+    .in('contact_phone', phoneCandidates.length > 0 ? phoneCandidates : [contactPhone])
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -121,15 +128,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         organization_id: connectionResult.data.organization_id,
         channel_connection_id: connectionId,
         contact_id: contactId,
-        title: buildThreadTitle(parsed.contactName || contactResult.data?.name || null, contactPhone),
+        title: buildThreadTitle(parsed.contactName || contactResult.data?.name || null, canonicalPhone),
         contact_name: parsed.contactName || contactResult.data?.name || null,
-        contact_phone: contactPhone,
-        status: parsed.direction === 'inbound' ? 'open' : 'waiting',
-        metadata: {
-          provider: 'evolution',
-          autoCreated: true,
-          lastEvent: parsed.event,
-        },
+        contact_phone: canonicalPhone,
+        status: parsed.direction === 'inbound' ? 'ai_active' : 'resolved',
+        metadata: buildConversationThreadMetadataUpdate(
+          {
+            provider: 'evolution',
+            autoCreated: true,
+            routingMode: 'ai',
+          },
+          {
+            direction: parsed.direction,
+            event: parsed.event,
+            preview: content.slice(0, 160),
+            messageType: parsed.messageType,
+            sentAt: parsed.sentAt,
+            authorName: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
+            incrementUnread: parsed.direction === 'inbound',
+            provider: 'evolution',
+            humanLocked: false,
+            aiLockedReason: null,
+          }
+        ),
         last_message_at: parsed.sentAt,
         created_at: now,
         updated_at: now,
@@ -145,14 +166,40 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .update({
         contact_id: contactId ?? undefined,
         contact_name: parsed.contactName || contactResult.data?.name || undefined,
+        contact_phone: canonicalPhone,
+        status:
+          parsed.direction === 'inbound'
+            ? getConversationStatusAfterInbound(threadResult.data?.status)
+            : threadResult.data?.status ?? 'resolved',
         last_message_at: parsed.sentAt,
         updated_at: now,
-        metadata: {
-          ...((threadResult.data?.metadata as Record<string, unknown> | null) || {}),
+        metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
           provider: 'evolution',
-          lastEvent: parsed.event,
-          lastDirection: parsed.direction,
-        },
+          direction: parsed.direction,
+          event: parsed.event,
+          preview: content.slice(0, 160),
+          messageType: parsed.messageType,
+          sentAt: parsed.sentAt,
+          authorName: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
+          incrementUnread: parsed.direction === 'inbound',
+          unreadCount: parsed.direction === 'outbound' ? 0 : null,
+          humanLocked:
+            parsed.direction === 'inbound'
+              ? ['human_active', 'human_queue'].includes(threadResult.data?.status || '')
+              : undefined,
+          aiLockedReason:
+            parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
+              ? null
+              : undefined,
+          resolvedAt:
+            parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
+              ? null
+              : undefined,
+          resolvedBy:
+            parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
+              ? null
+              : undefined,
+        }),
       })
       .eq('id', threadId)
       .eq('organization_id', connectionResult.data.organization_id);

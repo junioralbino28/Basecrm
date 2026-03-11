@@ -31,6 +31,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { OrganizationId } from '../types';
+import { normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
 
 /**
  * Perfil do usuário no sistema
@@ -39,7 +40,7 @@ import type { OrganizationId } from '../types';
  * @property {string} id - UUID do usuário (= auth.users.id)
  * @property {string} email - Email do usuário
  * @property {OrganizationId} organization_id - ID da organização (tenant)
- * @property {'admin' | 'vendedor'} role - Papel do usuário
+ * @property {AppUserRole} role - Papel do usuário
  * @property {string | null} [first_name] - Primeiro nome
  * @property {string | null} [last_name] - Sobrenome
  * @property {string | null} [nickname] - Apelido
@@ -51,7 +52,7 @@ interface Profile {
     id: string;
     email: string;
     organization_id: OrganizationId;
-    role: 'admin' | 'vendedor';
+    role: AppUserRole;
     first_name?: string | null;
     last_name?: string | null;
     nickname?: string | null;
@@ -87,6 +88,24 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function buildProfileFromSources(user: User, profileData?: Partial<Profile> | null): Profile {
+    const metadata = (user.user_metadata || {}) as Record<string, unknown>;
+    const role = normalizeAppUserRole(profileData?.role ?? metadata.role);
+
+    return {
+        id: user.id,
+        email: profileData?.email || user.email || '',
+        organization_id: (profileData?.organization_id || metadata.organization_id || '') as OrganizationId,
+        role,
+        first_name: profileData?.first_name ?? (typeof metadata.first_name === 'string' ? metadata.first_name : null),
+        last_name: profileData?.last_name ?? (typeof metadata.last_name === 'string' ? metadata.last_name : null),
+        nickname: profileData?.nickname ?? (typeof metadata.nickname === 'string' ? metadata.nickname : null),
+        phone: profileData?.phone ?? (typeof metadata.phone === 'string' ? metadata.phone : null),
+        avatar_url: profileData?.avatar_url ?? (typeof metadata.avatar_url === 'string' ? metadata.avatar_url : null),
+        created_at: profileData?.created_at,
+    };
+}
 
 /**
  * Provider de autenticação
@@ -137,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async (authUser: User) => {
         try {
             if (!sb) {
                 setProfile(null);
@@ -147,13 +166,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data, error } = await sb
                 .from('profiles')
                 .select('*')
-                .eq('id', userId)
+                .eq('id', authUser.id)
                 .single();
 
             if (error) {
                 console.error('Error fetching profile:', error);
+                setProfile(buildProfileFromSources(authUser, null));
             } else {
-                setProfile(data);
+                setProfile(buildProfileFromSources(authUser, data));
             }
         } finally {
             setLoading(false);
@@ -161,8 +181,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const refreshProfile = async () => {
-        if (user?.id) {
-            await fetchProfile(user.id);
+        if (user) {
+            await fetchProfile(user);
         }
     };
 
@@ -183,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                fetchProfile(session.user.id);
+                fetchProfile(session.user);
             } else {
                 setLoading(false);
             }
@@ -193,7 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                fetchProfile(session.user.id);
+                fetchProfile(session.user);
             } else {
                 setProfile(null);
                 setLoading(false);

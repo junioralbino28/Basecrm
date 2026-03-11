@@ -5,6 +5,7 @@ import { Board } from '@/types';
 import { BoardSelector } from '../BoardSelector';
 
 interface KanbanHeaderProps {
+    clinicSwitcher?: React.ReactNode;
     // Boards
     boards: Board[];
     activeBoard: Board;
@@ -58,6 +59,7 @@ interface KanbanHeaderProps {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
+    clinicSwitcher,
     boards,
     activeBoard,
     onSelectBoard,
@@ -74,6 +76,8 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
     return (
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center gap-4 w-full sm:w-auto flex-wrap">
+                {clinicSwitcher}
+
                 {/* Board Selector */}
                 <BoardSelector
                     boards={boards}

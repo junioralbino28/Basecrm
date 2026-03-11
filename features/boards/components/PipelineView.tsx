@@ -13,6 +13,8 @@ import { DealView, CustomFieldDefinition, Board, BoardStage } from '@/types';
 import { ExportTemplateModal } from './Modals/ExportTemplateModal';
 import { useAuth } from '@/context/AuthContext';
 import PageLoader from '@/components/PageLoader';
+import { isAgencyAdminRole } from '@/lib/auth/scope';
+import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
 
 interface PipelineViewProps {
   // Boards
@@ -244,7 +246,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   boardCreateOverlay,
 }) => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = isAgencyAdminRole(profile?.role);
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
 
   const handleUpdateStage = (updatedStage: BoardStage) => {
@@ -310,6 +312,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
       ) : (
         <>
           <KanbanHeader
+            clinicSwitcher={isAdmin ? <TenantClinicSwitcher compact /> : null}
             boards={boards}
             activeBoard={activeBoard}
             onSelectBoard={handleSelectBoard}

@@ -52,6 +52,7 @@ Rotas internas ja entregues:
 - `POST /api/platform/tenants/[tenantId]/channels/[connectionId]/connect`
 - `POST /api/platform/tenants/[tenantId]/channels/[connectionId]/disconnect`
 - `GET/POST /api/platform/tenants/[tenantId]/conversations`
+- `PATCH /api/platform/tenants/[tenantId]/conversations/[threadId]`
 - `GET/POST /api/platform/tenants/[tenantId]/conversations/[threadId]/messages`
 - `GET /api/platform/tenant/current`
 
@@ -131,6 +132,9 @@ Para canais Evolution:
 5. copiar `Webhook do CRM`
 6. configurar a URL na Evolution
 7. enviar uma mensagem real e validar entrada em `/platform/tenants/[tenantId]/conversations`
+8. atribuir a conversa para um operador
+9. marcar como lida ou mover status para `waiting` / `closed`
+10. registrar uma resposta manual e validar atualizacao imediata da timeline
 
 ## Comandos locais de validacao
 
@@ -145,6 +149,7 @@ Antes de publicar:
 - o QR Code visual ainda nao foi implementado; o sistema hoje registra o retorno do pareamento
 - `channel_connections.config.apiKey` esta sendo salvo para permitir operacao real da Evolution; isso deve ser revisado futuramente para endurecimento de seguranca
 - o inbound da Evolution esta em formato best-effort; payloads muito diferentes do esperado podem ser ignorados
+- o inbox de `Conversations` ainda nao faz envio outbound real; a tela registra a resposta operacionalmente
 
 ## Checklist de deploy
 
@@ -195,3 +200,11 @@ Causas provaveis:
 - `webhookSecret` divergente
 - payload enviado nao contem uma mensagem suportada
 - telefone veio em formato diferente do salvo em `contacts`
+
+### A conversa apareceu mas nao vinculou contato
+
+Causas provaveis:
+
+- telefone do contato salvo em formato inesperado
+- payload veio com numero incompleto ou diferente do numero principal do contato
+- thread antiga foi criada antes da normalizacao mais nova e ainda esta sem vinculo

@@ -12,11 +12,12 @@
  * - Optimistic updates for instant UI feedback
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, DEALS_VIEW_KEY } from '../queryKeys';
+import { queryKeys, getDealsViewQueryKey } from '../queryKeys';
 import { dealsService } from '@/lib/supabase';
 import { boardsService } from '@/lib/supabase/boards'; // Added
 import { activitiesService } from '@/lib/supabase/activities';
 import { contactsService } from '@/lib/supabase/contacts';
+import { useTenant } from '@/context/TenantContext';
 import type { Deal, DealView, Board, Activity } from '@/types';
 
 interface MoveDealParams {
@@ -49,6 +50,9 @@ interface MoveDealContext {
  */
 export const useMoveDeal = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   return useMutation<MoveDealResult, Error, MoveDealParams, MoveDealContext>({
     mutationFn: async ({ dealId, targetStageId, lossReason, deal, board, lifecycleStages, explicitWin, explicitLost }) => {
@@ -251,7 +255,7 @@ export const useMoveDeal = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
       // Snapshot previous state - usa DEALS_VIEW_KEY (única fonte de verdade)
-      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
+      const previousDeals = queryClient.getQueryData<DealView[]>(dealsViewKey);
 
       // Determine new status
       const targetStage = board.stages.find(s => s.id === targetStageId);
@@ -267,7 +271,7 @@ export const useMoveDeal = () => {
         || (board.lostStageId ? targetStageId === board.lostStageId : targetStage?.linkedLifecycleStage === 'OTHER');
 
       // Optimistically update APENAS DEALS_VIEW_KEY (única fonte de verdade)
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old) => {
+      queryClient.setQueryData<DealView[]>(dealsViewKey, (old) => {
         if (!old) return old;
         
         const dealInCache = old.find(d => d.id === dealId);
@@ -312,7 +316,7 @@ export const useMoveDeal = () => {
       });
 
       // Também atualizar o detail cache se existir
-      queryClient.setQueryData<Deal>(queryKeys.deals.detail(dealId), (old) => {
+      queryClient.setQueryData<Deal>([...queryKeys.deals.detail(dealId), organizationId], (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -330,7 +334,7 @@ export const useMoveDeal = () => {
     // Rollback on error
     onError: (_err, _variables, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
+        queryClient.setQueryData(dealsViewKey, context.previousDeals);
       }
     },
 

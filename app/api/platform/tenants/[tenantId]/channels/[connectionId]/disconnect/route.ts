@@ -1,6 +1,7 @@
-import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
+import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { logoutEvolutionInstance } from '@/lib/channels/evolution';
+import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -9,33 +10,15 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function requireAdminProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: json({ error: 'Unauthorized' }, 401) };
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, role, organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error || !profile?.organization_id) return { error: json({ error: 'Profile not found' }, 404) };
-  if (profile.role !== 'admin') return { error: json({ error: 'Forbidden' }, 403) };
-
-  return { profile };
-}
-
 export async function POST(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
-  const auth = await requireAdminProfile();
+  const { tenantId, connectionId } = await ctx.params;
+  const auth = await requireTenantAccess(tenantId, {
+    requiredPermissions: ['whatsapp.access'],
+  });
   if ('error' in auth) return auth.error;
 
-  const { tenantId, connectionId } = await ctx.params;
   const admin = createStaticAdminClient();
 
   const { data: connection, error } = await admin

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
+import { useTenantScopedHref } from '@/components/navigation/useTenantScopedHref';
+import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
 import { TrendingUp, TrendingDown, Users, DollarSign, Target, Clock, MoreVertical, AlertTriangle } from 'lucide-react';
 import { StatCard } from './components/StatCard';
 import { ActivityFeedItem } from './components/ActivityFeedItem';
@@ -9,6 +11,8 @@ import { PipelineAlertsModal } from './components/PipelineAlertsModal';
 import { useDashboardMetrics, PeriodFilter, COMPARISON_LABELS } from './hooks/useDashboardMetrics';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { LazyFunnelChart, ChartWrapper } from '@/components/charts';
+import { useAuth } from '@/context/AuthContext';
+import { isAgencyAdminRole } from '@/lib/auth/scope';
 
 
 /**
@@ -29,6 +33,9 @@ function formatChange(value: number): { text: string; isPositive: boolean } {
  */
 const DashboardPage: React.FC = () => {
   const router = useRouter();
+  const getScopedHref = useTenantScopedHref;
+  const { profile } = useAuth();
+  const isAgencyAdmin = isAgencyAdminRole(profile?.role);
   const { activities, lifecycleStages, contacts, boards } = useCRM();
   const { addToast } = useToast();
   const [period, setPeriod] = useState<PeriodFilter>('this_month');
@@ -106,6 +113,7 @@ const DashboardPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {isAgencyAdmin ? <TenantClinicSwitcher compact /> : null}
           <select
             value={selectedBoardId}
             onChange={(e) => setSelectedBoardId(e.target.value)}
@@ -147,7 +155,7 @@ const DashboardPage: React.FC = () => {
           subtextPositive={pipelineChangeInfo.isPositive}
           icon={DollarSign}
           color="bg-blue-500"
-          onClick={() => router.push('/boards')}
+          onClick={() => router.push(getScopedHref('/boards'))}
           comparisonLabel={COMPARISON_LABELS[period]}
         />
         <StatCard
@@ -157,7 +165,7 @@ const DashboardPage: React.FC = () => {
           subtextPositive={dealsChangeInfo.isPositive}
           icon={Users}
           color="bg-purple-500"
-          onClick={() => router.push('/boards?status=open')}
+          onClick={() => router.push(getScopedHref('/boards?status=open'))}
           comparisonLabel={COMPARISON_LABELS[period]}
         />
         <StatCard
@@ -167,7 +175,7 @@ const DashboardPage: React.FC = () => {
           subtextPositive={winRateChangeInfo.isPositive}
           icon={Target}
           color="bg-emerald-500"
-          onClick={() => router.push('/reports')}
+          onClick={() => router.push(getScopedHref('/reports'))}
           comparisonLabel={COMPARISON_LABELS[period]}
         />
         <StatCard
@@ -177,7 +185,7 @@ const DashboardPage: React.FC = () => {
           subtextPositive={revenueChangeInfo.isPositive}
           icon={TrendingUp}
           color="bg-orange-500"
-          onClick={() => router.push('/boards?status=won&view=list')}
+          onClick={() => router.push(getScopedHref('/boards?status=won&view=list'))}
           comparisonLabel={COMPARISON_LABELS[period]}
         />
       </div>
@@ -191,7 +199,7 @@ const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
             className="glass p-5 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm cursor-pointer hover:border-primary-500/50 transition-colors"
-            onClick={() => router.push('/contacts')}
+            onClick={() => router.push(getScopedHref('/contacts'))}
           >
             <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
               Distribuição da Carteira
@@ -316,7 +324,7 @@ const DashboardPage: React.FC = () => {
             </div>
 
             <button
-              onClick={() => router.push('/activities')}
+              onClick={() => router.push(getScopedHref('/activities'))}
               className="w-full mt-4 py-2 text-sm text-primary-500 border border-dashed border-primary-500/30 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
             >
               Ver todas as atividades
@@ -333,7 +341,7 @@ const DashboardPage: React.FC = () => {
         activities={activities.map(a => ({ dealId: a.dealId, date: a.date, completed: a.completed }))}
         onNavigateToDeal={(dealId) => {
           setShowPipelineAlerts(false);
-          router.push(`/pipeline?deal=${dealId}`);
+          router.push(getScopedHref(`/pipeline?deal=${dealId}`));
         }}
       />
     </div>

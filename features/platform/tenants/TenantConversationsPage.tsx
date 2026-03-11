@@ -2,63 +2,217 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, MessageCircle, PlusCircle, RefreshCcw, Send } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCheck,
+  Clock3,
+  Filter,
+  Loader2,
+  MessageCircle,
+  MessagesSquare,
+  Phone,
+  PlusCircle,
+  RefreshCcw,
+  Send,
+  UserRound,
+} from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
+import { useAuth } from '@/context/AuthContext';
+import { queryKeys } from '@/lib/query';
+import type {
+  ConversationMessage,
+  ConversationMessageMetadata,
+  ConversationMessageDirection,
+  ConversationThreadAssignee,
+  ConversationThreadListItem,
+  ConversationsInboxSummary,
+} from '@/lib/conversations/types';
 
-type Thread = {
-  id: string;
-  title: string;
-  contact_name: string | null;
-  contact_phone: string | null;
-  status: 'open' | 'waiting' | 'closed';
-  channel_connection_id: string | null;
-  last_message_at: string | null;
-  updated_at: string;
+type InboxResponse = {
+  threads: ConversationThreadListItem[];
+  assignees: ConversationThreadAssignee[];
+  summary: ConversationsInboxSummary;
 };
 
-type Message = {
-  id: string;
-  direction: 'inbound' | 'outbound' | 'internal';
-  author_name: string | null;
-  content: string;
-  sent_at: string;
+type MessagesResponse = {
+  messages: ConversationMessage[];
 };
+
+type InboxFilter = 'all' | 'ai_active' | 'human_queue' | 'human_active' | 'resolved' | 'closed';
 
 const FIELD_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white';
 
+function buildDisplayName(profile: {
+  nickname?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+} | null | undefined) {
+  if (!profile) return '';
+  const nickname = profile.nickname?.trim();
+  if (nickname) return nickname;
+  const fullName = [profile.first_name?.trim(), profile.last_name?.trim()].filter(Boolean).join(' ').trim();
+  if (fullName) return fullName;
+  const firstName = profile.first_name?.trim();
+  if (firstName) return firstName;
+  return profile.email?.split('@')[0] || '';
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return 'Sem horario';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function formatRelative(value: string | null) {
+  if (!value) return 'Sem atividade';
+
+  const diffMs = new Date(value).getTime() - Date.now();
+  const diffMinutes = Math.round(diffMs / 60_000);
+  const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
+
+  if (Math.abs(diffMinutes) < 60) return rtf.format(diffMinutes, 'minute');
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) return rtf.format(diffHours, 'hour');
+
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(diffDays, 'day');
+}
+
+function statusTone(status: ConversationThreadListItem['status']) {
+  if (status === 'ai_active') return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300';
+  if (status === 'human_queue') return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
+  if (status === 'human_active') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
+  if (status === 'resolved') return 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300';
+  return 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-300';
+}
+
+function statusLabel(status: ConversationThreadListItem['status']) {
+  if (status === 'ai_active') return 'IA ativa';
+  if (status === 'human_queue') return 'Fila humana';
+  if (status === 'human_active') return 'Humano atendendo';
+  if (status === 'resolved') return 'Resolvido';
+  return 'Fechada';
+}
+
+function routingLabel(thread: ConversationThreadListItem) {
+  if (thread.status === 'human_active' && thread.assignee?.display_name) {
+    return `Em atendimento humano por ${thread.assignee.display_name}`;
+  }
+  if (thread.status === 'human_queue') return 'Aguardando proximo atendente';
+  if (thread.status === 'resolved') return 'Resolvida e liberada para IA no proximo contato';
+  if (thread.status === 'closed') return 'Fechada manualmente';
+  return 'IA pode responder';
+}
+
+function directionTone(direction: ConversationMessageDirection) {
+  if (direction === 'outbound') {
+    return 'ml-10 bg-emerald-100/90 text-slate-900 shadow-sm dark:bg-emerald-500/15 dark:text-slate-100';
+  }
+  if (direction === 'internal') {
+    return 'mx-6 border border-amber-200 bg-amber-50/90 text-slate-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-slate-100';
+  }
+  return 'mr-10 bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100';
+}
+
+function recalculateSummary(threads: ConversationThreadListItem[]): ConversationsInboxSummary {
+  return threads.reduce<ConversationsInboxSummary>(
+    (acc, thread) => {
+      acc.total += 1;
+      acc[thread.status] += 1;
+      if (thread.unread_count > 0) acc.unread += 1;
+      if (!thread.assigned_user_id) acc.unassigned += 1;
+      if (thread.needs_attention) acc.needs_attention += 1;
+      return acc;
+    },
+    {
+      total: 0,
+      ai_active: 0,
+      human_queue: 0,
+      human_active: 0,
+      resolved: 0,
+      closed: 0,
+      unread: 0,
+      unassigned: 0,
+      needs_attention: 0,
+    }
+  );
+}
+
+function getThreadAvatar(thread: ConversationThreadListItem) {
+  const base = (thread.contact_name || thread.title || '?').trim();
+  const parts = base.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase().slice(0, 2) || '?';
+}
+
+function getMessageMeta(message: ConversationMessage): ConversationMessageMetadata {
+  return (message.metadata || {}) as ConversationMessageMetadata;
+}
+
+function getDeliveryBadge(meta: ConversationMessageMetadata, direction: ConversationMessageDirection) {
+  if (direction !== 'outbound') return null;
+  if (meta.delivery_status === 'sent') {
+    return {
+      label: 'Enviada',
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+    };
+  }
+  if (meta.delivery_status === 'failed') {
+    return {
+      label: 'Falhou',
+      className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+    };
+  }
+  return {
+    label: 'Registrada',
+    className: 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-300',
+  };
+}
+
 export const TenantConversationsPage: React.FC = () => {
-  const { tenantId, tenant } = useTenantDetail();
-  const [threads, setThreads] = React.useState<Thread[]>([]);
+  const queryClient = useQueryClient();
+  const { tenantId, tenant, access } = useTenantDetail();
+  const { profile } = useAuth();
+  const canReply = access.canReplyConversations;
+
   const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
-  const [messages, setMessages] = React.useState<Message[]>([]);
-  const [loadingThreads, setLoadingThreads] = React.useState(true);
-  const [loadingMessages, setLoadingMessages] = React.useState(false);
-  const [savingThread, setSavingThread] = React.useState(false);
-  const [sendingMessage, setSendingMessage] = React.useState(false);
-  const [feedback, setFeedback] = React.useState<string | null>(null);
-  const [feedbackKind, setFeedbackKind] = React.useState<'success' | 'error'>('success');
-  const [threadForm, setThreadForm] = React.useState({
+  const [search, setSearch] = React.useState('');
+  const [filter, setFilter] = React.useState<InboxFilter>('all');
+  const [onlyUnread, setOnlyUnread] = React.useState(false);
+  const [onlyUnassigned, setOnlyUnassigned] = React.useState(false);
+  const [showCreateForm, setShowCreateForm] = React.useState(false);
+  const [createForm, setCreateForm] = React.useState({
     title: '',
     contact_name: '',
     contact_phone: '',
     channel_connection_id: '',
   });
-  const [messageForm, setMessageForm] = React.useState({
-    direction: 'outbound' as Message['direction'],
-    author_name: '',
+  const [composer, setComposer] = React.useState({
+    direction: 'outbound' as 'outbound' | 'internal',
+    author_name: buildDisplayName(profile),
     content: '',
   });
+  const [composerFeedback, setComposerFeedback] = React.useState<{
+    kind: 'success' | 'warning' | 'error';
+    text: string;
+  } | null>(null);
 
-  const selectedThread = React.useMemo(
-    () => threads.find((thread) => thread.id === selectedThreadId) || null,
-    [threads, selectedThreadId]
-  );
+  React.useEffect(() => {
+    setComposer(current => ({
+      ...current,
+      author_name: current.author_name || buildDisplayName(profile),
+    }));
+  }, [profile]);
 
-  const loadThreads = React.useCallback(async () => {
-    if (!tenantId) return;
-    setLoadingThreads(true);
-    try {
+  const inboxQuery = useQuery<InboxResponse>({
+    queryKey: queryKeys.conversations.list({ tenantId }),
+    queryFn: async () => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations`, {
         method: 'GET',
         credentials: 'include',
@@ -66,25 +220,31 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao carregar conversas (HTTP ${res.status})`);
-      const nextThreads = data?.threads || [];
-      setThreads(nextThreads);
-      setSelectedThreadId((current) => current || nextThreads[0]?.id || null);
-    } catch (error) {
-      setFeedbackKind('error');
-      setFeedback(error instanceof Error ? error.message : 'Falha ao carregar conversas.');
-    } finally {
-      setLoadingThreads(false);
-    }
-  }, [tenantId]);
+      return data as InboxResponse;
+    },
+    enabled: Boolean(tenantId),
+    refetchInterval: 15000,
+  });
 
-  const loadMessages = React.useCallback(async () => {
-    if (!tenantId || !selectedThreadId) {
-      setMessages([]);
+  const selectedThread = React.useMemo(
+    () => inboxQuery.data?.threads.find(thread => thread.id === selectedThreadId) || null,
+    [inboxQuery.data?.threads, selectedThreadId]
+  );
+
+  React.useEffect(() => {
+    if (!inboxQuery.data?.threads?.length) {
+      setSelectedThreadId(null);
       return;
     }
 
-    setLoadingMessages(true);
-    try {
+    if (!selectedThreadId || !inboxQuery.data.threads.some(thread => thread.id === selectedThreadId)) {
+      setSelectedThreadId(inboxQuery.data.threads[0].id);
+    }
+  }, [inboxQuery.data?.threads, selectedThreadId]);
+
+  const messagesQuery = useQuery<MessagesResponse>({
+    queryKey: queryKeys.conversations.messages(selectedThreadId || ''),
+    queryFn: async () => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
         method: 'GET',
         credentials: 'include',
@@ -92,31 +252,69 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao carregar mensagens (HTTP ${res.status})`);
-      setMessages(data?.messages || []);
-    } catch (error) {
-      setFeedbackKind('error');
-      setFeedback(error instanceof Error ? error.message : 'Falha ao carregar mensagens.');
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [tenantId, selectedThreadId]);
+      return data as MessagesResponse;
+    },
+    enabled: Boolean(tenantId && selectedThreadId),
+    refetchInterval: selectedThreadId ? 10000 : false,
+  });
 
-  React.useEffect(() => {
-    void loadThreads();
-  }, [loadThreads]);
+  const updateInboxThread = React.useCallback((thread: ConversationThreadListItem) => {
+    queryClient.setQueryData<InboxResponse | undefined>(
+      queryKeys.conversations.list({ tenantId }),
+      current => {
+        if (!current) return current;
 
-  React.useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
+        const alreadyExists = current.threads.some(item => item.id === thread.id);
+        const threads = alreadyExists
+          ? current.threads.map(item => (item.id === thread.id ? thread : item))
+          : [thread, ...current.threads];
 
-  async function createThread(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!tenantId) return;
+        threads.sort((a, b) => {
+          const aTime = new Date(a.last_message_sent_at || a.updated_at).getTime();
+          const bTime = new Date(b.last_message_sent_at || b.updated_at).getTime();
+          return bTime - aTime;
+        });
 
-    setSavingThread(true);
-    setFeedback(null);
+        return {
+          ...current,
+          threads,
+          summary: recalculateSummary(threads),
+        };
+      }
+    );
+  }, [queryClient, tenantId]);
 
-    try {
+  const updateThreadMutation = useMutation({
+    mutationFn: async (payload: {
+      threadId: string;
+      body: {
+        status?: ConversationThreadListItem['status'];
+        assigned_user_id?: string | null;
+        assign_next_human?: boolean;
+        handoff_reason?: string | null;
+        mark_as_read?: boolean;
+      };
+    }) => {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${payload.threadId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify(payload.body),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao atualizar conversa (HTTP ${res.status})`);
+      return data as { ok: true; thread: ConversationThreadListItem };
+    },
+    onSuccess: data => {
+      updateInboxThread(data.thread);
+    },
+  });
+
+  const createThreadMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations`, {
         method: 'POST',
         credentials: 'include',
@@ -125,42 +323,31 @@ export const TenantConversationsPage: React.FC = () => {
           accept: 'application/json',
         },
         body: JSON.stringify({
-          title: threadForm.title,
-          contact_name: threadForm.contact_name,
-          contact_phone: threadForm.contact_phone,
-          channel_connection_id: threadForm.channel_connection_id || null,
+          title: createForm.title,
+          contact_name: createForm.contact_name,
+          contact_phone: createForm.contact_phone,
+          channel_connection_id: createForm.channel_connection_id || null,
         }),
       });
-
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao criar conversa (HTTP ${res.status})`);
-
-      setFeedbackKind('success');
-      setFeedback('Conversa criada.');
-      setThreadForm({
+      return data as { ok: true; thread: ConversationThreadListItem };
+    },
+    onSuccess: data => {
+      updateInboxThread(data.thread);
+      setSelectedThreadId(data.thread.id);
+      setCreateForm({
         title: '',
         contact_name: '',
         contact_phone: '',
         channel_connection_id: '',
       });
-      await loadThreads();
-      setSelectedThreadId(data?.thread?.id || null);
-    } catch (error) {
-      setFeedbackKind('error');
-      setFeedback(error instanceof Error ? error.message : 'Falha ao criar conversa.');
-    } finally {
-      setSavingThread(false);
-    }
-  }
+      setShowCreateForm(false);
+    },
+  });
 
-  async function sendMessage(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!tenantId || !selectedThreadId) return;
-
-    setSendingMessage(true);
-    setFeedback(null);
-
-    try {
+  const sendMessageMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
         method: 'POST',
         credentials: 'include',
@@ -168,32 +355,78 @@ export const TenantConversationsPage: React.FC = () => {
           'content-type': 'application/json',
           accept: 'application/json',
         },
-        body: JSON.stringify(messageForm),
+        body: JSON.stringify({
+          ...composer,
+          send_external: composer.direction === 'outbound',
+        }),
       });
-
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao registrar mensagem (HTTP ${res.status})`);
-
-      setFeedbackKind('success');
-      setFeedback('Mensagem registrada.');
-      setMessageForm({
-        direction: 'outbound',
-        author_name: '',
+      return data as { ok: true; message: ConversationMessage; thread: ConversationThreadListItem; warning?: string | null };
+    },
+    onSuccess: data => {
+      queryClient.setQueryData<MessagesResponse | undefined>(
+        queryKeys.conversations.messages(data.thread.id),
+        current => ({
+          messages: [...(current?.messages || []), data.message],
+        })
+      );
+      updateInboxThread(data.thread);
+      setComposer(current => ({
+        ...current,
         content: '',
+      }));
+      setComposerFeedback(
+        data.warning
+          ? { kind: 'warning', text: `Mensagem registrada, mas o envio pela Evolution falhou: ${data.warning}` }
+          : {
+              kind: 'success',
+              text: composer.direction === 'outbound'
+                ? 'Mensagem enviada e registrada na conversa humana.'
+                : 'Nota interna registrada.',
+            }
+      );
+    },
+    onError: error => {
+      setComposerFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Falha ao registrar mensagem.',
       });
-      await loadMessages();
-      await loadThreads();
-    } catch (error) {
-      setFeedbackKind('error');
-      setFeedback(error instanceof Error ? error.message : 'Falha ao registrar mensagem.');
-    } finally {
-      setSendingMessage(false);
-    }
-  }
+    },
+  });
+
+  const threads = inboxQuery.data?.threads || [];
+  const assignees = inboxQuery.data?.assignees || [];
+  const summary = inboxQuery.data?.summary;
+
+  const filteredThreads = React.useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return threads.filter(thread => {
+      if (filter !== 'all' && thread.status !== filter) return false;
+      if (onlyUnread && thread.unread_count === 0) return false;
+      if (onlyUnassigned && thread.assigned_user_id) return false;
+
+      if (!normalizedSearch) return true;
+
+      const haystack = [
+        thread.title,
+        thread.contact_name,
+        thread.contact_phone,
+        thread.last_message_preview,
+        thread.assignee?.display_name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [filter, onlyUnread, onlyUnassigned, search, threads]);
 
   return (
-    <div className="space-y-6 p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-7xl space-y-6 p-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <Link
             href={`/platform/tenants/${tenantId}`}
@@ -202,212 +435,602 @@ export const TenantConversationsPage: React.FC = () => {
             <ArrowLeft size={16} />
             Voltar para clinica
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conversations</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Base inicial de conversas da clinica para WhatsApp, handoff e historico operacional.
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conversations Inbox</h1>
+          <p className="max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+            Inbox operacional com ciclo IA x humano: handoff para fila, atendimento humano, resolucao e reentrada automatica da IA no proximo contato.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={() => void loadThreads()}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+          onClick={() => void inboxQuery.refetch()}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+          disabled={inboxQuery.isFetching}
         >
-          <RefreshCcw size={16} />
+          {inboxQuery.isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
           Atualizar
         </button>
       </div>
 
-      {feedback ? (
-        <div className={feedbackKind === 'success' ? 'text-sm text-emerald-600 dark:text-emerald-300' : 'text-sm text-rose-600 dark:text-rose-300'}>
-          {feedback}
+      {summary ? (
+        <div className="rounded-[2rem] border border-slate-200 bg-linear-to-r from-white via-cyan-50 to-emerald-50 px-5 py-4 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-cyan-500/5 dark:to-emerald-500/5">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            {[
+              { label: 'IA ativa', value: summary.ai_active, tone: 'text-cyan-600 dark:text-cyan-300' },
+              { label: 'Fila humana', value: summary.human_queue, tone: 'text-amber-600 dark:text-amber-300' },
+              { label: 'Humano', value: summary.human_active, tone: 'text-emerald-600 dark:text-emerald-300' },
+              { label: 'Resolvidas', value: summary.resolved, tone: 'text-violet-600 dark:text-violet-300' },
+              { label: 'Nao lidas', value: summary.unread, tone: 'text-cyan-600 dark:text-cyan-300' },
+              { label: 'Sem dono', value: summary.unassigned, tone: 'text-rose-600 dark:text-rose-300' },
+              { label: 'Atencao', value: summary.needs_attention, tone: 'text-slate-900 dark:text-white' },
+            ].map(card => (
+              <div
+                key={card.label}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-2 dark:border-white/10 dark:bg-white/5"
+              >
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                  {card.label}
+                </span>
+                <span className={`text-base font-semibold ${card.tone}`}>{card.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-              <PlusCircle size={16} />
-              Nova conversa
+      {inboxQuery.error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+          {inboxQuery.error.message}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="border-b border-slate-200 p-5 dark:border-white/10">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                <MessagesSquare size={16} />
+                Conversas
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(current => !current)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+              >
+                <PlusCircle size={14} />
+                Nova manual
+              </button>
             </div>
 
-            <form className="mt-5 space-y-4" onSubmit={createThread}>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Titulo</label>
-                <input className={FIELD_CLASS} value={threadForm.title} onChange={(e) => setThreadForm((current) => ({ ...current, title: e.target.value }))} placeholder="WhatsApp - Avaliacao inicial" />
+            <div className="mt-4 space-y-3">
+              <input
+                className={FIELD_CLASS}
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder="Buscar por nome, telefone ou preview..."
+              />
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'all', label: 'Todas' },
+                  { id: 'ai_active', label: 'IA ativa' },
+                  { id: 'human_queue', label: 'Fila humana' },
+                  { id: 'human_active', label: 'Humano' },
+                  { id: 'resolved', label: 'Resolvidas' },
+                  { id: 'closed', label: 'Fechadas' },
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setFilter(option.id as InboxFilter)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      filter === option.id
+                        ? 'bg-cyan-500 text-slate-950'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome do contato</label>
-                  <input className={FIELD_CLASS} value={threadForm.contact_name} onChange={(e) => setThreadForm((current) => ({ ...current, contact_name: e.target.value }))} placeholder="Maria Souza" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Telefone</label>
-                  <input className={FIELD_CLASS} value={threadForm.contact_phone} onChange={(e) => setThreadForm((current) => ({ ...current, contact_phone: e.target.value }))} placeholder="+55 11 99999-9999" />
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOnlyUnread(current => !current)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    onlyUnread
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                  }`}
+                >
+                  So nao lidas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOnlyUnassigned(current => !current)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    onlyUnassigned
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                  }`}
+                >
+                  So sem dono
+                </button>
               </div>
+            </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Conexao WhatsApp</label>
+            {showCreateForm ? (
+              <form
+                className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                onSubmit={event => {
+                  event.preventDefault();
+                  createThreadMutation.mutate();
+                }}
+              >
+                <input
+                  className={FIELD_CLASS}
+                  value={createForm.title}
+                  onChange={event => setCreateForm(current => ({ ...current, title: event.target.value }))}
+                  placeholder="Titulo da conversa"
+                  required
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    className={FIELD_CLASS}
+                    value={createForm.contact_name}
+                    onChange={event => setCreateForm(current => ({ ...current, contact_name: event.target.value }))}
+                    placeholder="Nome do contato"
+                  />
+                  <input
+                    className={FIELD_CLASS}
+                    value={createForm.contact_phone}
+                    onChange={event => setCreateForm(current => ({ ...current, contact_phone: event.target.value }))}
+                    placeholder="+55..."
+                  />
+                </div>
                 <select
                   className={FIELD_CLASS}
-                  value={threadForm.channel_connection_id}
-                  onChange={(e) => setThreadForm((current) => ({ ...current, channel_connection_id: e.target.value }))}
+                  value={createForm.channel_connection_id}
+                  onChange={event => setCreateForm(current => ({ ...current, channel_connection_id: event.target.value }))}
                 >
-                  <option value="">Sem vinculo</option>
-                  {(tenant?.channel_connections || []).map((connection) => (
+                  <option value="">Sem conexao</option>
+                  {(tenant?.channel_connections || []).map(connection => (
                     <option key={connection.id} value={connection.id}>
                       {connection.name}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingThread}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
-              >
-                {savingThread ? 'Criando...' : 'Criar conversa'}
-              </button>
-            </form>
+                {createThreadMutation.error ? (
+                  <div className="text-xs text-rose-600 dark:text-rose-300">
+                    {createThreadMutation.error.message}
+                  </div>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={createThreadMutation.isPending}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                >
+                  {createThreadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
+                  Criar conversa
+                </button>
+              </form>
+            ) : null}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-              <MessageCircle size={16} />
-              Conversas abertas
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {loadingThreads ? (
-                <div className="text-sm text-slate-500 dark:text-slate-400">Carregando conversas...</div>
-              ) : threads.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                  Nenhuma conversa registrada ainda.
+          <div className="max-h-[74vh] space-y-2 overflow-y-auto bg-slate-50/70 p-3 dark:bg-slate-950/40">
+              {inboxQuery.isLoading ? (
+                <div className="flex items-center gap-2 rounded-2xl px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  Carregando inbox...
+                </div>
+              ) : filteredThreads.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                  Nenhuma conversa combina com os filtros atuais.
                 </div>
               ) : (
-                threads.map((thread) => (
+                filteredThreads.map(thread => (
                   <button
                     key={thread.id}
                     type="button"
                     onClick={() => setSelectedThreadId(thread.id)}
                     className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                       selectedThreadId === thread.id
-                        ? 'border-cyan-400 bg-cyan-50 dark:border-cyan-500/50 dark:bg-cyan-500/10'
-                        : 'border-slate-200 bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-white/5'
+                        ? 'border-cyan-400 bg-white shadow-md dark:border-cyan-500/50 dark:bg-slate-900'
+                        : 'border-slate-200 bg-white/80 hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/5'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">{thread.title}</div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {thread.contact_name || 'Sem nome'} • {thread.contact_phone || 'Sem telefone'}
-                        </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
+                        {getThreadAvatar(thread)}
                       </div>
-                      <div className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white dark:bg-white/10 dark:text-slate-200">
-                        {thread.status}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                            {thread.contact_name || thread.title}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {formatRelative(thread.last_message_sent_at || thread.updated_at)}
+                            </span>
+                            {thread.unread_count > 0 ? (
+                              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                                {thread.unread_count}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(thread.status)}`}>
+                            {statusLabel(thread.status)}
+                          </span>
+                          {thread.assignee?.display_name ? (
+                            <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                              {thread.assignee.display_name}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+                          {thread.last_message_preview || 'Sem mensagem ainda'}
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                          {thread.contact_phone || 'Sem telefone'}
+                        </div>
                       </div>
                     </div>
                   </button>
                 ))
               )}
-            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">{selectedThread?.title || 'Timeline da conversa'}</div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {selectedThread?.contact_name || 'Selecione uma conversa para ver as mensagens'}
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+          {!selectedThread ? (
+            <div className="flex min-h-[620px] flex-col items-center justify-center px-6 text-center">
+              <MessageCircle size={32} className="text-slate-300 dark:text-slate-600" />
+              <div className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+                Selecione uma conversa
+              </div>
+              <div className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+                Escolha uma thread na fila ao lado para triagem, atribuicao e registro operacional da conversa.
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex min-h-[620px] flex-col">
+              <div className="border-b border-slate-200 bg-white/90 p-6 backdrop-blur dark:border-white/10 dark:bg-slate-900/80">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
+                        {selectedThread.contact_name || selectedThread.title}
+                      </h2>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
+                        {statusLabel(selectedThread.status)}
+                      </span>
+                      {selectedThread.unread_count > 0 ? (
+                        <span className="rounded-full bg-cyan-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-950">
+                          {selectedThread.unread_count} nao lidas
+                        </span>
+                      ) : null}
+                    </div>
 
-          <div className="mt-6 space-y-3">
-            {!selectedThread ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                Escolha uma conversa na coluna ao lado.
-              </div>
-            ) : loadingMessages ? (
-              <div className="text-sm text-slate-500 dark:text-slate-400">Carregando mensagens...</div>
-            ) : messages.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                Nenhuma mensagem registrada ainda nesta conversa.
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`rounded-2xl px-4 py-3 text-sm ${
-                    message.direction === 'outbound'
-                      ? 'ml-8 bg-cyan-50 text-slate-800 dark:bg-cyan-500/10 dark:text-slate-100'
-                      : message.direction === 'internal'
-                        ? 'mr-8 bg-amber-50 text-slate-800 dark:bg-amber-500/10 dark:text-slate-100'
-                        : 'mr-8 bg-slate-100 text-slate-800 dark:bg-white/5 dark:text-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-                    <span>{message.author_name || message.direction}</span>
-                    <span>{new Date(message.sent_at).toLocaleString('pt-BR')}</span>
+                    <div className="flex flex-wrap gap-3 text-sm text-slate-500 dark:text-slate-400">
+                      <span className="inline-flex items-center gap-2">
+                        <Phone size={14} />
+                        {selectedThread.contact_phone || 'Sem telefone'}
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <Clock3 size={14} />
+                        Ultima atividade: {formatDateTime(selectedThread.last_message_sent_at || selectedThread.updated_at)}
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <MessagesSquare size={14} />
+                        {selectedThread.message_count} mensagem(ns)
+                      </span>
+                    </div>
+                    <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {routingLabel(selectedThread)}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      {selectedThread.channel_connection ? (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-white/5">
+                          WhatsApp: {selectedThread.channel_connection.name}
+                        </span>
+                      ) : null}
+                      {selectedThread.contact ? (
+                        <Link
+                          href={`/contacts?contactId=${selectedThread.contact.id}`}
+                          className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10"
+                        >
+                          Contato: {selectedThread.contact.name || selectedThread.contact.phone || selectedThread.contact.id}
+                        </Link>
+                      ) : null}
+                      {selectedThread.deal ? (
+                        <Link
+                          href={`/boards?deal=${selectedThread.deal.id}`}
+                          className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10"
+                        >
+                          Deal: {selectedThread.deal.title}
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="mt-2 whitespace-pre-wrap">{message.content}</div>
-                </div>
-              ))
-            )}
-          </div>
 
-          {selectedThread ? (
-            <form className="mt-6 space-y-4 border-t border-slate-200 pt-6 dark:border-white/10" onSubmit={sendMessage}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Direcao</label>
-                  <select
-                    className={FIELD_CLASS}
-                    value={messageForm.direction}
-                    onChange={(e) => setMessageForm((current) => ({ ...current, direction: e.target.value as Message['direction'] }))}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="min-w-[210px] rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
+                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                        <UserRound size={14} />
+                        Responsavel
+                      </label>
+                      <select
+                        className={FIELD_CLASS}
+                        value={selectedThread.assigned_user_id || ''}
+                        onChange={event =>
+                          updateThreadMutation.mutate({
+                            threadId: selectedThread.id,
+                            body: {
+                              assigned_user_id: event.target.value || null,
+                            },
+                          })
+                        }
+                        disabled={updateThreadMutation.isPending}
+                      >
+                        <option value="">Sem responsavel</option>
+                        {assignees.map(assignee => (
+                          <option key={assignee.id} value={assignee.id}>
+                            {assignee.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="min-w-[210px] rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
+                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                        <AlertCircle size={14} />
+                        Status operacional
+                      </label>
+                      <select
+                        className={FIELD_CLASS}
+                        value={selectedThread.status}
+                        onChange={event =>
+                          updateThreadMutation.mutate({
+                            threadId: selectedThread.id,
+                            body: {
+                              status: event.target.value as ConversationThreadListItem['status'],
+                            },
+                          })
+                        }
+                        disabled={updateThreadMutation.isPending}
+                      >
+                        <option value="ai_active">IA ativa</option>
+                        <option value="human_queue">Fila humana</option>
+                        <option value="human_active">Humano atendendo</option>
+                        <option value="resolved">Resolvido</option>
+                        <option value="closed">Fechado</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateThreadMutation.mutate({
+                        threadId: selectedThread.id,
+                        body: {
+                          status: 'human_queue',
+                          assign_next_human: true,
+                          handoff_reason: 'falar_com_humano',
+                        },
+                      })
+                    }
+                    disabled={updateThreadMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 px-4 py-2 text-sm font-medium text-amber-700 transition hover:border-amber-300 hover:text-amber-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-500/20 dark:text-amber-300"
                   >
-                    <option value="outbound">Saida</option>
-                    <option value="inbound">Entrada</option>
-                    <option value="internal">Interna</option>
-                  </select>
+                    <AlertCircle size={16} />
+                    Falar com humano
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateThreadMutation.mutate({
+                        threadId: selectedThread.id,
+                        body: {
+                          status: 'resolved',
+                          mark_as_read: true,
+                        },
+                      })
+                    }
+                    disabled={updateThreadMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-violet-200 px-4 py-2 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:text-violet-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-500/20 dark:text-violet-300"
+                  >
+                    <CheckCheck size={16} />
+                    Marcar como resolvido
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateThreadMutation.mutate({
+                        threadId: selectedThread.id,
+                        body: { mark_as_read: true },
+                      })
+                    }
+                    disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
+                  >
+                    <CheckCheck size={16} />
+                    Marcar como lida
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void messagesQuery.refetch()}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+                  >
+                    <RefreshCcw size={16} />
+                    Atualizar timeline
+                  </button>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Autor</label>
-                  <input
-                    className={FIELD_CLASS}
-                    value={messageForm.author_name}
-                    onChange={(e) => setMessageForm((current) => ({ ...current, author_name: e.target.value }))}
-                    placeholder="Recepcao, IA, consultor..."
-                  />
+
+                {updateThreadMutation.error ? (
+                  <div className="mt-3 text-sm text-rose-600 dark:text-rose-300">
+                    {updateThreadMutation.error.message}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),linear-gradient(180deg,_rgba(248,250,252,1)_0%,_rgba(241,245,249,1)_100%)] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,1)_0%,_rgba(2,6,23,1)_100%)]">
+                <div className="mx-auto flex max-w-4xl flex-col gap-4">
+                {messagesQuery.isLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <Loader2 size={16} className="animate-spin" />
+                    Carregando mensagens...
+                  </div>
+                ) : messagesQuery.error ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+                    {messagesQuery.error.message}
+                  </div>
+                ) : (messagesQuery.data?.messages || []).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                    Nenhuma mensagem registrada ainda nesta conversa.
+                  </div>
+                ) : (
+                  (messagesQuery.data?.messages || []).map(message => (
+                    (() => {
+                      const meta = getMessageMeta(message);
+                      const badge = getDeliveryBadge(meta, message.direction);
+
+                      return (
+                        <div
+                          key={message.id}
+                          className={`max-w-[85%] rounded-[1.5rem] px-4 py-3 text-sm ${directionTone(message.direction)} ${
+                            message.direction === 'outbound'
+                              ? 'self-end rounded-br-md'
+                              : message.direction === 'internal'
+                                ? 'self-center'
+                                : 'self-start rounded-bl-md'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{message.author_name || message.direction}</span>
+                              {badge ? (
+                                <span className={`rounded-full px-2 py-0.5 font-semibold ${badge.className}`}>
+                                  {badge.label}
+                                </span>
+                              ) : null}
+                              {meta.delivery_provider ? (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                  {meta.delivery_provider}
+                                </span>
+                              ) : null}
+                            </div>
+                            <span>{formatDateTime(message.sent_at)}</span>
+                          </div>
+                          <div className="mt-2 whitespace-pre-wrap">{message.content}</div>
+                          {meta.delivery_error ? (
+                            <div className="mt-3 rounded-2xl bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                              Falha no envio: {meta.delivery_error}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })()
+                  ))
+                )}
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Mensagem</label>
-                <textarea
-                  className={`${FIELD_CLASS} min-h-32 resize-y`}
-                  value={messageForm.content}
-                  onChange={(e) => setMessageForm((current) => ({ ...current, content: e.target.value }))}
-                  placeholder="Registre aqui a troca de mensagens, handoff ou observacao interna..."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={sendingMessage}
-                className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+              <form
+                className="border-t border-slate-200 bg-white/95 p-6 backdrop-blur dark:border-white/10 dark:bg-slate-900/90"
+                onSubmit={event => {
+                  event.preventDefault();
+                  setComposerFeedback(null);
+                  sendMessageMutation.mutate();
+                }}
               >
-                <Send size={16} />
-                {sendingMessage ? 'Registrando...' : 'Registrar mensagem'}
-              </button>
-            </form>
-          ) : null}
-        </div>
+                <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Tipo de envio</label>
+                      <select
+                        className={FIELD_CLASS}
+                        value={composer.direction}
+                        onChange={event =>
+                          setComposer(current => ({
+                            ...current,
+                            direction: event.target.value as 'outbound' | 'internal',
+                          }))
+                        }
+                      >
+                        <option value="outbound">Saida registrada</option>
+                        <option value="internal">Nota interna</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Autor</label>
+                      <input
+                        className={FIELD_CLASS}
+                        value={composer.author_name}
+                        onChange={event => setComposer(current => ({ ...current, author_name: event.target.value }))}
+                        placeholder="Recepcao, operador..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Mensagem</label>
+                      <textarea
+                        className={`${FIELD_CLASS} min-h-28 resize-y rounded-[1.5rem] px-4 py-3`}
+                        value={composer.content}
+                        onChange={event => setComposer(current => ({ ...current, content: event.target.value }))}
+                        placeholder={
+                          composer.direction === 'internal'
+                            ? 'Contexto interno, handoff, observacao operacional...'
+                            : 'Responder como humano neste numero compartilhado...'
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                        Quando um atendente responde, a conversa entra em atendimento humano e a IA fica bloqueada ate ser marcada como resolvida.
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={sendMessageMutation.isPending || !composer.content.trim() || !canReply}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                      >
+                        {sendMessageMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        Registrar mensagem
+                      </button>
+                    </div>
+                    {!canReply ? (
+                      <div className="text-sm text-amber-600 dark:text-amber-300">
+                        Seu usuario pode visualizar o inbox, mas nao tem permissao para responder.
+                      </div>
+                    ) : null}
+                    {composerFeedback ? (
+                      <div
+                        className={`text-sm ${
+                          composerFeedback.kind === 'success'
+                            ? 'text-emerald-600 dark:text-emerald-300'
+                            : composerFeedback.kind === 'warning'
+                              ? 'text-amber-600 dark:text-amber-300'
+                              : 'text-rose-600 dark:text-rose-300'
+                        }`}
+                      >
+                        {composerFeedback.text}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

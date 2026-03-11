@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2 } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2, Send } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 
 const FIELD_CLASS =
@@ -17,6 +17,7 @@ type ChannelFormState = {
   instanceName: string;
   webhookUrl: string;
   apiKey: string;
+  sendMode: 'auto' | 'number_text' | 'number_textMessage' | 'number_message' | 'number_body';
   phoneNumber: string;
   apiKeyLast4: string;
   notes: string;
@@ -31,6 +32,7 @@ const INITIAL_FORM: ChannelFormState = {
   instanceName: '',
   webhookUrl: '',
   apiKey: '',
+  sendMode: 'auto',
   phoneNumber: '',
   apiKeyLast4: '',
   notes: '',
@@ -108,7 +110,9 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
 }
 
 export const TenantChannelsPage: React.FC = () => {
-  const { tenantId, tenant, loading, error, reload } = useTenantDetail();
+  const { tenantId, tenant, access, loading, error, reload } = useTenantDetail();
+  const canManageChannelConfig = access.canManageChannelConfig;
+  const canAccessWhatsApp = access.canAccessWhatsApp;
   const [browserOrigin, setBrowserOrigin] = React.useState('');
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
   const [editingConnectionId, setEditingConnectionId] = React.useState<string | null>(null);
@@ -116,8 +120,10 @@ export const TenantChannelsPage: React.FC = () => {
   const [checkingConnectionId, setCheckingConnectionId] = React.useState<string | null>(null);
   const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
   const [disconnectingConnectionId, setDisconnectingConnectionId] = React.useState<string | null>(null);
+  const [sendingTestConnectionId, setSendingTestConnectionId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
+  const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
 
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -140,6 +146,7 @@ export const TenantChannelsPage: React.FC = () => {
       instanceName: String(connection.config?.instanceName || ''),
       webhookUrl: String(connection.config?.webhookUrl || ''),
       apiKey: '',
+      sendMode: (connection.config?.sendMode as ChannelFormState['sendMode']) || 'auto',
       phoneNumber: String(connection.metadata?.phoneNumber || ''),
       apiKeyLast4: String(connection.metadata?.apiKeyLast4 || ''),
       notes: String(connection.metadata?.notes || ''),
@@ -200,6 +207,7 @@ export const TenantChannelsPage: React.FC = () => {
               instanceName: form.instanceName,
               webhookUrl: form.webhookUrl,
               apiKey: form.apiKey,
+              sendMode: form.sendMode,
             },
             metadata: {
               phoneNumber: form.phoneNumber,
@@ -310,6 +318,62 @@ export const TenantChannelsPage: React.FC = () => {
     }
   }
 
+  function getTestDraft(connection: NonNullable<typeof tenant>['channel_connections'][number]) {
+    return testDrafts[connection.id] || {
+      phone: String(connection.metadata?.phoneNumber || ''),
+      text: 'Teste outbound via Basecrm',
+    };
+  }
+
+  function updateTestDraft(connectionId: string, field: 'phone' | 'text', value: string) {
+    setTestDrafts(current => ({
+      ...current,
+      [connectionId]: {
+        ...(current[connectionId] || { phone: '', text: 'Teste outbound via Basecrm' }),
+        [field]: value,
+      },
+    }));
+  }
+
+  async function sendTestMessage(connectionId: string) {
+    if (!tenantId) return;
+
+    const connection = tenant?.channel_connections.find(item => item.id === connectionId);
+    if (!connection) return;
+
+    const draft = getTestDraft(connection);
+    setSendingTestConnectionId(connectionId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/send-test`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          phone: draft.phone,
+          text: draft.text,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao testar envio (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage(`Teste enviado com sucesso via ${data?.send_test?.attempt || 'modo configurado'}.`);
+      await reload();
+    } catch (sendError) {
+      setMessageKind('error');
+      setMessage(sendError instanceof Error ? sendError.message : 'Falha ao testar envio.');
+      await reload();
+    } finally {
+      setSendingTestConnectionId(null);
+    }
+  }
+
   return (
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
@@ -340,7 +404,7 @@ export const TenantChannelsPage: React.FC = () => {
       {loading ? <div className="text-sm text-slate-500 dark:text-slate-400">Carregando canais...</div> : null}
       {error ? <div className="text-sm text-rose-600 dark:text-rose-300">{error}</div> : null}
 
-      {tenant ? (
+      {tenant && canAccessWhatsApp ? (
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
@@ -376,15 +440,17 @@ export const TenantChannelsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditing(connection)}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
-                        >
-                          Editar conexao
-                        </button>
+                      <div className="mt-3">
+                        <div className="flex flex-wrap gap-2">
+                        {canManageChannelConfig ? (
+                          <button
+                            type="button"
+                            onClick={() => startEditing(connection)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          >
+                            Editar conexao
+                          </button>
+                        ) : null}
 
                         <button
                           type="button"
@@ -408,6 +474,16 @@ export const TenantChannelsPage: React.FC = () => {
                             : connection.status === 'connected'
                               ? 'Reconectar'
                               : 'Gerar pareamento'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void sendTestMessage(connection.id)}
+                          disabled={sendingTestConnectionId === connection.id}
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-200"
+                        >
+                          <Send size={14} />
+                          {sendingTestConnectionId === connection.id ? 'Enviando teste...' : 'Testar envio'}
                         </button>
 
                         <button
@@ -454,6 +530,10 @@ export const TenantChannelsPage: React.FC = () => {
                         {connection.metadata?.apiKeyLast4 ? `••••${String(connection.metadata.apiKeyLast4)}` : '-'}
                       </div>
                       <div>
+                        <span className="font-medium text-slate-900 dark:text-white">Modo de envio:</span>{' '}
+                        {String(connection.config?.sendMode || 'auto')}
+                      </div>
+                      <div>
                         <span className="font-medium text-slate-900 dark:text-white">Estado retornado:</span>{' '}
                         {String(connection.metadata?.lastHealthcheckState || connection.metadata?.lastHealthcheckError || '-')}
                       </div>
@@ -469,6 +549,46 @@ export const TenantChannelsPage: React.FC = () => {
                         <div className="md:col-span-2">
                           <span className="font-medium text-slate-900 dark:text-white">Ultima solicitacao:</span>{' '}
                           {new Date(String(connection.metadata.lastPairingRequestedAt)).toLocaleString('pt-BR')}
+                        </div>
+                      ) : null}
+                      {typeof connection.metadata?.lastSendTestAt === 'string' ? (
+                        <div className="md:col-span-2">
+                          <span className="font-medium text-slate-900 dark:text-white">Ultimo teste de envio:</span>{' '}
+                          {new Date(String(connection.metadata.lastSendTestAt)).toLocaleString('pt-BR')} â€¢{' '}
+                          {String(connection.metadata?.lastSendTestStatus || '-')} â€¢{' '}
+                          {String(connection.metadata?.lastSendTestAttempt || '-')}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-white">Teste de envio</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
+                        <input
+                          className={FIELD_CLASS}
+                          value={getTestDraft(connection).phone}
+                          onChange={(e) => updateTestDraft(connection.id, 'phone', e.target.value)}
+                          placeholder="+55 11 99999-9999"
+                        />
+                        <input
+                          className={FIELD_CLASS}
+                          value={getTestDraft(connection).text}
+                          onChange={(e) => updateTestDraft(connection.id, 'text', e.target.value)}
+                          placeholder="Mensagem de teste..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void sendTestMessage(connection.id)}
+                          disabled={sendingTestConnectionId === connection.id}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Send size={15} />
+                          Enviar teste
+                        </button>
+                      </div>
+                      {connection.metadata?.lastSendTestError ? (
+                        <div className="mt-3 text-xs text-rose-600 dark:text-rose-300">
+                          Ultima falha: {String(connection.metadata.lastSendTestError)}
                         </div>
                       ) : null}
                     </div>
@@ -553,14 +673,21 @@ export const TenantChannelsPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Smartphone size={16} />
-              {editingConnectionId ? 'Editar numero WhatsApp' : 'Conectar novo numero'}
+              {canManageChannelConfig
+                ? editingConnectionId
+                  ? 'Editar numero WhatsApp'
+                  : 'Conectar novo numero'
+                : 'Acesso operacional'}
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              {editingConnectionId
-                ? 'Atualize numero, instancia, URL ou chave da Evolution sem recriar o registro.'
-                : 'Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.'}
+              {canManageChannelConfig
+                ? editingConnectionId
+                  ? 'Atualize numero, instancia, URL ou chave da Evolution sem recriar o registro.'
+                  : 'Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.'
+                : 'Usuarios da clinica podem reabrir QR code, validar conexao e testar envio sem depender do suporte. Ajustes estruturais da Evolution continuam restritos ao admin.'}
             </p>
 
+            {canManageChannelConfig ? (
             <form className="mt-5 space-y-4" onSubmit={submit}>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
@@ -591,6 +718,20 @@ export const TenantChannelsPage: React.FC = () => {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Instance name</label>
                   <input className={FIELD_CLASS} value={form.instanceName} onChange={(e) => onChange('instanceName', e.target.value)} placeholder="Clinica Dra Maria" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Modo preferido de envio</label>
+                <select className={FIELD_CLASS} value={form.sendMode} onChange={(e) => onChange('sendMode', e.target.value as ChannelFormState['sendMode'])}>
+                  <option value="auto">Auto (testa formatos comuns)</option>
+                  <option value="number_text">number + text</option>
+                  <option value="number_textMessage">number + textMessage.text</option>
+                  <option value="number_message">number + message</option>
+                  <option value="number_body">number + body</option>
+                </select>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Depois de validar na interface, deixe aqui o formato que sua Evolution aceitou melhor.
                 </div>
               </div>
 
@@ -660,7 +801,16 @@ export const TenantChannelsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+            ) : (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
+                Esta área de infraestrutura fica disponível apenas para administradores. Para reconectar o WhatsApp da clínica, use os botões de pareamento, healthcheck e teste no card da conexão ao lado.
+              </div>
+            )}
           </div>
+        </div>
+      ) : tenant ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-5 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+          Seu usuario ainda nao tem permissao para operar o modulo de WhatsApp desta clinica.
         </div>
       ) : null}
     </div>

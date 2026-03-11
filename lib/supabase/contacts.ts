@@ -200,12 +200,15 @@ export const contactsService = {
    * // data = { LEAD: 1500, MQL: 2041, PROSPECT: 800, ... }
    * ```
    */
-  async getStageCounts(): Promise<{ data: Record<string, number> | null; error: Error | null }> {
+  async getStageCounts(organizationId?: string | null): Promise<{ data: Record<string, number> | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      const { data, error } = await supabase.rpc('get_contact_stage_counts');
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      const { data, error } = normalizedOrganizationId
+        ? await supabase.rpc('get_contact_stage_counts', { org_id: normalizedOrganizationId } as any)
+        : await supabase.rpc('get_contact_stage_counts');
 
       if (error) return { data: null, error };
 
@@ -230,7 +233,7 @@ export const contactsService = {
    * @param ids - Array de IDs de contatos a buscar.
    * @returns Promise com array de contatos ou erro.
    */
-  async getByIds(ids: string[]): Promise<{ data: Contact[] | null; error: Error | null }> {
+  async getByIds(ids: string[], organizationId?: string | null): Promise<{ data: Contact[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -245,10 +248,17 @@ export const contactsService = {
         return { data: [], error: null };
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('contacts')
         .select('*')
         .in('id', uniqueIds);
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
@@ -262,16 +272,23 @@ export const contactsService = {
    *
    * @returns Promise com array de contatos ou erro.
    */
-  async getAll(): Promise<{ data: Contact[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: Contact[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       // Safety limit: Prevent unbounded queries when pagination isn't used
       // For paginated access, use getAllPaginated() instead
-      const { data, error } = await supabase
+      let query = supabase
         .from('contacts')
-        .select('*')
+        .select('*');
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(10000);
 
@@ -302,7 +319,8 @@ export const contactsService = {
    */
   async getAllPaginated(
     pagination: PaginationState,
-    filters?: ContactsServerFilters
+    filters?: ContactsServerFilters,
+    organizationId?: string | null
   ): Promise<{ data: PaginatedResponse<Contact> | null; error: Error | null }> {
     try {
       if (!supabase) {
@@ -316,6 +334,11 @@ export const contactsService = {
       let query = supabase
         .from('contacts')
         .select('*', { count: 'exact' });
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
 
       // Apply filters
       if (filters) {
@@ -567,7 +590,7 @@ export const companiesService = {
    * @param ids - Array de IDs de empresas a buscar.
    * @returns Promise com array de empresas ou erro.
    */
-  async getByIds(ids: string[]): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
+  async getByIds(ids: string[], organizationId?: string | null): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -582,10 +605,17 @@ export const companiesService = {
         return { data: [], error: null };
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('crm_companies')
         .select('*')
         .in('id', uniqueIds);
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };
@@ -599,15 +629,22 @@ export const companiesService = {
    *
    * @returns Promise com array de empresas ou erro.
    */
-  async getAll(): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       // Safety limit: Prevent unbounded queries
-      const { data, error } = await supabase
+      let query = supabase
         .from('crm_companies')
-        .select('*')
+        .select('*');
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(10000);
 

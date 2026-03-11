@@ -3,29 +3,29 @@
 exports[`Cache Integrity - Snapshot > deve gerar um snapshot das query keys usadas para escrita de deals 1`] = `
 {
   "CRMContext.tsx": [
-    "[...queryKeys.deals.lists(",
-    "[...queryKeys.deals.lists(",
-    "[...queryKeys.deals.lists(",
+    "dealsViewKey",
+    "dealsViewKey",
+    "dealsViewKey",
   ],
   "DealsContext.tsx": [
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
+    "dealsViewKey",
+    "dealsViewKey",
   ],
   "useDealsQuery.ts": [
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
-    "queryKeys.deals.detail(id",
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
+    "dealsViewKey",
+    "dealsViewKey",
+    "dealsViewKey",
+    "[...queryKeys.deals.detail(id",
+    "dealsViewKey",
+    "dealsViewKey",
   ],
   "useMoveDeal.ts": [
-    "DEALS_VIEW_KEY",
-    "queryKeys.deals.detail(dealId",
+    "dealsViewKey",
+    "[...queryKeys.deals.detail(dealId",
   ],
   "useRealtimeSync.ts": [
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
+    "dealsViewKey",
+    "dealsViewKey",
   ],
 }
 `;

@@ -3,6 +3,7 @@ import { useCRM } from '@/context/CRMContext';
 import { Bot, Key, Cpu, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 // Performance: keep provider/model catalog outside the component to avoid reallocations on every render.
 const AI_PROVIDERS = [
@@ -131,7 +132,7 @@ async function validateApiKey(provider: string, apiKey: string, model: string): 
  */
 export const AIConfigSection: React.FC = () => {
     const { profile } = useAuth();
-    const isAdmin = profile?.role === 'admin';
+    const isAdmin = canManageClinicSettings(profile?.role);
 
     const {
         aiProvider, setAiProvider,

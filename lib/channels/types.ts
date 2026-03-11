@@ -12,12 +12,17 @@ export type ChannelConnectionConfig = {
   webhookUrl?: string;
   webhookSecret?: string;
   apiKey?: string;
+  sendMode?: 'auto' | 'number_text' | 'number_textMessage' | 'number_message' | 'number_body';
 };
 
 export type ChannelConnectionMetadata = {
   phoneNumber?: string;
   apiKeyLast4?: string;
   notes?: string;
+  lastSendTestAt?: string;
+  lastSendTestStatus?: 'sent' | 'failed';
+  lastSendTestError?: string;
+  lastSendTestAttempt?: string;
 };
 
 export type ChannelConnection = {

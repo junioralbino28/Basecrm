@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { runProvisioning } from '@/lib/provisioning/runProvisioning';
+import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -18,6 +19,7 @@ const CreateTenantSchema = z.object({
   serviceModel: z.string().min(2).max(200),
   leadChannel: z.string().min(2).max(120),
   notes: z.string().max(1000).optional().or(z.literal('')),
+  provisioningMode: z.enum(['full', 'empty']).optional(),
 }).strict();
 
 async function requireAdminProfile() {
@@ -35,7 +37,7 @@ async function requireAdminProfile() {
     .single();
 
   if (error || !profile?.organization_id) return { error: json({ error: 'Profile not found' }, 404) };
-  if (profile.role !== 'admin') return { error: json({ error: 'Forbidden' }, 403) };
+  if (!isAgencyAdminRole(normalizeAppUserRole(profile.role))) return { error: json({ error: 'Forbidden' }, 403) };
 
   return { profile };
 }
@@ -99,6 +101,7 @@ export async function POST(req: Request) {
         ...parsed.data,
         subdomain: parsed.data.subdomain || undefined,
         notes: parsed.data.notes || undefined,
+        provisioningMode: parsed.data.provisioningMode || 'full',
       },
     });
 

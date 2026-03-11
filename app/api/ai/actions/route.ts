@@ -15,11 +15,11 @@
 import { generateObject, generateText } from 'ai';
 import { getModel, type AIProvider } from '@/lib/ai/config';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { getResolvedPrompt } from '@/lib/ai/prompts/server';
 import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { isAIFeatureEnabled } from '@/lib/ai/features/server';
+import { resolveActiveTenantContext } from '@/lib/platform/activeTenantContext';
 
 export const maxDuration = 60;
 
@@ -143,15 +143,13 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: 'Forbidden' }, 403);
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return json<AIActionResponse>({ error: 'Unauthorized' }, 401);
+  const context = await resolveActiveTenantContext();
+  if ('error' in context) {
+    const status = context.error === 'Unauthorized' ? 401 : 404;
+    return json<AIActionResponse>({ error: context.error }, status);
   }
+
+  const { supabase, targetOrganizationId } = context;
 
   const body = await req.json().catch(() => null);
   const action = body?.action as AIAction | undefined;
@@ -161,20 +159,10 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: "Invalid request format. Missing 'action'." }, 400);
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.organization_id) {
-    return json<AIActionResponse>({ error: 'Profile not found' }, 404);
-  }
-
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
     .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', targetOrganizationId)
     .single();
 
   const aiEnabled = typeof (orgSettings as any)?.ai_enabled === 'boolean' ? (orgSettings as any).ai_enabled : true;
@@ -202,7 +190,7 @@ export async function POST(req: Request) {
 
   const featureKey = featureKeyByAction[action];
   if (featureKey) {
-    const enabled = await isAIFeatureEnabled(supabase as any, profile.organization_id as any, featureKey);
+    const enabled = await isAIFeatureEnabled(supabase as any, targetOrganizationId as any, featureKey);
     if (!enabled) {
       return json<AIActionResponse>(
         { error: `Função de IA desativada para esta ação (${action}).` },
@@ -231,7 +219,7 @@ export async function POST(req: Request) {
     switch (action) {
       case 'analyzeLead': {
         const { deal, stageLabel } = data as any;
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_deals_analyze');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_deals_analyze');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           dealTitle: deal?.title || '',
           dealValue: deal?.value?.toLocaleString?.('pt-BR') ?? deal?.value ?? 0,
@@ -249,7 +237,7 @@ export async function POST(req: Request) {
 
       case 'generateEmailDraft': {
         const { deal } = data as any;
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_deals_email_draft');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_deals_email_draft');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           contactName: deal?.contactName || 'Cliente',
           companyName: deal?.companyName || 'Empresa',
@@ -345,7 +333,7 @@ Responda em português do Brasil.`,
                 { id: 'OTHER', name: 'Outros' },
               ];
 
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_boards_generate_structure');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_boards_generate_structure');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           description,
           lifecycleJson: JSON.stringify(lifecycleList),
@@ -362,7 +350,7 @@ Responda em português do Brasil.`,
 
       case 'generateBoardStrategy': {
         const { boardData } = data as any;
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_boards_generate_strategy');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_boards_generate_strategy');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           boardName: boardData?.boardName || '',
         });
@@ -381,7 +369,7 @@ Responda em português do Brasil.`,
         const boardContext = currentBoard
           ? `\nBoard atual (JSON):\n${JSON.stringify(currentBoard)}`
           : '';
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_boards_refine');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_boards_refine');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           userInstruction,
           boardContext,
@@ -398,7 +386,7 @@ Responda em português do Brasil.`,
 
       case 'generateObjectionResponse': {
         const { deal, objection } = data as any;
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_deals_objection_responses');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_deals_objection_responses');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           objection,
           dealTitle: deal?.title || '',
@@ -448,7 +436,7 @@ Responda em português.`,
       }
 
       case 'generateDailyBriefing': {
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_inbox_daily_briefing');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_inbox_daily_briefing');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           dataJson: JSON.stringify(data),
         });
@@ -472,7 +460,7 @@ Responda em português.`,
 
       case 'generateSalesScript': {
         const { deal, scriptType, context } = data as any;
-        const resolved = await getResolvedPrompt(supabase as any, profile.organization_id as any, 'task_inbox_sales_script');
+        const resolved = await getResolvedPrompt(supabase as any, targetOrganizationId as any, 'task_inbox_sales_script');
         const prompt = renderPromptTemplate(resolved?.content || '', {
           scriptType: scriptType || 'geral',
           dealTitle: deal?.title || '',

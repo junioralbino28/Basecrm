@@ -21,6 +21,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
 import { useAI } from '@/context/AIContext';
+import { useTenant } from '@/context/TenantContext';
 
 /**
  * Função pública `isDealRotting` do projeto.
@@ -71,6 +72,8 @@ export const useBoardsController = () => {
   // Toast for feedback
   const { addToast } = useToast();
   const { profile, organizationId } = useAuth();
+  const { tenant } = useTenant();
+  const activeBoardStorageKey = tenant?.organizationId ? `crm_active_board_id:${tenant.organizationId}` : 'crm_active_board_id';
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -93,7 +96,7 @@ export const useBoardsController = () => {
 
   // Active board state (persisted)
   const [activeBoardId, setActiveBoardId] = usePersistedState<string | null>(
-    'crm_active_board_id',
+    activeBoardStorageKey,
     null
   );
 
@@ -642,7 +645,7 @@ export const useBoardsController = () => {
       subtitle: boardData?.name ? `— ${boardData.name}` : undefined,
     });
 
-    createBoardMutation.mutate({ board: boardData, order, clientTempId: tempId }, {
+    createBoardMutation.mutate({ board: { ...boardData, organizationId: tenant?.organizationId || boardData.organizationId }, order, clientTempId: tempId }, {
       onSuccess: newBoard => {
         try {
           sessionStorage.removeItem('createBoardDraft.v1');
@@ -680,7 +683,11 @@ export const useBoardsController = () => {
       // Mirror the "instant" UX of handleCreateBoard (optimistic temp selection) for async flows too.
       const tempId = makeTempId();
       setActiveBoardId(tempId);
-      const newBoard = await createBoardMutation.mutateAsync({ board: boardData, order, clientTempId: tempId });
+      const newBoard = await createBoardMutation.mutateAsync({
+        board: { ...boardData, organizationId: tenant?.organizationId || boardData.organizationId },
+        order,
+        clientTempId: tempId,
+      });
       setActiveBoardId(newBoard.id);
       return newBoard;
     } catch (error) {

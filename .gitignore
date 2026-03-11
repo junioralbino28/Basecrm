@@ -41,6 +41,8 @@ dev_server.log
 # Other AI/dev tools (local configs)
 .jules/
 .specify/
+.vscode/
+tmp/
 
 # testsprite generated artifacts (may contain PII)
 testsprite_tests/tmp/

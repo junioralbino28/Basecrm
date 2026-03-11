@@ -1,14 +1,15 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { DealDetailModal } from './DealDetailModal';
-
-// Keep this test focused: we only want to ensure opening/closing the modal
-// never crashes due to hook-order issues (React error #310).
+const Icon = () => null;
 
 vi.mock('@/hooks/useResponsiveMode', () => ({
   useResponsiveMode: () => ({ mode: 'desktop' }),
+}));
+
+vi.mock('@/hooks/usePersistedState', () => ({
+  usePersistedState: () => [[], vi.fn()],
 }));
 
 vi.mock('@/context/AuthContext', () => ({
@@ -58,14 +59,33 @@ vi.mock('@/lib/ai/tasksClient', () => ({
   generateObjectionResponse: vi.fn(),
 }));
 
+vi.mock('lucide-react', () => ({
+  BrainCircuit: Icon,
+  Mail: Icon,
+  Phone: Icon,
+  Calendar: Icon,
+  Check: Icon,
+  X: Icon,
+  Trash2: Icon,
+  Pencil: Icon,
+  ThumbsUp: Icon,
+  ThumbsDown: Icon,
+  Building2: Icon,
+  User: Icon,
+  Package: Icon,
+  Sword: Icon,
+  CheckCircle2: Icon,
+  Bot: Icon,
+  Tag: Icon,
+  Plus: Icon,
+}));
+
 vi.mock('@/context/CRMContext', () => ({
   useCRM: () => {
     const board = {
       id: 'board-1',
       name: 'Pipeline de Vendas',
-      stages: [
-        { id: 'stage-1', label: 'Novo', order: 0, linkedLifecycleStage: 'MQL' },
-      ],
+      stages: [{ id: 'stage-1', label: 'Novo', order: 0, linkedLifecycleStage: 'MQL' }],
       wonStageId: null,
       lostStageId: null,
       wonStayInStage: false,
@@ -77,12 +97,12 @@ vi.mock('@/context/CRMContext', () => ({
 
     const deal = {
       id: 'deal-1',
-      title: 'Pequeno Chapéu',
+      title: 'Pequeno Chapeu',
       value: 1000,
       status: 'stage-1',
       boardId: 'board-1',
       contactId: 'contact-1',
-      companyName: 'Moreira Comércio',
+      companyName: 'Moreira Comercio',
       contactName: 'Fulano',
       contactEmail: 'fulano@example.com',
       createdAt: new Date().toISOString(),
@@ -118,7 +138,9 @@ vi.mock('@/context/CRMContext', () => ({
 }));
 
 describe('DealDetailModal', () => {
-  it('does not crash when toggling open/close (hook order regression)', () => {
+  it('does not crash when toggling open/close (hook order regression)', async () => {
+    const { DealDetailModal } = await import('./DealDetailModal');
+
     const { rerender } = render(
       <DealDetailModal dealId="deal-1" isOpen={false} onClose={() => {}} />
     );
@@ -126,11 +148,9 @@ describe('DealDetailModal', () => {
     expect(document.body.textContent).not.toContain('Application error');
 
     rerender(<DealDetailModal dealId="deal-1" isOpen={true} onClose={() => {}} />);
-    expect(document.body.textContent).toContain('Pequeno Chapéu');
+    expect(document.body.textContent).toContain('Pequeno Chapeu');
 
     rerender(<DealDetailModal dealId="deal-1" isOpen={false} onClose={() => {}} />);
     expect(document.body.textContent).not.toContain('Application error');
   });
 });
-
-

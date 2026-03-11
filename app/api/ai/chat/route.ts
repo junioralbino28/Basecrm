@@ -3,11 +3,11 @@
 
 import { createAgentUIStreamResponse, UIMessage } from 'ai';
 import { createCRMAgent } from '@/lib/ai/crmAgent';
-import { createClient } from '@/lib/supabase/server';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import type { CRMCallOptions } from '@/types/ai';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { isAIFeatureEnabled } from '@/lib/ai/features/server';
+import { resolveActiveTenantContext } from '@/lib/platform/activeTenantContext';
 
 export const maxDuration = 60;
 
@@ -71,57 +71,19 @@ export async function POST(req: Request) {
         return new Response('Forbidden', { status: 403 });
     }
 
-    const supabase = await createClient();
-
     // 0. Parse request body early (we may need boardId to recover a missing profile.organization_id)
     const body = await req.json().catch(() => null);
     const messages: UIMessage[] = (body?.messages ?? []) as UIMessage[];
     const rawContext = (body?.context ?? {}) as Record<string, unknown>;
 
-    // 1. Auth check
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return new Response('Unauthorized', { status: 401 });
+    const activeTenant = await resolveActiveTenantContext();
+    if ('error' in activeTenant) {
+        const status = activeTenant.error === 'Unauthorized' ? 401 : 404;
+        return new Response(activeTenant.error, { status });
     }
 
-    // 2. Get profile with organization + role (RBAC)
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id, first_name, nickname, role')
-        .eq('id', user.id)
-        .single();
-
-    // Alguns usuários legados podem existir sem organization_id no profile (ex.: signup sem raw_user_meta_data).
-    // Se veio boardId no contexto e o board é visível para o usuário autenticado (RLS), inferimos a org com segurança.
-    let organizationId = profile?.organization_id ?? null;
-    if (!organizationId) {
-        const boardId = typeof rawContext?.boardId === 'string' ? rawContext.boardId : null;
-        if (boardId) {
-            const { data: board, error: boardError } = await supabase
-                .from('boards')
-                .select('organization_id')
-                .eq('id', boardId)
-                .maybeSingle();
-
-            if (boardError) {
-                console.warn('[AI Chat] Failed to infer organization from board:', { boardId, message: boardError.message });
-            }
-
-            if (board?.organization_id) {
-                organizationId = board.organization_id;
-
-                // Best-effort: persistir no profile para corrigir de vez.
-                const { error: updateProfileError } = await supabase
-                    .from('profiles')
-                    .update({ organization_id: organizationId, updated_at: new Date().toISOString() })
-                    .eq('id', user.id);
-
-                if (updateProfileError) {
-                    console.warn('[AI Chat] Failed to backfill profile.organization_id:', { message: updateProfileError.message });
-                }
-            }
-        }
-    }
+    const { supabase, user, profile } = activeTenant;
+    const organizationId = activeTenant.targetOrganizationId;
 
     if (!organizationId) {
         return new Response(
@@ -191,7 +153,7 @@ export async function POST(req: Request) {
         cockpitSnapshot: asOptionalCockpitSnapshot((rawContext as any)?.cockpitSnapshot),
         userId: user.id,
         userName: profile?.nickname || profile?.first_name || user.email,
-        userRole: (profile as any)?.role,
+        userRole: profile?.role,
     };
 
     const rawContextSummary = {

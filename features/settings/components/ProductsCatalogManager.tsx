@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Package, Pencil, Plus, Save, Trash2, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import { productsService } from '@/lib/supabase';
 import type { Product } from '@/types';
+import { useTenant } from '@/context/TenantContext';
 
 function formatBRL(v: number) {
   try {
@@ -16,6 +17,8 @@ function formatBRL(v: number) {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const ProductsCatalogManager: React.FC = () => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId ?? null;
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export const ProductsCatalogManager: React.FC = () => {
   const load = async () => {
     setLoading(true);
     setError(null);
-    const res = await productsService.getAll();
+    const res = await productsService.getAll(organizationId);
     if (res.error) {
       setError(res.error.message);
       setProducts([]);
@@ -50,7 +53,7 @@ export const ProductsCatalogManager: React.FC = () => {
     // Test environment: avoid async state updates that generate act(...) warnings.
     if (process.env.NODE_ENV === 'test') return;
     load();
-  }, []);
+  }, [organizationId]);
 
   const sorted = useMemo(() => {
     // keep active first, then name
@@ -73,6 +76,7 @@ export const ProductsCatalogManager: React.FC = () => {
       price: Number(price),
       sku: sku.trim() || undefined,
       description: description.trim() || undefined,
+      organizationId,
     });
     if (res.error) {
       setError(res.error.message);

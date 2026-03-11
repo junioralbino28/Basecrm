@@ -115,17 +115,24 @@ export const activitiesService = {
    * 
    * @returns Promise com array de atividades ou erro.
    */
-  async getAll(): Promise<{ data: Activity[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: Activity[] | null; error: Error | null }> {
     try {
       const sb = supabase;
       if (!sb) return { data: null, error: new Error('Supabase não configurado') };
 
-      const { data, error } = await sb
+      let query = sb
         .from('activities')
         .select(`
           *,
           deals:deal_id (title)
-        `)
+        `);
+
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query
         .order('date', { ascending: false }); // Ordenação básica do banco
 
       if (error) return { data: null, error };

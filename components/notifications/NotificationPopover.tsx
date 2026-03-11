@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Bell, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { useSystemNotifications, SystemNotification } from '@/hooks/useSystemNotifications';
 import Link from 'next/link';
+import { useTenantScopedHref } from '@/components/navigation/useTenantScopedHref';
 
 const getTimeAgo = (date: Date) => {
     const now = new Date();
@@ -19,6 +20,7 @@ const getTimeAgo = (date: Date) => {
  */
 export const NotificationPopover = () => {
     const { notifications, count, hasHighSeverity, markAsRead, markAllAsRead } = useSystemNotifications();
+    const dashboardHref = useTenantScopedHref('/dashboard');
     const [isOpen, setIsOpen] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +159,7 @@ export const NotificationPopover = () => {
 
                     <div className="p-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 text-center">
                         <Link
-                            href="/dashboard"
+                            href={dashboardHref}
                             onClick={() => setIsOpen(false)}
                             className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                         >

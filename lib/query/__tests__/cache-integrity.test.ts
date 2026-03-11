@@ -3,7 +3,7 @@
  * 
  * Estes testes detectam regressões no gerenciamento de cache de deals.
  * O objetivo é garantir que:
- * 1. Todos os pontos de escrita usam DEALS_VIEW_KEY
+ * 1. Todos os pontos de escrita usam a key única de deals view
  * 2. Não há setQueriesData com prefix matchers para deals
  * 3. A arquitetura de "única fonte de verdade" é mantida
  */
@@ -30,19 +30,19 @@ const DANGEROUS_PATTERNS = [
   // setQueriesData com prefix matcher (pode atualizar caches errados)
   {
     pattern: /setQueriesData\s*<[^>]*>\s*\(\s*\{\s*queryKey:\s*queryKeys\.deals\.(all|lists\(\))/g,
-    description: 'setQueriesData com prefix matcher para deals (deve usar setQueryData com DEALS_VIEW_KEY)',
+    description: 'setQueriesData com prefix matcher para deals (deve usar setQueryData com getDealsViewQueryKey/DEALS_VIEW_KEY)',
     severity: 'error' as const,
   },
   // setQueryData com queryKeys.deals.lists() sem 'view'
   {
     pattern: /setQueryData\s*<[^>]*>\s*\(\s*queryKeys\.deals\.lists\(\)/g,
-    description: 'setQueryData com queryKeys.deals.lists() (deve usar DEALS_VIEW_KEY)',
+    description: 'setQueryData com queryKeys.deals.lists() (deve usar getDealsViewQueryKey/DEALS_VIEW_KEY)',
     severity: 'error' as const,
   },
   // setQueryData com queryKeys.deals.list({ ... }) para mutations
   {
     pattern: /setQueryData\s*<[^>]*>\s*\(\s*queryKeys\.deals\.list\s*\(/g,
-    description: 'setQueryData com queryKeys.deals.list({ filter }) (deve usar DEALS_VIEW_KEY para mutations)',
+    description: 'setQueryData com queryKeys.deals.list({ filter }) (deve usar getDealsViewQueryKey/DEALS_VIEW_KEY para mutations)',
     severity: 'warning' as const,
   },
 ];
@@ -51,8 +51,8 @@ const DANGEROUS_PATTERNS = [
 const REQUIRED_PATTERNS = [
   {
     files: ['useDealsQuery.ts', 'useMoveDeal.ts', 'DealsContext.tsx', 'useRealtimeSync.ts'],
-    pattern: /import\s*\{[^}]*DEALS_VIEW_KEY[^}]*\}\s*from/,
-    description: 'DEALS_VIEW_KEY deve ser importado',
+    pattern: /import\s*\{[^}]*(DEALS_VIEW_KEY|getDealsViewQueryKey)[^}]*\}\s*from/,
+    description: 'DEALS_VIEW_KEY ou getDealsViewQueryKey deve ser importado',
   },
 ];
 
@@ -85,7 +85,7 @@ describe('Cache Integrity - Deals', () => {
               expect.fail(
                 `❌ ${fileName}: ${description}\n` +
                 `   Encontrado: ${nonCommentMatches.join(', ')}\n` +
-                `   Solução: Use setQueryData(DEALS_VIEW_KEY, ...) em vez disso`
+                `   Solução: Use setQueryData(getDealsViewQueryKey(organizationId), ...) em vez disso`
               );
             }
           }
@@ -115,7 +115,7 @@ describe('Cache Integrity - Deals', () => {
   });
 
   describe('Consistência de Query Keys', () => {
-    it('DEALS_VIEW_KEY deve ser usado para todas as mutations de deals', () => {
+    it('a key única de deals view deve ser usada para todas as mutations de deals', () => {
       const dealsQueryPath = path.join(LIB_QUERY_DIR, 'hooks/useDealsQuery.ts');
       
       if (!fs.existsSync(dealsQueryPath)) {
@@ -125,17 +125,18 @@ describe('Cache Integrity - Deals', () => {
 
       const content = fs.readFileSync(dealsQueryPath, 'utf-8');
       
-      // Conta quantas vezes setQueryData é chamado com DEALS_VIEW_KEY
-      const dealsViewKeyUsage = (content.match(/setQueryData[^)]*DEALS_VIEW_KEY/g) || []).length;
+      // Conta quantas vezes setQueryData é chamado com a key única de deals view
+      const dealsViewKeyUsage =
+        (content.match(/setQueryData[^)]*(DEALS_VIEW_KEY|getDealsViewQueryKey|dealsViewKey)/g) || []).length;
       
-      // A maioria dos setQueryData<DealView[]> deve usar DEALS_VIEW_KEY
+      // A maioria dos setQueryData<DealView[]> deve usar a key única de deals view
       expect(
         dealsViewKeyUsage,
-        'Mutations de deals devem usar DEALS_VIEW_KEY'
+        'Mutations de deals devem usar getDealsViewQueryKey/DEALS_VIEW_KEY'
       ).toBeGreaterThan(0);
     });
 
-    it('useMoveDeal deve usar DEALS_VIEW_KEY', () => {
+    it('useMoveDeal deve usar a key única de deals view', () => {
       const moveDealPath = path.join(LIB_QUERY_DIR, 'hooks/useMoveDeal.ts');
       
       if (!fs.existsSync(moveDealPath)) {
@@ -145,8 +146,8 @@ describe('Cache Integrity - Deals', () => {
 
       const content = fs.readFileSync(moveDealPath, 'utf-8');
       
-      // Deve importar DEALS_VIEW_KEY
-      expect(content).toMatch(/DEALS_VIEW_KEY/);
+      // Deve importar a key única
+      expect(content).toMatch(/DEALS_VIEW_KEY|getDealsViewQueryKey/);
       
       // Não deve usar setQueriesData
       const setQueriesDataUsage = content.match(/setQueriesData\s*<[^>]*Deal/g);
@@ -156,7 +157,7 @@ describe('Cache Integrity - Deals', () => {
       ).toBeNull();
     });
 
-    it('useRealtimeSync deve usar DEALS_VIEW_KEY para INSERT e UPDATE', () => {
+    it('useRealtimeSync deve usar a key única de deals view para INSERT e UPDATE', () => {
       const realtimePath = path.join(REALTIME_DIR, 'useRealtimeSync.ts');
       
       if (!fs.existsSync(realtimePath)) {
@@ -166,8 +167,8 @@ describe('Cache Integrity - Deals', () => {
 
       const content = fs.readFileSync(realtimePath, 'utf-8');
       
-      // Deve importar DEALS_VIEW_KEY
-      expect(content).toMatch(/DEALS_VIEW_KEY/);
+      // Deve importar a key única
+      expect(content).toMatch(/DEALS_VIEW_KEY|getDealsViewQueryKey/);
       
       // Deve ter comentário sobre única fonte de verdade
       expect(content).toMatch(/única fonte de verdade|single source of truth/i);
@@ -176,7 +177,7 @@ describe('Cache Integrity - Deals', () => {
 
   describe('Documentação', () => {
     it('AGENTS.md deve documentar a regra de cache', () => {
-      const agentsPath = path.join(__dirname, '../../../../AGENTS.md');
+      const agentsPath = path.join(process.cwd(), 'AGENTS.md');
       
       if (!fs.existsSync(agentsPath)) {
         console.warn('⚠️ AGENTS.md não encontrado');
@@ -186,12 +187,12 @@ describe('Cache Integrity - Deals', () => {
       const content = fs.readFileSync(agentsPath, 'utf-8');
       
       // Deve mencionar a regra de deals
-      expect(content).toMatch(/deals.*view|DEALS_VIEW_KEY/i);
+      expect(content).toMatch(/deals.*view|DEALS_VIEW_KEY|getDealsViewQueryKey/i);
     });
   });
 
-  describe('CRMContext deve usar DEALS_VIEW_KEY', () => {
-    it('CRMContext.tsx deve importar e usar DEALS_VIEW_KEY', () => {
+  describe('CRMContext deve usar a key única de deals view', () => {
+    it('CRMContext.tsx deve importar e usar getDealsViewQueryKey/DEALS_VIEW_KEY', () => {
       const crmContextPath = path.join(CONTEXT_DIR, 'CRMContext.tsx');
       
       if (!fs.existsSync(crmContextPath)) {
@@ -202,12 +203,13 @@ describe('Cache Integrity - Deals', () => {
       const content = fs.readFileSync(crmContextPath, 'utf-8');
       
       // Verifica se usa a constante ou o equivalente inline
-      const usesDealsViewKey = content.includes('DEALS_VIEW_KEY') || 
+      const usesDealsViewKey = content.includes('DEALS_VIEW_KEY') ||
+        content.includes('getDealsViewQueryKey') ||
         content.includes("[...queryKeys.deals.lists(), 'view']");
       
       expect(
         usesDealsViewKey,
-        'CRMContext deve usar DEALS_VIEW_KEY ou equivalente para setQueryData'
+        'CRMContext deve usar getDealsViewQueryKey/DEALS_VIEW_KEY para setQueryData'
       ).toBe(true);
     });
   });

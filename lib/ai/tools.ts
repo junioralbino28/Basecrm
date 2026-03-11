@@ -311,11 +311,9 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     const guard = await ensureBoardBelongsToOrganization(context.boardId);
                     if (!guard.ok) return { error: guard.error };
 
-                    // Compat: inclui deals legados que ficaram com organization_id NULL.
-                    // Como o board já foi validado no tenant, isso não vaza dados.
                     queryBuilder = queryBuilder
                         .eq('board_id', context.boardId)
-                        .or(`organization_id.eq.${organizationId},organization_id.is.null`);
+                        .eq('organization_id', organizationId);
                 } else {
                     // Sem board no contexto: sempre filtra por organization_id.
                     queryBuilder = queryBuilder.eq('organization_id', organizationId);
@@ -475,7 +473,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     .select('id, title, value, updated_at, is_won, is_lost, contact:contacts(name)')
                     .eq('board_id', targetBoardId)
                     .eq('stage_id', finalStageId)
-                    .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                    .eq('organization_id', organizationId)
                     .order('value', { ascending: false })
                     // Busca mais do que o necessário e filtra client-side para tratar legacy NULL
                     .limit(Math.max(limit * 5, 50));
@@ -533,7 +531,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     .from('deals')
                     .select('id, title, value, updated_at, is_won, is_lost, contact:contacts(name)')
                     .eq('board_id', targetBoardId)
-                    .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                    .eq('organization_id', organizationId)
                     .lt('updated_at', cutoffDate.toISOString())
                     .order('updated_at', { ascending: true })
                     // Busca mais e filtra client-side para tratar legacy NULL

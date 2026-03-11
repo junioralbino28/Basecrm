@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
+import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -25,45 +26,23 @@ const UpdateOrgAISettingsSchema = z
   })
   .strict();
 
-/**
- * Handler HTTP `GET` deste endpoint (Next.js Route Handler).
- * @returns {Promise<Response>} Retorna um valor do tipo `Promise<Response>`.
- */
 export async function GET() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return json({ error: 'Unauthorized' }, 401);
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('organization_id, role')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.organization_id) {
-    return json({ error: 'Profile not found' }, 404);
-  }
+  const auth = await requireAdminTenantContext();
+  if ('error' in auth) return auth.error;
 
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
     .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', auth.targetOrganizationId)
     .maybeSingle();
 
-  if (orgError) {
-    return json({ error: orgError.message }, 500);
-  }
+  if (orgError) return json({ error: orgError.message }, 500);
 
   const aiEnabled = typeof orgSettings?.ai_enabled === 'boolean' ? orgSettings.ai_enabled : true;
+  const canManageSecrets = auth.isAgencyAdmin || auth.isClinicAdmin;
 
-  // Security: members should NOT receive raw API keys.
-  if (profile.role !== 'admin') {
+  if (!canManageSecrets) {
     return json({
       aiEnabled,
       aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
@@ -90,41 +69,14 @@ export async function GET() {
   });
 }
 
-/**
- * Handler HTTP `POST` deste endpoint (Next.js Route Handler).
- *
- * @param {Request} req - Objeto da requisição.
- * @returns {Promise<Response>} Retorna um valor do tipo `Promise<Response>`.
- */
 export async function POST(req: Request) {
-  // Mitigação CSRF: endpoint autenticado por cookies.
   if (!isAllowedOrigin(req)) {
     return json({ error: 'Forbidden' }, 403);
   }
 
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return json({ error: 'Unauthorized' }, 401);
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('organization_id, role')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.organization_id) {
-    return json({ error: 'Profile not found' }, 404);
-  }
-
-  if (profile.role !== 'admin') {
-    return json({ error: 'Forbidden' }, 403);
-  }
+  const auth = await requireAdminTenantContext();
+  if ('error' in auth) return auth.error;
 
   const rawBody = await req.json().catch(() => null);
   const parsed = UpdateOrgAISettingsSchema.safeParse(rawBody);
@@ -134,7 +86,6 @@ export async function POST(req: Request) {
 
   const updates = parsed.data;
 
-  // Normalize empty-string keys to null
   const normalizeKey = (value: string | undefined) => {
     if (value === undefined) return undefined;
     const trimmed = value.trim();
@@ -142,7 +93,7 @@ export async function POST(req: Request) {
   };
 
   const dbUpdates: Record<string, unknown> = {
-    organization_id: profile.organization_id,
+    organization_id: auth.targetOrganizationId,
     updated_at: new Date().toISOString(),
   };
 

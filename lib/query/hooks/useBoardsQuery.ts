@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../index';
 import { boardsService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import type { Board, BoardStage } from '@/types';
 
 // ============ QUERY HOOKS ============
@@ -20,11 +21,13 @@ import type { Board, BoardStage } from '@/types';
  */
 export const useBoards = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery<Board[]>({
-    queryKey: queryKeys.boards.lists(),
+    queryKey: [...queryKeys.boards.lists(), organizationId],
     queryFn: async () => {
-      const { data, error } = await boardsService.getAll();
+      const { data, error } = await boardsService.getAll(organizationId);
       if (error) throw error;
       return data || [];
     },
@@ -36,7 +39,7 @@ export const useBoards = () => {
     // This avoids refetch storms while still preventing "stale forever" on navigation.
     refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
     refetchOnReconnect: false,
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -45,14 +48,16 @@ export const useBoards = () => {
  */
 export const useBoard = (id: string | undefined) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery<Board | null>({
-    queryKey: queryKeys.boards.detail(id || ''),
+    queryKey: [...queryKeys.boards.detail(id || ''), organizationId],
     queryFn: async () => {
-      const { data, error } = await boardsService.getAll();
+      const { data, error } = await boardsService.getAll(organizationId);
       if (error) throw error;
-      return (data || []).find(b => b.id === id) || null;
+      return (data || []).find((board) => board.id === id) || null;
     },
-    enabled: !authLoading && !!user && !!id,
+    enabled: !authLoading && !tenantLoading && !!user && !!id && !!organizationId,
   });
 };
 
@@ -62,13 +67,15 @@ export const useBoard = (id: string | undefined) => {
  */
 export const useDefaultBoard = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery<Board | null>({
-    queryKey: [...queryKeys.boards.all, 'default'] as const,
+    queryKey: [...queryKeys.boards.all, 'default', organizationId] as const,
     queryFn: async () => {
-      const { data, error } = await boardsService.getAll();
+      const { data, error } = await boardsService.getAll(organizationId);
       if (error) throw error;
-      const chosen = (data || []).find(b => b.isDefault) || (data || [])[0] || null;
+      const chosen = (data || []).find((board) => board.isDefault) || (data || [])[0] || null;
       return chosen;
     },
     // Keep it fresh-ish, but allow invalidation to force a refetch when coming back from other pages.
@@ -79,7 +86,7 @@ export const useDefaultBoard = () => {
     // We want a stale query to refetch on mount so we don't show a deleted board until F5.
     refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
     refetchOnReconnect: false,
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -90,6 +97,9 @@ export const useDefaultBoard = () => {
  */
 export const useCreateBoard = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const boardsListKey = [...queryKeys.boards.lists(), organizationId] as const;
 
   return useMutation({
     mutationFn: async ({ board, order }: {
@@ -105,7 +115,7 @@ export const useCreateBoard = () => {
     onMutate: async ({ board, clientTempId }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.boards.all });
 
-      const previousBoards = queryClient.getQueryData<Board[]>(queryKeys.boards.lists());
+      const previousBoards = queryClient.getQueryData<Board[]>(boardsListKey);
 
       const tempId = clientTempId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const tempBoard: Board = {
@@ -116,20 +126,20 @@ export const useCreateBoard = () => {
         createdAt: new Date().toISOString(),
       } as Board;
 
-      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) => [tempBoard, ...old]);
+      queryClient.setQueryData<Board[]>(boardsListKey, (old = []) => [tempBoard, ...old]);
 
       return { previousBoards, tempId };
     },
     onError: (_error, _vars, context) => {
       if (context?.previousBoards) {
-        queryClient.setQueryData(queryKeys.boards.lists(), context.previousBoards);
+        queryClient.setQueryData(boardsListKey, context.previousBoards);
       }
     },
     onSuccess: (data, _vars, context) => {
       const tempId = (context as any)?.tempId as string | undefined;
       if (!tempId) return;
 
-      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) => {
+      queryClient.setQueryData<Board[]>(boardsListKey, (old = []) => {
         const withoutTemp = old.filter((b) => b.id !== tempId);
         const already = withoutTemp.some((b) => b.id === data.id);
         return already ? withoutTemp : [data, ...withoutTemp];
@@ -146,6 +156,9 @@ export const useCreateBoard = () => {
  */
 export const useUpdateBoard = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const boardsListKey = [...queryKeys.boards.lists(), organizationId] as const;
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Board> }) => {
@@ -156,9 +169,9 @@ export const useUpdateBoard = () => {
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.boards.all });
 
-      const previousBoards = queryClient.getQueryData<Board[]>(queryKeys.boards.lists());
+      const previousBoards = queryClient.getQueryData<Board[]>(boardsListKey);
 
-      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) =>
+      queryClient.setQueryData<Board[]>(boardsListKey, (old = []) =>
         old.map(board => (board.id === id ? { ...board, ...updates } : board))
       );
 
@@ -166,7 +179,7 @@ export const useUpdateBoard = () => {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousBoards) {
-        queryClient.setQueryData(queryKeys.boards.lists(), context.previousBoards);
+        queryClient.setQueryData(boardsListKey, context.previousBoards);
       }
     },
     onSettled: () => {
@@ -180,6 +193,9 @@ export const useUpdateBoard = () => {
  */
 export const useDeleteBoard = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const boardsListKey = [...queryKeys.boards.lists(), organizationId] as const;
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -190,9 +206,9 @@ export const useDeleteBoard = () => {
     onMutate: async id => {
       await queryClient.cancelQueries({ queryKey: queryKeys.boards.all });
 
-      const previousBoards = queryClient.getQueryData<Board[]>(queryKeys.boards.lists());
+      const previousBoards = queryClient.getQueryData<Board[]>(boardsListKey);
 
-      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) =>
+      queryClient.setQueryData<Board[]>(boardsListKey, (old = []) =>
         old.filter(board => board.id !== id)
       );
 
@@ -200,7 +216,7 @@ export const useDeleteBoard = () => {
     },
     onError: (_error, _id, context) => {
       if (context?.previousBoards) {
-        queryClient.setQueryData(queryKeys.boards.lists(), context.previousBoards);
+        queryClient.setQueryData(boardsListKey, context.previousBoards);
       }
     },
     onSettled: () => {

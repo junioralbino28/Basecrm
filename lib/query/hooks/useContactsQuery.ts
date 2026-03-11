@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryKey 
 import { queryKeys } from '../index';
 import { contactsService, companiesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import type { Contact, ContactStage, Company, PaginationState, PaginatedResponse, ContactsServerFilters } from '@/types';
 
 function matchesContactsServerFilters(contact: Contact, filters?: ContactsServerFilters): boolean {
@@ -65,13 +66,15 @@ export interface ContactsFilters {
  */
 export const useContacts = (filters?: ContactsFilters) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery({
     queryKey: filters
-      ? queryKeys.contacts.list(filters as Record<string, unknown>)
-      : queryKeys.contacts.lists(),
+      ? [...queryKeys.contacts.list(filters as Record<string, unknown>), organizationId]
+      : [...queryKeys.contacts.lists(), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAll();
+      const { data, error } = await contactsService.getAll(organizationId);
       if (error) throw error;
 
       let contacts = data || [];
@@ -97,7 +100,7 @@ export const useContacts = (filters?: ContactsFilters) => {
       return contacts;
     },
     staleTime: 2 * 60 * 1000,
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId, // Only fetch when auth is ready
   });
 };
 
@@ -106,14 +109,16 @@ export const useContacts = (filters?: ContactsFilters) => {
  */
 export const useContact = (id: string | undefined) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.contacts.detail(id || ''),
+    queryKey: [...queryKeys.contacts.detail(id || ''), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAll();
+      const { data, error } = await contactsService.getAll(organizationId);
       if (error) throw error;
       return (data || []).find(c => c.id === id) || null;
     },
-    enabled: !authLoading && !!user && !!id,
+    enabled: !authLoading && !tenantLoading && !!user && !!id && !!organizationId,
   });
 };
 
@@ -122,14 +127,16 @@ export const useContact = (id: string | undefined) => {
  */
 export const useContactsByCompany = (clientCompanyId: string) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.contacts.list({ clientCompanyId }),
+    queryKey: [...queryKeys.contacts.list({ clientCompanyId }), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAll();
+      const { data, error } = await contactsService.getAll(organizationId);
       if (error) throw error;
       return (data || []).filter(c => c.clientCompanyId === clientCompanyId || c.companyId === clientCompanyId);
     },
-    enabled: !authLoading && !!user && !!clientCompanyId,
+    enabled: !authLoading && !tenantLoading && !!user && !!clientCompanyId && !!organizationId,
   });
 };
 
@@ -138,14 +145,16 @@ export const useContactsByCompany = (clientCompanyId: string) => {
  */
 export const useLeadContacts = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.contacts.list({ stage: 'LEAD' }),
+    queryKey: [...queryKeys.contacts.list({ stage: 'LEAD' }), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAll();
+      const { data, error } = await contactsService.getAll(organizationId);
       if (error) throw error;
       return (data || []).filter(c => c.stage === 'LEAD');
     },
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -172,16 +181,18 @@ export const useContactsPaginated = (
   filters?: ContactsServerFilters
 ) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.contacts.paginated(pagination, filters),
+    queryKey: [...queryKeys.contacts.paginated(pagination, filters), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAllPaginated(pagination, filters);
+      const { data, error } = await contactsService.getAllPaginated(pagination, filters, organizationId);
       if (error) throw error;
       return data!;
     },
     placeholderData: keepPreviousData,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -199,15 +210,22 @@ export const useContactsPaginated = (
  */
 export const useContactStageCounts = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.contacts.stageCounts(),
+    queryKey: [...queryKeys.contacts.stageCounts(), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getStageCounts();
+      const { data, error } = await contactsService.getAll(organizationId);
       if (error) throw error;
-      return data || {};
+      const counts: Record<string, number> = {};
+      for (const contact of data || []) {
+        const stage = contact.stage || 'UNKNOWN';
+        counts[stage] = (counts[stage] || 0) + 1;
+      }
+      return counts;
     },
     staleTime: 30 * 1000, // 30 seconds - counts can be slightly stale
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -216,15 +234,17 @@ export const useContactStageCounts = () => {
  */
 export const useCompanies = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.companies.lists(),
+    queryKey: [...queryKeys.companies.lists(), organizationId],
     queryFn: async () => {
-      const { data, error } = await companiesService.getAll();
+      const { data, error } = await companiesService.getAll(organizationId);
       if (error) throw error;
       return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - companies change less frequently
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -733,11 +753,13 @@ export const useDeleteCompany = () => {
  */
 export const usePrefetchContact = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return async (id: string) => {
     await queryClient.prefetchQuery({
-      queryKey: queryKeys.contacts.detail(id),
+      queryKey: [...queryKeys.contacts.detail(id), organizationId],
       queryFn: async () => {
-        const { data, error } = await contactsService.getAll();
+        const { data, error } = await contactsService.getAll(organizationId);
         if (error) throw error;
         return (data || []).find(c => c.id === id) || null;
       },

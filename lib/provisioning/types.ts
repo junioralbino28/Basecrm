@@ -21,6 +21,7 @@ export interface TenantProvisioningInput {
   serviceModel: string;
   leadChannel: string;
   notes?: string;
+  provisioningMode?: 'full' | 'empty';
 }
 
 export interface TenantProvisioningResult {

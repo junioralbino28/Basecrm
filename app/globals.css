@@ -7,7 +7,7 @@
  * ======================================== */
 @theme {
   /* Font Families */
-  --font-sans: 'Inter', var(--font-inter), sans-serif;
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: 'Space Grotesk', sans-serif;
   --font-serif: 'Cinzel', serif;
 

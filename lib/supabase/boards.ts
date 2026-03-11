@@ -321,13 +321,22 @@ export const boardsService = {
    * 
    * @returns Promise com array de boards ou erro.
    */
-  async getAll(): Promise<{ data: Board[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: Board[] | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
 
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      let boardsQuery = supabase.from('boards').select('*');
+      let stagesQuery = supabase.from('board_stages').select('*');
+
+      if (normalizedOrganizationId) {
+        boardsQuery = boardsQuery.eq('organization_id', normalizedOrganizationId);
+        stagesQuery = stagesQuery.eq('organization_id', normalizedOrganizationId);
+      }
+
       const [boardsResult, stagesResult] = await Promise.all([
-        supabase.from('boards').select('*').order('position', { ascending: true }).order('created_at', { ascending: true }),
-        supabase.from('board_stages').select('*').order('order', { ascending: true }),
+        boardsQuery.order('position', { ascending: true }).order('created_at', { ascending: true }),
+        stagesQuery.order('order', { ascending: true }),
       ]);
 
       if (boardsResult.error) return { data: null, error: boardsResult.error };
@@ -883,13 +892,20 @@ export const boardsService = {
 // ============================================
 export const boardStagesService = {
   /** Busca todos os stages */
-  async getAll(): Promise<{ data: DbBoardStage[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: DbBoardStage[] | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
 
-      const { data, error } = await supabase
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      let query = supabase
         .from('board_stages')
-        .select('*')
+        .select('*');
+
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query
         .order('order', { ascending: true });
 
       return { data: data as DbBoardStage[] | null, error };

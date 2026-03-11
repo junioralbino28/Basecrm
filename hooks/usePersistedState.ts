@@ -108,6 +108,19 @@ export const usePersistedState = <T>(
   });
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const item = localStorage.getItem(storageKey);
+      setState(item ? JSON.parse(item) : initialValue);
+    } catch (error) {
+      console.error(`Error reloading localStorage key "${storageKey}":`, error);
+      setState(initialValue);
+    }
+  }, [storageKey, initialValue]);
+
+  useEffect(() => {
     // SSR safety: only access localStorage in browser
     if (typeof window === 'undefined') {
       return;

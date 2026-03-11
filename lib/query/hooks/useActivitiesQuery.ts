@@ -11,6 +11,7 @@ import { queryKeys } from '../index';
 import { activitiesService } from '@/lib/supabase';
 import { sortActivitiesSmart } from '@/lib/utils/activitySort';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import type { Activity } from '@/types';
 
 // ============ QUERY HOOKS ============
@@ -29,13 +30,15 @@ export interface ActivitiesFilters {
  */
 export const useActivities = (filters?: ActivitiesFilters) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useQuery({
     queryKey: filters
-      ? queryKeys.activities.list(filters as Record<string, unknown>)
-      : queryKeys.activities.lists(),
+      ? [...queryKeys.activities.list(filters as Record<string, unknown>), organizationId]
+      : [...queryKeys.activities.lists(), organizationId],
     queryFn: async () => {
-      const { data, error } = await activitiesService.getAll();
+      const { data, error } = await activitiesService.getAll(organizationId);
       if (error) throw error;
 
       let activities = data || [];
@@ -64,7 +67,7 @@ export const useActivities = (filters?: ActivitiesFilters) => {
       // Apply smart sorting (already sorted by service, but re-sort after filtering)
       return sortActivitiesSmart(activities);
     },
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId, // Only fetch when auth is ready
     staleTime: 30 * 1000, // 30 seconds - short staleTime for Realtime updates
   });
 };
@@ -74,15 +77,17 @@ export const useActivities = (filters?: ActivitiesFilters) => {
  */
 export const useActivitiesByDeal = (dealId: string | undefined) => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.activities.byDeal(dealId || ''),
+    queryKey: [...queryKeys.activities.byDeal(dealId || ''), organizationId],
     queryFn: async () => {
-      const { data, error } = await activitiesService.getAll();
+      const { data, error } = await activitiesService.getAll(organizationId);
       if (error) throw error;
       const filtered = (data || []).filter(a => a.dealId === dealId);
       return sortActivitiesSmart(filtered);
     },
-    enabled: !authLoading && !!user && !!dealId,
+    enabled: !authLoading && !tenantLoading && !!user && !!dealId && !!organizationId,
   });
 };
 
@@ -91,15 +96,17 @@ export const useActivitiesByDeal = (dealId: string | undefined) => {
  */
 export const usePendingActivities = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   return useQuery({
-    queryKey: queryKeys.activities.list({ completed: false }),
+    queryKey: [...queryKeys.activities.list({ completed: false }), organizationId],
     queryFn: async () => {
-      const { data, error } = await activitiesService.getAll();
+      const { data, error } = await activitiesService.getAll(organizationId);
       if (error) throw error;
       const filtered = (data || []).filter(a => !a.completed);
       return sortActivitiesSmart(filtered);
     },
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 
@@ -108,18 +115,20 @@ export const usePendingActivities = () => {
  */
 export const useTodayActivities = () => {
   const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   const today = new Date().toISOString().split('T')[0];
 
   return useQuery({
-    queryKey: queryKeys.activities.list({ date: today }),
+    queryKey: [...queryKeys.activities.list({ date: today }), organizationId],
     queryFn: async () => {
-      const { data, error } = await activitiesService.getAll();
+      const { data, error } = await activitiesService.getAll(organizationId);
       if (error) throw error;
       const filtered = (data || []).filter(a => a.date.startsWith(today));
       return sortActivitiesSmart(filtered);
     },
     staleTime: 30 * 1000, // 30 seconds - very fresh for today's view
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
   });
 };
 

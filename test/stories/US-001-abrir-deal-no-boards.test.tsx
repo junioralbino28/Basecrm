@@ -1,16 +1,17 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-
-import { DealDetailModal } from '@/features/boards/components/Modals/DealDetailModal';
+import { describe, expect, it, vi } from 'vitest';
 import { runStorySteps } from './storyRunner';
 
-// Story: US-001 — Abrir um deal no Boards
-// User Story: Abrir deal no Boards sem crash
+const Icon = () => null;
 
 vi.mock('@/hooks/useResponsiveMode', () => ({
   useResponsiveMode: () => ({ mode: 'desktop' }),
+}));
+
+vi.mock('@/hooks/usePersistedState', () => ({
+  usePersistedState: () => [[], vi.fn()],
 }));
 
 vi.mock('@/context/AuthContext', () => ({
@@ -58,6 +59,27 @@ vi.mock('@/lib/ai/tasksClient', () => ({
   generateObjectionResponse: vi.fn(),
 }));
 
+vi.mock('lucide-react', () => ({
+  BrainCircuit: Icon,
+  Mail: Icon,
+  Phone: Icon,
+  Calendar: Icon,
+  Check: Icon,
+  X: Icon,
+  Trash2: Icon,
+  Pencil: Icon,
+  ThumbsUp: Icon,
+  ThumbsDown: Icon,
+  Building2: Icon,
+  User: Icon,
+  Package: Icon,
+  Sword: Icon,
+  CheckCircle2: Icon,
+  Bot: Icon,
+  Tag: Icon,
+  Plus: Icon,
+}));
+
 vi.mock('@/context/CRMContext', () => ({
   useCRM: () => {
     const board = {
@@ -75,12 +97,12 @@ vi.mock('@/context/CRMContext', () => ({
 
     const deal = {
       id: 'deal-1',
-      title: 'Pequeno Chapéu',
+      title: 'Pequeno Chapeu',
       value: 1000,
       status: 'stage-1',
       boardId: 'board-1',
       contactId: 'contact-1',
-      companyName: 'Moreira Comércio',
+      companyName: 'Moreira Comercio',
       contactName: 'Fulano',
       contactEmail: 'fulano@example.com',
       createdAt: new Date().toISOString(),
@@ -115,9 +137,10 @@ vi.mock('@/context/CRMContext', () => ({
   },
 }));
 
-describe('Story — US-001: Abrir deal no Boards', () => {
-  it('simula a história e garante que não quebra', async () => {
+describe('Story - US-001: Abrir deal no Boards', () => {
+  it('simula a historia e garante que nao quebra', async () => {
     const user = userEvent.setup();
+    const { DealDetailModal } = await import('@/features/boards/components/Modals/DealDetailModal');
 
     const Harness = ({ open }: { open: boolean }) => (
       <div>
@@ -127,15 +150,12 @@ describe('Story — US-001: Abrir deal no Boards', () => {
 
     const { rerender } = render(<Harness open={false} />);
 
-    // Step runner: we "open" by rerendering to simulate the user story action that triggers the modal.
-    await runStorySteps(user, [
-      { kind: 'expectNotText', text: /Application error/i },
-    ]);
+    await runStorySteps(user, [{ kind: 'expectNotText', text: /Application error/i }]);
 
     rerender(<Harness open={true} />);
 
     await runStorySteps(user, [
-      { kind: 'expectText', text: 'Pequeno Chapéu' },
+      { kind: 'expectText', text: 'Pequeno Chapeu' },
       { kind: 'expectNotText', text: /Application error/i },
     ]);
 
@@ -143,5 +163,3 @@ describe('Story — US-001: Abrir deal no Boards', () => {
     expect(document.body.textContent).not.toMatch(/Application error/i);
   });
 });
-
-

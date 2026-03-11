@@ -46,6 +46,17 @@ export function useTenantDetail() {
   const params = useParams<{ tenantId: string }>();
   const tenantId = String(params?.tenantId || '');
   const [tenant, setTenant] = React.useState<TenantDetail | null>(null);
+  const [access, setAccess] = React.useState<{
+    canManageChannelConfig: boolean;
+    canAccessWhatsApp: boolean;
+    canAccessConversations: boolean;
+    canReplyConversations: boolean;
+  }>({
+    canManageChannelConfig: false,
+    canAccessWhatsApp: false,
+    canAccessConversations: false,
+    canReplyConversations: false,
+  });
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -62,6 +73,12 @@ export function useTenantDetail() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinica (HTTP ${res.status})`);
       setTenant(data?.tenant || null);
+      setAccess({
+        canManageChannelConfig: Boolean(data?.access?.canManageChannelConfig),
+        canAccessWhatsApp: Boolean(data?.access?.canAccessWhatsApp),
+        canAccessConversations: Boolean(data?.access?.canAccessConversations),
+        canReplyConversations: Boolean(data?.access?.canReplyConversations),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar clinica.');
     } finally {
@@ -76,6 +93,7 @@ export function useTenantDetail() {
   return {
     tenantId,
     tenant,
+    access,
     loading,
     error,
     reload: load,

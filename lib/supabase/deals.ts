@@ -250,7 +250,7 @@ export const dealsService = {
    * 
    * @returns Promise com array de deals ou erro.
    */
-  async getAll(): Promise<{ data: Deal[] | null; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: Deal[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -258,12 +258,19 @@ export const dealsService = {
       // Embedded select: traz deal_items junto com deals em UMA query
       // Elimina N+1: antes carregava TODOS items e filtrava no cliente
       // Agora o Postgres já retorna os items aninhados por deal
-      const { data, error } = await supabase
+      const normalizedOrganizationId = sanitizeUUID(organizationId);
+      let query = supabase
         .from('deals')
         .select(`
           *,
           deal_items (*)
-        `)
+        `);
+
+      if (normalizedOrganizationId) {
+        query = query.eq('organization_id', normalizedOrganizationId);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false });
 
       if (error) return { data: null, error };

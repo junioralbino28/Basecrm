@@ -361,3 +361,242 @@ Validacao:
 Pendencias:
 
 - seguir registrando novos checkpoints a cada marco estavel relevante
+
+## 2026-03-10 - Inbox operacional de Conversations
+
+Objetivo:
+
+- evoluir `Conversations` de CRUD basico para uma mesa de operacao utilizavel em cima do inbound ja recebido da Evolution
+
+Entregas:
+
+- listagem de conversas enriquecida com preview, unread count, contagem de mensagens, conexao, contato, deal e responsavel
+- resumo operacional com contadores de fila
+- filtros de status, nao lidas, sem responsavel e busca textual
+- painel de detalhe com timeline, atribuicao e atualizacao de status
+- acao de marcar conversa como lida
+- composer para registrar resposta outbound e nota interna
+- metadata de thread atualizada de forma consistente em inbound e em mensagens registradas manualmente
+- normalizacao de telefone no webhook da Evolution para melhorar reaproveitamento de thread e vinculo com contato
+
+Arquivos principais:
+
+- `features/platform/tenants/TenantConversationsPage.tsx`
+- `app/api/platform/tenants/[tenantId]/conversations/route.ts`
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/route.ts`
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+- `lib/conversations/server.ts`
+- `lib/conversations/threadMetadata.ts`
+- `lib/conversations/types.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- envio outbound real via Evolution ainda nao foi implementado
+- vinculacao manual profunda com contato/deal ainda pode ser expandida
+- realtime dedicado para inbox ainda nao foi adicionado; a tela usa refresh/polling
+
+## 2026-03-10 - Outbound real da Evolution em Conversations
+
+Objetivo:
+
+- permitir que o operador responda pela propria tela de `Conversations` e tente envio real pela Evolution
+
+Entregas:
+
+- composer outbound agora envia pela Evolution quando a thread possui conexao WhatsApp valida
+- fallback best-effort para formatos comuns do endpoint `sendText`
+- persistencia de `delivery_status`, `delivery_error`, `delivery_provider` e `provider_message_id` no metadata da mensagem
+- aviso visual no composer quando a mensagem e registrada mas o envio externo falha
+
+Arquivos principais:
+
+- `lib/channels/evolution.ts`
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts`
+- `features/platform/tenants/TenantConversationsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- confirmar em ambiente real qual variante de payload/endpoint da Evolution e a definitiva
+- adicionar status de entrega mais profundo se a Evolution expuser confirmacao posterior
+
+## 2026-03-10 - Observabilidade de entrega outbound
+
+Objetivo:
+
+- tornar o outbound da Evolution auditavel na propria timeline de `Conversations`
+
+Entregas:
+
+- badge visual de `Enviada` ou `Falhou` na mensagem outbound
+- exibicao de erro de entrega na propria bolha da conversa
+- persistencia de `delivery_attempt` para diagnostico de compatibilidade da Evolution
+- ampliacao do best-effort com mais uma variante comum de payload para `sendText`
+
+Arquivos principais:
+
+- `features/platform/tenants/TenantConversationsPage.tsx`
+- `lib/conversations/types.ts`
+- `lib/channels/evolution.ts`
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+
+Pendencias:
+
+- confirmar online qual tentativa de envio vira padrao da instancia Evolution usada em producao
+
+## 2026-03-10 - Ferramenta de migracao do tenant legado
+
+Objetivo:
+
+- preparar uma migracao segura do tenant legado da conta master para uma clinica correta depois da validacao geral do projeto
+
+Entregas:
+
+- script de auditoria e migracao por `organization_id`
+- escopo principal para `boards`, `deals`, `contacts`, `products`, `activities` e relacionamentos diretos
+- escopo estendido opcional para `settings`, `IA`, `conversations`, `channels`, `webhooks` e `api_keys`
+- abort de seguranca quando o tenant de destino ja possui dados no escopo principal
+- documentacao operacional da migracao
+
+Arquivos principais:
+
+- `scripts/legacy-tenant-migration.mjs`
+- `docs/legacy-tenant-migration.md`
+- `package.json`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run test:run`
+
+Pendencias:
+
+- executar `audit` com os UUIDs reais do tenant legado e da clinica destino
+- depois rodar a migracao real em ambiente com service role configurado
+
+## 2026-03-11 - Hardening multi-tenant aplicado no Supabase real
+
+Objetivo:
+
+- fechar a blindagem multi-clinica em banco compartilhado
+- reduzir o risco de mistura entre paineis, caches, queries e dados de clinicas
+
+Entregas:
+
+- workspace tenant-scoped expandido para `dashboard`, `boards`, `contacts`, `activities`, `reports`, `settings` e `inbox`
+- navegacao principal orientada por clinica ativa
+- sincronizacao do tenant ativo ao entrar por `/platform/tenants/[tenantId]`
+- queries core (`boards`, `deals`, `contacts`, `activities`, `products`) filtradas na origem por `organization_id`
+- realtime endurecido com filtro por `organization_id`
+- AI tools endurecidas para nao consultar dados fora do tenant
+- helper SQL multi-tenant por papel, organizacao e deal
+- RLS core tenant-aware aplicado no Supabase real
+
+Arquivos principais:
+
+- `components/Layout.tsx`
+- `components/navigation/navConfig.ts`
+- `components/navigation/useTenantScopedHref.ts`
+- `context/TenantContext.tsx`
+- `lib/query/hooks/useBoardsQuery.ts`
+- `lib/query/hooks/useDealsQuery.ts`
+- `lib/query/hooks/useContactsQuery.ts`
+- `lib/query/hooks/useActivitiesQuery.ts`
+- `lib/realtime/useRealtimeSync.ts`
+- `lib/ai/tools.ts`
+- `docs/multi-tenant-hardening-plan.md`
+- `docs/multi-tenant-hardening-audit.md`
+
+Migrations:
+
+- `20260311010000_multi_tenant_policy_helpers.sql`
+- `20260311013000_core_multi_tenant_rls.sql`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+- `npx vitest run --maxWorkers=1`
+- `npx vitest test/multiTenantRlsPolicies.test.ts --run`
+- `npx vitest test/tenantRealtimeAndAiGuardrails.test.ts --run`
+- aplicacao confirmada no Supabase real com verificacao posterior das funcoes e policies
+
+Pendencias:
+
+- separar melhor UX de troca de clinica e troca de board
+- deixar a tela `Clinicas` claramente clicavel/editavel
+- continuar validacao manual do workspace multi-clinica depois do hardening de banco
+
+## 2026-03-11 - UX do workspace multi-clinica refinada
+
+Objetivo:
+
+- deixar a operacao da clinica mais clara no app antes do push final
+- reduzir a ambiguidade entre clinica ativa, board ativo e painel da agencia
+
+Entregas:
+
+- switcher reutilizavel de clinica ativa no header e em pontos operacionais
+- `Boards` agora separa melhor a troca de clinica da troca de funil
+- seletor de board passou a se apresentar explicitamente como `Funil`
+- sidebar da area tenant-scoped prioriza itens da clinica ativa antes dos atalhos da agencia
+- branding do sidebar em workspace de clinica passou a refletir a clinica ativa
+- tela `Clinicas` ficou visualmente mais explicita como ponto de entrada no workspace
+
+Arquivos principais:
+
+- `components/navigation/TenantClinicSwitcher.tsx`
+- `components/Layout.tsx`
+- `features/boards/components/BoardSelector.tsx`
+- `features/boards/components/Kanban/KanbanHeader.tsx`
+- `features/boards/components/PipelineView.tsx`
+- `features/dashboard/DashboardPage.tsx`
+- `features/platform/tenants/TenantsPage.tsx`
+- `lib/tenancy/workspaceRoutes.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Pendencias:
+
+- validar manualmente o fluxo com pelo menos duas clinicas reais no browser
+- decidir se `WhatsApp` e `Conversations` devem continuar como itens secundarios ou subir para grupo principal do menu

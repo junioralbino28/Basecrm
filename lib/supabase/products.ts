@@ -64,14 +64,20 @@ function transformProduct(db: DbProduct): Product {
 }
 
 export const productsService = {
-  async getAll(): Promise<{ data: Product[]; error: Error | null }> {
+  async getAll(organizationId?: string | null): Promise<{ data: Product[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('products')
         .select('id, organization_id, name, description, price, sku, active, created_at, updated_at, owner_id')
         .order('created_at', { ascending: false });
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) return { data: [], error };
 
@@ -83,15 +89,21 @@ export const productsService = {
     }
   },
 
-  async getActive(): Promise<{ data: Product[]; error: Error | null }> {
+  async getActive(organizationId?: string | null): Promise<{ data: Product[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('products')
         .select('id, organization_id, name, description, price, sku, active, created_at, updated_at, owner_id')
         .eq('active', true)
         .order('created_at', { ascending: false });
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) return { data: [], error };
 
@@ -102,12 +114,12 @@ export const productsService = {
     }
   },
 
-  async create(input: { name: string; price: number; sku?: string; description?: string }): Promise<{ data: Product | null; error: Error | null }> {
+  async create(input: { name: string; price: number; sku?: string; description?: string; organizationId?: string | null }): Promise<{ data: Product | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
 
       const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = await getCurrentOrganizationId();
+      const organizationId = sanitizeUUID(input.organizationId) || await getCurrentOrganizationId();
 
       const { data, error } = await supabase
         .from('products')

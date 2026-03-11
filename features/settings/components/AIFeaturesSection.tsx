@@ -7,6 +7,7 @@ import { Copy, Loader2, Pencil, RotateCcw, SlidersHorizontal, ToggleLeft, Toggle
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
 import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 type FeatureItem = {
   key: string;
@@ -34,7 +35,7 @@ const FEATURES: FeatureItem[] = [
  */
 export const AIFeaturesSection: React.FC = () => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = canManageClinicSettings(profile?.role);
   const { aiFeatureFlags, setAIFeatureFlag } = useCRM();
   const { showToast } = useToast();
   const [savingKey, setSavingKey] = useState<string | null>(null);

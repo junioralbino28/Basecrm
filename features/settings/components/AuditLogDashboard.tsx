@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 // Performance: reuse Intl formatter to avoid allocating options objects for every log row.
 const PT_BR_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
@@ -123,6 +125,7 @@ const ACTION_LABELS: Record<string, string> = {
  */
 export const AuditLogDashboard: React.FC = () => {
   const { profile } = useAuth();
+  const { tenant } = useTenant();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,10 +146,11 @@ export const AuditLogDashboard: React.FC = () => {
     info: 0,
   });
 
-  const isAdmin = profile?.role === 'admin';
+  const organizationId = tenant?.organizationId ?? null;
+  const isAdmin = canManageClinicSettings(profile?.role) && !!organizationId;
 
   const fetchLogs = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !organizationId) return;
 
     if (!sb) {
       setLogs([]);
@@ -181,6 +185,7 @@ export const AuditLogDashboard: React.FC = () => {
       let query = sb
         .from('audit_logs')
         .select('*')
+        .eq('organization_id', organizationId)
         .gte('created_at', new Date(fromTs).toISOString())
         .order('created_at', { ascending: false })
         .limit(100);
@@ -221,7 +226,7 @@ export const AuditLogDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [severityFilter, actionFilter, timeFilter, isAdmin]);
+  }, [severityFilter, actionFilter, timeFilter, isAdmin, organizationId]);
 
   if (!isAdmin) {
     return (

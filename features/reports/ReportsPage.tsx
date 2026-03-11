@@ -8,6 +8,7 @@ import { LazyRevenueTrendChart, ChartWrapper } from '@/components/charts';
 import { generateReportPDF } from './utils/generateReportPDF';
 import { useCRM } from '@/context/CRMContext';
 import { useAuth } from '@/context/AuthContext';
+import { useTenantScopedHref } from '@/components/navigation/useTenantScopedHref';
 
 /**
  * Componente React `ReportsPage`.
@@ -15,6 +16,7 @@ import { useAuth } from '@/context/AuthContext';
  */
 const ReportsPage: React.FC = () => {
   const router = useRouter();
+  const getScopedHref = useTenantScopedHref;
   const { boards } = useCRM();
   const { profile } = useAuth();
   const [period, setPeriod] = useState<PeriodFilter>('this_month');
@@ -267,7 +269,7 @@ const ReportsPage: React.FC = () => {
               <p className="text-xs text-slate-500">Defina uma meta no board para acompanhar o forecast.</p>
             </div>
             <button
-              onClick={() => router.push('/boards')}
+              onClick={() => router.push(getScopedHref('/boards'))}
               className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
             >
               Configurar

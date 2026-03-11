@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { getModel, type AIProvider } from '@/lib/ai/config';
+import { createClient } from '@/lib/supabase/server';
+import { resolveActiveTenantContext } from '@/lib/platform/activeTenantContext';
 
 export type AITaskContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -63,27 +64,18 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
     throw new AITaskHttpError(403, 'FORBIDDEN', 'Forbidden');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const context = await resolveActiveTenantContext();
+  if ('error' in context) {
+    if (context.error === 'Unauthorized') {
+      throw new AITaskHttpError(401, 'UNAUTHORIZED', 'Unauthorized');
+    }
+    if (context.error === 'Profile not found') {
+      throw new AITaskHttpError(404, 'PROFILE_NOT_FOUND', 'Profile not found');
+    }
     throw new AITaskHttpError(401, 'UNAUTHORIZED', 'Unauthorized');
   }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.organization_id) {
-    throw new AITaskHttpError(404, 'PROFILE_NOT_FOUND', 'Profile not found');
-  }
-
-  const organizationId = profile.organization_id as string;
+  const { supabase, user, targetOrganizationId } = context;
+  const organizationId = targetOrganizationId;
 
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')

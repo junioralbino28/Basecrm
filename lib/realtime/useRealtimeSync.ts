@@ -12,7 +12,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { queryKeys, DEALS_VIEW_KEY } from '@/lib/query/queryKeys';
+import { queryKeys, getDealsViewQueryKey } from '@/lib/query/queryKeys';
+import { useTenant } from '@/context/TenantContext';
 import type { DealView } from '@/types';
 
 // Enable detailed Realtime logging in development or when DEBUG_REALTIME env var is set
@@ -85,6 +86,9 @@ export function useRealtimeSync(
 ) {
   const { enabled = true, debounceMs = 100, onchange } = options;
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,7 +116,7 @@ export function useRealtimeSync(
     }
 
     const tableList = Array.isArray(tables) ? tables : [tables];
-    const channelName = `realtime-sync-${tableList.join('-')}`;
+    const channelName = `realtime-sync-${organizationId || 'global'}-${tableList.join('-')}`;
 
     // Cleanup existing channel if any
     if (channelRef.current) {
@@ -135,8 +139,20 @@ export function useRealtimeSync(
           event: '*', // INSERT, UPDATE, DELETE
           schema: 'public',
           table,
+          ...(organizationId ? { filter: `organization_id=eq.${organizationId}` } : {}),
         },
         (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          const newData = payload.new as Record<string, unknown> | null;
+          const oldData = payload.old as Record<string, unknown> | null;
+          const payloadOrganizationId =
+            (typeof newData?.organization_id === 'string' && newData.organization_id) ||
+            (typeof oldData?.organization_id === 'string' && oldData.organization_id) ||
+            null;
+
+          if (organizationId && payloadOrganizationId && payloadOrganizationId !== organizationId) {
+            return;
+          }
+
           if (DEBUG_REALTIME) {
             console.log(`[Realtime] ${table} ${payload.eventType}:`, payload);
           }
@@ -268,7 +284,7 @@ export function useRealtimeSync(
               // O Kanban (useDealsByBoard) agora usa essa mesma query com filtragem client-side
               // NÃO usar setQueriesData com prefix matcher - isso atualiza queries erradas!
               queryClient.setQueryData<DealView[]>(
-                DEALS_VIEW_KEY,
+                dealsViewKey,
                 (old) => {
                   if (!old || !Array.isArray(old)) return old;
                   
@@ -383,7 +399,7 @@ export function useRealtimeSync(
               // IMPORTANT: Only apply if the incoming status is different from current cache status
               // This prevents Realtime from reverting optimistic updates with stale data
               queryClient.setQueryData<DealView[]>(
-                DEALS_VIEW_KEY,
+                dealsViewKey,
                 (old) => {
                   if (!old || !Array.isArray(old)) {
                     // #region agent log
@@ -740,7 +756,7 @@ export function useRealtimeSync(
     };
     // Only re-run if enabled, tables, or debounceMs change
     // queryClient is stable, onchange is handled via ref
-  }, [enabled, JSON.stringify(tables), debounceMs]);
+  }, [enabled, JSON.stringify(tables), debounceMs, dealsViewKey, organizationId]);
 
   return {
     /** Manually trigger a sync */

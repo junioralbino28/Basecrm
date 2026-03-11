@@ -13,6 +13,7 @@ import { AICenterSettings } from './AICenterSettings';
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
 import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package } from 'lucide-react';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 type SettingsTab = 'general' | 'products' | 'integrations' | 'ai' | 'data' | 'users';
 
@@ -177,6 +178,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const { profile } = useAuth();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
+  const canManageSettings = canManageClinicSettings(profile?.role);
 
   // Get hash from URL for scrolling
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
@@ -200,11 +202,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
 
   const tabs = [
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
-    ...(profile?.role === 'admin' ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
-    ...(profile?.role === 'admin' ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
+    ...(canManageSettings ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    ...(canManageSettings ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
-    ...(profile?.role === 'admin' ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
+    ...(canManageSettings ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
   ];
 
   const renderContent = () => {
@@ -220,7 +222,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       case 'users':
         return <UsersPage />;
       default:
-        return <GeneralSettings hash={hash} isAdmin={profile?.role === 'admin'} />;
+        return <GeneralSettings hash={hash} isAdmin={canManageSettings} />;
     }
   };
 

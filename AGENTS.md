@@ -17,7 +17,7 @@
 
 ## Cache Rules (CRITICAL)
 - **One cache per entity**: All operations (CRUD, Realtime, optimistic) use the SAME cache
-- **Deals**: Always use `[...queryKeys.deals.lists(), 'view']` for all mutations
+- **Deals**: Always use `getDealsViewQueryKey(organizationId)` for all mutations. Use `DEALS_VIEW_KEY` only as the legacy/global fallback when there is no tenant context.
 - **Other entities**: Use `queryKeys.{entity}.lists()` for mutations
 - **NEVER use** `queryKeys.*.list({ filter })` for optimistic updates - those are separate caches
 - **Prefer** `setQueryData` over `invalidateQueries` for instant UI updates

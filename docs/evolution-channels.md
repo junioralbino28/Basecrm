@@ -11,6 +11,7 @@ Este modulo ainda nao e o inbox final de WhatsApp. Ele cobre:
 - solicitacao de pareamento
 - exibicao do ultimo estado retornado
 - webhook inbound do CRM para alimentar `Conversations`
+- inbox operacional basico em `Conversations` para triagem
 
 ## Onde fica
 
@@ -147,6 +148,8 @@ Comportamento atual:
 - grava `conversation_messages`
 - faz dedupe best-effort por `metadata.provider_message_id`
 - atualiza `channel_connections.metadata` com ultimo inbound recebido
+- atualiza metadata da thread com preview, direcao e contador de nao lidas
+- tenta normalizar telefone para reaproveitar thread e vincular `contacts`
 
 Limitacoes atuais:
 
@@ -181,6 +184,7 @@ Ja entregue:
 - geracao automatica de `webhookSecret`
 - exibicao da URL do webhook do CRM
 - ingest inbound basico da Evolution em `Conversations`
+- inbox operacional com filtros, atribuicao, status e timeline
 - exibicao do estado e do ultimo codigo
 - exibicao visual do payload de pareamento quando possivel
 - edicao da conexao existente sem recriar o registro
@@ -189,9 +193,22 @@ Ainda pendente:
 
 - renderizacao visual de QR Code
 - fluxo de reconexao guiada mais completo
-- inbox de mensagens mais completo
-- sincronizacao outbound
+- sincronizacao outbound mais profunda e confirmacao posterior de entrega
 - handoff humano dentro da conversa
+- vinculacao manual mais profunda com contato/deal direto do inbox
+
+## Outbound em Conversations
+
+Estado atual:
+
+- a tela de `Conversations` tenta envio outbound real pela Evolution para mensagens `outbound`
+- o sistema usa fallback best-effort para formatos comuns do endpoint `sendText`
+- se o envio falhar, a mensagem continua registrada no CRM com metadata de falha e aviso na interface
+- a timeline mostra status de entrega e erro do outbound diretamente na mensagem
+
+Observacao:
+
+- esta camada ainda depende do endpoint da Evolution ser compativel com um dos formatos tentados pelo CRM
 
 ## Seguranca
 

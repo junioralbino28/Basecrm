@@ -1,15 +1,17 @@
 // =============================================================================
-// DataStorageSettings - Configurações de armazenamento de dados (SIMPLIFICADO)
+// DataStorageSettings - Configuracoes de armazenamento de dados (SIMPLIFICADO)
 // =============================================================================
 
 import React, { useState } from 'react';
 import { Database, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCRM } from '@/context/CRMContext';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
-import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 /**
  * Componente React `DataStorageSettings`.
@@ -18,6 +20,7 @@ import { queryKeys } from '@/lib/query';
 export const DataStorageSettings: React.FC = () => {
     const { deals, contacts, companies, activities, boards, refresh } = useCRM();
     const { profile } = useAuth();
+    const { tenant } = useTenant();
     const { addToast } = useToast();
     const queryClient = useQueryClient();
 
@@ -27,9 +30,9 @@ export const DataStorageSettings: React.FC = () => {
     const [confirmText, setConfirmText] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const isAdmin = profile?.role === 'admin';
+    const organizationId = tenant?.organizationId ?? null;
+    const isAdmin = canManageClinicSettings(profile?.role) && !!organizationId;
 
-    // Estatísticas
     const stats = {
         companies: companies.length,
         contacts: contacts.length,
@@ -47,121 +50,134 @@ export const DataStorageSettings: React.FC = () => {
         }
 
         if (!sb) {
-            addToast('Supabase não está configurado neste ambiente.', 'error');
+            addToast('Supabase nao esta configurado neste ambiente.', 'error');
+            return;
+        }
+
+        if (!organizationId) {
+            addToast('Selecione uma clinica antes de gerenciar os dados.', 'error');
             return;
         }
 
         setIsDeleting(true);
 
         try {
-            // Ordem importa por causa das FKs!
-            // 0. Limpar referências de stages/boards dentro de `boards` (FK boards.won_stage_id/lost_stage_id -> board_stages)
-            // Se não zerarmos isso antes, o delete de `board_stages` falha com:
-            // "violates foreign key constraint boards_won_stage_id_fkey".
+            const boardIds = boards.map((board) => board.id);
+            const dealIds = deals.map((deal) => deal.id);
+
             const { error: boardsRefsError } = await sb
                 .from('boards')
                 .update({ won_stage_id: null, lost_stage_id: null, next_board_id: null })
-                .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
+                .eq('organization_id', organizationId);
             if (boardsRefsError) throw boardsRefsError;
 
-            // 0.1 Integrações/Webhooks (novas FKs para board_stages/boards)
-            // Se houver fontes de entrada apontando para um stage, o delete de `board_stages` falha com:
-            // "violates foreign key constraint integration_inbound_sources_entry_stage_id_fkey".
-            // Por isso, limpamos tudo que depende de integrações antes de mexer em stages/boards.
-            //
-            // Ordem sugerida:
-            // - webhook_deliveries -> webhook_events_out -> webhook_events_in -> endpoints -> inbound_sources
             const { error: deliveriesError } = await sb
                 .from('webhook_deliveries')
                 .delete()
-                .neq('id', '00000000-0000-0000-0000-000000000000');
+                .eq('organization_id', organizationId);
             if (deliveriesError) console.warn('Aviso: erro ao limpar webhook_deliveries:', deliveriesError);
 
             const { error: eventsOutError } = await sb
                 .from('webhook_events_out')
                 .delete()
-                .neq('id', '00000000-0000-0000-0000-000000000000');
+                .eq('organization_id', organizationId);
             if (eventsOutError) console.warn('Aviso: erro ao limpar webhook_events_out:', eventsOutError);
 
             const { error: eventsInError } = await sb
                 .from('webhook_events_in')
                 .delete()
-                .neq('id', '00000000-0000-0000-0000-000000000000');
+                .eq('organization_id', organizationId);
             if (eventsInError) console.warn('Aviso: erro ao limpar webhook_events_in:', eventsInError);
 
             const { error: outboundError } = await sb
                 .from('integration_outbound_endpoints')
                 .delete()
-                .neq('id', '00000000-0000-0000-0000-000000000000');
+                .eq('organization_id', organizationId);
             if (outboundError) console.warn('Aviso: erro ao limpar integration_outbound_endpoints:', outboundError);
 
             const { error: inboundError } = await sb
                 .from('integration_inbound_sources')
                 .delete()
-                .neq('id', '00000000-0000-0000-0000-000000000000');
+                .eq('organization_id', organizationId);
             if (inboundError) console.warn('Aviso: erro ao limpar integration_inbound_sources:', inboundError);
 
-            // 1. Activities (depende de deals)
-            const { error: activitiesError } = await sb.from('activities').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: activitiesError } = await sb
+                .from('activities')
+                .delete()
+                .eq('organization_id', organizationId);
             if (activitiesError) throw activitiesError;
 
-            // 2. Deal Items (depende de deals)
-            const { error: itemsError } = await sb.from('deal_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const itemsDeleteQuery = sb
+                .from('deal_items')
+                .delete()
+                .eq('organization_id', organizationId);
+            const { error: itemsError } = dealIds.length > 0
+                ? await itemsDeleteQuery.in('deal_id', dealIds)
+                : await itemsDeleteQuery;
             if (itemsError) throw itemsError;
 
-            // 3. Deals (depende de boards, contacts, companies)
-            const { error: dealsError } = await sb.from('deals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: dealsError } = await sb
+                .from('deals')
+                .delete()
+                .eq('organization_id', organizationId);
             if (dealsError) throw dealsError;
 
-            // 0. Limpar referência de Active Board em user_settings (evita erro de FK)
-            const { error: userSettingsError } = await sb
-                .from('user_settings')
-                .update({ active_board_id: null })
-                .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
-            if (userSettingsError) console.warn('Aviso: erro ao limpar user_settings (pode não existir ainda):', userSettingsError);
+            if (boardIds.length > 0) {
+                const { error: userSettingsError } = await sb
+                    .from('user_settings')
+                    .update({ active_board_id: null })
+                    .in('active_board_id', boardIds);
+                if (userSettingsError) {
+                    console.warn('Aviso: erro ao limpar user_settings (pode nao existir ainda):', userSettingsError);
+                }
+            }
 
-            // 4. Board Stages (depende de boards)
-            const { error: stagesError } = await sb.from('board_stages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: stagesError } = await sb
+                .from('board_stages')
+                .delete()
+                .eq('organization_id', organizationId);
             if (stagesError) throw stagesError;
 
-            // 5. Boards
-            const { error: boardsError } = await sb.from('boards').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: boardsError } = await sb
+                .from('boards')
+                .delete()
+                .eq('organization_id', organizationId);
             if (boardsError) throw boardsError;
 
-            // 6. Contacts
-            const { error: contactsError } = await sb.from('contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: contactsError } = await sb
+                .from('contacts')
+                .delete()
+                .eq('organization_id', organizationId);
             if (contactsError) throw contactsError;
 
-            // 7. CRM Companies (empresas dos clientes, não a company do tenant!)
-            const { error: crmCompaniesError } = await sb.from('crm_companies').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: crmCompaniesError } = await sb
+                .from('crm_companies')
+                .delete()
+                .eq('organization_id', organizationId);
             if (crmCompaniesError) throw crmCompaniesError;
 
-            // 8. Tags
-            const { error: tagsError } = await sb.from('tags').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: tagsError } = await sb
+                .from('tags')
+                .delete()
+                .eq('organization_id', organizationId);
             if (tagsError) throw tagsError;
 
-            // 9. Products
-            const { error: productsError } = await sb.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            const { error: productsError } = await sb
+                .from('products')
+                .delete()
+                .eq('organization_id', organizationId);
             if (productsError) throw productsError;
 
-            // Invalida todo o cache do React Query
             await queryClient.invalidateQueries();
-
-            // IMPORTANT: invalidate does not clear cached data; if user navigates back to /boards,
-            // stale cached boards can still render until a refetch happens (which we intentionally reduced).
-            // For the nuke flow, we want the UI to reflect "zero boards" immediately.
             queryClient.removeQueries({ queryKey: queryKeys.boards.all });
             queryClient.removeQueries({ queryKey: [...queryKeys.boards.all, 'default'] as const });
-            // Also clear deals cache because /boards renders deals for active board.
             queryClient.removeQueries({ queryKey: queryKeys.deals.all });
 
-            // Força refresh de todos os contexts (Activities, Deals, etc.)
             await refresh();
 
-            addToast('🔥 Database zerado com sucesso!', 'success');
+            addToast('Database zerado com sucesso!', 'success');
             setConfirmText('');
             setShowDangerZone(false);
-
         } catch (error: any) {
             console.error('Erro ao zerar database:', error);
             addToast(`Erro: ${error.message}`, 'error');
@@ -172,11 +188,10 @@ export const DataStorageSettings: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Data Statistics */}
             <div className="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                     <Database className="w-5 h-5" />
-                    Estatísticas do Sistema
+                    Estatisticas do Sistema
                 </h3>
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -190,7 +205,7 @@ export const DataStorageSettings: React.FC = () => {
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.deals}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Negócios</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Negocios</div>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activities}</div>
@@ -203,7 +218,6 @@ export const DataStorageSettings: React.FC = () => {
                 </div>
             </div>
 
-            {/* Danger Zone - Só para Admin */}
             {isAdmin && (
                 <div className="bg-white dark:bg-dark-card rounded-lg border border-red-200 dark:border-red-900/50 p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -223,10 +237,10 @@ export const DataStorageSettings: React.FC = () => {
                         <div className="space-y-4">
                             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
                                 <p className="text-sm text-red-700 dark:text-red-300 mb-2">
-                                    <strong>⚠️ ATENÇÃO:</strong> Esta ação vai excluir permanentemente:
+                                    <strong>ATENCAO:</strong> Esta acao vai excluir permanentemente:
                                 </p>
                                 <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                                    <li>{stats.deals} negócios</li>
+                                    <li>{stats.deals} negocios</li>
                                     <li>{stats.contacts} contatos</li>
                                     <li>{stats.companies} empresas de clientes</li>
                                     <li>{stats.activities} atividades</li>
@@ -234,7 +248,7 @@ export const DataStorageSettings: React.FC = () => {
                                     <li>Todas as tags e produtos</li>
                                 </ul>
                                 <p className="text-sm text-red-700 dark:text-red-300 mt-3 font-medium">
-                                    Total: {totalRecords} registros serão apagados!
+                                    Total: {totalRecords} registros serao apagados!
                                 </p>
                             </div>
 
@@ -265,7 +279,7 @@ export const DataStorageSettings: React.FC = () => {
                                     ) : (
                                         <>
                                             <Trash2 className="w-4 h-4" />
-                                            💣 Zerar Database
+                                            Zerar Database
                                         </>
                                     )}
                                 </button>

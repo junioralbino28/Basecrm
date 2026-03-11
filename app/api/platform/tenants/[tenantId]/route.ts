@@ -1,4 +1,5 @@
-import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
+import { createStaticAdminClient } from '@/lib/supabase/server';
+import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -7,31 +8,10 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function requireAdminProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: json({ error: 'Unauthorized' }, 401) };
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, role, organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error || !profile?.organization_id) return { error: json({ error: 'Profile not found' }, 404) };
-  if (profile.role !== 'admin') return { error: json({ error: 'Forbidden' }, 403) };
-
-  return { profile };
-}
-
 export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: string }> }) {
-  const auth = await requireAdminProfile();
-  if ('error' in auth) return auth.error;
-
   const { tenantId } = await ctx.params;
+  const auth = await requireTenantAccess(tenantId);
+  if ('error' in auth) return auth.error;
   const admin = createStaticAdminClient();
 
   const { data, error } = await admin
@@ -66,8 +46,23 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       enabled_modules: edition?.enabled_modules || [],
       metadata: edition?.metadata || {},
       domains: (data as any).organization_domains || [],
-      channel_connections: (data as any).channel_connections || [],
+      channel_connections: ((data as any).channel_connections || []).map((connection: any) => ({
+        ...connection,
+        config: auth.canManageChannelConfig
+          ? connection.config || {}
+          : {
+              ...(connection.config || {}),
+              apiKey: undefined,
+              webhookSecret: undefined,
+            },
+      })),
       provisioning_runs: (data as any).provisioning_runs || [],
+    },
+    access: {
+      canManageChannelConfig: auth.canManageChannelConfig,
+      canAccessWhatsApp: auth.permissions['whatsapp.access'],
+      canAccessConversations: auth.permissions['conversations.access'],
+      canReplyConversations: auth.permissions['conversations.reply'],
     },
   });
 }

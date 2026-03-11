@@ -9,7 +9,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Deal, DealView, DealItem, Company, Contact, Board } from '@/types';
 import { dealsService } from '@/lib/supabase';
 import { useAuth } from '../AuthContext';
-import { queryKeys, DEALS_VIEW_KEY } from '@/lib/query';
+import { queryKeys, getDealsViewQueryKey } from '@/lib/query';
+import { useTenant } from '@/context/TenantContext';
 import { useDeals as useTanStackDealsQuery } from '@/lib/query/hooks/useDealsQuery';
 
 interface DealsContextType {
@@ -42,7 +43,10 @@ const DealsContext = createContext<DealsContextType | undefined>(undefined);
  */
 export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
   const queryClient = useQueryClient();
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   // ============================================
   // TanStack Query como fonte única de verdade
@@ -96,7 +100,7 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateDeal = useCallback(async (id: string, updates: Partial<Deal>) => {
     // Optimistic update - atualiza a UI imediatamente
-    queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+    queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) =>
       old.map(deal =>
         deal.id === id ? { ...deal, ...updates, updatedAt: new Date().toISOString() } : deal
       )
@@ -112,7 +116,7 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     // Sucesso: Realtime vai sincronizar. Não precisa de invalidateQueries.
-  }, [queryClient]);
+  }, [dealsViewKey, queryClient]);
 
   const updateDealStatus = useCallback(
     async (id: string, newStatus: string, lossReason?: string) => {
@@ -131,7 +135,7 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const deleteDeal = useCallback(async (id: string) => {
     // Optimistic update - remove da UI imediatamente
-    queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+    queryClient.setQueryData<DealView[]>(dealsViewKey, (old = []) =>
       old.filter(deal => deal.id !== id)
     );
 
@@ -146,7 +150,7 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // Sucesso: atualiza stats do dashboard
     await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
-  }, [queryClient]);
+  }, [dealsViewKey, queryClient]);
 
   // ============================================
   // Items Operations

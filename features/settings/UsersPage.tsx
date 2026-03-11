@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/context/ToastContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import { Loader2, UserPlus, Crown, Briefcase, KeyRound, Mail, Check, X, Sparkles, Clock, RefreshCw, Trash2, Link, Copy, CheckCircle2 } from 'lucide-react';
+import { PERMISSION_DEFINITIONS, type AppPermission } from '@/lib/auth/permissions';
+import { getRoleLabel, getRoleOptions, isAgencyAdminRole, isClinicAdminRole, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
 
 interface Profile {
     id: string;
@@ -15,6 +18,8 @@ interface Profile {
     invited_at?: string;
     confirmed_at?: string;
     last_sign_in_at?: string;
+    permission_overrides?: Partial<Record<AppPermission, boolean>>;
+    permissions?: Partial<Record<AppPermission, boolean>>;
 }
 
 interface InviteResult {
@@ -47,17 +52,26 @@ const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
  */
 export const UsersPage: React.FC = () => {
     const { profile: currentUserProfile } = useAuth();
+    const { tenant } = useTenant();
     const { addToast } = useToast();
+    const canManageUsers = isAgencyAdminRole(currentUserProfile?.role) || isClinicAdminRole(currentUserProfile?.role);
+    const managingOwnOrganization = !tenant?.organizationId || tenant.organizationId === currentUserProfile?.organization_id;
+    const availableRoleOptions = getRoleOptions({
+        actorRole: currentUserProfile?.role,
+        managingOwnOrganization,
+    });
     const [users, setUsers] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newUserRole, setNewUserRole] = useState('vendedor');
+    const [newUserRole, setNewUserRole] = useState<AppUserRole>(availableRoleOptions[0]?.value || 'clinic_staff');
     const [sendingInvites, setSendingInvites] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null); // id do usuário em ação
     const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
     const [activeInvites, setActiveInvites] = useState<any[]>([]);
     const [expirationDays, setExpirationDays] = useState<number | null>(7); // 7 days default, null = never
+    const [permissionLoading, setPermissionLoading] = useState<string | null>(null);
+    const [roleLoading, setRoleLoading] = useState<string | null>(null);
 
     const sb = supabase;
 
@@ -119,9 +133,9 @@ export const UsersPage: React.FC = () => {
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
         setError(null);
-        setNewUserRole('vendedor');
+        setNewUserRole(availableRoleOptions[0]?.value || 'clinic_staff');
         setExpirationDays(7);
-    }, []);
+    }, [availableRoleOptions]);
 
     useEffect(() => {
         fetchUsers();
@@ -132,6 +146,11 @@ export const UsersPage: React.FC = () => {
             fetchActiveInvites();
         }
     }, [fetchActiveInvites, isModalOpen]);
+
+    useEffect(() => {
+        if (availableRoleOptions.some((option) => option.value === newUserRole)) return;
+        setNewUserRole(availableRoleOptions[0]?.value || 'clinic_staff');
+    }, [availableRoleOptions, newUserRole]);
 
     if (!sb) {
         return (
@@ -150,6 +169,66 @@ export const UsersPage: React.FC = () => {
 
     const handleDeleteUser = (user: Profile) => {
         setUserToDelete(user);
+    };
+
+    const handlePermissionToggle = async (userId: string, permission: AppPermission, enabled: boolean) => {
+        setPermissionLoading(`${userId}:${permission}`);
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/permissions`, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json', accept: 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    [permission]: enabled,
+                }),
+            });
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error(data?.error || `Falha ao atualizar permissao (HTTP ${res.status})`);
+            }
+
+            setUsers((current) =>
+                current.map((user) =>
+                    user.id === userId
+                        ? {
+                            ...user,
+                            permission_overrides: data?.permission_overrides || user.permission_overrides,
+                            permissions: data?.permissions || user.permissions,
+                        }
+                        : user
+                )
+            );
+            addToast('Permissao atualizada', 'success');
+        } catch (err: any) {
+            addToast(err.message || 'Erro ao atualizar permissao', 'error');
+        } finally {
+            setPermissionLoading(null);
+        }
+    };
+
+    const handleRoleChange = async (userId: string, role: AppUserRole) => {
+        setRoleLoading(userId);
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json', accept: 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ role }),
+            });
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error(data?.error || `Falha ao atualizar cargo (HTTP ${res.status})`);
+            }
+
+            await fetchUsers();
+            addToast('Cargo atualizado', 'success');
+        } catch (err: any) {
+            addToast(err.message || 'Erro ao atualizar cargo', 'error');
+        } finally {
+            setRoleLoading(null);
+        }
     };
 
     const handleGenerateLink = async () => {
@@ -254,7 +333,7 @@ export const UsersPage: React.FC = () => {
         );
     }
 
-    if (currentUserProfile?.role !== 'admin') {
+    if (!canManageUsers) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center">
@@ -270,8 +349,11 @@ export const UsersPage: React.FC = () => {
         );
     }
 
-    const admins = users.filter(u => u.role === 'admin');
-    const vendedores = users.filter(u => u.role === 'vendedor');
+    const adminCount = users.filter((user) => {
+        const role = normalizeAppUserRole(user.role);
+        return role === 'agency_admin' || role === 'clinic_admin' || role === 'admin';
+    }).length;
+    const staffCount = users.length - adminCount;
 
     return (
         <div className="max-w-4xl mx-auto pb-10">
@@ -283,7 +365,7 @@ export const UsersPage: React.FC = () => {
                             Sua Equipe
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">
-                            {users.length} {users.length === 1 ? 'membro' : 'membros'} • {admins.length} admin{admins.length !== 1 && 's'}, {vendedores.length} vendedor{vendedores.length !== 1 && 'es'}
+                            {users.length} {users.length === 1 ? 'membro' : 'membros'} • {adminCount} admin{adminCount !== 1 && 's'}, {staffCount} equipe
                         </p>
                     </div>
                     <button
@@ -301,6 +383,8 @@ export const UsersPage: React.FC = () => {
                 {users.map((user) => {
                     const { initials, gradient } = getAvatarProps(user.email);
                     const isCurrentUser = user.id === currentUserProfile?.id;
+                    const normalizedRole = normalizeAppUserRole(user.role);
+                    const isAdminRole = normalizedRole === 'agency_admin' || normalizedRole === 'clinic_admin' || normalizedRole === 'admin';
 
                     return (
                         <div
@@ -314,7 +398,7 @@ export const UsersPage: React.FC = () => {
                                 {/* Avatar */}
                                 <div className={`relative flex-shrink-0 h-14 w-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
                                     {initials}
-                                    {user.role === 'admin' && (
+                                    {isAdminRole && (
                                         <div className="absolute -top-1 -right-1 h-5 w-5 bg-amber-400 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-900">
                                             <Crown className="h-3 w-3 text-amber-900" />
                                         </div>
@@ -340,19 +424,19 @@ export const UsersPage: React.FC = () => {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3 mt-1.5">
-                                        <span className={`inline-flex items-center gap-1.5 text-sm ${user.role === 'admin'
+                                        <span className={`inline-flex items-center gap-1.5 text-sm ${isAdminRole
                                             ? 'text-amber-600 dark:text-amber-400'
                                             : 'text-slate-500 dark:text-slate-400'
                                             }`}>
-                                            {user.role === 'admin' ? (
+                                            {isAdminRole ? (
                                                 <>
                                                     <Crown className="h-3.5 w-3.5" />
-                                                    Administrador
+                                                    {getRoleLabel(normalizedRole)}
                                                 </>
                                             ) : (
                                                 <>
                                                     <Briefcase className="h-3.5 w-3.5" />
-                                                    Vendedor
+                                                    {getRoleLabel(normalizedRole)}
                                                 </>
                                             )}
                                         </span>
@@ -369,7 +453,7 @@ export const UsersPage: React.FC = () => {
                                 {/* Actions */}
                                 {!isCurrentUser && (
                                     <div className="flex items-center gap-1">
-                                        {actionLoading === user.id ? (
+                                        {actionLoading === user.id || roleLoading === user.id ? (
                                             <div className="p-2">
                                                 <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                                             </div>
@@ -387,6 +471,88 @@ export const UsersPage: React.FC = () => {
                                         )}
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                                            Cargo e escopo
+                                        </div>
+                                        <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                            Agencia ou clinica, com alteracao posterior por voce quando houver promocao ou mudanca de funcao.
+                                        </div>
+                                    </div>
+
+                                    {isCurrentUser ? (
+                                        <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                            voce
+                                        </span>
+                                    ) : (
+                                        <select
+                                            value={normalizedRole}
+                                            disabled={roleLoading === user.id}
+                                            onChange={(event) => void handleRoleChange(user.id, event.target.value as AppUserRole)}
+                                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-primary-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                                        >
+                                            {availableRoleOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-5 grid gap-3 md:grid-cols-2">
+                                {PERMISSION_DEFINITIONS.map((permission) => {
+                                    const checked = Boolean(user.permissions?.[permission.key]);
+                                    const isSwitchLoading = permissionLoading === `${user.id}:${permission.key}`;
+
+                                    return (
+                                        <div
+                                            key={permission.key}
+                                            className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                        {permission.label}
+                                                    </div>
+                                                    <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                        {permission.description}
+                                                    </div>
+                                                </div>
+
+                                                {isCurrentUser ? (
+                                                    <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                                        voce
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={checked}
+                                                        disabled={isSwitchLoading}
+                                                        onClick={() => void handlePermissionToggle(user.id, permission.key, !checked)}
+                                                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
+                                                            checked
+                                                                ? 'border-emerald-500 bg-emerald-500'
+                                                                : 'border-slate-300 bg-slate-200 dark:border-white/15 dark:bg-white/10'
+                                                        } ${isSwitchLoading ? 'cursor-wait opacity-70' : ''}`}
+                                                    >
+                                                        <span
+                                                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                                                                checked ? 'translate-x-6' : 'translate-x-1'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
@@ -456,11 +622,11 @@ export const UsersPage: React.FC = () => {
                                             <div key={invite.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${invite.role === 'admin'
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${normalizeAppUserRole(invite.role) === 'agency_admin' || normalizeAppUserRole(invite.role) === 'clinic_admin' || normalizeAppUserRole(invite.role) === 'admin'
                                                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                                                             : 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
                                                             }`}>
-                                                            {invite.role}
+                                                            {getRoleLabel(invite.role)}
                                                         </span>
                                                         <span className="text-xs text-slate-400">
                                                             {invite.expires_at
@@ -507,43 +673,46 @@ export const UsersPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                                         Cargo
                                     </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewUserRole('vendedor')}
-                                            className={`relative p-3 rounded-xl border-2 text-left transition-all ${newUserRole === 'vendedor'
-                                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Briefcase className={`h-4 w-4 ${newUserRole === 'vendedor' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`} />
-                                                <span className={`font-medium text-sm ${newUserRole === 'vendedor' ? 'text-primary-900 dark:text-primary-100' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                    Vendedor
-                                                </span>
-                                            </div>
-                                            {newUserRole === 'vendedor' && (
-                                                <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary-500" />
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewUserRole('admin')}
-                                            className={`relative p-3 rounded-xl border-2 text-left transition-all ${newUserRole === 'admin'
-                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Crown className={`h-4 w-4 ${newUserRole === 'admin' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
-                                                <span className={`font-medium text-sm ${newUserRole === 'admin' ? 'text-amber-900 dark:text-amber-100' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                    Admin
-                                                </span>
-                                            </div>
-                                            {newUserRole === 'admin' && (
-                                                <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-amber-500" />
-                                            )}
-                                        </button>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        {availableRoleOptions.map((option) => {
+                                            const isAdminOption = option.value === 'agency_admin' || option.value === 'clinic_admin' || option.value === 'admin';
+                                            const isSelected = newUserRole === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setNewUserRole(option.value)}
+                                                    className={`relative p-3 rounded-xl border-2 text-left transition-all ${isSelected
+                                                        ? isAdminOption
+                                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                                                            : 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                                                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {isAdminOption ? (
+                                                            <Crown className={`h-4 w-4 ${isSelected ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+                                                        ) : (
+                                                            <Briefcase className={`h-4 w-4 ${isSelected ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`} />
+                                                        )}
+                                                        <span className={`font-medium text-sm ${isSelected
+                                                            ? isAdminOption
+                                                                ? 'text-amber-900 dark:text-amber-100'
+                                                                : 'text-primary-900 dark:text-primary-100'
+                                                            : 'text-slate-700 dark:text-slate-300'
+                                                            }`}>
+                                                            {option.label}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                        {option.description}
+                                                    </p>
+                                                    {isSelected && (
+                                                        <div className={`absolute top-2 right-2 h-2 w-2 rounded-full ${isAdminOption ? 'bg-amber-500' : 'bg-primary-500'}`} />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 

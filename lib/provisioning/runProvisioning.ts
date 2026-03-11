@@ -33,6 +33,7 @@ export async function runProvisioning(params: {
   const supabase = createStaticAdminClient();
   const edition = getEditionDefinition(params.editionKey);
   const now = new Date().toISOString();
+  const provisioningMode = params.input.provisioningMode === 'empty' ? 'empty' : 'full';
 
   const { data: organization, error: organizationError } = await supabase
     .from('organizations')
@@ -60,13 +61,14 @@ export async function runProvisioning(params: {
       displayName: params.input.companyName,
     },
     enabled_modules: edition.enabledModules,
-    metadata: {
-      specialty: params.input.specialty,
-      leadChannel: params.input.leadChannel,
-      serviceModel: params.input.serviceModel,
-      requestedSubdomain: normalizeSubdomain(params.input.subdomain, params.input.companyName),
-    },
-    updated_at: now,
+      metadata: {
+        specialty: params.input.specialty,
+        leadChannel: params.input.leadChannel,
+        serviceModel: params.input.serviceModel,
+        requestedSubdomain: normalizeSubdomain(params.input.subdomain, params.input.companyName),
+        provisioningMode,
+      },
+      updated_at: now,
   });
 
   if (editionError) {
@@ -95,6 +97,30 @@ export async function runProvisioning(params: {
   const provisioningRunId = provisioningRun.id as string;
 
   try {
+    if (provisioningMode === 'empty') {
+      await supabase
+        .from('provisioning_runs')
+        .update({
+          status: 'completed',
+          result_payload: {
+            emptyTenant: true,
+            boardName: null,
+            usedAI: false,
+            fallbackUsed: false,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', provisioningRunId);
+
+      return {
+        organizationId,
+        provisioningRunId,
+        editionKey: edition.key,
+        usedAI: false,
+        fallbackUsed: false,
+      };
+    }
+
     const boardDraftResult = await generateProvisioningBoardDraft({
       operatorOrganizationId: params.operatorOrganizationId,
       input: params.input,

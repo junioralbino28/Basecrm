@@ -7,6 +7,7 @@
     "precheck": "npm run lint && npm run typecheck && npm run test:run && npm run build",
     "precheck:fast": "npm run lint && npm run typecheck && npm run test:run",
     "stories": "vitest run test/stories --reporter=dot",
+    "legacy:tenant": "node scripts/legacy-tenant-migration.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",

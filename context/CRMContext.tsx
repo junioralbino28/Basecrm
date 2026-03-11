@@ -30,7 +30,8 @@
 import React, { createContext, useContext, useMemo, useEffect, ReactNode, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { queryKeys } from '@/lib/query';
+import { getDealsViewQueryKey, queryKeys } from '@/lib/query';
+import { useTenant } from '@/context/TenantContext';
 import {
   Deal,
   Activity,
@@ -300,6 +301,9 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   } = useSettings();
 
   const { profile, user } = useAuth();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+  const dealsViewKey = getDealsViewQueryKey(organizationId);
 
   // Wrap deleteLifecycleStage to inject contacts for validation
   const deleteLifecycleStage = useCallback(async (id: string) => {
@@ -397,7 +401,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         };
 
         queryClient.setQueryData<DealView[]>(
-          [...queryKeys.deals.lists(), 'view'],
+          dealsViewKey,
           (old = []) => [optimisticDealView, ...old]
         );
         
@@ -520,7 +524,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           // #endregion
           
           queryClient.setQueryData<DealView[]>(
-            [...queryKeys.deals.lists(), 'view'],
+            dealsViewKey,
             (old = []) => {
               const withoutTemp = old.filter((d) => d.id !== optimisticTempId);
               const already = withoutTemp.some((d) => d.id === createdDeal.id);
@@ -538,7 +542,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         } else {
           // Failed to create: remove optimistic item
           queryClient.setQueryData<DealView[]>(
-            [...queryKeys.deals.lists(), 'view'],
+            dealsViewKey,
             (old = []) => old.filter((d) => d.id !== optimisticTempId)
           );
         }
@@ -554,7 +558,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     // #region agent log
     if (process.env.NODE_ENV !== 'production') {
-      const finalCache = queryClient.getQueryData<DealView[]>([...queryKeys.deals.lists(), 'view']) || [];
+      const finalCache = queryClient.getQueryData<DealView[]>(dealsViewKey) || [];
       const dealInCache = finalCache.some(d => d.id === createdDeal?.id);
       console.log(`[CRMContext.addDeal] 📊 H2 Final cache state`, { cacheSize: finalCache.length, dealInCache, createdDealId: createdDeal?.id?.slice(0,8) });
       fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:555',message:'H2 Final cache state',data:{cacheSize:finalCache.length,dealInCache,createdDealId:createdDeal?.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H2'})}).catch(()=>{});
@@ -575,7 +579,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     // #region agent log
     if (process.env.NODE_ENV !== 'production') {
-      const postActivityCache = queryClient.getQueryData<DealView[]>([...queryKeys.deals.lists(), 'view']) || [];
+      const postActivityCache = queryClient.getQueryData<DealView[]>(dealsViewKey) || [];
       const stillInCache = postActivityCache.some(d => d.id === createdDeal?.id);
       console.log(`[CRMContext.addDeal] 🏁 H4 Post-activity cache`, { cacheSize: postActivityCache.length, stillInCache, returning: !!createdDeal });
       fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:580',message:'H4 Post-activity cache',data:{cacheSize:postActivityCache.length,stillInCache,returning:!!createdDeal},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H4'})}).catch(()=>{});
@@ -583,7 +587,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // #endregion
 
     return createdDeal;
-  }, [companies, contacts, activeBoard, addCompany, addContact, addDealState, addActivity, queryClient]);
+  }, [companies, contacts, activeBoard, addCompany, addContact, addDealState, addActivity, dealsViewKey, queryClient]);
 
   // moveDeal foi removido - use useMoveDeal de @/lib/query/hooks
   // O hook unificado trata: detecção won/lost, atividades, LinkedStage, etc.

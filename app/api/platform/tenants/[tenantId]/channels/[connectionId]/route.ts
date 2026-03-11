@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
+import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -18,6 +19,7 @@ const ChannelUpdateSchema = z.object({
     webhookUrl: z.string().url().optional().or(z.literal('')),
     webhookSecret: z.string().max(120).optional(),
     apiKey: z.string().max(300).optional(),
+    sendMode: z.enum(['auto', 'number_text', 'number_textMessage', 'number_message', 'number_body']).optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -27,33 +29,14 @@ const ChannelUpdateSchema = z.object({
   last_healthcheck_at: z.string().datetime().nullable().optional(),
 }).strict();
 
-async function requireAdminProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: json({ error: 'Unauthorized' }, 401) };
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, role, organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error || !profile?.organization_id) return { error: json({ error: 'Profile not found' }, 404) };
-  if (profile.role !== 'admin') return { error: json({ error: 'Forbidden' }, 403) };
-
-  return { profile };
-}
-
 export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
-  const auth = await requireAdminProfile();
-  if ('error' in auth) return auth.error;
-
   const { tenantId, connectionId } = await ctx.params;
+  const auth = await requireTenantAccess(tenantId, {
+    requiredPermissions: ['whatsapp.manage_connection'],
+  });
+  if ('error' in auth) return auth.error;
   const body = await req.json().catch(() => null);
   const parsed = ChannelUpdateSchema.safeParse(body);
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
@@ -75,6 +58,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         apiUrl: parsed.data.config.apiUrl?.trim() || undefined,
         instanceName: parsed.data.config.instanceName?.trim() || undefined,
         webhookUrl: parsed.data.config.webhookUrl?.trim() || undefined,
+        sendMode: parsed.data.config.sendMode || (current.data.config as any)?.sendMode || 'auto',
         webhookSecret:
           parsed.data.config.webhookSecret?.trim() ||
           (current.data.config as any)?.webhookSecret ||

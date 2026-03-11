@@ -1,5 +1,5 @@
-import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   root: __dirname,
@@ -10,15 +10,23 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    // Muitos testes do projeto (inclusive alguns .test.ts) usam React Testing Library
-    // e precisam de um DOM. Por isso, usamos um ambiente com DOM por padrão.
     environment: 'happy-dom',
-    // Setup base + DOM-only helpers (guardados para não quebrar caso algum teste rode em node)
+    environmentMatchGlobs: [
+      ['test/aiToolsRbac.test.ts', 'node'],
+      ['test/supabaseMiddleware.test.ts', 'node'],
+      ['test/publicApiOpenapi.test.ts', 'node'],
+      ['test/publicApiCursor.test.ts', 'node'],
+      ['test/tools.salesTeamMatrix.test.ts', 'node'],
+      ['test/tools.multiTenant.test.ts', 'node'],
+      ['lib/utils/csv.test.ts', 'node'],
+      ['lib/query/__tests__/cache-integrity.test.ts', 'node'],
+    ],
     setupFiles: ['test/setup.ts', 'test/setup.dom.ts'],
-    // Cobrir testes unitários tanto em /test quanto em components/features
     include: ['**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'dist', 'tmp', '**/*.bak', '**/*.bkp'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    maxWorkers: 1,
+    fileParallelism: false,
   },
 });

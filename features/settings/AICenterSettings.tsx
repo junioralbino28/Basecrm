@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
 import { AIConfigSection } from './components/AIConfigSection';
 import { AIFeaturesSection } from './components/AIFeaturesSection';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 /**
  * Componente React `AICenterSettings`.
@@ -13,7 +14,7 @@ import { AIFeaturesSection } from './components/AIFeaturesSection';
 export const AICenterSettings: React.FC = () => {
   const { profile } = useAuth();
   const { aiOrgEnabled, setAiOrgEnabled } = useCRM();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = canManageClinicSettings(profile?.role);
 
   return (
     <div className="pb-10">

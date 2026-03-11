@@ -31,6 +31,9 @@ export const queryKeys = {
 
     companies: createQueryKeys('companies'),
     boards: createQueryKeys('boards'),
+    conversations: createExtendedQueryKeys('conversations', base => ({
+        messages: (threadId: string) => [...base.detail(threadId), 'messages'] as const,
+    })),
 
     // Activities with custom extension for byDeal
     activities: createExtendedQueryKeys('activities', base => ({
@@ -44,6 +47,12 @@ export const queryKeys = {
         timeline: ['dashboard', 'timeline'] as const,
     },
 };
+
+export function getDealsViewQueryKey(organizationId?: string | null) {
+    return organizationId
+        ? ([...queryKeys.deals.lists(), 'view', organizationId] as const)
+        : DEALS_VIEW_KEY;
+}
 
 /**
  * Constante para a query key da view de deals (DealView[]).

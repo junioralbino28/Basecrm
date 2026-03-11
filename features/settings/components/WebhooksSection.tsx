@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { cn } from '@/lib/utils/cn';
+import { useTenant } from '@/context/TenantContext';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 type InboundSourceRow = {
   id: string;
@@ -73,6 +75,7 @@ function buildCurlExample(url: string, secret: string) {
  */
 export const WebhooksSection: React.FC = () => {
   const { profile } = useAuth();
+  const { tenant } = useTenant();
   const { addToast } = useToast();
   const { boards, loading: boardsLoading } = useBoards();
 
@@ -107,7 +110,8 @@ export const WebhooksSection: React.FC = () => {
   const [confirmDeleteInboundOpen, setConfirmDeleteInboundOpen] = useState(false);
   const [confirmDeleteOutboundOpen, setConfirmDeleteOutboundOpen] = useState(false);
 
-  const canUse = profile?.role === 'admin' && !!profile?.organization_id;
+  const organizationId = tenant?.organizationId ?? null;
+  const canUse = canManageClinicSettings(profile?.role) && !!organizationId;
 
   const activeInbound = useMemo(() => sources.find((s) => s.active) || sources[0] || null, [sources]);
   const hasInbound = !!activeInbound && !!activeInbound.active;
@@ -126,19 +130,21 @@ export const WebhooksSection: React.FC = () => {
   }, [activeInbound, boards]);
 
   async function loadWebhooks() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!supabase) return;
     setLoading(true);
     try {
       const { data: srcData } = await supabase
         .from('integration_inbound_sources')
         .select('id,name,entry_board_id,entry_stage_id,secret,active')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
       setSources((srcData as any) || []);
 
       const { data: epData } = await supabase
         .from('integration_outbound_endpoints')
         .select('id,name,url,secret,active')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -153,7 +159,7 @@ export const WebhooksSection: React.FC = () => {
     if (!supabase) return;
 
     loadWebhooks();
-  }, [canUse]);
+  }, [canUse, organizationId]);
 
   React.useEffect(() => {
     if (!selectedBoardId && defaultBoard?.id) setSelectedBoardId(defaultBoard.id);
@@ -175,13 +181,12 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function loadInboundEvents(sourceId: string) {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!supabase) return;
-    if (!profile?.organization_id) return;
     const { data } = await supabase
       .from('webhook_events_in')
       .select('id,received_at,status,external_event_id,error,created_deal_id')
-      .eq('organization_id', profile.organization_id)
+      .eq('organization_id', organizationId)
       .eq('source_id', sourceId)
       .order('received_at', { ascending: false })
       .limit(3);
@@ -189,7 +194,7 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function createInboundSource() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!selectedBoard?.id || !selectedStageId) return;
 
     const secret = generateSecret();
@@ -198,7 +203,7 @@ export const WebhooksSection: React.FC = () => {
       const { data, error } = await supabase
         .from('integration_inbound_sources')
         .insert({
-          organization_id: profile!.organization_id,
+          organization_id: organizationId,
           name: 'Entrada de Leads',
           entry_board_id: selectedBoard.id,
           entry_stage_id: selectedStageId,
@@ -226,7 +231,7 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function saveInboundDestination() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!activeInbound?.id) return;
     if (!selectedBoard?.id || !selectedStageId) return;
     setLoading(true);
@@ -237,7 +242,8 @@ export const WebhooksSection: React.FC = () => {
           entry_board_id: selectedBoard.id,
           entry_stage_id: selectedStageId,
         })
-        .eq('id', activeInbound.id);
+        .eq('id', activeInbound.id)
+        .eq('organization_id', organizationId);
       if (error) throw error;
       addToast('Destino atualizado.', 'success');
       await loadWebhooks();
@@ -290,7 +296,7 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleSaveFollowUp() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!followUpUrl.trim()) return;
 
     setLoading(true);
@@ -302,6 +308,7 @@ export const WebhooksSection: React.FC = () => {
             url: followUpUrl.trim(),
           })
           .eq('id', endpoint.id)
+          .eq('organization_id', organizationId)
           .select('id,name,url,secret,active')
           .single();
         if (error) throw error;
@@ -312,7 +319,7 @@ export const WebhooksSection: React.FC = () => {
         const { data, error } = await supabase
           .from('integration_outbound_endpoints')
           .insert({
-            organization_id: profile!.organization_id,
+            organization_id: organizationId,
             name: 'Follow-up (Webhook)',
             url: followUpUrl.trim(),
             secret,
@@ -350,14 +357,15 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleToggleInboundActive(nextActive: boolean) {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!activeInbound) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('integration_inbound_sources')
         .update({ active: nextActive })
-        .eq('id', activeInbound.id);
+        .eq('id', activeInbound.id)
+        .eq('organization_id', organizationId);
       if (error) throw error;
       addToast(nextActive ? 'Entrada de leads ativada!' : 'Entrada de leads desativada.', 'success');
       await loadWebhooks();
@@ -369,14 +377,15 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleDeleteInbound() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!activeInbound) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('integration_inbound_sources')
         .delete()
-        .eq('id', activeInbound.id);
+        .eq('id', activeInbound.id)
+        .eq('organization_id', organizationId);
       if (error) throw error;
       addToast('Configuração de entrada removida.', 'success');
       await loadWebhooks();
@@ -388,14 +397,15 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleToggleOutboundActive(nextActive: boolean) {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!endpoint?.id) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('integration_outbound_endpoints')
         .update({ active: nextActive })
-        .eq('id', endpoint.id);
+        .eq('id', endpoint.id)
+        .eq('organization_id', organizationId);
       if (error) throw error;
       addToast(nextActive ? 'Follow-up ativado!' : 'Follow-up desativado.', 'success');
       await loadWebhooks();
@@ -407,7 +417,7 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleRegenerateOutboundSecret() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!endpoint?.id) return;
     const nextSecret = generateSecret();
     setLoading(true);
@@ -416,6 +426,7 @@ export const WebhooksSection: React.FC = () => {
         .from('integration_outbound_endpoints')
         .update({ secret: nextSecret })
         .eq('id', endpoint.id)
+        .eq('organization_id', organizationId)
         .select('id,name,url,secret,active')
         .single();
       if (error) throw error;
@@ -429,14 +440,15 @@ export const WebhooksSection: React.FC = () => {
   }
 
   async function handleDeleteOutbound() {
-    if (!canUse) return;
+    if (!canUse || !organizationId) return;
     if (!endpoint?.id) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('integration_outbound_endpoints')
         .delete()
-        .eq('id', endpoint.id);
+        .eq('id', endpoint.id)
+        .eq('organization_id', organizationId);
       if (error) throw error;
       setEndpoint(null);
       addToast('Follow-up removido.', 'success');

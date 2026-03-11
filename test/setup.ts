@@ -1,3 +1,4 @@
+import { afterEach, vi } from 'vitest';
 import { loadEnvFile } from './helpers/env';
 import { cleanupFixtures } from './helpers/fixtures';
 import { getRunId } from './helpers/runId';
@@ -5,7 +6,6 @@ import { getRunId } from './helpers/runId';
 // Next.js server/client boundary helpers.
 // In runtime do Next, `server-only` previne import acidental em Client Components.
 // Em testes Node (Vitest), queremos que seja um no-op.
-import { vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 /**
@@ -22,7 +22,6 @@ const SUPPRESSED_CONSOLE_PATTERNS: RegExp[] = [
 ];
 
 const SUPPRESSED_STDERR_PATTERNS: RegExp[] = [
-  // happy-dom/network logging style lines that are expected in negative-path tests
   /^GET https:\/\/.*\s406\s\(Not Acceptable\)\s*$/m,
   /^DELETE https:\/\/.*\s400\s\(Bad Request\)\s*$/m,
 ];
@@ -30,7 +29,6 @@ const SUPPRESSED_STDERR_PATTERNS: RegExp[] = [
 const originalConsoleLog = console.log.bind(console);
 console.log = (...args: unknown[]) => {
   const msg = args.map((a) => String(a)).join(' ');
-  // Our tools log with "[AI] ..." — keep it opt-in during tests.
   if (msg.startsWith('[AI]')) return;
   originalConsoleLog(...args);
 };
@@ -50,25 +48,33 @@ console.error = (...args: unknown[]) => {
 };
 
 const originalStderrWrite = process.stderr.write.bind(process.stderr);
-process.stderr.write = ((chunk: any, ...rest: any[]) => {
-  const text = typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+process.stderr.write = ((chunk: unknown, ...rest: unknown[]) => {
+  const text =
+    typeof chunk === 'string'
+      ? chunk
+      : Buffer.isBuffer(chunk)
+        ? chunk.toString('utf8')
+        : String(chunk);
+
   if (SUPPRESSED_STDERR_PATTERNS.some((r) => r.test(text))) {
     return true;
   }
-  return originalStderrWrite(chunk, ...rest);
-}) as any;
 
-// Prefer envs from THIS project folder so crmia-next can be moved to its own repo.
-// (When running inside the monorepo, we keep the old root .env as a fallback.)
+  return originalStderrWrite(chunk as never, ...(rest as []));
+}) as typeof process.stderr.write;
+
 loadEnvFile(new URL('../.env', import.meta.url).pathname);
 loadEnvFile(new URL('../.env.local', import.meta.url).pathname, { override: true });
-
-// Monorepo fallback (no override)
 loadEnvFile(new URL('../../.env', import.meta.url).pathname);
 loadEnvFile(new URL('../../.env.local', import.meta.url).pathname);
 
-// Best-effort cleanup: if a prior run crashed, make a quick attempt to remove leftovers.
-// This won't block tests if cleanup fails (it can fail due to missing tables in dev).
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
 beforeAll(async () => {
   const runId = getRunId('next-ai');
   try {

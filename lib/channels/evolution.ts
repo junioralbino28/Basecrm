@@ -11,23 +11,15 @@ export type EvolutionPairingCode = {
   count: number | null;
 };
 
-export async function logoutEvolutionInstance(params: {
-  apiUrl: string;
-  instanceName: string;
-  apiKey: string;
-}): Promise<unknown> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
-  const endpoint = `${baseUrl}/instance/logout/${encodeURIComponent(params.instanceName)}`;
+export type EvolutionSendMessageResult = {
+  raw: unknown;
+  providerMessageId: string | null;
+  attemptLabel: string;
+};
 
-  const response = await fetch(endpoint, {
-    method: 'DELETE',
-    headers: {
-      apikey: params.apiKey,
-      accept: 'application/json',
-    },
-    cache: 'no-store',
-  });
+export type EvolutionSendMode = 'auto' | 'number_text' | 'number_textMessage' | 'number_message' | 'number_body';
 
+async function parseEvolutionResponse(response: Response) {
   const rawText = await response.text();
   let payload: unknown = rawText;
 
@@ -45,6 +37,26 @@ export async function logoutEvolutionInstance(params: {
     );
   }
 
+  return payload;
+}
+
+export async function logoutEvolutionInstance(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+}): Promise<unknown> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/instance/logout/${encodeURIComponent(params.instanceName)}`;
+
+  const response = await fetch(endpoint, {
+    method: 'DELETE',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+    },
+    cache: 'no-store',
+  });
+  const payload = await parseEvolutionResponse(response);
   return payload;
 }
 
@@ -68,23 +80,7 @@ export async function fetchEvolutionConnectionState(params: {
     },
     cache: 'no-store',
   });
-
-  const rawText = await response.text();
-  let payload: unknown = rawText;
-
-  try {
-    payload = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    payload = rawText;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      typeof payload === 'string'
-        ? payload || `Evolution respondeu HTTP ${response.status}`
-        : `Evolution respondeu HTTP ${response.status}`
-    );
-  }
+  const payload = await parseEvolutionResponse(response);
 
   const candidate =
     (payload as any)?.instance?.state ??
@@ -139,23 +135,7 @@ export async function fetchEvolutionPairingCode(params: {
     },
     cache: 'no-store',
   });
-
-  const rawText = await response.text();
-  let payload: unknown = rawText;
-
-  try {
-    payload = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    payload = rawText;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      typeof payload === 'string'
-        ? payload || `Evolution respondeu HTTP ${response.status}`
-        : `Evolution respondeu HTTP ${response.status}`
-    );
-  }
+  const payload = await parseEvolutionResponse(response);
 
   return {
     raw: payload,
@@ -163,4 +143,105 @@ export async function fetchEvolutionPairingCode(params: {
     code: typeof (payload as any)?.code === 'string' ? (payload as any).code : null,
     count: typeof (payload as any)?.count === 'number' ? (payload as any).count : null,
   };
+}
+
+function getProviderMessageId(payload: unknown) {
+  const candidate =
+    (payload as any)?.key?.id ??
+    (payload as any)?.message?.key?.id ??
+    (payload as any)?.id ??
+    (payload as any)?.data?.id ??
+    (payload as any)?.messageId ??
+    null;
+
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+}
+
+export async function sendEvolutionTextMessage(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+  phone: string;
+  text: string;
+  sendMode?: EvolutionSendMode;
+}): Promise<EvolutionSendMessageResult> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const attempts: Array<{ mode: Exclude<EvolutionSendMode, 'auto'>; label: string; endpoint: string; body: Record<string, unknown> }> = [
+    {
+      mode: 'number_text',
+      label: 'sendText:number+text',
+      endpoint: `${baseUrl}/message/sendText/${encodeURIComponent(params.instanceName)}`,
+      body: {
+        number: params.phone,
+        text: params.text,
+      },
+    },
+    {
+      mode: 'number_textMessage',
+      label: 'sendText:number+textMessage',
+      endpoint: `${baseUrl}/message/sendText/${encodeURIComponent(params.instanceName)}`,
+      body: {
+        number: params.phone,
+        options: {
+          delay: 0,
+        },
+        textMessage: {
+          text: params.text,
+        },
+      },
+    },
+    {
+      mode: 'number_message',
+      label: 'sendText:number+message',
+      endpoint: `${baseUrl}/message/sendText/${encodeURIComponent(params.instanceName)}`,
+      body: {
+        number: params.phone,
+        message: params.text,
+      },
+    },
+    {
+      mode: 'number_body',
+      label: 'sendText:number+body',
+      endpoint: `${baseUrl}/message/sendText/${encodeURIComponent(params.instanceName)}`,
+      body: {
+        number: params.phone,
+        body: params.text,
+      },
+    },
+  ];
+  const orderedAttempts =
+    params.sendMode && params.sendMode !== 'auto'
+      ? [
+          ...attempts.filter(attempt => attempt.mode === params.sendMode),
+          ...attempts.filter(attempt => attempt.mode !== params.sendMode),
+        ]
+      : attempts;
+
+  let lastError: Error | null = null;
+
+  for (const attempt of orderedAttempts) {
+    try {
+      const response = await fetch(attempt.endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: params.apiKey,
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify(attempt.body),
+      });
+
+      const payload = await parseEvolutionResponse(response);
+      return {
+        raw: payload,
+        providerMessageId: getProviderMessageId(payload),
+        attemptLabel: attempt.label,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Evolution send failed.');
+    }
+  }
+
+  throw lastError || new Error('Evolution send failed.');
 }
