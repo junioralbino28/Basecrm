@@ -68,6 +68,7 @@ import { isTenantWorkspacePath } from '@/lib/tenancy/workspaceRoutes';
 import { UIChat } from './ai/UIChat';
 
 import { NotificationPopover } from './notifications/NotificationPopover';
+import PageLoader from '@/components/PageLoader';
 
 /**
  * Props do componente Layout
@@ -143,7 +144,7 @@ const NavItem = ({
  */
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { darkMode, toggleDarkMode } = useTheme();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
   const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useCRM();
   const { user, loading, profile, signOut } = useAuth();
   const router = useRouter();
@@ -233,9 +234,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isAdmin = isAgencyAdminRole(profile?.role);
   const isPlatformRoute = pathname.startsWith('/platform');
   const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
+  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|reports|settings)(\/|$)/.test(pathname);
+  const isPlatformAdminRoute =
+    pathname === '/platform' ||
+    pathname === '/platform/tenants' ||
+    pathname === '/platform/tenants/new';
   const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Selecione uma clinica';
+  const hasActiveClinic = Boolean(tenant?.organizationId);
+  const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
-    ? (isTenantWorkspaceRoute ? currentClinicName : 'BaseCRM Agencia')
+    ? ((isTenantWorkspaceRoute || isClinicWorkspaceActive) ? currentClinicName : 'BaseCRM Agencia')
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
@@ -256,11 +264,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : [];
 
   useEffect(() => {
-    const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|reports|settings)(\/|$)/.test(pathname);
-    const isPlatformAdminRoute =
-      pathname === '/platform' ||
-      pathname === '/platform/tenants' ||
-      pathname === '/platform/tenants/new';
+    if (loading || tenantLoading) return;
 
     if (isAdmin && tenant?.organizationId && isGlobalWorkspaceRoute && !isTenantWorkspacePath(pathname)) {
       const scopedHref = getScopedHref(pathname);
@@ -270,12 +274,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       return;
     }
 
+    if (isAdmin && !tenant?.organizationId && isGlobalWorkspaceRoute) {
+      router.replace('/platform/tenants');
+      return;
+    }
+
     if (!isAdmin && isPlatformAdminRoute) {
       router.replace('/dashboard');
     }
-  }, [getScopedHref, isAdmin, pathname, router, tenant?.organizationId]);
+  }, [getScopedHref, isAdmin, isGlobalWorkspaceRoute, isPlatformAdminRoute, loading, pathname, router, tenant?.organizationId, tenantLoading]);
 
   if (!loading && !user) return null;
+
+  const shouldBlockAgencyWorkspace =
+    isAdmin &&
+    isGlobalWorkspaceRoute &&
+    (tenantLoading || !tenant?.organizationId || !isTenantWorkspacePath(pathname));
+
+  if (shouldBlockAgencyWorkspace) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface-bg bg-dots">
+        <div className="text-center">
+          <PageLoader />
+          {!tenantLoading && !tenant?.organizationId ? (
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              Redirecionando para Clinicas...
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-bg bg-dots">
@@ -499,10 +528,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAdmin ? (
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isPlatformRoute ? 'Modo Plataforma' : 'Workspace da Clinica'}
+                    {isPlatformRoute ? 'Modo Plataforma' : hasActiveClinic ? 'Workspace da Clinica' : 'Selecione uma Clinica'}
                   </div>
 
-                  {!isPlatformRoute ? (
+                  {!isPlatformRoute && hasActiveClinic ? (
                     <>
                       <TenantClinicSwitcher />
                     </>

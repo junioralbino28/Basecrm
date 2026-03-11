@@ -12,7 +12,7 @@ export function useTenantScopedHrefBuilder(): (href: string) => string {
   return useMemo(() => {
     const routeTenantId = getTenantIdFromPathname(pathname);
     const tenantId = routeTenantId ?? tenant?.organizationId ?? null;
-    const shouldScopeToTenant = Boolean(tenantId) && isTenantWorkspacePath(pathname);
+    const shouldScopeToTenant = Boolean(tenantId);
 
     return (href: string) => (shouldScopeToTenant ? getTenantWorkspaceHref(href, tenantId) : href);
   }, [pathname, tenant?.organizationId]);
