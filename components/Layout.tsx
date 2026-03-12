@@ -106,7 +106,6 @@ const NavItem = ({
   onItemClick?: (path: string) => void;
 }) => {
   const pathname = usePathname();
-  const router = useRouter();
   const isActive = pathname === to || (to === '/boards' && pathname === '/pipeline');
   const wasJustClicked = clickedPath === to;
 
@@ -123,7 +122,7 @@ const NavItem = ({
       onClick={(event) => {
         event.preventDefault();
         onItemClick?.(to);
-        router.push(to);
+        window.location.assign(to);
       }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
     ${isActuallyActive
@@ -368,7 +367,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   onClick={(event) => {
                     event.preventDefault();
                     setClickedPath(item.to);
-                    router.push(item.to);
+                    window.location.assign(item.to);
                   }}
                   className={(() => {
                     const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
