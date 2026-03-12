@@ -955,3 +955,36 @@ Observacoes:
 
 - a mudanca nao altera a logica-base da Julia
 - apenas deixa o mesmo prompt editavel pela Central de I.A., no mesmo padrao das demais funcoes
+
+## 2026-03-12 - Debounce de 7s para resposta da Julia no WhatsApp
+
+Objetivo:
+
+- evitar que a Julia responda antes do lead terminar de escrever
+- permitir consolidar 2 ou mais mensagens curtas em uma unica leitura de contexto
+
+Entregas:
+
+- inbound da Evolution agora marca a thread com um token temporario de espera da IA
+- o webhook aguarda 7 segundos antes de gerar a resposta automatica
+- apenas o request mais recente da thread pode responder; requests antigos sao descartados se chegar mensagem nova no intervalo
+- isso reduz respostas no meio da digitacao e melhora o contexto recebido pela Julia
+
+Arquivos principais:
+
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Observacoes:
+
+- o tempo inicial ficou fixado em 7 segundos
+- depois podemos tornar esse debounce configuravel por clinica, se fizer sentido operacionalmente

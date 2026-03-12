@@ -16,6 +16,10 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getSecretFromRequest(req: Request) {
   const url = new URL(req.url);
   const querySecret = url.searchParams.get('secret')?.trim();
@@ -543,6 +547,105 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         : threadResult.data?.status ?? 'resolved';
 
   if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {
+    const aiDebounceMs = 7000;
+    const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
+
+    const pendingMetadataUpdate = await admin
+      .from('conversation_threads')
+      .update({
+        updated_at: now,
+        metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
+          provider: 'evolution',
+          direction: parsed.direction,
+          event: parsed.event,
+          preview: content.slice(0, 160),
+          messageType: parsed.messageType,
+          sentAt: parsed.sentAt,
+          authorName: parsed.contactName,
+          incrementUnread: false,
+        }),
+      })
+      .eq('id', threadId)
+      .eq('organization_id', connectionResult.data.organization_id);
+
+    if (pendingMetadataUpdate.error) {
+      return json({ error: pendingMetadataUpdate.error.message }, 500);
+    }
+
+    const threadMetadataResult = await admin
+      .from('conversation_threads')
+      .select('metadata, status')
+      .eq('id', threadId)
+      .eq('organization_id', connectionResult.data.organization_id)
+      .maybeSingle();
+
+    if (threadMetadataResult.error) {
+      return json({ error: threadMetadataResult.error.message }, 500);
+    }
+
+    const currentThreadMetadata =
+      (threadMetadataResult.data?.metadata as Record<string, unknown> | null) || {};
+
+    const debounceMarkResult = await admin
+      .from('conversation_threads')
+      .update({
+        updated_at: now,
+        metadata: {
+          ...currentThreadMetadata,
+          aiPendingToken: aiPendingToken,
+          aiPendingSince: now,
+          aiPendingMessageId: insertedMessage.data.id,
+          aiDebounceMs,
+        },
+      })
+      .eq('id', threadId)
+      .eq('organization_id', connectionResult.data.organization_id);
+
+    if (debounceMarkResult.error) {
+      return json({ error: debounceMarkResult.error.message }, 500);
+    }
+
+    await sleep(aiDebounceMs);
+
+    const debounceCheckResult = await admin
+      .from('conversation_threads')
+      .select('status, metadata')
+      .eq('id', threadId)
+      .eq('organization_id', connectionResult.data.organization_id)
+      .maybeSingle();
+
+    if (debounceCheckResult.error) {
+      return json({ error: debounceCheckResult.error.message }, 500);
+    }
+
+    const latestThreadStatus = debounceCheckResult.data?.status || threadStatus;
+    const latestThreadMetadata =
+      (debounceCheckResult.data?.metadata as Record<string, unknown> | null) || {};
+
+    if (latestThreadMetadata.aiPendingToken !== aiPendingToken) {
+      return json({
+        ok: true,
+        thread_id: threadId,
+        deal_id: dealId,
+        message_id: insertedMessage.data.id,
+        direction: parsed.direction,
+        deferred: true,
+        reason: 'newer_inbound_message_arrived',
+      });
+    }
+
+    if (latestThreadStatus !== 'ai_active') {
+      return json({
+        ok: true,
+        thread_id: threadId,
+        deal_id: dealId,
+        message_id: insertedMessage.data.id,
+        direction: parsed.direction,
+        deferred: true,
+        reason: 'thread_no_longer_ai_active',
+      });
+    }
+
     const recentMessagesResult = await admin
       .from('conversation_messages')
       .select('id, direction, message_type, author_name, content, sent_at, metadata')
@@ -591,6 +694,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
               trigger_message_id: insertedMessage.data.id,
               native_ai: true,
               prompt_source: nativeReply.source,
+              ai_debounce_ms: aiDebounceMs,
+              ai_pending_token: aiPendingToken,
             },
             automationSource: 'native_crm',
           },
