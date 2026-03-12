@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
-import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
-import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
-import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
-import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
-import { toWhatsAppPhone } from '@/lib/phone';
+import { executeConversationAIReply } from '@/lib/conversations/aiReply';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -64,179 +60,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   const expectedSecret = String((connectionResult.data.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
   if (!expectedSecret || expectedSecret !== secret) return json({ error: 'Secret invalido' }, 401);
 
-  const threadResult = await admin
-    .from('conversation_threads')
-    .select('id, organization_id, channel_connection_id, contact_phone, status, metadata, assigned_user_id')
-    .eq('id', parsed.data.threadId)
-    .eq('organization_id', connectionResult.data.organization_id)
-    .eq('channel_connection_id', connectionId)
-    .maybeSingle();
-
-  if (threadResult.error) return json({ error: threadResult.error.message }, 500);
-  if (!threadResult.data) return json({ error: 'Thread nao encontrada' }, 404);
-
-  if (threadResult.data.status === 'human_active' || threadResult.data.status === 'human_queue') {
-    return json({ ok: true, ignored: true, reason: 'thread_em_atendimento_humano' });
-  }
-
-  const instanceName = String((connectionResult.data.config as Record<string, unknown> | null)?.instanceName || '').trim();
-  let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
   try {
-    resolved = await resolveEvolutionCredentials({
+    const result = await executeConversationAIReply({
       admin,
-      tenantId: connectionResult.data.organization_id,
-      connectionConfig: (connectionResult.data.config as Record<string, unknown> | null) || {},
-    });
-  } catch (resolveError) {
-    return json(
-      {
-        error:
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'Failed to resolve Evolution credentials for AI reply.',
-      },
-      500
-    );
-  }
-  const sendMode = ((connectionResult.data.config as Record<string, unknown> | null)?.sendMode || 'auto') as
-    | 'auto'
-    | 'number_text'
-    | 'number_textMessage'
-    | 'number_message'
-    | 'number_body';
-
-  const phone = toWhatsAppPhone(threadResult.data.contact_phone);
-  if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
-    return json(
-      {
-        error:
-          'Conexao WhatsApp sem instanceName ou credencial Evolution configurada (conexao/agencia).',
-      },
-      400
-    );
-  }
-  if (!phone) {
-    return json({ error: 'Thread sem telefone valido para envio.' }, 400);
-  }
-
-  const now = new Date().toISOString();
-  let deliveryMetadata: Record<string, unknown> = {
-    provider: 'evolution',
-    automation_source: 'n8n',
-    ai_summary: parsed.data.summary ?? null,
-    ai_handoff_reason: parsed.data.handoffReason ?? null,
-    ...parsed.data.metadata,
-  };
-  let deliveryWarning: string | null = null;
-
-  try {
-    const sendResult = await sendEvolutionTextMessage({
-      apiUrl: resolved.apiUrl,
-      instanceName,
-      apiKey: resolved.apiKey,
-      phone,
-      text: parsed.data.replyText.trim(),
-      sendMode,
-    });
-
-    deliveryMetadata = {
-      ...deliveryMetadata,
-      provider_message_id: sendResult.providerMessageId,
-      delivery_status: 'sent',
-      delivery_provider: 'evolution',
-      delivery_attempt: sendResult.attemptLabel,
-      delivery_raw: sendResult.raw,
-      credential_source: resolved.source,
-    };
-  } catch (error) {
-    deliveryWarning = error instanceof Error ? error.message : 'Falha ao enviar resposta automatica.';
-    deliveryMetadata = {
-      ...deliveryMetadata,
-      delivery_status: 'failed',
-      delivery_provider: 'evolution',
-      delivery_attempt: 'all-failed',
-      delivery_error: deliveryWarning,
-      credential_source: resolved.source,
-    };
-  }
-
-  const insertedMessage = await admin
-    .from('conversation_messages')
-    .insert({
-      thread_id: parsed.data.threadId,
-      organization_id: connectionResult.data.organization_id,
-      direction: 'outbound',
-      message_type: 'text',
-      author_name: parsed.data.authorName?.trim() || 'IA de atendimento',
-      content: parsed.data.replyText.trim(),
-      metadata: deliveryMetadata,
-      sent_at: now,
-      created_at: now,
-    })
-    .select('id')
-    .single();
-
-  if (insertedMessage.error) return json({ error: insertedMessage.error.message }, 500);
-
-  const nextStatus = parsed.data.shouldHandoff ? 'human_queue' : 'ai_active';
-  const nextMetadata = buildConversationThreadMetadataUpdate(threadResult.data.metadata, {
-    direction: 'outbound',
-    preview: parsed.data.replyText.trim().slice(0, 160),
-    messageType: 'text',
-    sentAt: now,
-    authorName: parsed.data.authorName?.trim() || 'IA de atendimento',
-    unreadCount: 0,
-    routingMode: parsed.data.shouldHandoff ? 'human' : 'ai',
-    humanLocked: parsed.data.shouldHandoff ? true : false,
-    aiLockedReason: parsed.data.shouldHandoff ? (parsed.data.handoffReason?.trim() || 'human_handoff') : null,
-    handoffRequestedAt: parsed.data.shouldHandoff ? now : null,
-    handoffReason: parsed.data.shouldHandoff ? (parsed.data.handoffReason?.trim() || 'human_handoff') : null,
-    queueAssignedUserId: parsed.data.shouldHandoff ? threadResult.data.assigned_user_id ?? null : null,
-    provider: 'evolution',
-  });
-
-  const threadUpdate = await admin
-    .from('conversation_threads')
-    .update({
-      status: nextStatus,
-      last_message_at: now,
-      updated_at: now,
-      metadata: nextMetadata,
-    })
-    .eq('id', parsed.data.threadId)
-    .eq('organization_id', connectionResult.data.organization_id);
-
-  if (threadUpdate.error) return json({ error: threadUpdate.error.message }, 500);
-
-  if (parsed.data.summary?.trim()) {
-    const summaryInsert = await admin
-      .from('conversation_messages')
-      .insert({
-        thread_id: parsed.data.threadId,
+      connection: {
+        id: connectionResult.data.id,
         organization_id: connectionResult.data.organization_id,
-        direction: 'internal',
-        message_type: 'note',
-        author_name: 'IA de atendimento',
-        content: `Resumo IA: ${parsed.data.summary.trim()}`,
-        metadata: {
-          provider: 'evolution',
-          automation_source: 'n8n',
-          note_type: 'ai_summary',
-        },
-        sent_at: now,
-        created_at: now,
-      });
+        name: connectionResult.data.name,
+        config: (connectionResult.data.config as Record<string, unknown> | null) || {},
+      },
+      payload: {
+        threadId: parsed.data.threadId,
+        replyText: parsed.data.replyText,
+        summary: parsed.data.summary,
+        shouldHandoff: parsed.data.shouldHandoff,
+        handoffReason: parsed.data.handoffReason,
+        authorName: parsed.data.authorName,
+        metadata: parsed.data.metadata,
+        automationSource: 'n8n',
+      },
+    });
 
-    if (summaryInsert.error) {
-      return json({ error: summaryInsert.error.message }, 500);
-    }
+    return json(result);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Falha ao executar AI reply.' }, 500);
   }
-
-  const thread = await loadConversationThreadInboxItem(admin, connectionResult.data.organization_id, parsed.data.threadId);
-  return json({
-    ok: true,
-    warning: deliveryWarning,
-    thread,
-    status: nextStatus,
-  });
 }

@@ -875,3 +875,46 @@ Pendencias:
 - validar no ambiente real se o inbound da Evolution ja entra ponta a ponta apos reaplicar `Atualizar status`
 - se necessario, expor no frontend o ultimo `eventPath` recebido e o ultimo erro de materializacao
 - seguir refinando a tela `Conversas` ate bater mais de perto com o padrao visual do WhatsApp
+
+## 2026-03-12 - IA nativa de atendimento responde o inbound do WhatsApp
+
+Objetivo:
+
+- usar a IA ja configurada na organizacao para a Julia responder automaticamente os leads
+- remover a dependencia exclusiva de webhook externo para o primeiro atendimento
+- manter handoff humano e fallback de automacao externa quando a IA nativa nao puder responder
+
+Entregas:
+
+- criacao de helper compartilhado `lib/conversations/aiReply.ts` para:
+  - gerar resposta automatica com IA nativa
+  - enviar a resposta via Evolution
+  - registrar outbound e resumo interno no CRM
+  - atualizar a thread para `ai_active` ou `human_queue`
+- `app/api/public/channels/evolution/[connectionId]/ai-reply/route.ts` passou a reutilizar o helper compartilhado
+- webhook inbound da Evolution agora tenta responder primeiro com IA nativa do CRM
+- o `webhookUrl` externo passou a atuar como fallback quando a IA nativa estiver indisponivel ou falhar
+- adicao do prompt catalogado `task_conversations_whatsapp_auto_reply` para a persona da Julia
+
+Arquivos principais:
+
+- `lib/conversations/aiReply.ts`
+- `lib/ai/prompts/catalog.ts`
+- `app/api/public/channels/evolution/[connectionId]/ai-reply/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Pendencias:
+
+- validar em producao se a Julia responde automaticamente ao primeiro inbound
+- ajustar o prompt por clinica caso a resposta fique generica demais
+- retomar os detalhes visuais finos da caixa de dialogo depois que a automacao estiver estavel

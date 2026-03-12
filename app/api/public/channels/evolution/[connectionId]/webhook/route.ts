@@ -7,6 +7,7 @@ import {
 } from '@/lib/conversations/threadMetadata';
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
+import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -541,7 +542,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         ? 'ai_active'
         : threadResult.data?.status ?? 'resolved';
 
-  if (parsed.direction === 'inbound' && automationWebhookUrl && threadStatus === 'ai_active') {
+  if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {
     const recentMessagesResult = await admin
       .from('conversation_messages')
       .select('id, direction, message_type, author_name, content, sent_at, metadata')
@@ -558,49 +559,103 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       });
     }
 
-    const automationPayload = {
-      source: 'basecrm.conversations.inbound',
-      organizationId: connectionResult.data.organization_id,
-      connectionId,
-      threadId,
-      messageId: insertedMessage.data.id,
-      status: threadStatus,
-      contact: {
-        id: contactId,
-        name: resolvedContactName,
-        phone: canonicalPhone,
-      },
-      deal: {
-        id: dealId,
-      },
-      message: {
-        direction: parsed.direction,
-        type: parsed.messageType,
-        content,
-        providerMessageId: parsed.providerMessageId,
-        sentAt: parsed.sentAt,
-      },
-      recentMessages: (recentMessagesResult.data || []).slice().reverse(),
-      connection: {
-        provider: connectionResult.data.provider,
-        channelType: connectionResult.data.channel_type,
-        name: connectionResult.data.name,
-      },
-      aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
-    };
+    const recentMessages = (recentMessagesResult.data || []).slice().reverse();
+    let nativeReplySucceeded = false;
 
     try {
-      await notifyConversationAutomation({
-        webhookUrl: automationWebhookUrl,
-        secret: expectedSecret || requestSecret,
-        payload: automationPayload,
+      const nativeReply = await generateConversationAutoReply({
+        admin,
+        organizationId: connectionResult.data.organization_id,
+        contactName: resolvedContactName,
+        contactPhone: canonicalPhone,
+        recentMessages,
       });
-    } catch (automationError) {
-      console.warn('[Evolution webhook] Failed to notify automation webhook', {
+
+      if (nativeReply.ok) {
+        await executeConversationAIReply({
+          admin,
+          connection: {
+            id: connectionResult.data.id,
+            organization_id: connectionResult.data.organization_id,
+            name: connectionResult.data.name,
+            config: connectionConfig,
+          },
+          payload: {
+            threadId,
+            replyText: nativeReply.object.replyText,
+            summary: nativeReply.object.summary,
+            shouldHandoff: nativeReply.object.shouldHandoff,
+            handoffReason: nativeReply.object.handoffReason,
+            authorName: 'Julia',
+            metadata: {
+              trigger_message_id: insertedMessage.data.id,
+              native_ai: true,
+              prompt_source: nativeReply.source,
+            },
+            automationSource: 'native_crm',
+          },
+        });
+        nativeReplySucceeded = true;
+      } else {
+        console.warn('[Evolution webhook] Native AI reply skipped', {
+          connectionId,
+          threadId,
+          reason: nativeReply.reason,
+        });
+      }
+    } catch (nativeAiError) {
+      console.warn('[Evolution webhook] Native AI reply failed', {
         connectionId,
         threadId,
-        error: automationError instanceof Error ? automationError.message : String(automationError),
+        error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
       });
+    }
+
+    if (!nativeReplySucceeded && automationWebhookUrl) {
+      const automationPayload = {
+        source: 'basecrm.conversations.inbound',
+        organizationId: connectionResult.data.organization_id,
+        connectionId,
+        threadId,
+        messageId: insertedMessage.data.id,
+        status: threadStatus,
+        contact: {
+          id: contactId,
+          name: resolvedContactName,
+          phone: canonicalPhone,
+        },
+        deal: {
+          id: dealId,
+        },
+        message: {
+          direction: parsed.direction,
+          type: parsed.messageType,
+          content,
+          providerMessageId: parsed.providerMessageId,
+          sentAt: parsed.sentAt,
+        },
+        recentMessages,
+        connection: {
+          provider: connectionResult.data.provider,
+          channelType: connectionResult.data.channel_type,
+          name: connectionResult.data.name,
+        },
+        aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
+      };
+
+      try {
+        await notifyConversationAutomation({
+          webhookUrl: automationWebhookUrl,
+          secret: expectedSecret || requestSecret,
+          payload: automationPayload,
+        });
+      } catch (automationError) {
+        console.warn('[Evolution webhook] Failed to notify automation webhook', {
+          connectionId,
+          threadId,
+          error: automationError instanceof Error ? automationError.message : String(automationError),
+        });
+      }
     }
   }
 
