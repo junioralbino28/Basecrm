@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
+import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { toWhatsAppPhone } from '@/lib/phone';
@@ -78,9 +79,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     return json({ ok: true, ignored: true, reason: 'thread_em_atendimento_humano' });
   }
 
-  const apiUrl = String((connectionResult.data.config as Record<string, unknown> | null)?.apiUrl || '').trim();
   const instanceName = String((connectionResult.data.config as Record<string, unknown> | null)?.instanceName || '').trim();
-  const apiKey = String((connectionResult.data.config as Record<string, unknown> | null)?.apiKey || '').trim();
+  let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
+  try {
+    resolved = await resolveEvolutionCredentials({
+      admin,
+      tenantId: connectionResult.data.organization_id,
+      connectionConfig: (connectionResult.data.config as Record<string, unknown> | null) || {},
+    });
+  } catch (resolveError) {
+    return json(
+      {
+        error:
+          resolveError instanceof Error
+            ? resolveError.message
+            : 'Failed to resolve Evolution credentials for AI reply.',
+      },
+      500
+    );
+  }
   const sendMode = ((connectionResult.data.config as Record<string, unknown> | null)?.sendMode || 'auto') as
     | 'auto'
     | 'number_text'
@@ -89,8 +106,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     | 'number_body';
 
   const phone = toWhatsAppPhone(threadResult.data.contact_phone);
-  if (!apiUrl || !instanceName || !apiKey) {
-    return json({ error: 'Conexao WhatsApp sem apiUrl, instanceName ou apiKey configurados.' }, 400);
+  if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
+    return json(
+      {
+        error:
+          'Conexao WhatsApp sem instanceName ou credencial Evolution configurada (conexao/agencia).',
+      },
+      400
+    );
   }
   if (!phone) {
     return json({ error: 'Thread sem telefone valido para envio.' }, 400);
@@ -108,9 +131,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   try {
     const sendResult = await sendEvolutionTextMessage({
-      apiUrl,
+      apiUrl: resolved.apiUrl,
       instanceName,
-      apiKey,
+      apiKey: resolved.apiKey,
       phone,
       text: parsed.data.replyText.trim(),
       sendMode,
@@ -123,6 +146,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       delivery_provider: 'evolution',
       delivery_attempt: sendResult.attemptLabel,
       delivery_raw: sendResult.raw,
+      credential_source: resolved.source,
     };
   } catch (error) {
     deliveryWarning = error instanceof Error ? error.message : 'Falha ao enviar resposta automatica.';
@@ -132,6 +156,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       delivery_provider: 'evolution',
       delivery_attempt: 'all-failed',
       delivery_error: deliveryWarning,
+      credential_source: resolved.source,
     };
   }
 

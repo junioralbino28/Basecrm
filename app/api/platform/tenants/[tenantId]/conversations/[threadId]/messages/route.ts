@@ -4,6 +4,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { getConversationAssigneeDisplayName, loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
+import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -94,13 +95,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       return json({ error: 'Channel connection not found for this conversation.' }, 404);
     }
 
-    const apiUrl = (connection.data.config as any)?.apiUrl;
     const instanceName = (connection.data.config as any)?.instanceName;
-    const apiKey = (connection.data.config as any)?.apiKey;
+    let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
+    try {
+      resolved = await resolveEvolutionCredentials({
+        admin,
+        tenantId,
+        connectionConfig: (connection.data.config as Record<string, unknown> | null) || {},
+        profileRole: auth.profile.role,
+        requesterOrganizationId: auth.profile.organization_id,
+      });
+    } catch (resolveError) {
+      return json(
+        {
+          error:
+            resolveError instanceof Error
+              ? resolveError.message
+              : 'Failed to resolve Evolution credentials for outbound message.',
+        },
+        500
+      );
+    }
     const phone = toWhatsAppPhone(thread.data.contact_phone);
 
-    if (!apiUrl || !instanceName || !apiKey) {
-      return json({ error: 'WhatsApp connection requires apiUrl, instanceName and apiKey before sending.' }, 400);
+    if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
+      return json(
+        {
+          error:
+            'WhatsApp connection requires instanceName and Evolution credentials (connection config or agency defaults) before sending.',
+        },
+        400
+      );
     }
 
     if (!phone) {
@@ -109,9 +134,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
     try {
       const sendResult = await sendEvolutionTextMessage({
-        apiUrl,
+        apiUrl: resolved.apiUrl,
         instanceName,
-        apiKey,
+        apiKey: resolved.apiKey,
         phone,
         text: parsed.data.content.trim(),
       });
@@ -124,6 +149,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         delivery_provider: 'evolution',
         delivery_attempt: sendResult.attemptLabel,
         delivery_raw: sendResult.raw,
+        credential_source: resolved.source,
       };
     } catch (sendError) {
       deliveryWarning = sendError instanceof Error ? sendError.message : 'Falha ao enviar pela Evolution.';
@@ -134,6 +160,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         delivery_provider: 'evolution',
         delivery_attempt: 'all-failed',
         delivery_error: deliveryWarning,
+        credential_source: resolved.source,
       };
     }
   }

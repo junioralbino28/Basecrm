@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
+import { isAgencyAdminRole } from '@/lib/auth/scope';
+import { ensureTenantAgencyBinding } from '@/lib/channels/evolutionCredentials';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -79,6 +81,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   };
 
   const admin = createStaticAdminClient();
+
+  if (
+    isAgencyAdminRole(auth.profile.role) &&
+    auth.profile.organization_id &&
+    auth.profile.organization_id !== tenantId
+  ) {
+    try {
+      await ensureTenantAgencyBinding({
+        admin,
+        tenantId,
+        agencyOrganizationId: auth.profile.organization_id,
+      });
+    } catch (bindingError) {
+      return json(
+        {
+          error:
+            bindingError instanceof Error
+              ? bindingError.message
+              : 'Falha ao vincular clinica a agencia para credencial global.',
+        },
+        500
+      );
+    }
+  }
+
   const { data, error } = await admin
     .from('channel_connections')
     .insert({

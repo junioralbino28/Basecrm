@@ -67,6 +67,7 @@ export async function runProvisioning(params: {
         serviceModel: params.input.serviceModel,
         requestedSubdomain: normalizeSubdomain(params.input.subdomain, params.input.companyName),
         provisioningMode,
+        agencyOrganizationId: params.operatorOrganizationId,
       },
       updated_at: now,
   });

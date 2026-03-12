@@ -27,6 +27,12 @@ type ChannelFormState = {
   notes: string;
 };
 
+type AgencyEvolutionDefaults = {
+  apiUrl: string;
+  hasApiKey: boolean;
+  apiKeyLast4: string;
+};
+
 const INITIAL_FORM: ChannelFormState = {
   name: 'WhatsApp principal',
   provider: 'evolution',
@@ -158,6 +164,17 @@ export const TenantChannelsPage: React.FC = () => {
   const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
   const [webhookUrlError, setWebhookUrlError] = React.useState<string | null>(null);
   const [isCreateInstanceModalOpen, setIsCreateInstanceModalOpen] = React.useState(false);
+  const [agencyDefaults, setAgencyDefaults] = React.useState<AgencyEvolutionDefaults>({
+    apiUrl: '',
+    hasApiKey: false,
+    apiKeyLast4: '',
+  });
+  const [agencyDefaultsDraft, setAgencyDefaultsDraft] = React.useState<{ apiUrl: string; apiKey: string }>({
+    apiUrl: '',
+    apiKey: '',
+  });
+  const [loadingAgencyDefaults, setLoadingAgencyDefaults] = React.useState(false);
+  const [savingAgencyDefaults, setSavingAgencyDefaults] = React.useState(false);
 
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -176,6 +193,56 @@ export const TenantChannelsPage: React.FC = () => {
       setBrowserOrigin(window.location.origin);
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!canManageInfrastructure) return;
+
+    let ignore = false;
+    setLoadingAgencyDefaults(true);
+
+    const loadAgencyDefaults = async () => {
+      try {
+        const res = await fetch('/api/platform/agency/evolution', {
+          method: 'GET',
+          credentials: 'include',
+          headers: { accept: 'application/json' },
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || `Falha ao carregar credencial global (HTTP ${res.status})`);
+        }
+
+        if (ignore) return;
+        const defaults = {
+          apiUrl: String(data?.defaults?.apiUrl || ''),
+          hasApiKey: Boolean(data?.defaults?.hasApiKey),
+          apiKeyLast4: String(data?.defaults?.apiKeyLast4 || ''),
+        };
+        setAgencyDefaults(defaults);
+        setAgencyDefaultsDraft((current) => ({
+          apiUrl: defaults.apiUrl || current.apiUrl,
+          apiKey: '',
+        }));
+      } catch (loadError) {
+        if (ignore) return;
+        setMessageKind('error');
+        setMessage(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Falha ao carregar credencial global da Evolution.'
+        );
+      } finally {
+        if (!ignore) setLoadingAgencyDefaults(false);
+      }
+    };
+
+    void loadAgencyDefaults();
+
+    return () => {
+      ignore = true;
+    };
+  }, [canManageInfrastructure]);
 
   function startEditing(connection: NonNullable<typeof tenant>['channel_connections'][number]) {
     setEditingConnectionId(connection.id);
@@ -226,6 +293,63 @@ export const TenantChannelsPage: React.FC = () => {
     const secret = String(connection.config?.webhookSecret || '').trim();
     if (!browserOrigin || !secret) return null;
     return `${browserOrigin}/api/public/channels/evolution/${connection.id}/webhook?secret=${encodeURIComponent(secret)}`;
+  }
+
+  async function saveAgencyDefaults(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedApiUrl = normalizeHttpUrlInput(agencyDefaultsDraft.apiUrl);
+
+    if (normalizedApiUrl && !isLikelyHttpUrl(normalizedApiUrl)) {
+      setMessageKind('error');
+      setMessage('API URL global invalida. Use uma URL iniciando com http:// ou https://');
+      return;
+    }
+
+    setSavingAgencyDefaults(true);
+    setMessage(null);
+
+    try {
+      const payload: Record<string, string> = {};
+      payload.apiUrl = normalizedApiUrl;
+      if (agencyDefaultsDraft.apiKey.trim()) {
+        payload.apiKey = agencyDefaultsDraft.apiKey.trim();
+      }
+
+      const res = await fetch('/api/platform/agency/evolution', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao salvar credencial global (HTTP ${res.status})`);
+
+      const defaults = {
+        apiUrl: String(data?.defaults?.apiUrl || ''),
+        hasApiKey: Boolean(data?.defaults?.hasApiKey),
+        apiKeyLast4: String(data?.defaults?.apiKeyLast4 || ''),
+      };
+      setAgencyDefaults(defaults);
+      setAgencyDefaultsDraft({
+        apiUrl: defaults.apiUrl,
+        apiKey: '',
+      });
+      setMessageKind('success');
+      setMessage('Credencial global da Evolution salva no painel da agencia.');
+    } catch (saveError) {
+      setMessageKind('error');
+      setMessage(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Falha ao salvar credencial global da Evolution.'
+      );
+    } finally {
+      setSavingAgencyDefaults(false);
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -590,7 +714,8 @@ export const TenantChannelsPage: React.FC = () => {
                       {canManageInfrastructure ? (<>
                         <div className="md:col-span-2">
                           <span className="font-medium text-slate-900 dark:text-white">API URL:</span>{' '}
-                          {String(connection.config?.apiUrl || '-')}
+                          {String(connection.config?.apiUrl || agencyDefaults.apiUrl || '-')}
+                          {!connection.config?.apiUrl && agencyDefaults.apiUrl ? ' (global agencia)' : ''}
                         </div>
                       </>) : null}
                       {canManageInfrastructure ? (<>
@@ -782,8 +907,8 @@ export const TenantChannelsPage: React.FC = () => {
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {canManageInfrastructure
                 ? editingConnectionId
-                  ? 'Atualize numero, instancia, URL ou chave da Evolution sem recriar o registro.'
-                  : 'Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.'
+                  ? 'Atualize numero e instancia da clinica. API URL/token so sao necessarios se for sobrescrever a credencial global.'
+                  : 'Use esta tela para registrar a infraestrutura da clinica. Se a credencial global da agencia estiver salva, basta instancia + numero.'
                 : 'Aqui na clinica, mantenha o fluxo rapido: gerar QR code, reconectar e testar envio.'}
             </p>
             {isAgencyAdmin && !isTechnicalRoute ? (
@@ -793,6 +918,64 @@ export const TenantChannelsPage: React.FC = () => {
               >
                 Abrir configuracao tecnica no Painel Agencia
               </Link>
+            ) : null}
+            {canManageInfrastructure ? (
+              <form onSubmit={saveAgencyDefaults} className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Credencial global Evolution (agencia)
+                  </div>
+                  {loadingAgencyDefaults ? (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Carregando...</span>
+                  ) : (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Token: {agencyDefaults.hasApiKey ? `••••${agencyDefaults.apiKeyLast4}` : 'nao configurado'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 grid gap-3">
+                  <input
+                    className={FIELD_CLASS}
+                    value={agencyDefaultsDraft.apiUrl}
+                    onChange={(e) =>
+                      setAgencyDefaultsDraft((current) => ({ ...current, apiUrl: e.target.value }))
+                    }
+                    onBlur={(e) =>
+                      setAgencyDefaultsDraft((current) => ({
+                        ...current,
+                        apiUrl: normalizeHttpUrlInput(e.target.value),
+                      }))
+                    }
+                    placeholder="API URL global (ex.: https://evolution.seudominio.com)"
+                    autoComplete="off"
+                    inputMode="url"
+                  />
+                  <input
+                    type="password"
+                    className={FIELD_CLASS}
+                    value={agencyDefaultsDraft.apiKey}
+                    onChange={(e) =>
+                      setAgencyDefaultsDraft((current) => ({ ...current, apiKey: e.target.value }))
+                    }
+                    placeholder="Token global (deixe vazio para manter o atual)"
+                  />
+                </div>
+
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Com esta credencial salva, cada clinica precisa informar apenas instancia e numero para gerar QR code.
+                </div>
+
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={savingAgencyDefaults}
+                    className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                  >
+                    {savingAgencyDefaults ? 'Salvando...' : 'Salvar credencial global'}
+                  </button>
+                </div>
+              </form>
             ) : null}
 
             {canManageInfrastructure ? (
@@ -821,13 +1004,13 @@ export const TenantChannelsPage: React.FC = () => {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">API URL</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">API URL (opcional)</label>
                   <input
                     className={FIELD_CLASS}
                     value={form.apiUrl}
                     onChange={(e) => onChange('apiUrl', e.target.value)}
                     onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
-                    placeholder="https://evolution.seudominio.com"
+                    placeholder="https://evolution.seudominio.com (usa global se vazio)"
                     autoComplete="off"
                     inputMode="url"
                   />
@@ -887,13 +1070,13 @@ export const TenantChannelsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">API key da Evolution</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Token da Evolution (opcional)</label>
                 <input
                   type="password"
                   className={FIELD_CLASS}
                   value={form.apiKey}
                   onChange={(e) => onChange('apiKey', e.target.value)}
-                  placeholder={editingConnectionId ? 'Preencha apenas se quiser trocar a API key' : 'Cole a API key completa para habilitar o healthcheck'}
+                  placeholder={editingConnectionId ? 'Preencha apenas se quiser sobrescrever o token global' : 'Cole um token apenas se esta clinica usar credencial propria'}
                 />
               </div>
 
@@ -978,22 +1161,24 @@ export const TenantChannelsPage: React.FC = () => {
                   Canal
                 </label>
                 <input className={FIELD_CLASS} value="Evolution" readOnly />
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Modo assistido: com credencial global da agencia, preencha apenas instancia e numero.
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    API URL *
+                    API URL (opcional)
                   </label>
                   <input
                     className={FIELD_CLASS}
                     value={form.apiUrl}
                     onChange={(e) => onChange('apiUrl', e.target.value)}
                     onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
-                    placeholder="https://evolution.seudominio.com"
+                    placeholder="https://evolution.seudominio.com (usa global se vazio)"
                     autoComplete="off"
                     inputMode="url"
-                    required
                   />
                 </div>
                 <div>
@@ -1013,15 +1198,14 @@ export const TenantChannelsPage: React.FC = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Token *
+                    Token (opcional)
                   </label>
                   <input
                     type="password"
                     className={FIELD_CLASS}
                     value={form.apiKey}
                     onChange={(e) => onChange('apiKey', e.target.value)}
-                    placeholder="Cole a API key da Evolution"
-                    required
+                    placeholder="Cole apenas se quiser sobrescrever o token global"
                   />
                 </div>
                 <div>

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
+import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -45,17 +46,41 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     return json({ error: 'Unsupported provider' }, 400);
   }
 
-  const apiUrl = (connection.config as any)?.apiUrl;
   const instanceName = (connection.config as any)?.instanceName;
-  const apiKey = (connection.config as any)?.apiKey;
+  let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
+  try {
+    resolved = await resolveEvolutionCredentials({
+      admin,
+      tenantId,
+      connectionConfig: (connection.config as Record<string, unknown> | null) || {},
+      profileRole: auth.profile.role,
+      requesterOrganizationId: auth.profile.organization_id,
+    });
+  } catch (resolveError) {
+    return json(
+      {
+        error:
+          resolveError instanceof Error
+            ? resolveError.message
+            : 'Failed to resolve Evolution credentials for send test.',
+      },
+      500
+    );
+  }
   const sendMode = (connection.config as any)?.sendMode || 'auto';
   const phone = toWhatsAppPhone(parsed.data.phone || (connection.metadata as any)?.phoneNumber);
   const text =
     parsed.data.text?.trim() ||
     `Teste outbound Basecrm (${new Date().toLocaleString('pt-BR')})`;
 
-  if (!apiUrl || !instanceName || !apiKey) {
-    return json({ error: 'Connection requires apiUrl, instanceName and apiKey before send test.' }, 400);
+  if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
+    return json(
+      {
+        error:
+          'Connection requires instanceName and Evolution credentials (connection config or agency defaults) before send test.',
+      },
+      400
+    );
   }
   if (!phone) {
     return json({ error: 'Provide a valid phone or configure a phoneNumber on this connection.' }, 400);
@@ -65,9 +90,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   try {
     const result = await sendEvolutionTextMessage({
-      apiUrl,
+      apiUrl: resolved.apiUrl,
       instanceName,
-      apiKey,
+      apiKey: resolved.apiKey,
       phone,
       text,
       sendMode,
@@ -79,6 +104,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       lastSendTestStatus: 'sent',
       lastSendTestError: null,
       lastSendTestAttempt: result.attemptLabel,
+      apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
+      evolutionCredentialSource: resolved.source,
     };
 
     const { data: updated, error: updateError } = await admin
@@ -117,6 +144,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
           lastSendTestStatus: 'failed',
           lastSendTestError: message,
           lastSendTestAttempt: 'all-failed',
+          apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
+          evolutionCredentialSource: resolved.source,
         },
         updated_at: attemptedAt,
       })
