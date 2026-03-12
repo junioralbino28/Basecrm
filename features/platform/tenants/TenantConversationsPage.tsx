@@ -297,7 +297,7 @@ export const TenantConversationsPage: React.FC = () => {
       return data as InboxResponse;
     },
     enabled: Boolean(tenantId),
-    refetchInterval: 15000,
+    refetchInterval: 3000,
   });
 
   const selectedThread = React.useMemo(
@@ -329,7 +329,7 @@ export const TenantConversationsPage: React.FC = () => {
       return data as MessagesResponse;
     },
     enabled: Boolean(tenantId && selectedThreadId),
-    refetchInterval: selectedThreadId ? 10000 : false,
+    refetchInterval: selectedThreadId ? 3000 : false,
   });
 
   const updateInboxThread = React.useCallback((thread: ConversationThreadListItem) => {
@@ -529,9 +529,12 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao atualizar status (HTTP ${res.status})`);
+      const webhookWarning = typeof data?.webhook?.warning === 'string' ? data.webhook.warning : null;
       setWhatsAppFeedback({
-        kind: 'success',
-        text: `Status atualizado: ${data?.healthcheck?.state || 'sem estado retornado'}.`,
+        kind: webhookWarning ? 'warning' : 'success',
+        text: webhookWarning
+          ? `Status atualizado: ${data?.healthcheck?.state || 'sem estado retornado'}. ${webhookWarning}`
+          : `Status atualizado: ${data?.healthcheck?.state || 'sem estado retornado'}.`,
       });
       await reload();
     } catch (error) {
@@ -556,11 +559,15 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao gerar QR code (HTTP ${res.status})`);
+      const webhookWarning = typeof data?.webhook?.warning === 'string' ? data.webhook.warning : null;
       setWhatsAppFeedback({
-        kind: 'success',
-        text: data?.pairing?.pairingCode
-          ? `QR code atualizado. Codigo de pareamento: ${data.pairing.pairingCode}.`
-          : 'QR code solicitado com sucesso.',
+        kind: webhookWarning ? 'warning' : 'success',
+        text: (() => {
+          const base = data?.pairing?.pairingCode
+            ? `QR code atualizado. Codigo de pareamento: ${data.pairing.pairingCode}.`
+            : 'QR code solicitado com sucesso.';
+          return webhookWarning ? `${base} ${webhookWarning}` : base;
+        })(),
       });
       await reload();
     } catch (error) {

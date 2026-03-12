@@ -1,6 +1,6 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { fetchEvolutionConnectionState } from '@/lib/channels/evolution';
+import { fetchEvolutionConnectionState, setEvolutionWebhook } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -66,6 +66,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   }
 
   const checkedAt = new Date().toISOString();
+  const requestOrigin = new URL(req.url).origin;
 
   try {
     const result = await fetchEvolutionConnectionState({
@@ -74,10 +75,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       apiKey: resolved.apiKey,
     });
 
+    const webhookSecret = String((connection.config as any)?.webhookSecret || '').trim();
+    let webhookWarning: string | null = null;
+    let webhookConfigured = false;
+    if (webhookSecret) {
+      const crmWebhookUrl = `${requestOrigin}/api/public/channels/evolution/${connectionId}/webhook?secret=${encodeURIComponent(webhookSecret)}`;
+      try {
+        await setEvolutionWebhook({
+          apiUrl: resolved.apiUrl,
+          instanceName,
+          apiKey: resolved.apiKey,
+          webhookUrl: crmWebhookUrl,
+        });
+        webhookConfigured = true;
+      } catch (webhookError) {
+        webhookWarning =
+          webhookError instanceof Error
+            ? `Webhook CRM nao configurado automaticamente: ${webhookError.message}`
+            : 'Webhook CRM nao configurado automaticamente.';
+      }
+    } else {
+      webhookWarning = 'Webhook secret ausente na conexao.';
+    }
+
     const nextMetadata = {
       ...((connection.metadata as Record<string, unknown> | null) || {}),
       lastHealthcheckState: result.stateLabel,
       lastHealthcheckRaw: result.raw,
+      lastWebhookConfiguredAt: webhookConfigured ? checkedAt : (connection.metadata as any)?.lastWebhookConfiguredAt || null,
+      lastWebhookConfigError: webhookWarning,
       apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
       evolutionCredentialSource: resolved.source,
     };
@@ -103,6 +129,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       healthcheck: {
         state: result.stateLabel,
         checkedAt,
+      },
+      webhook: {
+        configured: webhookConfigured,
+        warning: webhookWarning,
       },
     });
   } catch (healthError) {

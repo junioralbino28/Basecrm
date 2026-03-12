@@ -453,9 +453,14 @@ export const TenantChannelsPage: React.FC = () => {
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha no healthcheck (HTTP ${res.status})`);
+      const webhookWarning = typeof data?.webhook?.warning === 'string' ? data.webhook.warning : null;
 
-      setMessageKind('success');
-      setMessage(`Healthcheck concluido: ${data?.healthcheck?.state || 'sem estado retornado'}.`);
+      setMessageKind(webhookWarning ? 'warning' : 'success');
+      setMessage(
+        webhookWarning
+          ? `Healthcheck concluido: ${data?.healthcheck?.state || 'sem estado retornado'}. ${webhookWarning}`
+          : `Healthcheck concluido: ${data?.healthcheck?.state || 'sem estado retornado'}.`
+      );
       await reload();
     } catch (healthcheckError) {
       setMessageKind('error');
@@ -481,9 +486,12 @@ export const TenantChannelsPage: React.FC = () => {
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao gerar pareamento (HTTP ${res.status})`);
+      const webhookWarning = typeof data?.webhook?.warning === 'string' ? data.webhook.warning : null;
 
-      setMessageKind('success');
-      setMessage(`Pareamento solicitado${data?.pairing?.pairingCode ? `: ${data.pairing.pairingCode}` : '.'}`);
+      setMessageKind(webhookWarning ? 'warning' : 'success');
+      setMessage(
+        `${data?.pairing?.pairingCode ? `Pareamento solicitado: ${data.pairing.pairingCode}.` : 'Pareamento solicitado.'}${webhookWarning ? ` ${webhookWarning}` : ''}`
+      );
       await reload();
     } catch (pairingError) {
       setMessageKind('error');

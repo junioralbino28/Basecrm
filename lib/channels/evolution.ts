@@ -17,6 +17,10 @@ export type EvolutionSendMessageResult = {
   attemptLabel: string;
 };
 
+export type EvolutionWebhookSetResult = {
+  raw: unknown;
+};
+
 export type EvolutionSendMode = 'auto' | 'number_text' | 'number_textMessage' | 'number_message' | 'number_body';
 
 async function parseEvolutionResponse(response: Response) {
@@ -143,6 +147,51 @@ export async function fetchEvolutionPairingCode(params: {
     code: typeof (payload as any)?.code === 'string' ? (payload as any).code : null,
     count: typeof (payload as any)?.count === 'number' ? (payload as any).count : null,
   };
+}
+
+export async function setEvolutionWebhook(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+  webhookUrl: string;
+  enabled?: boolean;
+  events?: string[];
+}): Promise<EvolutionWebhookSetResult> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/webhook/set/${encodeURIComponent(params.instanceName)}`;
+  const events = params.events?.length
+    ? params.events
+    : ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE'];
+
+  const body = {
+    enabled: params.enabled ?? true,
+    url: params.webhookUrl,
+    events,
+    webhookByEvents: true,
+    webhookBase64: false,
+    webhook_by_events: true,
+    webhook_base64: false,
+    webhook: {
+      enabled: params.enabled ?? true,
+      url: params.webhookUrl,
+      byEvents: true,
+      base64: false,
+      events,
+    },
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify(body),
+  });
+  const payload = await parseEvolutionResponse(response);
+  return { raw: payload };
 }
 
 function getProviderMessageId(payload: unknown) {
