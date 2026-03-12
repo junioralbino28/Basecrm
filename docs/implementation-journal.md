@@ -989,6 +989,36 @@ Observacoes:
 - o tempo inicial ficou fixado em 7 segundos
 - depois podemos tornar esse debounce configuravel por clinica, se fizer sentido operacionalmente
 
+## 2026-03-12 - Hotfix da Julia para debounce sem bloquear o webhook
+
+Objetivo:
+
+- impedir que a Julia pare de responder apos o inbound entrar no CRM
+- manter os 7 segundos de espera sem segurar o webhook da Evolution ate estourar o tempo da funcao
+
+Entregas:
+
+- processamento da resposta automatica movido para execucao pos-resposta
+- webhook deixa de esperar o debounce + IA + envio no caminho sincronico
+- preservacao do mesmo token de controle para cancelar respostas antigas quando chegam novas mensagens
+
+Arquivos principais:
+
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run build`
+
+Observacoes:
+
+- o sintoma corrigido era: lead e oportunidade entravam, mas a Julia travava depois de uma ou mais interacoes
+
 ## 2026-03-12 - Apagar lead de teste direto em Conversas
 
 Objetivo:

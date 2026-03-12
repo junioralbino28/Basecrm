@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { parseEvolutionWebhookPayload } from '@/lib/conversations/evolutionWebhook';
 import {
@@ -61,6 +62,197 @@ function getPayloadInstanceName(payload: unknown) {
 
 function buildThreadTitle(contactName: string | null, contactPhone: string) {
   return `WhatsApp - ${contactName || contactPhone}`;
+}
+
+async function processDeferredAIReply(params: {
+  connectionId: string;
+  organizationId: string;
+  connectionName: string;
+  connectionProvider: string;
+  connectionChannelType: string;
+  connectionConfig: Record<string, unknown>;
+  threadId: string;
+  contactId: string | null;
+  dealId: string | null;
+  contactName: string | null;
+  canonicalPhone: string;
+  insertedMessageId: string;
+  aiPendingToken: string;
+  aiDebounceMs: number;
+  automationWebhookUrl: string;
+  expectedSecret: string;
+  requestSecret: string;
+  requestOrigin: string;
+}) {
+  const {
+    connectionId,
+    organizationId,
+    connectionName,
+    connectionProvider,
+    connectionChannelType,
+    connectionConfig,
+    threadId,
+    contactId,
+    dealId,
+    contactName,
+    canonicalPhone,
+    insertedMessageId,
+    aiPendingToken,
+    aiDebounceMs,
+    automationWebhookUrl,
+    expectedSecret,
+    requestSecret,
+    requestOrigin,
+  } = params;
+
+  const admin = createStaticAdminClient();
+
+  await sleep(aiDebounceMs);
+
+  const debounceCheckResult = await admin
+    .from('conversation_threads')
+    .select('status, metadata')
+    .eq('id', threadId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (debounceCheckResult.error) {
+    console.warn('[Evolution webhook] Failed to check pending AI debounce', {
+      connectionId,
+      threadId,
+      error: debounceCheckResult.error.message,
+    });
+    return;
+  }
+
+  const latestThreadStatus = debounceCheckResult.data?.status || 'ai_active';
+  const latestThreadMetadata =
+    (debounceCheckResult.data?.metadata as Record<string, unknown> | null) || {};
+
+  if (latestThreadMetadata.aiPendingToken !== aiPendingToken) {
+    return;
+  }
+
+  if (latestThreadStatus !== 'ai_active') {
+    return;
+  }
+
+  const recentMessagesResult = await admin
+    .from('conversation_messages')
+    .select('id, direction, message_type, author_name, content, sent_at, metadata')
+    .eq('organization_id', organizationId)
+    .eq('thread_id', threadId)
+    .order('sent_at', { ascending: false })
+    .limit(12);
+
+  if (recentMessagesResult.error) {
+    console.warn('[Evolution webhook] Failed to load recent conversation messages for automation', {
+      connectionId,
+      threadId,
+      error: recentMessagesResult.error.message,
+    });
+  }
+
+  const recentMessages = (recentMessagesResult.data || []).slice().reverse();
+  let nativeReplySucceeded = false;
+
+  try {
+    const nativeReply = await generateConversationAutoReply({
+      admin,
+      organizationId,
+      contactName,
+      contactPhone: canonicalPhone,
+      recentMessages,
+    });
+
+    if (nativeReply.ok) {
+      await executeConversationAIReply({
+        admin,
+        connection: {
+          id: connectionId,
+          organization_id: organizationId,
+          name: connectionName,
+          config: connectionConfig,
+        },
+        payload: {
+          threadId,
+          replyText: nativeReply.object.replyText,
+          summary: nativeReply.object.summary,
+          shouldHandoff: nativeReply.object.shouldHandoff,
+          handoffReason: nativeReply.object.handoffReason,
+          authorName: 'Julia',
+          metadata: {
+            trigger_message_id: insertedMessageId,
+            native_ai: true,
+            prompt_source: nativeReply.source,
+            ai_debounce_ms: aiDebounceMs,
+            ai_pending_token: aiPendingToken,
+          },
+          automationSource: 'native_crm',
+        },
+      });
+      nativeReplySucceeded = true;
+    } else {
+      console.warn('[Evolution webhook] Native AI reply skipped', {
+        connectionId,
+        threadId,
+        reason: nativeReply.reason,
+      });
+    }
+  } catch (nativeAiError) {
+    console.warn('[Evolution webhook] Native AI reply failed', {
+      connectionId,
+      threadId,
+      error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
+    });
+  }
+
+  if (!nativeReplySucceeded && automationWebhookUrl) {
+    const automationPayload = {
+      source: 'basecrm.conversations.inbound',
+      organizationId,
+      connectionId,
+      threadId,
+      messageId: insertedMessageId,
+      status: latestThreadStatus,
+      contact: {
+        id: contactId,
+        name: contactName,
+        phone: canonicalPhone,
+      },
+      deal: {
+        id: dealId,
+      },
+      message: {
+        direction: 'inbound',
+        type: 'text',
+        content: recentMessages.at(-1)?.content || '',
+        providerMessageId: null,
+        sentAt: recentMessages.at(-1)?.sent_at || new Date().toISOString(),
+      },
+      recentMessages,
+      connection: {
+        provider: connectionProvider,
+        channelType: connectionChannelType,
+        name: connectionName,
+      },
+      aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
+    };
+
+    try {
+      await notifyConversationAutomation({
+        webhookUrl: automationWebhookUrl,
+        secret: expectedSecret || requestSecret,
+        payload: automationPayload,
+      });
+    } catch (automationError) {
+      console.warn('[Evolution webhook] Failed to notify automation webhook', {
+        connectionId,
+        threadId,
+        error: automationError instanceof Error ? automationError.message : String(automationError),
+      });
+    }
+  }
 }
 
 async function upsertConversationContact(params: {
@@ -280,10 +472,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
   if (!connectionResult.data) return json({ error: 'Conexao nao encontrada' }, 404);
+  const connection = connectionResult.data;
 
   const requestSecret = getSecretFromRequest(req);
-  const expectedSecret = String((connectionResult.data.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
-  const configuredInstanceName = String((connectionResult.data.config as Record<string, unknown> | null)?.instanceName || '').trim();
+  const expectedSecret = String((connection.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
+  const configuredInstanceName = String((connection.config as Record<string, unknown> | null)?.instanceName || '').trim();
   const payloadInstanceName = getPayloadInstanceName(payload);
 
   const authorizedBySecret = Boolean(expectedSecret && requestSecret && requestSecret === expectedSecret);
@@ -320,7 +513,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         },
       })
       .eq('id', connectionId)
-      .eq('organization_id', connectionResult.data.organization_id);
+          .eq('organization_id', connection.organization_id);
 
     return json({
       ok: true,
@@ -470,7 +663,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         }),
       })
       .eq('id', threadId)
-      .eq('organization_id', connectionResult.data.organization_id);
+      .eq('organization_id', connection.organization_id);
 
     if (updatedThread.error) return json({ error: updatedThread.error.message }, 500);
   }
@@ -517,7 +710,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     }
   }
 
-  const currentConnectionMetadata = (connectionResult.data.metadata as Record<string, unknown> | null) || {};
+  const currentConnectionMetadata = (connection.metadata as Record<string, unknown> | null) || {};
   const connectionUpdate = await admin
     .from('channel_connections')
     .update({
@@ -533,11 +726,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       },
     })
     .eq('id', connectionId)
-    .eq('organization_id', connectionResult.data.organization_id);
+    .eq('organization_id', connection.organization_id);
 
   if (connectionUpdate.error) return json({ error: connectionUpdate.error.message }, 500);
 
-  const connectionConfig = (connectionResult.data.config as Record<string, unknown> | null) || {};
+  const connectionConfig = (connection.config as Record<string, unknown> | null) || {};
   const automationWebhookUrl = String(connectionConfig.webhookUrl || '').trim();
   const threadStatus =
     threadResult.data?.status && parsed.direction === 'inbound'
@@ -604,164 +797,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     if (debounceMarkResult.error) {
       return json({ error: debounceMarkResult.error.message }, 500);
     }
-
-    await sleep(aiDebounceMs);
-
-    const debounceCheckResult = await admin
-      .from('conversation_threads')
-      .select('status, metadata')
-      .eq('id', threadId)
-      .eq('organization_id', connectionResult.data.organization_id)
-      .maybeSingle();
-
-    if (debounceCheckResult.error) {
-      return json({ error: debounceCheckResult.error.message }, 500);
-    }
-
-    const latestThreadStatus = debounceCheckResult.data?.status || threadStatus;
-    const latestThreadMetadata =
-      (debounceCheckResult.data?.metadata as Record<string, unknown> | null) || {};
-
-    if (latestThreadMetadata.aiPendingToken !== aiPendingToken) {
-      return json({
-        ok: true,
-        thread_id: threadId,
-        deal_id: dealId,
-        message_id: insertedMessage.data.id,
-        direction: parsed.direction,
-        deferred: true,
-        reason: 'newer_inbound_message_arrived',
-      });
-    }
-
-    if (latestThreadStatus !== 'ai_active') {
-      return json({
-        ok: true,
-        thread_id: threadId,
-        deal_id: dealId,
-        message_id: insertedMessage.data.id,
-        direction: parsed.direction,
-        deferred: true,
-        reason: 'thread_no_longer_ai_active',
-      });
-    }
-
-    const recentMessagesResult = await admin
-      .from('conversation_messages')
-      .select('id, direction, message_type, author_name, content, sent_at, metadata')
-      .eq('organization_id', connectionResult.data.organization_id)
-      .eq('thread_id', threadId)
-      .order('sent_at', { ascending: false })
-      .limit(12);
-
-    if (recentMessagesResult.error) {
-      console.warn('[Evolution webhook] Failed to load recent conversation messages for automation', {
+    after(async () => {
+      await processDeferredAIReply({
         connectionId,
+        organizationId: connection.organization_id,
+        connectionName: connection.name,
+        connectionProvider: connection.provider,
+        connectionChannelType: connection.channel_type,
+        connectionConfig,
         threadId,
-        error: recentMessagesResult.error.message,
-      });
-    }
-
-    const recentMessages = (recentMessagesResult.data || []).slice().reverse();
-    let nativeReplySucceeded = false;
-
-    try {
-      const nativeReply = await generateConversationAutoReply({
-        admin,
-        organizationId: connectionResult.data.organization_id,
+        contactId,
+        dealId,
         contactName: resolvedContactName,
-        contactPhone: canonicalPhone,
-        recentMessages,
+        canonicalPhone,
+        insertedMessageId: insertedMessage.data.id,
+        aiPendingToken,
+        aiDebounceMs,
+        automationWebhookUrl,
+        expectedSecret,
+        requestSecret,
+        requestOrigin,
       });
-
-      if (nativeReply.ok) {
-        await executeConversationAIReply({
-          admin,
-          connection: {
-            id: connectionResult.data.id,
-            organization_id: connectionResult.data.organization_id,
-            name: connectionResult.data.name,
-            config: connectionConfig,
-          },
-          payload: {
-            threadId,
-            replyText: nativeReply.object.replyText,
-            summary: nativeReply.object.summary,
-            shouldHandoff: nativeReply.object.shouldHandoff,
-            handoffReason: nativeReply.object.handoffReason,
-            authorName: 'Julia',
-            metadata: {
-              trigger_message_id: insertedMessage.data.id,
-              native_ai: true,
-              prompt_source: nativeReply.source,
-              ai_debounce_ms: aiDebounceMs,
-              ai_pending_token: aiPendingToken,
-            },
-            automationSource: 'native_crm',
-          },
-        });
-        nativeReplySucceeded = true;
-      } else {
-        console.warn('[Evolution webhook] Native AI reply skipped', {
-          connectionId,
-          threadId,
-          reason: nativeReply.reason,
-        });
-      }
-    } catch (nativeAiError) {
-      console.warn('[Evolution webhook] Native AI reply failed', {
-        connectionId,
-        threadId,
-        error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
-      });
-    }
-
-    if (!nativeReplySucceeded && automationWebhookUrl) {
-      const automationPayload = {
-        source: 'basecrm.conversations.inbound',
-        organizationId: connectionResult.data.organization_id,
-        connectionId,
-        threadId,
-        messageId: insertedMessage.data.id,
-        status: threadStatus,
-        contact: {
-          id: contactId,
-          name: resolvedContactName,
-          phone: canonicalPhone,
-        },
-        deal: {
-          id: dealId,
-        },
-        message: {
-          direction: parsed.direction,
-          type: parsed.messageType,
-          content,
-          providerMessageId: parsed.providerMessageId,
-          sentAt: parsed.sentAt,
-        },
-        recentMessages,
-        connection: {
-          provider: connectionResult.data.provider,
-          channelType: connectionResult.data.channel_type,
-          name: connectionResult.data.name,
-        },
-        aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
-      };
-
-      try {
-        await notifyConversationAutomation({
-          webhookUrl: automationWebhookUrl,
-          secret: expectedSecret || requestSecret,
-          payload: automationPayload,
-        });
-      } catch (automationError) {
-        console.warn('[Evolution webhook] Failed to notify automation webhook', {
-          connectionId,
-          threadId,
-          error: automationError instanceof Error ? automationError.message : String(automationError),
-        });
-      }
-    }
+    });
   }
 
   return json({
