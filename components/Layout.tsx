@@ -120,10 +120,8 @@ const NavItem = ({
       href={to}
       onMouseEnter={prefetch ? () => prefetchRoute(prefetch) : undefined}
       onFocus={prefetch ? () => prefetchRoute(prefetch) : undefined}
-      onClick={(event) => {
-        event.preventDefault();
+      onClick={() => {
         onItemClick?.(to);
-        window.location.assign(to);
       }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
     ${isActuallyActive
@@ -542,10 +540,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.to}
                   href={item.to}
                   onMouseEnter={() => prefetchRoute(item.prefetch)}
-                  onClick={(event) => {
-                    event.preventDefault();
+                  onClick={() => {
                     setClickedPath(item.to);
-                    window.location.assign(item.to);
                   }}
                   className={(() => {
                     const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
