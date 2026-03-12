@@ -80,6 +80,22 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+const isSidebarRouteActive = (pathname: string, to: string): boolean =>
+  pathname === to ||
+  (to.endsWith('/boards') && pathname.endsWith('/pipeline')) ||
+  (to.endsWith('/pipeline') && pathname.endsWith('/boards'));
+
+const dispatchSidebarNavigationIntent = (to: string) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event('basecrm:sidebar-navigation'));
+  const currentPath = window.location.pathname;
+  window.setTimeout(() => {
+    if (window.location.pathname === currentPath && currentPath !== to) {
+      window.location.assign(to);
+    }
+  }, 900);
+};
+
 /**
  * Item de navegação da sidebar
  *
@@ -88,51 +104,34 @@ interface LayoutProps {
  * @param props.icon - Componente de ícone Lucide
  * @param props.label - Label exibido
  * @param props.prefetch - Nome da rota para prefetch
- * @param props.clickedPath - Path que foi clicado (para manter highlight durante transição)
- * @param props.onItemClick - Callback quando o item é clicado
  */
 const NavItem = ({
   to,
   icon: Icon,
   label,
   prefetch,
-  clickedPath,
-  onItemClick,
 }: {
   to: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   prefetch?: RouteName;
-  clickedPath?: string;
-  onItemClick?: (path: string) => void;
 }) => {
   const pathname = usePathname();
-  const router = useRouter();
-  const isActive = pathname === to || (to === '/boards' && pathname === '/pipeline');
-  const wasJustClicked = clickedPath === to;
-
-  // If user clicked on a DIFFERENT item, immediately deactivate this one
-  // This prevents the delay showing both items as active
-  const anotherItemWasClicked = clickedPath && clickedPath !== to;
-  const isActuallyActive = anotherItemWasClicked ? false : (isActive || wasJustClicked);
+  const isActive = isSidebarRouteActive(pathname, to);
 
   return (
     <Link
       href={to}
       onMouseEnter={prefetch ? () => prefetchRoute(prefetch) : undefined}
       onFocus={prefetch ? () => prefetchRoute(prefetch) : undefined}
-      onClick={(event) => {
-        event.preventDefault();
-        onItemClick?.(to);
-        router.push(to);
-      }}
+      onClick={() => dispatchSidebarNavigationIntent(to)}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
-    ${isActuallyActive
+    ${isActive
           ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
         }`}
     >
-      <Icon size={20} className={isActuallyActive ? 'text-primary-500' : ''} aria-hidden="true" />
+      <Icon size={20} className={isActive ? 'text-primary-500' : ''} aria-hidden="true" />
       <span className="font-display tracking-wide">{label}</span>
     </Link>
   );
@@ -222,24 +221,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     setIsMoreOpen(false);
   }, [pathname]);
-
-  // Track the last clicked menu item to maintain highlight during Suspense transitions
-  const [clickedPath, setClickedPath] = useState<string | undefined>(undefined);
-
-  // Clear clickedPath only when the clicked route actually becomes active
-  React.useEffect(() => {
-    if (clickedPath) {
-      // Check if the clicked path is now the active route (or its alias)
-      const isNowActive = pathname === clickedPath ||
-        (clickedPath === '/boards' && pathname === '/pipeline') ||
-        (clickedPath === '/pipeline' && pathname === '/boards');
-
-      if (isNowActive) {
-        // Route is now active, safe to clear the "clicked" state
-        setClickedPath(undefined);
-      }
-    }
-  }, [pathname, clickedPath]);
 
   const toggleDebugMode = () => {
     if (debugEnabled) {
@@ -543,18 +524,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.to}
                   href={item.to}
                   onMouseEnter={() => prefetchRoute(item.prefetch)}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    setClickedPath(item.to);
-                    router.push(item.to);
-                  }}
+                  onClick={() => dispatchSidebarNavigationIntent(item.to)}
                   className={(() => {
-                    const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
-                    const wasJustClicked = clickedPath === item.to;
-                    // If user clicked on a DIFFERENT item, immediately deactivate this one
-                    const anotherItemWasClicked = clickedPath && clickedPath !== item.to;
-                    const isActuallyActive = anotherItemWasClicked ? false : (isActive || wasJustClicked);
-                    return `w-10 h-10 rounded-lg flex items-center justify-center ${isActuallyActive
+                    const isActive = isSidebarRouteActive(pathname, item.to);
+                    return `w-10 h-10 rounded-lg flex items-center justify-center ${isActive
                       ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                       }`;
@@ -573,8 +546,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 icon={item.icon}
                 label={item.label}
                 prefetch={item.prefetch}
-                clickedPath={clickedPath}
-                onItemClick={setClickedPath}
               />
             );
           })}

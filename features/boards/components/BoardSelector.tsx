@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, Plus, Settings, Trash2 } from 'lucide-react';
 import { Board } from '@/types';
 
@@ -40,6 +40,12 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
   onDeleteBoard,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleSidebarNavigation = () => setIsOpen(false);
+    window.addEventListener('basecrm:sidebar-navigation', handleSidebarNavigation);
+    return () => window.removeEventListener('basecrm:sidebar-navigation', handleSidebarNavigation);
+  }, []);
 
   return (
     <div className="relative">
