@@ -48,6 +48,19 @@ function isLikelyHttpUrl(value: string): boolean {
   }
 }
 
+function normalizeHttpUrlInput(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+
+  return trimmed;
+}
+
 const STATUS_LABELS: Record<ChannelFormState['status'], string> = {
   pending: 'Pendente',
   connected: 'Conectado',
@@ -132,7 +145,7 @@ export const TenantChannelsPage: React.FC = () => {
   const [disconnectingConnectionId, setDisconnectingConnectionId] = React.useState<string | null>(null);
   const [sendingTestConnectionId, setSendingTestConnectionId] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
-  const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
+  const [messageKind, setMessageKind] = React.useState<'success' | 'warning' | 'error'>('success');
   const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
   const [webhookUrlError, setWebhookUrlError] = React.useState<string | null>(null);
 
@@ -200,12 +213,23 @@ export const TenantChannelsPage: React.FC = () => {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!tenantId) return;
-    const normalizedWebhookUrl = form.webhookUrl.trim();
-    if (!isLikelyHttpUrl(normalizedWebhookUrl)) {
+    const normalizedApiUrl = normalizeHttpUrlInput(form.apiUrl);
+    if (!isLikelyHttpUrl(normalizedApiUrl)) {
       setMessageKind('error');
-      setMessage('Webhook URL invalida. Use uma URL iniciando com http:// ou https://');
-      setWebhookUrlError('Informe uma URL valida (http:// ou https://).');
+      setMessage('API URL invalida. Use uma URL iniciando com http:// ou https://');
       return;
+    }
+
+    const normalizedWebhookUrl = normalizeHttpUrlInput(form.webhookUrl);
+    const hasExternalWebhookInput = normalizedWebhookUrl.length > 0;
+    const hasValidExternalWebhook = isLikelyHttpUrl(normalizedWebhookUrl);
+    const externalWebhookWasIgnored = hasExternalWebhookInput && !hasValidExternalWebhook;
+
+    if (hasExternalWebhookInput && !hasValidExternalWebhook) {
+      // Nao bloqueia a conexao principal do WhatsApp por causa de webhook externo opcional.
+      setWebhookUrlError('Webhook externo ignorado: use http:// ou https:// se quiser ativar automacoes externas.');
+    } else {
+      setWebhookUrlError(null);
     }
 
     setSaving(true);
@@ -229,9 +253,9 @@ export const TenantChannelsPage: React.FC = () => {
             name: form.name,
             status: form.status,
             config: {
-              apiUrl: form.apiUrl,
+              apiUrl: normalizedApiUrl,
               instanceName: form.instanceName,
-              webhookUrl: normalizedWebhookUrl,
+              webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
               apiKey: form.apiKey,
               sendMode: form.sendMode,
             },
@@ -247,8 +271,15 @@ export const TenantChannelsPage: React.FC = () => {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao salvar conexao (HTTP ${res.status})`);
 
-      setMessageKind('success');
-      setMessage(editingConnectionId ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
+      if (externalWebhookWasIgnored) {
+        setMessageKind('warning');
+        setMessage(
+          `${editingConnectionId ? 'Conexao atualizada' : 'Conexao registrada'} com sucesso. O webhook externo foi ignorado por estar invalido; a URL do webhook CRM ja esta disponivel no card da conexao.`
+        );
+      } else {
+        setMessageKind('success');
+        setMessage(editingConnectionId ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
+      }
       setEditingConnectionId(null);
       setForm(INITIAL_FORM);
       await reload();
@@ -739,7 +770,15 @@ export const TenantChannelsPage: React.FC = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">API URL</label>
-                  <input className={FIELD_CLASS} value={form.apiUrl} onChange={(e) => onChange('apiUrl', e.target.value)} placeholder="https://evolution.seudominio.com" />
+                  <input
+                    className={FIELD_CLASS}
+                    value={form.apiUrl}
+                    onChange={(e) => onChange('apiUrl', e.target.value)}
+                    onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
+                    placeholder="https://evolution.seudominio.com"
+                    autoComplete="off"
+                    inputMode="url"
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Instance name</label>
@@ -773,7 +812,7 @@ export const TenantChannelsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Webhook URL</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Webhook externo (opcional)</label>
                 <div className="relative">
                   <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                   <input
@@ -781,8 +820,14 @@ export const TenantChannelsPage: React.FC = () => {
                     className={`${FIELD_CLASS} pl-9 ${webhookUrlError ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' : ''}`}
                     value={form.webhookUrl}
                     onChange={(e) => onChange('webhookUrl', e.target.value)}
+                    onBlur={(e) => onChange('webhookUrl', normalizeHttpUrlInput(e.target.value))}
                     placeholder="https://n8n.seudominio.com/webhook/..."
+                    autoComplete="off"
+                    inputMode="url"
                   />
+                </div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Pode deixar em branco. Para Conversations, use a URL do Webhook CRM exibida no card da conexao.
                 </div>
                 {webhookUrlError ? (
                   <div className="mt-1 text-xs text-rose-600 dark:text-rose-300">{webhookUrlError}</div>
@@ -811,7 +856,15 @@ export const TenantChannelsPage: React.FC = () => {
               </div>
 
               {message ? (
-                <div className={messageKind === 'success' ? 'text-sm text-emerald-600 dark:text-emerald-300' : 'text-sm text-rose-600 dark:text-rose-300'}>
+                <div
+                  className={
+                    messageKind === 'success'
+                      ? 'text-sm text-emerald-600 dark:text-emerald-300'
+                      : messageKind === 'warning'
+                        ? 'text-sm text-amber-600 dark:text-amber-300'
+                        : 'text-sm text-rose-600 dark:text-rose-300'
+                  }
+                >
                   {message}
                 </div>
               ) : null}
