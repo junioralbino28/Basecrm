@@ -64,6 +64,54 @@ function buildThreadTitle(contactName: string | null, contactPhone: string) {
   return `WhatsApp - ${contactName || contactPhone}`;
 }
 
+function toIsoStringOrNull(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function shouldScheduleInactivityNudge(metadata: Record<string, unknown>) {
+  const lastInboundAt = toIsoStringOrNull(metadata.lastInboundAt);
+  const lastNudgeSentAt = toIsoStringOrNull(metadata.aiInactivityNudgeSentAt);
+
+  if (!lastInboundAt) return false;
+  if (!lastNudgeSentAt) return true;
+
+  return new Date(lastInboundAt).getTime() > new Date(lastNudgeSentAt).getTime();
+}
+
+async function clearInactivityNudgeToken(params: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+  threadId: string;
+  metadata: Record<string, unknown>;
+  sentAt?: string | null;
+}) {
+  const { admin, organizationId, threadId, metadata, sentAt } = params;
+  const nextMetadata = {
+    ...metadata,
+    aiInactivityNudgeToken: null,
+    aiInactivityNudgeDueAt: null,
+    aiInactivityNudgeScheduledAt: null,
+    aiInactivityNudgeSentAt: sentAt ?? metadata.aiInactivityNudgeSentAt ?? null,
+  };
+
+  const result = await admin
+    .from('conversation_threads')
+    .update({
+      updated_at: new Date().toISOString(),
+      metadata: nextMetadata,
+    })
+    .eq('id', threadId)
+    .eq('organization_id', organizationId);
+
+  if (result.error) {
+    console.warn('[Evolution webhook] Failed to clear inactivity nudge token', {
+      threadId,
+      organizationId,
+      error: result.error.message,
+    });
+  }
+}
+
 async function processDeferredAIReply(params: {
   connectionId: string;
   organizationId: string;
@@ -155,6 +203,9 @@ async function processDeferredAIReply(params: {
 
   const recentMessages = (recentMessagesResult.data || []).slice().reverse();
   let nativeReplySucceeded = false;
+  let executedReply:
+    | Awaited<ReturnType<typeof executeConversationAIReply>>
+    | null = null;
 
   try {
     const nativeReply = await generateConversationAutoReply({
@@ -166,7 +217,7 @@ async function processDeferredAIReply(params: {
     });
 
     if (nativeReply.ok) {
-      await executeConversationAIReply({
+      executedReply = await executeConversationAIReply({
         admin,
         connection: {
           id: connectionId,
@@ -250,6 +301,131 @@ async function processDeferredAIReply(params: {
         connectionId,
         threadId,
         error: automationError instanceof Error ? automationError.message : String(automationError),
+      });
+    }
+  }
+
+  if (
+    executedReply &&
+    'thread' in executedReply &&
+    executedReply.thread &&
+    !executedReply.warning &&
+    executedReply.status === 'ai_active' &&
+    shouldScheduleInactivityNudge(executedReply.thread.metadata as Record<string, unknown>)
+  ) {
+    const idleNudgeDelayMs = 90_000;
+    const idleNudgeToken = `${insertedMessageId}:idle-nudge:${Date.now()}`;
+    const nudgeScheduledAt = new Date().toISOString();
+
+    const markNudgeResult = await admin
+      .from('conversation_threads')
+      .update({
+        updated_at: nudgeScheduledAt,
+        metadata: {
+          ...(executedReply.thread.metadata as Record<string, unknown>),
+          aiInactivityNudgeToken: idleNudgeToken,
+          aiInactivityNudgeScheduledAt: nudgeScheduledAt,
+          aiInactivityNudgeDueAt: new Date(Date.now() + idleNudgeDelayMs).toISOString(),
+        },
+      })
+      .eq('id', threadId)
+      .eq('organization_id', organizationId);
+
+    if (markNudgeResult.error) {
+      console.warn('[Evolution webhook] Failed to schedule inactivity nudge', {
+        connectionId,
+        threadId,
+        error: markNudgeResult.error.message,
+      });
+      return;
+    }
+
+    await sleep(idleNudgeDelayMs);
+
+    const nudgeCheckResult = await admin
+      .from('conversation_threads')
+      .select('status, metadata')
+      .eq('id', threadId)
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+
+    if (nudgeCheckResult.error) {
+      console.warn('[Evolution webhook] Failed to validate inactivity nudge state', {
+        connectionId,
+        threadId,
+        error: nudgeCheckResult.error.message,
+      });
+      return;
+    }
+
+    const nudgeMetadata =
+      (nudgeCheckResult.data?.metadata as Record<string, unknown> | null) || {};
+
+    if (nudgeCheckResult.data?.status !== 'ai_active') {
+      await clearInactivityNudgeToken({
+        admin,
+        organizationId,
+        threadId,
+        metadata: nudgeMetadata,
+      });
+      return;
+    }
+
+    if (nudgeMetadata.aiInactivityNudgeToken !== idleNudgeToken) {
+      return;
+    }
+
+    if (nudgeMetadata.lastDirection === 'inbound') {
+      await clearInactivityNudgeToken({
+        admin,
+        organizationId,
+        threadId,
+        metadata: nudgeMetadata,
+      });
+      return;
+    }
+
+    const idleNudgeText =
+      `Se quiser, eu continuo te ajudando por aqui 😊\n\n` +
+      `Posso te explicar melhor e tirar suas duvidas sem pressa.`;
+
+    try {
+      await executeConversationAIReply({
+        admin,
+        connection: {
+          id: connectionId,
+          organization_id: organizationId,
+          name: connectionName,
+          config: connectionConfig,
+        },
+        payload: {
+          threadId,
+          replyText: idleNudgeText,
+          authorName: 'Julia',
+          metadata: {
+            idle_nudge: true,
+            idle_nudge_delay_ms: idleNudgeDelayMs,
+            idle_nudge_token: idleNudgeToken,
+          },
+          automationSource: 'native_crm_idle_nudge',
+        },
+      });
+
+      await clearInactivityNudgeToken({
+        admin,
+        organizationId,
+        threadId,
+        metadata: {
+          ...nudgeMetadata,
+          aiInactivityNudgeSentAt: new Date().toISOString(),
+        },
+        sentAt: new Date().toISOString(),
+      });
+    } catch (idleNudgeError) {
+      console.warn('[Evolution webhook] Failed to send inactivity nudge', {
+        connectionId,
+        threadId,
+        error: idleNudgeError instanceof Error ? idleNudgeError.message : String(idleNudgeError),
       });
     }
   }

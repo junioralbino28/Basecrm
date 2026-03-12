@@ -1053,3 +1053,35 @@ Validacao:
 Observacoes:
 
 - a acao foi pensada para limpeza de testes e nao para rotina operacional do time
+
+## 2026-03-12 - Nudge curto de inatividade da Julia
+
+Objetivo:
+
+- retomar a conversa quando o lead some logo apos a resposta da Julia
+- fazer isso sem transformar o comportamento em follow-up comercial de verdade
+
+Entregas:
+
+- nudge curto de inatividade apos resposta automatica da Julia
+- atraso inicial configurado em 90 segundos
+- envio apenas se a thread continuar em `ai_active`
+- cancelamento automatico se o lead responder antes
+- registro em metadata para impedir envio solto sem rastreio
+
+Arquivos principais:
+
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- pendente de `typecheck`, `lint` e `build`
+
+Observacoes:
+
+- esta implementacao e propositalmente simples e curta
+- no futuro isso deve migrar para scheduler/worker dedicado, para nao depender de execucao longa em background
