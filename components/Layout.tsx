@@ -36,7 +36,6 @@ import {
   Sun,
   Moon,
   BarChart3,
-  Inbox,
   Sparkles,
   LogOut,
   User,
@@ -236,8 +235,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
   const getScopedHref = useTenantScopedHrefBuilder();
   const isAdmin = isAgencyAdminRole(profile?.role);
-  const isPlatformRoute = pathname.startsWith('/platform');
   const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
+  const isPlatformRoute = pathname.startsWith('/platform') && !isTenantWorkspaceRoute;
   const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|reports|settings)(\/|$)/.test(pathname);
   const isPlatformAdminRoute =
     pathname === '/platform' ||
@@ -251,7 +250,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
-    { to: getScopedHref('/inbox'), icon: Inbox, label: 'Inbox', prefetch: 'inbox' as const },
     { to: getScopedHref('/dashboard'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
     { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
@@ -261,7 +259,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
   const adminSidebarNav = isAdmin
     ? [
-        { to: '/platform', icon: Building2, label: 'Platform Admin', prefetch: 'dashboard' as const },
+        { to: '/platform', icon: Building2, label: 'Plataforma', prefetch: 'dashboard' as const },
         { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
         { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
       ]
@@ -480,7 +478,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <Building2 className="w-4 h-4 text-slate-400" />
-                          Platform Admin
+                          Plataforma
                         </Link>
                         <Link
                           href="/platform/tenants/new"
@@ -536,7 +534,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAdmin ? (
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isPlatformRoute ? 'Modo Plataforma' : hasActiveClinic ? 'Workspace da Clinica' : 'Selecione uma Clinica'}
+                    {isPlatformRoute ? 'Modo Plataforma' : hasActiveClinic ? 'Area da empresa' : 'Selecione uma empresa'}
                   </div>
 
                   {!isPlatformRoute && hasActiveClinic ? (

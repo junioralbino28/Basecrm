@@ -38,6 +38,16 @@ const INITIAL_FORM: ChannelFormState = {
   notes: '',
 };
 
+function isLikelyHttpUrl(value: string): boolean {
+  if (!value.trim()) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const STATUS_LABELS: Record<ChannelFormState['status'], string> = {
   pending: 'Pendente',
   connected: 'Conectado',
@@ -124,9 +134,18 @@ export const TenantChannelsPage: React.FC = () => {
   const [message, setMessage] = React.useState<string | null>(null);
   const [messageKind, setMessageKind] = React.useState<'success' | 'error'>('success');
   const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
+  const [webhookUrlError, setWebhookUrlError] = React.useState<string | null>(null);
 
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === 'webhookUrl') {
+      const normalized = String(value || '');
+      if (!isLikelyHttpUrl(normalized)) {
+        setWebhookUrlError('Informe uma URL valida (http:// ou https://).');
+      } else {
+        setWebhookUrlError(null);
+      }
+    }
   };
 
   React.useEffect(() => {
@@ -181,6 +200,13 @@ export const TenantChannelsPage: React.FC = () => {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!tenantId) return;
+    const normalizedWebhookUrl = form.webhookUrl.trim();
+    if (!isLikelyHttpUrl(normalizedWebhookUrl)) {
+      setMessageKind('error');
+      setMessage('Webhook URL invalida. Use uma URL iniciando com http:// ou https://');
+      setWebhookUrlError('Informe uma URL valida (http:// ou https://).');
+      return;
+    }
 
     setSaving(true);
     setMessage(null);
@@ -205,7 +231,7 @@ export const TenantChannelsPage: React.FC = () => {
             config: {
               apiUrl: form.apiUrl,
               instanceName: form.instanceName,
-              webhookUrl: form.webhookUrl,
+              webhookUrl: normalizedWebhookUrl,
               apiKey: form.apiKey,
               sendMode: form.sendMode,
             },
@@ -385,9 +411,9 @@ export const TenantChannelsPage: React.FC = () => {
             <ArrowLeft size={16} />
             Voltar para clinica
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">WhatsApp da clinica</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conexoes da clinica</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Configure o numero da clinica, valide a Evolution e acompanhe o pareamento em um unico lugar.
+            Configure o canal da clinica, valide a Evolution e acompanhe o pareamento em um unico lugar.
           </p>
         </div>
 
@@ -750,8 +776,17 @@ export const TenantChannelsPage: React.FC = () => {
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Webhook URL</label>
                 <div className="relative">
                   <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <input className={`${FIELD_CLASS} pl-9`} value={form.webhookUrl} onChange={(e) => onChange('webhookUrl', e.target.value)} placeholder="https://n8n.seudominio.com/webhook/..." />
+                  <input
+                    type="url"
+                    className={`${FIELD_CLASS} pl-9 ${webhookUrlError ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' : ''}`}
+                    value={form.webhookUrl}
+                    onChange={(e) => onChange('webhookUrl', e.target.value)}
+                    placeholder="https://n8n.seudominio.com/webhook/..."
+                  />
                 </div>
+                {webhookUrlError ? (
+                  <div className="mt-1 text-xs text-rose-600 dark:text-rose-300">{webhookUrlError}</div>
+                ) : null}
               </div>
 
               <div>

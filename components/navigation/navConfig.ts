@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 import {
-  Inbox,
   KanbanSquare,
   Users,
   CheckSquare,
@@ -15,7 +14,7 @@ import {
   MessagesSquare,
 } from 'lucide-react';
 
-export type PrimaryNavId = 'inbox' | 'boards' | 'contacts' | 'activities' | 'more';
+export type PrimaryNavId = 'boards' | 'contacts' | 'activities' | 'more';
 
 export interface PrimaryNavItem {
   id: PrimaryNavId;
@@ -25,7 +24,6 @@ export interface PrimaryNavItem {
 }
 
 const PRIMARY_NAV_BASE: PrimaryNavItem[] = [
-  { id: 'inbox', label: 'Inbox', href: '/inbox', icon: Inbox },
   { id: 'boards', label: 'Boards', href: '/boards', icon: KanbanSquare },
   { id: 'contacts', label: 'Contatos', href: '/contacts', icon: Users },
   { id: 'activities', label: 'Atividades', href: '/activities', icon: CheckSquare },
@@ -83,7 +81,7 @@ export function getSecondaryNav(options: {
   if (!isAdmin) return baseItems;
 
   return [
-    { id: 'platform', label: 'Platform Admin', href: '/platform', icon: Building2 },
+    { id: 'platform', label: 'Plataforma', href: '/platform', icon: Building2 },
     { id: 'platform_tenants', label: 'Clinicas', href: '/platform/tenants', icon: Building2 },
     { id: 'platform_new_tenant', label: 'Nova Clinica', href: '/platform/tenants/new', icon: PlusSquare },
     ...baseItems,
@@ -107,12 +105,12 @@ export function getTenantWorkspaceNav(options: {
 
   return [
     ...(canAccessConversations
-      ? [{ id: 'tenant_conversations', label: 'Conversations', href: `/platform/tenants/${tenantId}/conversations`, icon: MessagesSquare } satisfies SecondaryNavItem]
+      ? [{ id: 'tenant_conversations', label: 'Conversas', href: `/platform/tenants/${tenantId}/conversations`, icon: MessagesSquare } satisfies SecondaryNavItem]
       : []),
     ...(canAccessWhatsapp
       ? [{
           id: hasConnectedWhatsapp ? 'tenant_whatsapp' : 'tenant_whatsapp_connect',
-          label: hasConnectedWhatsapp ? 'WhatsApp' : 'Conectar WhatsApp',
+          label: 'Conexoes',
           href: `/platform/tenants/${tenantId}/whatsapp`,
           icon: MessageCircle,
         } satisfies SecondaryNavItem]

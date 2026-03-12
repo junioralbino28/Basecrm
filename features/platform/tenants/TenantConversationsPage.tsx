@@ -435,9 +435,9 @@ export const TenantConversationsPage: React.FC = () => {
             <ArrowLeft size={16} />
             Voltar para clinica
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conversations Inbox</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conversas</h1>
           <p className="max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-            Inbox operacional com ciclo IA x humano: handoff para fila, atendimento humano, resolucao e reentrada automatica da IA no proximo contato.
+            Operacao de atendimento com ciclo IA x humano: handoff para fila, atendimento humano, resolucao e reentrada automatica da IA no proximo contato.
           </p>
         </div>
 
