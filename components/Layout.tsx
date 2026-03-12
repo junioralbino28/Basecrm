@@ -313,6 +313,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];
   const adminSidebarNav = isAdmin
+    && isPlatformRoute
     ? [
         { to: '/platform', icon: Building2, label: 'Plataforma', prefetch: 'dashboard' as const },
         { to: '/platform/team', icon: Users, label: 'Equipe da Agencia', prefetch: 'dashboard' as const },
@@ -692,7 +693,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAdmin ? (
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area da empresa' : 'Selecione uma empresa'}
+                    {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area da clinica' : 'Selecione uma clinica'}
                   </div>
 
                   {!isPlatformRoute && hasActiveClinic ? (
