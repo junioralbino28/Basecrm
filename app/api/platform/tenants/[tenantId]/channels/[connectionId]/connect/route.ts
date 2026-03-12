@@ -34,7 +34,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   if (connection.provider !== 'evolution') return json({ error: 'Unsupported provider' }, 400);
 
   const instanceName = (connection.config as any)?.instanceName;
-  const phoneNumber = (connection.metadata as any)?.phoneNumber;
   let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
   try {
     resolved = await resolveEvolutionCredentials({
@@ -73,7 +72,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       apiUrl: resolved.apiUrl,
       instanceName,
       apiKey: resolved.apiKey,
-      number: typeof phoneNumber === 'string' ? phoneNumber : undefined,
     });
 
     const nextMetadata = {

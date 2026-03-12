@@ -1272,14 +1272,14 @@ export const TenantConversationsPage: React.FC = () => {
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
               <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Escaneie no WhatsApp do numero da clinica</div>
-              <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-                <div className="flex min-h-44 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+              <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+                <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
                   {activePairing.imageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={activePairing.imageSrc}
                       alt="QR code de conexao do WhatsApp"
-                      className="max-h-40 max-w-full rounded-lg object-contain"
+                      className="h-56 w-56 rounded-lg object-contain"
                     />
                   ) : (
                     <div className="text-center text-xs text-slate-500 dark:text-slate-400">
@@ -1302,6 +1302,7 @@ export const TenantConversationsPage: React.FC = () => {
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     Caminho rapido: WhatsApp do numero {'>'} Aparelhos conectados {'>'} Conectar aparelho {'>'} escanear QR.
+                    Se o QR nao ler, use o codigo de pareamento exibido.
                   </div>
                 </div>
               </div>

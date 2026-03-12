@@ -821,14 +821,14 @@ export const TenantChannelsPage: React.FC = () => {
                           ) : null}
                         </div>
 
-                        <div className="mt-3 grid gap-4 md:grid-cols-[180px_1fr]">
-                          <div className="flex min-h-44 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                        <div className="mt-3 grid gap-4 md:grid-cols-[260px_1fr]">
+                          <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
                             {pairingDisplay.imageSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={pairingDisplay.imageSrc}
                                 alt="Pareamento Evolution"
-                                className="max-h-40 max-w-full rounded-lg object-contain"
+                                className="h-56 w-56 rounded-lg object-contain"
                               />
                             ) : (
                               <div className="text-center text-xs text-slate-500 dark:text-slate-400">
@@ -845,6 +845,7 @@ export const TenantChannelsPage: React.FC = () => {
                             <div>
                               <span className="font-medium text-slate-900 dark:text-white">Orientacao:</span>{' '}
                               abra o WhatsApp do numero da clinica e use este pareamento para concluir a conexao.
+                              Se o QR nao ler, use o codigo de pareamento.
                             </div>
                           </div>
                         </div>
