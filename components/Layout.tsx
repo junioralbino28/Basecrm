@@ -329,6 +329,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
       ]
     : [];
+
+  useEffect(() => {
+    if (!isAdmin || typeof window === 'undefined') return;
+    const cachedDisplayName = window.localStorage.getItem('basecrm_agency_display_name');
+    const cachedLogoUrl = window.localStorage.getItem('basecrm_agency_logo_url');
+    if (cachedDisplayName?.trim()) setAgencyDisplayName(cachedDisplayName.trim());
+    if (cachedLogoUrl?.trim()) setAgencyLogoUrl(cachedLogoUrl.trim());
+  }, [isAdmin]);
   const showClinicNav = !isAdmin || !isPlatformRoute;
 
   useEffect(() => {
@@ -337,10 +345,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setAgencyBrandingLoading(true);
 
     const loadAgencyBranding = async () => {
+      const cachedDisplayName =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('basecrm_agency_display_name')?.trim() || ''
+          : '';
+      const cachedLogoUrl =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('basecrm_agency_logo_url')?.trim() || ''
+          : '';
       try {
         const response = await fetch('/api/platform/agency/branding', {
           method: 'GET',
           credentials: 'include',
+          cache: 'no-store',
           headers: { accept: 'application/json' },
         });
         const payload = (await response.json().catch(() => null)) as { branding?: Record<string, unknown>; error?: string } | null;
@@ -350,12 +367,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const currentDisplayName = typeof branding.displayName === 'string' ? branding.displayName : '';
         const currentLogo = typeof branding.logoUrl === 'string' ? branding.logoUrl : null;
         const nextDisplayName = currentDisplayName || 'Agencia';
-        setAgencyDisplayName(nextDisplayName);
-        setAgencyLogoUrl(currentLogo);
+        const finalDisplayName = cachedDisplayName || nextDisplayName;
+        const finalLogoUrl = cachedLogoUrl || currentLogo || null;
+        setAgencyDisplayName(finalDisplayName);
+        setAgencyLogoUrl(finalLogoUrl);
         if (typeof window !== 'undefined') {
-          window.localStorage.setItem('basecrm_agency_display_name', nextDisplayName);
-          if (currentLogo) {
-            window.localStorage.setItem('basecrm_agency_logo_url', currentLogo);
+          window.localStorage.setItem('basecrm_agency_display_name', finalDisplayName);
+          if (finalLogoUrl) {
+            window.localStorage.setItem('basecrm_agency_logo_url', finalLogoUrl);
           } else {
             window.localStorage.removeItem('basecrm_agency_logo_url');
           }

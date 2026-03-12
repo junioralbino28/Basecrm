@@ -3,10 +3,18 @@ import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+      pragma: 'no-cache',
+      expires: '0',
+    },
   });
 }
 
