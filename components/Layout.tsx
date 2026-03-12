@@ -160,6 +160,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isDesktop = mode === 'desktop';
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [isUploadingAgencyLogo, setIsUploadingAgencyLogo] = useState(false);
   const [agencyLogoUploadMessage, setAgencyLogoUploadMessage] = useState<string | null>(null);
   const [isAgencyBrandingModalOpen, setIsAgencyBrandingModalOpen] = useState(false);
@@ -181,6 +182,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   useEffect(() => {
     setDebugEnabled(isDebugMode());
+    setIsClientMounted(true);
   }, []);
 
   // If the user signed out (or session expired), leave protected shell ASAP.
@@ -307,7 +309,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const hasActiveClinic = Boolean(tenant?.organizationId);
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
-    ? (agencyDisplayName.trim() || 'BaseCRM Agencia')
+    ? (isClientMounted ? agencyDisplayName.trim() : '') || 'Agencia'
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
@@ -347,7 +349,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const branding = payload?.branding || {};
         const currentDisplayName = typeof branding.displayName === 'string' ? branding.displayName : '';
         const currentLogo = typeof branding.logoUrl === 'string' ? branding.logoUrl : null;
-        const nextDisplayName = currentDisplayName || 'BaseCRM Agencia';
+        const nextDisplayName = currentDisplayName || 'Agencia';
         setAgencyDisplayName(nextDisplayName);
         setAgencyLogoUrl(currentLogo);
         if (typeof window !== 'undefined') {
@@ -379,7 +381,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setAgencyBrandingMessage(null);
     try {
       const payload = {
-        displayName: agencyDisplayName.trim() || 'BaseCRM Agencia',
+        displayName: agencyDisplayName.trim() || 'Agencia',
         logoUrl: agencyLogoUrl,
       };
       const response = await fetch('/api/platform/agency/branding', {
