@@ -360,7 +360,11 @@ export const useBoardsController = () => {
   // boards fetch happened (dataUpdatedAt>0). This is more robust than relying solely on `isFetched`,
   // which can be true via cache/hydration even when the live fetch hasn't run yet.
   const hasEverLoadedBoards = boardsUpdatedAt > 0;
-  const hasCompletedInitialBoardsQuery = boardsFetched || boardsIsError || hasEverLoadedBoards;
+  const hasCompletedInitialBoardsQuery =
+    boardsFetched ||
+    boardsIsError ||
+    hasEverLoadedBoards ||
+    (!boardsLoading && !boardsFetching);
   const isLoading =
     (boardsLoading || boardsFetching || !hasCompletedInitialBoardsQuery) && boards.length === 0;
   const boardsErrorMessage =
