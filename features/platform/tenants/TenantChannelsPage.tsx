@@ -2,8 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2, Send } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
+import { useAuth } from '@/context/AuthContext';
+import { isAgencyAdminRole } from '@/lib/auth/scope';
 
 const FIELD_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white';
@@ -133,9 +136,14 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
 }
 
 export const TenantChannelsPage: React.FC = () => {
+  const pathname = usePathname();
+  const { profile } = useAuth();
   const { tenantId, tenant, access, loading, error, reload } = useTenantDetail();
   const canManageChannelConfig = access.canManageChannelConfig;
   const canAccessWhatsApp = access.canAccessWhatsApp;
+  const isAgencyAdmin = isAgencyAdminRole(profile?.role);
+  const isTechnicalRoute = pathname.endsWith('/channels');
+  const canManageInfrastructure = canManageChannelConfig && isAgencyAdmin && isTechnicalRoute;
   const [browserOrigin, setBrowserOrigin] = React.useState('');
   const [form, setForm] = React.useState<ChannelFormState>(INITIAL_FORM);
   const [editingConnectionId, setEditingConnectionId] = React.useState<string | null>(null);
@@ -499,7 +507,7 @@ export const TenantChannelsPage: React.FC = () => {
 
                       <div className="mt-3">
                         <div className="flex flex-wrap gap-2">
-                        {canManageChannelConfig ? (
+                        {canManageInfrastructure ? (
                           <button
                             type="button"
                             onClick={() => startEditing(connection)}
@@ -516,7 +524,7 @@ export const TenantChannelsPage: React.FC = () => {
                           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                         >
                           <Activity size={14} />
-                          {checkingConnectionId === connection.id ? 'Testando...' : 'Testar conexao'}
+                          {checkingConnectionId === connection.id ? 'Atualizando...' : 'Atualizar status'}
                         </button>
 
                         <button
@@ -530,7 +538,7 @@ export const TenantChannelsPage: React.FC = () => {
                             ? 'Gerando...'
                             : connection.status === 'connected'
                               ? 'Reconectar'
-                              : 'Gerar pareamento'}
+                              : 'Gerar QR code'}
                         </button>
 
                         <button
@@ -564,24 +572,31 @@ export const TenantChannelsPage: React.FC = () => {
                         <span className="font-medium text-slate-900 dark:text-white">Telefone:</span>{' '}
                         {String(connection.metadata?.phoneNumber || '-')}
                       </div>
-                      <div className="md:col-span-2">
-                        <span className="font-medium text-slate-900 dark:text-white">API URL:</span>{' '}
-                        {String(connection.config?.apiUrl || '-')}
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="font-medium text-slate-900 dark:text-white">Webhook externo:</span>{' '}
-                        {String(connection.config?.webhookUrl || '-')}
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="font-medium text-slate-900 dark:text-white">Webhook CRM:</span>{' '}
-                        {getCrmWebhookUrl(connection) || '-'}
-                      </div>
+                      {canManageInfrastructure ? (<>
+                        <div className="md:col-span-2">
+                          <span className="font-medium text-slate-900 dark:text-white">API URL:</span>{' '}
+                          {String(connection.config?.apiUrl || '-')}
+                        </div>
+                      </>) : null}
+                      {canManageInfrastructure ? (<>
+                        <div className="md:col-span-2">
+                          <span className="font-medium text-slate-900 dark:text-white">Webhook externo:</span>{' '}
+                          {String(connection.config?.webhookUrl || '-')}
+                        </div>
+                      </>) : null}
+                      {canManageInfrastructure ? (
+                        <div className="md:col-span-2">
+                          <span className="font-medium text-slate-900 dark:text-white">Webhook CRM:</span>{' '}
+                          {getCrmWebhookUrl(connection) || '-'}
+                        </div>
+                      ) : null}
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Ultimo healthcheck:</span>{' '}
                         {connection.last_healthcheck_at
                           ? new Date(connection.last_healthcheck_at).toLocaleString('pt-BR')
                           : 'nao executado'}
                       </div>
+                      {canManageInfrastructure ? (<>
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Chave:</span>{' '}
                         {connection.metadata?.apiKeyLast4 ? `••••${String(connection.metadata.apiKeyLast4)}` : '-'}
@@ -590,6 +605,7 @@ export const TenantChannelsPage: React.FC = () => {
                         <span className="font-medium text-slate-900 dark:text-white">Modo de envio:</span>{' '}
                         {String(connection.config?.sendMode || 'auto')}
                       </div>
+                      </>) : null}
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Estado retornado:</span>{' '}
                         {String(connection.metadata?.lastHealthcheckState || connection.metadata?.lastHealthcheckError || '-')}
@@ -695,7 +711,7 @@ export const TenantChannelsPage: React.FC = () => {
                       </div>
                     ) : null}
 
-                    {getCrmWebhookUrl(connection) ? (
+                    {canManageInfrastructure && getCrmWebhookUrl(connection) ? (
                       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-900 dark:text-white">Webhook do CRM</div>
@@ -730,21 +746,29 @@ export const TenantChannelsPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Smartphone size={16} />
-              {canManageChannelConfig
+              {canManageInfrastructure
                 ? editingConnectionId
                   ? 'Editar numero WhatsApp'
                   : 'Conectar novo numero'
-                : 'Acesso operacional'}
+                : 'Conectar WhatsApp'}
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              {canManageChannelConfig
+              {canManageInfrastructure
                 ? editingConnectionId
                   ? 'Atualize numero, instancia, URL ou chave da Evolution sem recriar o registro.'
                   : 'Use esta tela para registrar a infraestrutura da clinica. O segredo completo pode continuar fora do CRM nesta fase.'
-                : 'Usuarios da clinica podem reabrir QR code, validar conexao e testar envio sem depender do suporte. Ajustes estruturais da Evolution continuam restritos ao admin.'}
+                : 'Aqui na clinica, mantenha o fluxo rapido: gerar QR code, reconectar e testar envio.'}
             </p>
+            {isAgencyAdmin && !isTechnicalRoute ? (
+              <Link
+                href={`/platform/tenants/${tenantId}/channels`}
+                className="mt-3 inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+              >
+                Abrir configuracao tecnica no Painel Agencia
+              </Link>
+            ) : null}
 
-            {canManageChannelConfig ? (
+            {canManageInfrastructure ? (
             <form className="mt-5 space-y-4" onSubmit={submit}>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
@@ -891,7 +915,8 @@ export const TenantChannelsPage: React.FC = () => {
             </form>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
-                Esta área de infraestrutura fica disponível apenas para administradores. Para reconectar o WhatsApp da clínica, use os botões de pareamento, healthcheck e teste no card da conexão ao lado.
+                A configuração técnica (API e webhook) fica no Painel Agência. Aqui na clínica, use os botões
+                operacionais para gerar QR code, reconectar e validar o número.
               </div>
             )}
           </div>
