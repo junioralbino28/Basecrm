@@ -30,6 +30,30 @@ function getSecretFromRequest(req: Request) {
   return '';
 }
 
+function getPayloadInstanceName(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return '';
+  const root = payload as Record<string, unknown>;
+  const data =
+    root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : null;
+
+  const candidates = [
+    root.instance,
+    root.instanceName,
+    root.instance_name,
+    data?.instance,
+    data?.instanceName,
+    data?.instance_name,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return '';
+}
+
 function buildThreadTitle(contactName: string | null, contactPhone: string) {
   return `WhatsApp - ${contactName || contactPhone}`;
 }
@@ -37,25 +61,8 @@ function buildThreadTitle(contactName: string | null, contactPhone: string) {
 export async function POST(req: Request, ctx: { params: Promise<{ connectionId: string }> }) {
   const { connectionId } = await ctx.params;
   const requestOrigin = new URL(req.url).origin;
-  const secret = getSecretFromRequest(req);
-  if (!secret) return json({ error: 'Secret ausente' }, 401);
-
   const payload = await req.json().catch(() => null);
   if (!payload) return json({ error: 'JSON invalido' }, 400);
-
-  const parsed = parseEvolutionWebhookPayload(payload);
-  if (!parsed) {
-    return json({
-      ok: true,
-      ignored: true,
-      reason: 'payload sem mensagem suportada',
-    });
-  }
-  const contactPhone = parsed.contactPhone;
-  const content = parsed.content;
-  if (!contactPhone || !content) {
-    return json({ ok: true, ignored: true, reason: 'mensagem sem telefone ou conteudo' });
-  }
 
   const admin = createStaticAdminClient();
   const connectionResult = await admin
@@ -69,8 +76,58 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
   if (!connectionResult.data) return json({ error: 'Conexao nao encontrada' }, 404);
 
+  const requestSecret = getSecretFromRequest(req);
   const expectedSecret = String((connectionResult.data.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
-  if (!expectedSecret || expectedSecret !== secret) return json({ error: 'Secret invalido' }, 401);
+  const configuredInstanceName = String((connectionResult.data.config as Record<string, unknown> | null)?.instanceName || '').trim();
+  const payloadInstanceName = getPayloadInstanceName(payload);
+
+  const authorizedBySecret = Boolean(expectedSecret && requestSecret && requestSecret === expectedSecret);
+  const authorizedByInstanceFallback = Boolean(
+    !requestSecret &&
+      configuredInstanceName &&
+      payloadInstanceName &&
+      configuredInstanceName.toLowerCase() === payloadInstanceName.toLowerCase()
+  );
+
+  if (expectedSecret && !authorizedBySecret && !authorizedByInstanceFallback) {
+    return json({ error: 'Secret invalido' }, 401);
+  }
+
+  const authMode = authorizedBySecret
+    ? 'secret'
+    : authorizedByInstanceFallback
+      ? 'instance_fallback'
+      : 'no_secret_configured';
+
+  const parsed = parseEvolutionWebhookPayload(payload);
+  if (!parsed) {
+    const nowIgnored = new Date().toISOString();
+    const ignoredMetadata = (connectionResult.data.metadata as Record<string, unknown> | null) || {};
+    await admin
+      .from('channel_connections')
+      .update({
+        updated_at: nowIgnored,
+        metadata: {
+          ...ignoredMetadata,
+          lastWebhookAt: nowIgnored,
+          lastWebhookAuthMode: authMode,
+          lastWebhookIgnoredReason: 'payload sem mensagem suportada',
+        },
+      })
+      .eq('id', connectionId)
+      .eq('organization_id', connectionResult.data.organization_id);
+
+    return json({
+      ok: true,
+      ignored: true,
+      reason: 'payload sem mensagem suportada',
+    });
+  }
+  const contactPhone = parsed.contactPhone;
+  const content = parsed.content;
+  if (!contactPhone || !content) {
+    return json({ ok: true, ignored: true, reason: 'mensagem sem telefone ou conteudo' });
+  }
 
   if (parsed.providerMessageId) {
     const existingMessage = await admin
@@ -239,6 +296,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       updated_at: now,
       metadata: {
         ...currentConnectionMetadata,
+        lastWebhookAt: now,
+        lastWebhookAuthMode: authMode,
+        lastWebhookIgnoredReason: null,
         lastInboundAt: parsed.sentAt,
         lastInboundPhone: contactPhone,
         lastInboundPreview: content.slice(0, 160),
@@ -306,7 +366,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     try {
       await notifyConversationAutomation({
         webhookUrl: automationWebhookUrl,
-        secret: expectedSecret,
+        secret: expectedSecret || requestSecret,
         payload: automationPayload,
       });
     } catch (automationError) {

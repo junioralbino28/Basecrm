@@ -5,14 +5,12 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
-  ArrowLeft,
   CheckCheck,
   Clock3,
   Loader2,
   MessageCircle,
   MessagesSquare,
   Phone,
-  PlusCircle,
   QrCode,
   RefreshCcw,
   Send,
@@ -252,13 +250,6 @@ export const TenantConversationsPage: React.FC = () => {
   const [filter, setFilter] = React.useState<InboxFilter>('all');
   const [onlyUnread, setOnlyUnread] = React.useState(false);
   const [onlyUnassigned, setOnlyUnassigned] = React.useState(false);
-  const [showCreateForm, setShowCreateForm] = React.useState(false);
-  const [createForm, setCreateForm] = React.useState({
-    title: '',
-    contact_name: '',
-    contact_phone: '',
-    channel_connection_id: '',
-  });
   const [composer, setComposer] = React.useState({
     direction: 'outbound' as 'outbound' | 'internal',
     author_name: buildDisplayName(profile),
@@ -387,39 +378,6 @@ export const TenantConversationsPage: React.FC = () => {
     },
   });
 
-  const createThreadMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/platform/tenants/${tenantId}/conversations`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
-        body: JSON.stringify({
-          title: createForm.title,
-          contact_name: createForm.contact_name,
-          contact_phone: createForm.contact_phone,
-          channel_connection_id: createForm.channel_connection_id || null,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao criar conversa (HTTP ${res.status})`);
-      return data as { ok: true; thread: ConversationThreadListItem };
-    },
-    onSuccess: data => {
-      updateInboxThread(data.thread);
-      setSelectedThreadId(data.thread.id);
-      setCreateForm({
-        title: '',
-        contact_name: '',
-        contact_phone: '',
-        channel_connection_id: '',
-      });
-      setShowCreateForm(false);
-    },
-  });
-
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
@@ -471,7 +429,6 @@ export const TenantConversationsPage: React.FC = () => {
 
   const threads = inboxQuery.data?.threads || [];
   const assignees = inboxQuery.data?.assignees || [];
-  const summary = inboxQuery.data?.summary;
 
   const filteredThreads = React.useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -583,72 +540,21 @@ export const TenantConversationsPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Link
-            href={`/platform/tenants/${tenantId}`}
-            className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-          >
-            <ArrowLeft size={16} />
-            Voltar para clinica
-          </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conversas</h1>
-          <p className="max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-            Operacao de atendimento com ciclo IA x humano: handoff para fila, atendimento humano, resolucao e reentrada automatica da IA no proximo contato.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {canAccessWhatsApp ? (
-            <button
-              type="button"
-              onClick={() => {
-                setWhatsAppFeedback(null);
-                setIsWhatsAppModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-slate-900 dark:text-emerald-300"
-            >
-              <QrCode size={16} />
-              Conectar WhatsApp
-            </button>
-          ) : null}
+      <div className="flex justify-end">
+        {canAccessWhatsApp ? (
           <button
             type="button"
-            onClick={() => void inboxQuery.refetch()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
-            disabled={inboxQuery.isFetching}
+            onClick={() => {
+              setWhatsAppFeedback(null);
+              setIsWhatsAppModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-slate-900 dark:text-emerald-300"
           >
-            {inboxQuery.isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-            Atualizar
+            <QrCode size={16} />
+            Conectar WhatsApp
           </button>
-        </div>
+        ) : null}
       </div>
-
-      {summary ? (
-        <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-white via-cyan-50 to-emerald-50 px-4 py-3 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-cyan-500/5 dark:to-emerald-500/5">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            {[
-              { label: 'IA ativa', value: summary.ai_active, tone: 'text-cyan-600 dark:text-cyan-300' },
-              { label: 'Fila humana', value: summary.human_queue, tone: 'text-amber-600 dark:text-amber-300' },
-              { label: 'Humano', value: summary.human_active, tone: 'text-emerald-600 dark:text-emerald-300' },
-              { label: 'Resolvidas', value: summary.resolved, tone: 'text-violet-600 dark:text-violet-300' },
-              { label: 'Nao lidas', value: summary.unread, tone: 'text-cyan-600 dark:text-cyan-300' },
-              { label: 'Sem dono', value: summary.unassigned, tone: 'text-rose-600 dark:text-rose-300' },
-              { label: 'Atencao', value: summary.needs_attention, tone: 'text-slate-900 dark:text-white' },
-            ].map(card => (
-              <div
-                key={card.label}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-2 dark:border-white/10 dark:bg-white/5"
-              >
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                  {card.label}
-                </span>
-                <span className={`text-base font-semibold ${card.tone}`}>{card.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       {inboxQuery.error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
@@ -659,19 +565,9 @@ export const TenantConversationsPage: React.FC = () => {
       <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
         <section className="overflow-hidden rounded-[2rem] border border-slate-800/80 bg-[#111b21] shadow-sm dark:border-white/10 dark:bg-[#111b21]">
           <div className="border-b border-slate-700 p-4 dark:border-white/10">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <MessagesSquare size={16} />
-                Conversas
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(current => !current)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-300 hover:text-cyan-200 dark:border-white/10 dark:text-slate-200"
-              >
-                <PlusCircle size={14} />
-                Nova manual
-              </button>
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <MessagesSquare size={16} />
+              Conversas
             </div>
 
             <div className="mt-3 space-y-3">
@@ -732,62 +628,6 @@ export const TenantConversationsPage: React.FC = () => {
               </div>
             </div>
 
-            {showCreateForm ? (
-              <form
-                className="mt-4 space-y-3 rounded-2xl border border-slate-700 bg-[#202c33] p-4 dark:border-white/10 dark:bg-white/5"
-                onSubmit={event => {
-                  event.preventDefault();
-                  createThreadMutation.mutate();
-                }}
-              >
-                <input
-                  className={FIELD_CLASS}
-                  value={createForm.title}
-                  onChange={event => setCreateForm(current => ({ ...current, title: event.target.value }))}
-                  placeholder="Titulo da conversa"
-                  required
-                />
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    className={FIELD_CLASS}
-                    value={createForm.contact_name}
-                    onChange={event => setCreateForm(current => ({ ...current, contact_name: event.target.value }))}
-                    placeholder="Nome do contato"
-                  />
-                  <input
-                    className={FIELD_CLASS}
-                    value={createForm.contact_phone}
-                    onChange={event => setCreateForm(current => ({ ...current, contact_phone: event.target.value }))}
-                    placeholder="+55..."
-                  />
-                </div>
-                <select
-                  className={FIELD_CLASS}
-                  value={createForm.channel_connection_id}
-                  onChange={event => setCreateForm(current => ({ ...current, channel_connection_id: event.target.value }))}
-                >
-                  <option value="">Sem conexao</option>
-                  {(tenant?.channel_connections || []).map(connection => (
-                    <option key={connection.id} value={connection.id}>
-                      {connection.name}
-                    </option>
-                  ))}
-                </select>
-                {createThreadMutation.error ? (
-                  <div className="text-xs text-rose-600 dark:text-rose-300">
-                    {createThreadMutation.error.message}
-                  </div>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={createThreadMutation.isPending}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
-                >
-                  {createThreadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
-                  Criar conversa
-                </button>
-              </form>
-            ) : null}
           </div>
 
           <div className="max-h-[76vh] space-y-1 overflow-y-auto bg-[#111b21] p-2 dark:bg-slate-950/40">
