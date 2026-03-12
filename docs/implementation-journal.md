@@ -682,3 +682,155 @@ Pendencias:
 - ativar workflow do n8n no ambiente real
 - configurar `webhookUrl` e `webhookSecret` na conexao da empresa
 - validar ponta a ponta com uma conversa real no WhatsApp
+
+## 2026-03-12 - Evolution com credencial global da agencia
+
+Objetivo:
+
+- reduzir friccao de implantacao do WhatsApp nas clinicas
+- evitar que cada clinica precise preencher API URL e token tecnico da Evolution
+
+Entregas:
+
+- credencial global da Evolution salva no contexto da agencia
+- resolucao de credencial por fallback:
+  - primeiro pela conexao da clinica
+  - depois pela credencial global da agencia
+- vinculo tecnico entre clinica e agencia preservado para reaproveitar a credencial global
+- fluxo assistido de conexao para a clinica trabalhar com instancia + numero
+
+Arquivos principais:
+
+- `app/api/platform/agency/evolution/route.ts`
+- `lib/channels/evolutionCredentials.ts`
+- `app/api/platform/tenants/[tenantId]/channels/route.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts`
+- `lib/provisioning/runProvisioning.ts`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- deploy em `main`
+
+Pendencias:
+
+- manter a UX da clinica o mais simples possivel e esconder configuracao tecnica desnecessaria
+- validar o fluxo com mais de uma clinica operando na mesma Evolution
+
+## 2026-03-12 - Pareamento QR e conexao visual do WhatsApp
+
+Objetivo:
+
+- permitir que a clinica conecte o numero via QR code direto no CRM
+- reduzir dependencia do painel tecnico da Evolution para o time da clinica
+
+Entregas:
+
+- modal de `Conectar WhatsApp` dentro de `Conversas`
+- leitura de conexoes da clinica e selecao de numero/instancia ativa
+- acao de `Gerar QR code`
+- acao de `Atualizar status`
+- renderizacao visual ampliada do QR code e exibicao do codigo de pareamento
+- ajustes para evitar retorno de QR pouco escaneavel
+
+Arquivos principais:
+
+- `features/platform/tenants/TenantConversationsPage.tsx`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/connect/route.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck/route.ts`
+- `lib/channels/evolution.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- pareamento real validado ate estado `connected`
+
+Pendencias:
+
+- continuar simplificando a jornada da clinica para virar apenas `conectar` e `reconectar`
+- revisar se o QR deve continuar em modal ou embutido no painel de conversa
+
+## 2026-03-12 - Webhook inbound Evolution e chegada de mensagens em Conversations
+
+Objetivo:
+
+- fazer o CRM receber mensagens reais do WhatsApp em tempo operacional
+- evitar que a conexao apareca como `connected` sem entregar mensagens no inbox
+
+Entregas:
+
+- configuracao automatica do webhook do CRM na Evolution ao gerar QR code ou atualizar status
+- refresh mais agressivo da tela de conversas para refletir novas mensagens em poucos segundos
+- endurecimento do endpoint inbound da Evolution com fallback por `instanceName` quando o webhook chega sem `secret`
+- gravacao de metadados operacionais de webhook na conexao para diagnostico
+
+Arquivos principais:
+
+- `lib/channels/evolution.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/connect/route.ts`
+- `app/api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+- `features/platform/tenants/TenantConversationsPage.tsx`
+- `features/platform/tenants/TenantChannelsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- deploy em `main`
+
+Pendencias:
+
+- confirmar no ambiente real a entrada ponta a ponta `WhatsApp -> Evolution -> CRM`
+- se ainda houver falha, expor na UI o ultimo webhook recebido e o ultimo motivo de descarte
+
+## 2026-03-12 - Simplificacao da tela Conversations para layout fixo de chat
+
+Objetivo:
+
+- abandonar o layout intermediario e aproximar a experiencia visual do WhatsApp
+- manter a tela sempre em formato de chat, sem blocos analiticos competindo com a operacao
+
+Entregas:
+
+- remocao dos cards superiores de resumo dentro da tela `Conversas`
+- remocao da criacao manual de conversa da interface principal
+- manutencao apenas do botao `Conectar WhatsApp` no topo
+- lista de conversas escura e persistente na coluna esquerda
+- area principal mantida como painel de chat
+- composer horizontal no rodape para resposta operacional
+
+Arquivos principais:
+
+- `features/platform/tenants/TenantConversationsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- deploy em `main`
+
+Pendencias:
+
+- aproximar ainda mais o header da conversa do visual do WhatsApp
+- concluir a ligacao funcional com mensagens reais inbound antes de considerar a tela pronta
