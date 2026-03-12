@@ -8,12 +8,12 @@ import {
   ArrowLeft,
   CheckCheck,
   Clock3,
-  Filter,
   Loader2,
   MessageCircle,
   MessagesSquare,
   Phone,
   PlusCircle,
+  QrCode,
   RefreshCcw,
   Send,
   UserRound,
@@ -21,6 +21,7 @@ import {
 import { useTenantDetail } from './useTenantDetail';
 import { useAuth } from '@/context/AuthContext';
 import { queryKeys } from '@/lib/query';
+import { Modal } from '@/components/ui/Modal';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -175,11 +176,76 @@ function getDeliveryBadge(meta: ConversationMessageMetadata, direction: Conversa
   };
 }
 
+function collectPairingCandidates(value: unknown, acc: string[] = []): string[] {
+  if (!value) return acc;
+
+  if (typeof value === 'string') {
+    acc.push(value);
+    return acc;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectPairingCandidates(item, acc);
+    return acc;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value)) {
+      const lower = key.toLowerCase();
+      if (
+        lower.includes('qr') ||
+        lower.includes('base64') ||
+        lower.includes('code') ||
+        lower.includes('pairing')
+      ) {
+        collectPairingCandidates(nested, acc);
+      } else if (typeof nested === 'object') {
+        collectPairingCandidates(nested, acc);
+      }
+    }
+  }
+
+  return acc;
+}
+
+function extractPairingDisplay(metadata?: Record<string, unknown>) {
+  const payload = metadata?.lastPairingPayload;
+  const values = collectPairingCandidates(payload);
+  const firstImageLike = values.find((value) => {
+    const trimmed = value.trim();
+    return (
+      trimmed.startsWith('data:image') ||
+      trimmed.startsWith('/9j/') ||
+      trimmed.startsWith('iVBOR') ||
+      trimmed.startsWith('PHN2Zy')
+    );
+  });
+
+  const imageSrc = firstImageLike
+    ? firstImageLike.startsWith('data:image')
+      ? firstImageLike
+      : firstImageLike.startsWith('PHN2Zy')
+        ? `data:image/svg+xml;base64,${firstImageLike}`
+        : `data:image/png;base64,${firstImageLike}`
+    : null;
+
+  const pairingCode =
+    typeof metadata?.lastPairingCode === 'string' && metadata.lastPairingCode.trim()
+      ? metadata.lastPairingCode.trim()
+      : values.find((value) => value.trim().length > 4 && value.trim().length < 40) || null;
+
+  return {
+    imageSrc,
+    pairingCode,
+  };
+}
+
 export const TenantConversationsPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { tenantId, tenant, access } = useTenantDetail();
+  const { tenantId, tenant, access, reload } = useTenantDetail();
   const { profile } = useAuth();
   const canReply = access.canReplyConversations;
+  const canAccessWhatsApp = access.canAccessWhatsApp;
 
   const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState('');
@@ -199,6 +265,14 @@ export const TenantConversationsPage: React.FC = () => {
     content: '',
   });
   const [composerFeedback, setComposerFeedback] = React.useState<{
+    kind: 'success' | 'warning' | 'error';
+    text: string;
+  } | null>(null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = React.useState(false);
+  const [activeConnectionId, setActiveConnectionId] = React.useState<string | null>(null);
+  const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
+  const [healthcheckConnectionId, setHealthcheckConnectionId] = React.useState<string | null>(null);
+  const [whatsAppFeedback, setWhatsAppFeedback] = React.useState<{
     kind: 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
@@ -424,6 +498,82 @@ export const TenantConversationsPage: React.FC = () => {
     });
   }, [filter, onlyUnread, onlyUnassigned, search, threads]);
 
+  const channelConnections = tenant?.channel_connections || [];
+  const activeConnection = React.useMemo(
+    () => channelConnections.find(connection => connection.id === activeConnectionId) || channelConnections[0] || null,
+    [channelConnections, activeConnectionId]
+  );
+  const activePairing = React.useMemo(
+    () => extractPairingDisplay((activeConnection?.metadata || {}) as Record<string, unknown>),
+    [activeConnection?.metadata]
+  );
+
+  React.useEffect(() => {
+    if (!channelConnections.length) {
+      setActiveConnectionId(null);
+      return;
+    }
+    if (!activeConnectionId || !channelConnections.some(connection => connection.id === activeConnectionId)) {
+      setActiveConnectionId(channelConnections[0].id);
+    }
+  }, [activeConnectionId, channelConnections]);
+
+  async function runConnectionHealthcheck(connectionId: string) {
+    setHealthcheckConnectionId(connectionId);
+    setWhatsAppFeedback(null);
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/healthcheck`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { accept: 'application/json' },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao atualizar status (HTTP ${res.status})`);
+      setWhatsAppFeedback({
+        kind: 'success',
+        text: `Status atualizado: ${data?.healthcheck?.state || 'sem estado retornado'}.`,
+      });
+      await reload();
+    } catch (error) {
+      setWhatsAppFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Falha ao atualizar status.',
+      });
+      await reload();
+    } finally {
+      setHealthcheckConnectionId(null);
+    }
+  }
+
+  async function requestConnectionPairing(connectionId: string) {
+    setPairingConnectionId(connectionId);
+    setWhatsAppFeedback(null);
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/connect`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { accept: 'application/json' },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao gerar QR code (HTTP ${res.status})`);
+      setWhatsAppFeedback({
+        kind: 'success',
+        text: data?.pairing?.pairingCode
+          ? `QR code atualizado. Codigo de pareamento: ${data.pairing.pairingCode}.`
+          : 'QR code solicitado com sucesso.',
+      });
+      await reload();
+    } catch (error) {
+      setWhatsAppFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Falha ao gerar QR code.',
+      });
+      await reload();
+    } finally {
+      setPairingConnectionId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -441,15 +591,30 @@ export const TenantConversationsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void inboxQuery.refetch()}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
-          disabled={inboxQuery.isFetching}
-        >
-          {inboxQuery.isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-          Atualizar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canAccessWhatsApp ? (
+            <button
+              type="button"
+              onClick={() => {
+                setWhatsAppFeedback(null);
+                setIsWhatsAppModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-slate-900 dark:text-emerald-300"
+            >
+              <QrCode size={16} />
+              Conectar WhatsApp
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void inboxQuery.refetch()}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+            disabled={inboxQuery.isFetching}
+          >
+            {inboxQuery.isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {summary ? (
@@ -1032,6 +1197,132 @@ export const TenantConversationsPage: React.FC = () => {
           )}
         </section>
       </div>
+
+      <Modal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        title="Conectar WhatsApp"
+        size="lg"
+      >
+        {!channelConnections.length ? (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
+              Esta clinica ainda nao tem nenhuma conexao cadastrada.
+            </div>
+            <Link
+              href={`/platform/tenants/${tenantId}/whatsapp`}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+              onClick={() => setIsWhatsAppModalOpen(false)}
+            >
+              Ir para Conexoes
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  Numero/Instancia
+                </label>
+                <select
+                  className={FIELD_CLASS}
+                  value={activeConnection?.id || ''}
+                  onChange={event => setActiveConnectionId(event.target.value)}
+                >
+                  {channelConnections.map(connection => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name} ({connection.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Status</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {activeConnection?.status === 'connected' ? 'Conectado' : activeConnection?.status === 'pending' ? 'Pendente' : activeConnection?.status === 'error' ? 'Erro' : 'Desconectado'}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {activeConnection?.last_healthcheck_at
+                    ? `Ultima verificacao: ${formatDateTime(activeConnection.last_healthcheck_at)}`
+                    : 'Sem verificacao recente'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => activeConnection && void runConnectionHealthcheck(activeConnection.id)}
+                disabled={!activeConnection || Boolean(healthcheckConnectionId)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
+              >
+                {healthcheckConnectionId ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                Atualizar status
+              </button>
+              <button
+                type="button"
+                onClick={() => activeConnection && void requestConnectionPairing(activeConnection.id)}
+                disabled={!activeConnection || Boolean(pairingConnectionId)}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:text-emerald-300"
+              >
+                {pairingConnectionId ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+                Gerar QR code
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Escaneie no WhatsApp do numero da clinica</div>
+              <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+                <div className="flex min-h-44 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+                  {activePairing.imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={activePairing.imageSrc}
+                      alt="QR code de conexao do WhatsApp"
+                      className="max-h-40 max-w-full rounded-lg object-contain"
+                    />
+                  ) : (
+                    <div className="text-center text-xs text-slate-500 dark:text-slate-400">
+                      Clique em "Gerar QR code" para carregar o codigo aqui.
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                  <div>
+                    <span className="font-medium text-slate-900 dark:text-white">Instancia:</span>{' '}
+                    {String(activeConnection?.config?.instanceName || '-')}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-900 dark:text-white">Telefone:</span>{' '}
+                    {String(activeConnection?.metadata?.phoneNumber || '-')}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-900 dark:text-white">Codigo de pareamento:</span>{' '}
+                    {activePairing.pairingCode || '-'}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    Caminho rapido: WhatsApp do numero {'>'} Aparelhos conectados {'>'} Conectar aparelho {'>'} escanear QR.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {whatsAppFeedback ? (
+              <div
+                className={`text-sm ${
+                  whatsAppFeedback.kind === 'success'
+                    ? 'text-emerald-600 dark:text-emerald-300'
+                    : whatsAppFeedback.kind === 'warning'
+                      ? 'text-amber-600 dark:text-amber-300'
+                      : 'text-rose-600 dark:text-rose-300'
+                }`}
+              >
+                {whatsAppFeedback.text}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
