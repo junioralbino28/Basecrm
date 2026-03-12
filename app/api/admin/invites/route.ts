@@ -16,12 +16,20 @@ const CreateInviteSchema = z
     role: z.enum(APP_USER_ROLES).default('clinic_staff'),
     expiresAt: z.union([z.string().datetime(), z.null()]).optional(),
     email: z.string().email().optional(),
+    tenantId: z.string().uuid().nullable().optional(),
+    scope: z.enum(['agency', 'clinic']).optional(),
   })
   .strict();
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const tenantId = searchParams.get('tenantId');
+  const scope = searchParams.get('scope') === 'agency' ? 'agency' : undefined;
   const supabase = await createClient();
-  const auth = await requireAdminTenantContext();
+  const auth = await requireAdminTenantContext({
+    tenantId,
+    scope,
+  });
   if ('error' in auth) return auth.error;
 
   const { data: invites, error } = await supabase
@@ -41,14 +49,17 @@ export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const supabase = await createClient();
-  const auth = await requireAdminTenantContext();
-  if ('error' in auth) return auth.error;
-
   const raw = await req.json().catch(() => null);
   const parsed = CreateInviteSchema.safeParse(raw);
   if (!parsed.success) {
     return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
   }
+
+  const auth = await requireAdminTenantContext({
+    tenantId: typeof raw?.tenantId === 'string' ? raw.tenantId : null,
+    scope: raw?.scope === 'agency' ? 'agency' : undefined,
+  });
+  if ('error' in auth) return auth.error;
 
   const requestedRole = normalizeAppUserRole(parsed.data.role);
   const allowedRoles = getAssignableRoles({

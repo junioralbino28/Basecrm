@@ -19,12 +19,19 @@ const PermissionSchema = z.object(
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
-  const auth = await requireAdminTenantContext();
-  if ('error' in auth) return auth.error;
-
+  const { searchParams } = new URL(req.url);
   const body = await req.json().catch(() => null);
   const parsed = PermissionSchema.safeParse(body);
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
+
+  const auth = await requireAdminTenantContext({
+    tenantId: searchParams.get('tenantId'),
+    scope:
+      searchParams.get('scope') === 'agency' || body?.scope === 'agency'
+        ? 'agency'
+        : undefined,
+  });
+  if ('error' in auth) return auth.error;
 
   const { id } = await ctx.params;
   const admin = createStaticAdminClient();

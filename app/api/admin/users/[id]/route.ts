@@ -21,16 +21,24 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const { id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
   const supabase = await createClient();
   const admin = createStaticAdminClient();
-  const auth = await requireAdminTenantContext();
-  if ('error' in auth) return auth.error;
-
-  if (id === auth.me.id) return json({ error: 'Voce nao pode alterar o seu proprio cargo por aqui' }, 400);
 
   const body = await req.json().catch(() => null);
   const parsed = UpdateUserSchema.safeParse(body);
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
+
+  const auth = await requireAdminTenantContext({
+    tenantId: searchParams.get('tenantId'),
+    scope:
+      searchParams.get('scope') === 'agency' || body?.scope === 'agency'
+        ? 'agency'
+        : undefined,
+  });
+  if ('error' in auth) return auth.error;
+
+  if (id === auth.me.id) return json({ error: 'Voce nao pode alterar o seu proprio cargo por aqui' }, 400);
 
   const { data: target, error: targetError } = await supabase
     .from('profiles')
@@ -76,9 +84,13 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const { id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
   const supabase = await createClient();
   const admin = createStaticAdminClient();
-  const auth = await requireAdminTenantContext();
+  const auth = await requireAdminTenantContext({
+    tenantId: searchParams.get('tenantId'),
+    scope: searchParams.get('scope') === 'agency' ? 'agency' : undefined,
+  });
   if ('error' in auth) return auth.error;
 
   if (id === auth.me.id) return json({ error: 'Voce nao pode remover a si mesmo' }, 400);

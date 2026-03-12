@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
@@ -28,6 +29,16 @@ interface InviteResult {
     error?: string;
 }
 
+type TeamScope = 'agency' | 'clinic';
+
+type TenantOption = {
+    id: string;
+    name: string;
+    branding_config?: {
+        displayName?: string;
+    };
+};
+
 // Gera iniciais e cor consistente baseada no email
 const getAvatarProps = (email: string) => {
     const initials = email.substring(0, 2).toUpperCase();
@@ -51,19 +62,21 @@ const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const UsersPage: React.FC = () => {
+    const pathname = usePathname();
     const { profile: currentUserProfile } = useAuth();
     const { tenant } = useTenant();
     const { addToast } = useToast();
+    const isPlatformTeamPage = pathname?.startsWith('/platform/team') ?? false;
+    const isAgencyAdmin = isAgencyAdminRole(currentUserProfile?.role);
+    const [activeScope, setActiveScope] = useState<TeamScope>(isPlatformTeamPage ? 'agency' : 'clinic');
+    const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
+    const [tenantOptionsLoading, setTenantOptionsLoading] = useState(false);
+    const [selectedClinicId, setSelectedClinicId] = useState<string | null>(tenant?.organizationId || null);
     const canManageUsers = isAgencyAdminRole(currentUserProfile?.role) || isClinicAdminRole(currentUserProfile?.role);
-    const managingOwnOrganization = !tenant?.organizationId || tenant.organizationId === currentUserProfile?.organization_id;
-    const availableRoleOptions = getRoleOptions({
-        actorRole: currentUserProfile?.role,
-        managingOwnOrganization,
-    });
     const [users, setUsers] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newUserRole, setNewUserRole] = useState<AppUserRole>(availableRoleOptions[0]?.value || 'clinic_staff');
+    const [newUserRole, setNewUserRole] = useState<AppUserRole>('clinic_staff');
     const [sendingInvites, setSendingInvites] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null); // id do usuário em ação
@@ -75,9 +88,34 @@ export const UsersPage: React.FC = () => {
 
     const sb = supabase;
 
+    const effectiveScope: TeamScope = isPlatformTeamPage ? activeScope : 'clinic';
+    const selectedClinic = tenantOptions.find((option) => option.id === selectedClinicId) || null;
+    const roleOptions = useMemo(
+        () =>
+            getRoleOptions({
+                actorRole: currentUserProfile?.role,
+                managingOwnOrganization: effectiveScope === 'agency',
+            }),
+        [currentUserProfile?.role, effectiveScope]
+    );
+    const scopeQueryString = useMemo(() => {
+        const params = new URLSearchParams();
+        if (effectiveScope === 'agency') {
+            params.set('scope', 'agency');
+        } else if (selectedClinicId) {
+            params.set('tenantId', selectedClinicId);
+        }
+        return params.toString();
+    }, [effectiveScope, selectedClinicId]);
+
     const fetchUsers = useCallback(async () => {
+        if (effectiveScope === 'clinic' && !selectedClinicId) {
+            setUsers([]);
+            setLoading(false);
+            return;
+        }
         try {
-            const res = await fetch('/api/admin/users', {
+            const res = await fetch(`/api/admin/users${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'GET',
                 headers: { accept: 'application/json' },
                 credentials: 'include',
@@ -95,11 +133,15 @@ export const UsersPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [effectiveScope, scopeQueryString, selectedClinicId]);
 
     const fetchActiveInvites = useCallback(async () => {
+        if (effectiveScope === 'clinic' && !selectedClinicId) {
+            setActiveInvites([]);
+            return;
+        }
         try {
-            const res = await fetch('/api/admin/invites', {
+            const res = await fetch(`/api/admin/invites${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'GET',
                 headers: { accept: 'application/json' },
                 credentials: 'include',
@@ -128,14 +170,52 @@ export const UsersPage: React.FC = () => {
             // On error, still try to update state to empty array to clear stale data
             setActiveInvites([]);
         }
-    }, []);
+    }, [effectiveScope, scopeQueryString, selectedClinicId]);
 
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
         setError(null);
-        setNewUserRole(availableRoleOptions[0]?.value || 'clinic_staff');
+        setNewUserRole(roleOptions[0]?.value || 'clinic_staff');
         setExpirationDays(7);
-    }, [availableRoleOptions]);
+    }, [roleOptions]);
+
+    const fetchTenantOptions = useCallback(async () => {
+        if (!isAgencyAdmin) return;
+        setTenantOptionsLoading(true);
+        try {
+            const res = await fetch('/api/platform/tenants', {
+                method: 'GET',
+                headers: { accept: 'application/json' },
+                credentials: 'include',
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinicas (HTTP ${res.status})`);
+            setTenantOptions(data?.tenants || []);
+        } catch {
+            setTenantOptions([]);
+        } finally {
+            setTenantOptionsLoading(false);
+        }
+    }, [isAgencyAdmin]);
+
+    useEffect(() => {
+        if (tenant?.organizationId) {
+            setSelectedClinicId((current) => current || tenant.organizationId);
+        }
+    }, [tenant?.organizationId]);
+
+    useEffect(() => {
+        if (!isAgencyAdmin) return;
+        void fetchTenantOptions();
+    }, [fetchTenantOptions, isAgencyAdmin]);
+
+    useEffect(() => {
+        if (effectiveScope !== 'clinic') return;
+        if (selectedClinicId) return;
+        if (tenantOptions.length > 0) {
+            setSelectedClinicId(tenantOptions[0].id);
+        }
+    }, [effectiveScope, selectedClinicId, tenantOptions]);
 
     useEffect(() => {
         fetchUsers();
@@ -148,9 +228,9 @@ export const UsersPage: React.FC = () => {
     }, [fetchActiveInvites, isModalOpen]);
 
     useEffect(() => {
-        if (availableRoleOptions.some((option) => option.value === newUserRole)) return;
-        setNewUserRole(availableRoleOptions[0]?.value || 'clinic_staff');
-    }, [availableRoleOptions, newUserRole]);
+        if (roleOptions.some((option) => option.value === newUserRole)) return;
+        setNewUserRole(roleOptions[0]?.value || 'clinic_staff');
+    }, [roleOptions, newUserRole]);
 
     if (!sb) {
         return (
@@ -174,12 +254,13 @@ export const UsersPage: React.FC = () => {
     const handlePermissionToggle = async (userId: string, permission: AppPermission, enabled: boolean) => {
         setPermissionLoading(`${userId}:${permission}`);
         try {
-            const res = await fetch(`/api/admin/users/${userId}/permissions`, {
+            const res = await fetch(`/api/admin/users/${userId}/permissions${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json', accept: 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
                     [permission]: enabled,
+                    scope: effectiveScope,
                 }),
             });
 
@@ -210,11 +291,11 @@ export const UsersPage: React.FC = () => {
     const handleRoleChange = async (userId: string, role: AppUserRole) => {
         setRoleLoading(userId);
         try {
-            const res = await fetch(`/api/admin/users/${userId}`, {
+            const res = await fetch(`/api/admin/users/${userId}${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json', accept: 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ role }),
+                body: JSON.stringify({ role, scope: effectiveScope }),
             });
 
             const data = await res.json().catch(() => null);
@@ -246,6 +327,8 @@ export const UsersPage: React.FC = () => {
                 body: JSON.stringify({
                     role: newUserRole,
                     expiresAt,
+                    scope: effectiveScope,
+                    tenantId: effectiveScope === 'clinic' ? selectedClinicId : null,
                 }),
             });
 
@@ -270,7 +353,7 @@ export const UsersPage: React.FC = () => {
 
     const handleDeleteInvite = async (id: string) => {
         try {
-            const res = await fetch(`/api/admin/invites/${id}`, {
+            const res = await fetch(`/api/admin/invites/${id}${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'DELETE',
                 headers: { accept: 'application/json' },
                 credentials: 'include',
@@ -300,7 +383,7 @@ export const UsersPage: React.FC = () => {
         setUserToDelete(null);
 
         try {
-            const res = await fetch(`/api/admin/users/${userToDelete.id}`, {
+            const res = await fetch(`/api/admin/users/${userToDelete.id}${scopeQueryString ? `?${scopeQueryString}` : ''}`, {
                 method: 'DELETE',
                 headers: { accept: 'application/json' },
                 credentials: 'include',
@@ -354,6 +437,11 @@ export const UsersPage: React.FC = () => {
         return role === 'agency_admin' || role === 'clinic_admin' || role === 'admin';
     }).length;
     const staffCount = users.length - adminCount;
+    const pageTitle =
+        effectiveScope === 'agency'
+            ? 'Equipe da Agencia'
+            : `Equipe da Clinica${selectedClinic?.branding_config?.displayName || selectedClinic?.name ? ` • ${selectedClinic?.branding_config?.displayName || selectedClinic?.name}` : ''}`;
+    const isClinicScopeUnavailable = effectiveScope === 'clinic' && !selectedClinicId;
 
     return (
         <div className="max-w-4xl mx-auto pb-10">
@@ -362,7 +450,7 @@ export const UsersPage: React.FC = () => {
                 <div className="flex items-start justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-display tracking-tight">
-                            Sua Equipe
+                            {pageTitle}
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">
                             {users.length} {users.length === 1 ? 'membro' : 'membros'} • {adminCount} admin{adminCount !== 1 && 's'}, {staffCount} equipe
@@ -370,6 +458,7 @@ export const UsersPage: React.FC = () => {
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
+                        disabled={isClinicScopeUnavailable}
                         className="group flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-500 transition-all shadow-lg shadow-primary-600/25 hover:shadow-xl hover:shadow-primary-600/30 hover:-translate-y-0.5 font-medium"
                     >
                         <UserPlus className="w-4 h-4 transition-transform group-hover:scale-110" />
@@ -495,7 +584,7 @@ export const UsersPage: React.FC = () => {
                                             onChange={(event) => void handleRoleChange(user.id, event.target.value as AppUserRole)}
                                             className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-primary-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                                         >
-                                            {availableRoleOptions.map((option) => (
+                                            {roleOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
                                                     {option.label}
                                                 </option>
@@ -610,6 +699,63 @@ export const UsersPage: React.FC = () => {
                         </div>
 
                         <div className="px-6 pb-6">
+                            {isPlatformTeamPage ? (
+                                <div className="mb-6 space-y-3">
+                                    <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveScope('agency')}
+                                            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                                                effectiveScope === 'agency'
+                                                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            Convites da agencia
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveScope('clinic')}
+                                            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                                                effectiveScope === 'clinic'
+                                                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            Convites da clinica
+                                        </button>
+                                    </div>
+
+                                    {effectiveScope === 'clinic' ? (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                Clinica alvo
+                                            </label>
+                                            <select
+                                                value={selectedClinicId || ''}
+                                                onChange={(event) => setSelectedClinicId(event.target.value || null)}
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                disabled={tenantOptionsLoading}
+                                            >
+                                                {!selectedClinicId ? <option value="">Selecione uma clinica</option> : null}
+                                                {tenantOptions.map((option) => (
+                                                    <option key={option.id} value={option.id}>
+                                                        {option.branding_config?.displayName || option.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                                Separe os convites da agencia dos convites de cada clinica sem misturar os acessos.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Aqui voce cria links apenas para a equipe interna da agencia.
+                                        </p>
+                                    )}
+                                </div>
+                            ) : null}
+
                             {/* Active Links List */}
                             <div className="mb-6">
                                 <h3 className="text-sm font-medium text-slate-900 dark:text-white mb-3">
@@ -674,7 +820,7 @@ export const UsersPage: React.FC = () => {
                                         Cargo
                                     </label>
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                        {availableRoleOptions.map((option) => {
+                                        {roleOptions.map((option) => {
                                             const isAdminOption = option.value === 'agency_admin' || option.value === 'clinic_admin' || option.value === 'admin';
                                             const isSelected = newUserRole === option.value;
                                             return (
@@ -765,7 +911,7 @@ export const UsersPage: React.FC = () => {
 
                                 <button
                                     onClick={handleGenerateLink}
-                                    disabled={sendingInvites}
+                                    disabled={sendingInvites || isClinicScopeUnavailable}
                                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-600/25 transition-all"
                                 >
                                     {sendingInvites ? (

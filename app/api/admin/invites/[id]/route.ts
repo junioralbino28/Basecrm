@@ -13,8 +13,14 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const { id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
+  const tenantId = searchParams.get('tenantId');
+  const scope = searchParams.get('scope') === 'agency' ? 'agency' : undefined;
   const supabase = await createClient();
-  const auth = await requireAdminTenantContext();
+  const auth = await requireAdminTenantContext({
+    tenantId,
+    scope,
+  });
   if ('error' in auth) return auth.error;
 
   const { error } = await supabase

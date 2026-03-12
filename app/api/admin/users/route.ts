@@ -11,9 +11,15 @@ function json<T>(body: T, status = 200): Response {
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const tenantId = searchParams.get('tenantId');
+  const scope = searchParams.get('scope') === 'agency' ? 'agency' : undefined;
   const supabase = await createClient();
-  const auth = await requireAdminTenantContext();
+  const auth = await requireAdminTenantContext({
+    tenantId,
+    scope,
+  });
   if ('error' in auth) return auth.error;
 
   const { data: profiles, error } = await supabase

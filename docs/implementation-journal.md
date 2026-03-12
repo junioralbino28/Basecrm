@@ -1086,6 +1086,47 @@ Observacoes:
 - esta implementacao e propositalmente simples e curta
 - no futuro isso deve migrar para scheduler/worker dedicado, para nao depender de execucao longa em background
 
+## 2026-03-12 - Convites separados por agencia e clinica
+
+Objetivo:
+
+- deixar claro o fluxo de criacao de acessos da agencia e da clinica
+- evitar mistura de cargos de agencia com cargos da clinica no mesmo modal
+- permitir ao admin da agencia operar os dois contextos pela mesma tela, mas em abas separadas
+
+Entregas:
+
+- `UsersPage` preparada para trabalhar com dois escopos: `agency` e `clinic`
+- modal `Gerar Convite` com separacao entre `Convites da agencia` e `Convites da clinica`
+- seletor de clinica alvo ao criar usuarios da clinica a partir do painel da agencia
+- APIs de equipe e convites aceitando explicitamente o alvo (`scope=agency` ou `tenantId=<clinica>`)
+- manutencao da mesma logica operacional para gerar, listar, revogar, editar e remover usuarios sem depender apenas do cookie de tenant atual
+
+Arquivos principais:
+
+- `features/settings/UsersPage.tsx`
+- `app/api/admin/users/route.ts`
+- `app/api/admin/users/[id]/route.ts`
+- `app/api/admin/users/[id]/permissions/route.ts`
+- `app/api/admin/invites/route.ts`
+- `app/api/admin/invites/[id]/route.ts`
+- `lib/platform/adminTenantContext.ts`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Observacoes:
+
+- o polimento visual do header da tela de equipe ainda pode melhorar em uma passada futura
+- o fluxo funcional ja ficou separado entre equipe da agencia e equipe da clinica
+
 ## 2026-03-12 - Conversas com shell fixo e foco nas mensagens atuais
 
 Objetivo:
