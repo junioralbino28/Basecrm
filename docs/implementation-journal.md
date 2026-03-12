@@ -1159,3 +1159,8 @@ Observacoes:
 
 - esta etapa prioriza estrutura e usabilidade do inbox
 - refinamentos visuais adicionais da caixa de dialogo continuam em aberto
+- 2026-03-12: ajuste operacional no fluxo de convites multi-tenant.
+  - `app/api/admin/invites/route.ts` e `app/api/admin/invites/[id]/route.ts` passaram a usar `createStaticAdminClient()` depois da checagem de `requireAdminTenantContext()`.
+  - Motivo: admin da agencia pode gerenciar convites de clinicas permitidas, mas a RLS de `organization_invites` bloqueia insert/delete/select quando a operacao roda com o client autenticado comum fora da organizacao alvo.
+  - O controle de permissao continua no app, e a persistencia de convite agora nao depende da RLS do tenant destino.
+  - `features/settings/UsersPage.tsx` recebeu guarda defensiva para convites sem `token`, evitando tela branca no cliente durante renderizacao/copia de link.

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 import { APP_USER_ROLES, getAssignableRoles, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
@@ -26,13 +26,14 @@ export async function GET(req: Request) {
   const tenantId = searchParams.get('tenantId');
   const scope = searchParams.get('scope') === 'agency' ? 'agency' : undefined;
   const supabase = await createClient();
+  const admin = createStaticAdminClient();
   const auth = await requireAdminTenantContext({
     tenantId,
     scope,
   });
   if ('error' in auth) return auth.error;
 
-  const { data: invites, error } = await supabase
+  const { data: invites, error } = await admin
     .from('organization_invites')
     .select('id, token, role, email, created_at, expires_at, used_at, created_by')
     .eq('organization_id', auth.targetOrganizationId)
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const supabase = await createClient();
+  const admin = createStaticAdminClient();
   const raw = await req.json().catch(() => null);
   const parsed = CreateInviteSchema.safeParse(raw);
   if (!parsed.success) {
@@ -72,7 +74,7 @@ export async function POST(req: Request) {
 
   const expiresAt = parsed.data.expiresAt ?? null;
 
-  const { data: invite, error } = await supabase
+  const { data: invite, error } = await admin
     .from('organization_invites')
     .insert({
       organization_id: auth.targetOrganizationId,

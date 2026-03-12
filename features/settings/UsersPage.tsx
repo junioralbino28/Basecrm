@@ -371,6 +371,10 @@ export const UsersPage: React.FC = () => {
     };
 
     const copyLink = (token: string) => {
+        if (!token) {
+            addToast('Link invalido para copiar', 'error');
+            return;
+        }
         const link = `${window.location.origin}/join?token=${token}`;
         navigator.clipboard.writeText(link);
         addToast('Link copiado!', 'success');
@@ -764,7 +768,9 @@ export const UsersPage: React.FC = () => {
 
                                 {activeInvites.length > 0 ? (
                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                        {activeInvites.map((invite) => (
+                                        {activeInvites.map((invite) => {
+                                            const inviteToken = typeof invite?.token === 'string' ? invite.token : '';
+                                            return (
                                             <div key={invite.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
@@ -782,12 +788,13 @@ export const UsersPage: React.FC = () => {
                                                         </span>
                                                     </div>
                                                     <code className="block text-xs text-slate-600 dark:text-slate-300 truncate">
-                                                        ...{invite.token.slice(-8)}
+                                                        {inviteToken ? `...${inviteToken.slice(-8)}` : 'Token indisponivel'}
                                                     </code>
                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <button
-                                                        onClick={() => copyLink(invite.token)}
+                                                        onClick={() => copyLink(inviteToken)}
+                                                        disabled={!inviteToken}
                                                         className="p-2 text-primary-600 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
                                                         title="Copiar link"
                                                     >
@@ -802,7 +809,7 @@ export const UsersPage: React.FC = () => {
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
+                                        )})}
                                     </div>
                                 ) : (
                                     <div className="text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">

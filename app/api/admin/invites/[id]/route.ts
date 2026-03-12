@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 
@@ -17,13 +17,14 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   const tenantId = searchParams.get('tenantId');
   const scope = searchParams.get('scope') === 'agency' ? 'agency' : undefined;
   const supabase = await createClient();
+  const admin = createStaticAdminClient();
   const auth = await requireAdminTenantContext({
     tenantId,
     scope,
   });
   if ('error' in auth) return auth.error;
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('organization_invites')
     .delete()
     .eq('id', id)
