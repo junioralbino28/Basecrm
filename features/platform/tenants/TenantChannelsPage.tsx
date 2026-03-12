@@ -3,10 +3,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2, Send } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2, Send, Plus } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 import { useAuth } from '@/context/AuthContext';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
+import { Modal, ModalForm } from '@/components/ui/Modal';
 
 const FIELD_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white';
@@ -156,6 +157,7 @@ export const TenantChannelsPage: React.FC = () => {
   const [messageKind, setMessageKind] = React.useState<'success' | 'warning' | 'error'>('success');
   const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
   const [webhookUrlError, setWebhookUrlError] = React.useState<string | null>(null);
+  const [isCreateInstanceModalOpen, setIsCreateInstanceModalOpen] = React.useState(false);
 
   const onChange = <K extends keyof ChannelFormState>(key: K, value: ChannelFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -201,6 +203,14 @@ export const TenantChannelsPage: React.FC = () => {
     setMessage(null);
   }
 
+  function openCreateInstanceModal() {
+    setEditingConnectionId(null);
+    setForm(INITIAL_FORM);
+    setMessage(null);
+    setWebhookUrlError(null);
+    setIsCreateInstanceModalOpen(true);
+  }
+
   async function copyText(label: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -221,6 +231,7 @@ export const TenantChannelsPage: React.FC = () => {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!tenantId) return;
+    const isEditing = Boolean(editingConnectionId);
     const normalizedApiUrl = normalizeHttpUrlInput(form.apiUrl);
     if (!isLikelyHttpUrl(normalizedApiUrl)) {
       setMessageKind('error');
@@ -245,11 +256,11 @@ export const TenantChannelsPage: React.FC = () => {
 
     try {
       const res = await fetch(
-        editingConnectionId
+        isEditing
           ? `/api/platform/tenants/${tenantId}/channels/${editingConnectionId}`
           : `/api/platform/tenants/${tenantId}/channels`,
         {
-          method: editingConnectionId ? 'PATCH' : 'POST',
+          method: isEditing ? 'PATCH' : 'POST',
           credentials: 'include',
           headers: {
             'content-type': 'application/json',
@@ -282,14 +293,17 @@ export const TenantChannelsPage: React.FC = () => {
       if (externalWebhookWasIgnored) {
         setMessageKind('warning');
         setMessage(
-          `${editingConnectionId ? 'Conexao atualizada' : 'Conexao registrada'} com sucesso. O webhook externo foi ignorado por estar invalido; a URL do webhook CRM ja esta disponivel no card da conexao.`
+          `${isEditing ? 'Conexao atualizada' : 'Conexao registrada'} com sucesso. O webhook externo foi ignorado por estar invalido; a URL do webhook CRM ja esta disponivel no card da conexao.`
         );
       } else {
         setMessageKind('success');
-        setMessage(editingConnectionId ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
+        setMessage(isEditing ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
       }
       setEditingConnectionId(null);
       setForm(INITIAL_FORM);
+      if (!isEditing) {
+        setIsCreateInstanceModalOpen(false);
+      }
       await reload();
     } catch (submitError) {
       setMessageKind('error');
@@ -744,13 +758,25 @@ export const TenantChannelsPage: React.FC = () => {
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-              <Smartphone size={16} />
-              {canManageInfrastructure
-                ? editingConnectionId
-                  ? 'Editar numero WhatsApp'
-                  : 'Conectar novo numero'
-                : 'Conectar WhatsApp'}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                <Smartphone size={16} />
+                {canManageInfrastructure
+                  ? editingConnectionId
+                    ? 'Editar numero WhatsApp'
+                    : 'Conectar novo numero'
+                  : 'Conectar WhatsApp'}
+              </div>
+              {canManageInfrastructure ? (
+                <button
+                  type="button"
+                  onClick={openCreateInstanceModal}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  <Plus size={14} />
+                  Instancia +
+                </button>
+              ) : null}
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {canManageInfrastructure
@@ -769,6 +795,7 @@ export const TenantChannelsPage: React.FC = () => {
             ) : null}
 
             {canManageInfrastructure ? (
+            editingConnectionId ? (
             <form className="mt-5 space-y-4" onSubmit={submit}>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
@@ -915,11 +942,132 @@ export const TenantChannelsPage: React.FC = () => {
             </form>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
+                Clique em <strong className="font-semibold text-slate-900 dark:text-white">Instancia +</strong> para cadastrar um novo numero no perfil tecnico da agencia.
+              </div>
+            )
+            ) : (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
                 A configuração técnica (API e webhook) fica no Painel Agência. Aqui na clínica, use os botões
                 operacionais para gerar QR code, reconectar e validar o número.
               </div>
             )}
           </div>
+          <Modal
+            isOpen={canManageInfrastructure && isCreateInstanceModalOpen}
+            onClose={() => setIsCreateInstanceModalOpen(false)}
+            title="Nova instancia"
+            size="lg"
+          >
+            <ModalForm onSubmit={submit}>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Nome *
+                </label>
+                <input
+                  className={FIELD_CLASS}
+                  value={form.name}
+                  onChange={(e) => onChange('name', e.target.value)}
+                  placeholder="WhatsApp principal"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Canal
+                </label>
+                <input className={FIELD_CLASS} value="Evolution" readOnly />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    API URL *
+                  </label>
+                  <input
+                    className={FIELD_CLASS}
+                    value={form.apiUrl}
+                    onChange={(e) => onChange('apiUrl', e.target.value)}
+                    onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
+                    placeholder="https://evolution.seudominio.com"
+                    autoComplete="off"
+                    inputMode="url"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Instance name *
+                  </label>
+                  <input
+                    className={FIELD_CLASS}
+                    value={form.instanceName}
+                    onChange={(e) => onChange('instanceName', e.target.value)}
+                    placeholder="Clinica-Dra-Jessica"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Token *
+                  </label>
+                  <input
+                    type="password"
+                    className={FIELD_CLASS}
+                    value={form.apiKey}
+                    onChange={(e) => onChange('apiKey', e.target.value)}
+                    placeholder="Cole a API key da Evolution"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Numero
+                  </label>
+                  <input
+                    className={FIELD_CLASS}
+                    value={form.phoneNumber}
+                    onChange={(e) => onChange('phoneNumber', e.target.value)}
+                    placeholder="+55 11 99999-9999"
+                  />
+                </div>
+              </div>
+
+              {message ? (
+                <div
+                  className={
+                    messageKind === 'success'
+                      ? 'text-sm text-emerald-600 dark:text-emerald-300'
+                      : messageKind === 'warning'
+                        ? 'text-sm text-amber-600 dark:text-amber-300'
+                        : 'text-sm text-rose-600 dark:text-rose-300'
+                  }
+                >
+                  {message}
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateInstanceModalOpen(false)}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20 dark:hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </ModalForm>
+          </Modal>
         </div>
       ) : tenant ? (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-5 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
