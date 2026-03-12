@@ -7,6 +7,31 @@ export function ServiceWorkerRegister() {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
 
+    const pwaEnabled = process.env.NEXT_PUBLIC_ENABLE_PWA === 'true';
+
+    // Default: disable PWA cache for web CRM to avoid stale UI/code flashes.
+    // If someone enables PWA explicitly, registration continues below.
+    if (!pwaEnabled) {
+      const cleanup = async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((reg) => reg.unregister()));
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(
+              keys
+                .filter((k) => k.startsWith('nossocrm-shell'))
+                .map((k) => caches.delete(k))
+            );
+          }
+        } catch {
+          // noop: cleanup is best-effort
+        }
+      };
+      void cleanup();
+      return;
+    }
+
     const register = async () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js');
