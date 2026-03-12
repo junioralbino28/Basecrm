@@ -6,14 +6,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   CheckCheck,
-  Clock3,
   Loader2,
   MessageCircle,
   MessagesSquare,
+  MoreVertical,
+  Paperclip,
   Phone,
   QrCode,
   RefreshCcw,
+  Search,
   Send,
+  SmilePlus,
   UserRound,
 } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
@@ -82,6 +85,19 @@ function formatRelative(value: string | null) {
 
   const diffDays = Math.round(diffHours / 24);
   return rtf.format(diffDays, 'day');
+}
+
+function formatConversationListTime(value: string | null) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+
+  return new Intl.DateTimeFormat('pt-BR', sameDay
+    ? { hour: '2-digit', minute: '2-digit' }
+    : { day: '2-digit', month: '2-digit' }
+  ).format(date);
 }
 
 function statusTone(status: ConversationThreadListItem['status']) {
@@ -562,21 +578,33 @@ export const TenantConversationsPage: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="overflow-hidden rounded-[2rem] border border-slate-800/80 bg-[#111b21] shadow-sm dark:border-white/10 dark:bg-[#111b21]">
-          <div className="border-b border-slate-700 p-4 dark:border-white/10">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <MessagesSquare size={16} />
-              Conversas
+      <div className="grid gap-0 overflow-hidden rounded-[2rem] border border-slate-800/80 shadow-[0_30px_80px_rgba(2,6,23,0.45)] xl:grid-cols-[390px_minmax(0,1fr)]">
+        <section className="overflow-hidden bg-[#111b21]">
+          <div className="border-b border-slate-700 bg-[#202c33] p-4 dark:border-white/10">
+            <div className="flex items-center justify-between gap-3 text-sm font-semibold text-white">
+              <div className="flex items-center gap-2">
+                <MessagesSquare size={16} />
+                Conversas
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
+                aria-label="Mais opções"
+              >
+                <MoreVertical size={16} />
+              </button>
             </div>
 
             <div className="mt-3 space-y-3">
-              <input
-                className="w-full rounded-2xl border border-slate-700 bg-[#202c33] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder="Pesquisar ou comecar nova conversa..."
-              />
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="w-full rounded-full border border-transparent bg-[#2a3942] px-10 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder="Pesquisar ou começar nova conversa"
+                />
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 {[
@@ -630,7 +658,7 @@ export const TenantConversationsPage: React.FC = () => {
 
           </div>
 
-          <div className="max-h-[76vh] space-y-1 overflow-y-auto bg-[#111b21] p-2 dark:bg-slate-950/40">
+          <div className="max-h-[76vh] space-y-0.5 overflow-y-auto bg-[#111b21] p-2">
               {inboxQuery.isLoading ? (
                 <div className="flex items-center gap-2 rounded-2xl px-3 py-4 text-sm text-slate-300 dark:text-slate-400">
                   <Loader2 size={16} className="animate-spin" />
@@ -648,7 +676,7 @@ export const TenantConversationsPage: React.FC = () => {
                     onClick={() => setSelectedThreadId(thread.id)}
                     className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
                       selectedThreadId === thread.id
-                        ? 'border-cyan-400 bg-[#202c33] shadow-md dark:border-cyan-500/50 dark:bg-slate-900'
+                        ? 'border-transparent bg-[#202c33] shadow-md'
                         : 'border-transparent bg-[#111b21] hover:bg-[#202c33]'
                     }`}
                   >
@@ -663,7 +691,7 @@ export const TenantConversationsPage: React.FC = () => {
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             <span className="text-[11px] text-slate-400 dark:text-slate-400">
-                              {formatRelative(thread.last_message_sent_at || thread.updated_at)}
+                              {formatConversationListTime(thread.last_message_sent_at || thread.updated_at)}
                             </span>
                             {thread.unread_count > 0 ? (
                               <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
@@ -685,8 +713,11 @@ export const TenantConversationsPage: React.FC = () => {
                         <div className="mt-1 line-clamp-1 text-xs text-slate-300 dark:text-slate-400">
                           {thread.last_message_preview || 'Sem mensagem ainda'}
                         </div>
-                        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
-                          {thread.contact_phone || 'Sem telefone'}
+                        <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-500">
+                          <span className="truncate">{thread.contact_phone || 'Sem telefone'}</span>
+                          {thread.assignee?.display_name ? (
+                            <span className="truncate">{thread.assignee.display_name}</span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -696,10 +727,10 @@ export const TenantConversationsPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <section className="overflow-hidden bg-[#0b141a]">
           {!selectedThread ? (
-            <div className="flex min-h-[620px] flex-col items-center justify-center px-6 text-center">
-              <MessageCircle size={32} className="text-slate-300 dark:text-slate-600" />
+            <div className="flex min-h-[620px] flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.045)_1px,_transparent_1px)] [background-size:26px_26px] px-6 text-center">
+              <MessageCircle size={32} className="text-slate-500" />
               <div className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
                 Selecione uma conversa
               </div>
@@ -709,7 +740,7 @@ export const TenantConversationsPage: React.FC = () => {
             </div>
           ) : (
             <div className="flex min-h-[620px] flex-col">
-              <div className="border-b border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-900/90">
+              <div className="border-b border-slate-800 bg-[#202c33] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
@@ -717,7 +748,7 @@ export const TenantConversationsPage: React.FC = () => {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h2 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
+                        <h2 className="truncate text-lg font-semibold text-white">
                           {selectedThread.contact_name || selectedThread.title}
                         </h2>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
@@ -734,7 +765,7 @@ export const TenantConversationsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void messagesQuery.refetch()}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
                     >
                       <RefreshCcw size={14} />
                       Atualizar
@@ -748,22 +779,29 @@ export const TenantConversationsPage: React.FC = () => {
                         })
                       }
                       disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <CheckCheck size={14} />
                       Marcar lida
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 text-slate-200 transition hover:border-slate-500"
+                      aria-label="Mais opções da conversa"
+                    >
+                      <MoreVertical size={16} />
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/5">
-                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-2">
+                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <UserRound size={12} />
-                      Responsavel
+                      Responsável
                     </label>
                     <select
-                      className={FIELD_CLASS}
+                      className="w-full bg-transparent text-sm text-slate-100 outline-none"
                       value={selectedThread.assigned_user_id || ''}
                       onChange={event =>
                         updateThreadMutation.mutate({
@@ -784,13 +822,13 @@ export const TenantConversationsPage: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/5">
-                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-2">
+                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <AlertCircle size={12} />
                       Status
                     </label>
                     <select
-                      className={FIELD_CLASS}
+                      className="w-full bg-transparent text-sm text-slate-100 outline-none"
                       value={selectedThread.status}
                       onChange={event =>
                         updateThreadMutation.mutate({
@@ -811,7 +849,7 @@ export const TenantConversationsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <div className="mt-3 text-sm font-medium text-slate-200">
                   {routingLabel(selectedThread)}
                 </div>
 
@@ -829,7 +867,7 @@ export const TenantConversationsPage: React.FC = () => {
                       })
                     }
                     disabled={updateThreadMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 px-4 py-2 text-sm font-medium text-amber-700 transition hover:border-amber-300 hover:text-amber-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-500/20 dark:text-amber-300"
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:border-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <AlertCircle size={16} />
                     Falar com humano
@@ -846,7 +884,7 @@ export const TenantConversationsPage: React.FC = () => {
                       })
                     }
                     disabled={updateThreadMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-violet-200 px-4 py-2 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:text-violet-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-500/20 dark:text-violet-300"
+                    className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-300 transition hover:border-violet-400/40 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCheck size={16} />
                     Marcar como resolvido
@@ -860,7 +898,7 @@ export const TenantConversationsPage: React.FC = () => {
                 ) : null}
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-[#efeae2] px-4 py-5 dark:bg-[linear-gradient(180deg,_rgba(15,23,42,1)_0%,_rgba(2,6,23,1)_100%)]">
+              <div className="flex-1 overflow-y-auto bg-[#0b141a] bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.045)_1px,_transparent_1px)] [background-size:26px_26px] px-4 py-5">
                 <div className="mx-auto flex max-w-5xl flex-col gap-3">
                 {messagesQuery.isLoading ? (
                   <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
@@ -923,52 +961,58 @@ export const TenantConversationsPage: React.FC = () => {
               </div>
 
               <form
-                className="border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-900/90"
+                className="border-t border-slate-800 bg-[#202c33] p-4"
                 onSubmit={event => {
                   event.preventDefault();
                   setComposerFeedback(null);
                   sendMessageMutation.mutate();
                 }}
               >
-                <div className="grid gap-3 xl:grid-cols-[180px_180px_minmax(0,1fr)_auto]">
-                  <div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Tipo de envio</label>
-                      <select
-                        className={FIELD_CLASS}
-                        value={composer.direction}
-                        onChange={event =>
-                          setComposer(current => ({
-                            ...current,
-                            direction: event.target.value as 'outbound' | 'internal',
-                          }))
-                        }
-                      >
-                        <option value="outbound">Saida registrada</option>
-                        <option value="internal">Nota interna</option>
-                      </select>
-                    </div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setComposer(current => ({
+                          ...current,
+                          direction: current.direction === 'outbound' ? 'internal' : 'outbound',
+                        }))
+                      }
+                      className={`rounded-full px-3 py-1.5 transition ${
+                        composer.direction === 'internal'
+                          ? 'bg-amber-500/15 text-amber-300'
+                          : 'bg-emerald-500/15 text-emerald-300'
+                      }`}
+                    >
+                      {composer.direction === 'internal' ? 'Nota interna' : 'Mensagem externa'}
+                    </button>
+                    <span>{composer.author_name || 'Sem autor'}</span>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Autor</label>
-                    <input
-                      className={FIELD_CLASS}
-                      value={composer.author_name}
-                      onChange={event => setComposer(current => ({ ...current, author_name: event.target.value }))}
-                      placeholder="Recepcao, operador..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Mensagem</label>
+                </div>
+                <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-end gap-3">
+                  <button
+                    type="button"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
+                    aria-label="Anexar"
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
+                    aria-label="Emoji"
+                  >
+                    <SmilePlus size={18} />
+                  </button>
+                  <div className="rounded-[1.75rem] bg-[#2a3942] px-4 py-2">
                     <textarea
-                      className={`${FIELD_CLASS} min-h-12 resize-y rounded-2xl px-4 py-3`}
+                      className="min-h-8 w-full resize-none bg-transparent py-1 text-sm text-slate-100 outline-none placeholder:text-slate-400"
                       value={composer.content}
                       onChange={event => setComposer(current => ({ ...current, content: event.target.value }))}
                       placeholder={
                         composer.direction === 'internal'
-                          ? 'Contexto interno, handoff, observacao operacional...'
-                          : 'Digite uma mensagem...'
+                          ? 'Escreva uma nota interna...'
+                          : 'Digite uma mensagem'
                       }
                       required
                     />
@@ -977,10 +1021,9 @@ export const TenantConversationsPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={sendMessageMutation.isPending || !composer.content.trim() || !canReply}
-                      className="inline-flex h-12 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {sendMessageMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                      Enviar
                     </button>
                   </div>
                 </div>

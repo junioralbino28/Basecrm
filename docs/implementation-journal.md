@@ -834,3 +834,44 @@ Pendencias:
 
 - aproximar ainda mais o header da conversa do visual do WhatsApp
 - concluir a ligacao funcional com mensagens reais inbound antes de considerar a tela pronta
+
+## 2026-03-12 - Evolution inbound materializa lead/oportunidade e conversa ganha base de mensageria real
+
+Objetivo:
+
+- fechar o gap entre `WhatsApp conectado` e `CRM realmente operacional`
+- garantir que a mensagem inbound entre no inbox e gere oportunidade no funil
+- aproximar a tela `Conversas` do padrao de apps de mensageria
+
+Entregas:
+
+- `setEvolutionWebhook` passou a registrar o webhook base sem `webhook_by_events`, reduzindo incompatibilidade com a rota publica do CRM
+- criacao de rota catch-all para aceitar posts da Evolution em caminhos por evento (`/messages-upsert`, `/connection-update`, etc.)
+- inbound agora faz upsert de `contacts` por telefone e cria/reaproveita `deals` abertos no primeiro inbound
+- `conversation_threads.deal_id` passa a ser vinculado automaticamente quando a oportunidade e materializada
+- lista de `Conversas` ficou mais densa e com hierarquia mais parecida com mensageiros reais
+- header e composer da conversa foram simplificados para uma experiencia mais proxima de WhatsApp
+
+Arquivos principais:
+
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/[...eventPath]/route.ts`
+- `lib/channels/evolution.ts`
+- `features/platform/tenants/TenantConversationsPage.tsx`
+- `docs/evolution-channels.md`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Pendencias:
+
+- validar no ambiente real se o inbound da Evolution ja entra ponta a ponta apos reaplicar `Atualizar status`
+- se necessario, expor no frontend o ultimo `eventPath` recebido e o ultimo erro de materializacao
+- seguir refinando a tela `Conversas` ate bater mais de perto com o padrao visual do WhatsApp

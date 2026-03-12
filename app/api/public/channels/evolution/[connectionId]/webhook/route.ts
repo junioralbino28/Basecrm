@@ -58,6 +58,206 @@ function buildThreadTitle(contactName: string | null, contactPhone: string) {
   return `WhatsApp - ${contactName || contactPhone}`;
 }
 
+async function upsertConversationContact(params: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+  phoneCandidates: string[];
+  canonicalPhone: string;
+  contactName: string | null;
+  now: string;
+}) {
+  const { admin, organizationId, phoneCandidates, canonicalPhone, contactName, now } = params;
+  const contactResult = await admin
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('organization_id', organizationId)
+    .in('phone', phoneCandidates.length > 0 ? phoneCandidates : [canonicalPhone])
+    .limit(1)
+    .maybeSingle();
+
+  if (contactResult.error) throw new Error(contactResult.error.message);
+
+  if (contactResult.data?.id) {
+    if (contactName && contactResult.data.name !== contactName) {
+      const updateResult = await admin
+        .from('contacts')
+        .update({
+          name: contactName,
+          phone: canonicalPhone,
+          updated_at: now,
+        })
+        .eq('id', contactResult.data.id)
+        .eq('organization_id', organizationId);
+
+      if (updateResult.error) throw new Error(updateResult.error.message);
+    }
+
+    return {
+      contactId: contactResult.data.id,
+      contactName: contactName || contactResult.data.name || null,
+    };
+  }
+
+  const fallbackName =
+    contactName || `Lead WhatsApp ${canonicalPhone.slice(-4) || canonicalPhone}`;
+
+  const createdContact = await admin
+    .from('contacts')
+    .insert({
+      organization_id: organizationId,
+      name: fallbackName,
+      phone: canonicalPhone,
+      status: 'ACTIVE',
+      stage: 'LEAD',
+      created_at: now,
+      updated_at: now,
+    })
+    .select('id, name')
+    .single();
+
+  if (createdContact.error) throw new Error(createdContact.error.message);
+
+  return {
+    contactId: createdContact.data.id,
+    contactName: createdContact.data.name || fallbackName,
+  };
+}
+
+async function resolveDefaultBoardAndStage(params: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+}) {
+  const { admin, organizationId } = params;
+
+  const boardResult = await admin
+    .from('boards')
+    .select('id, name, key, position, created_at')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (boardResult.error) throw new Error(boardResult.error.message);
+  if (!boardResult.data?.id) return null;
+
+  const stageResult = await admin
+    .from('board_stages')
+    .select('id, name')
+    .eq('organization_id', organizationId)
+    .eq('board_id', boardResult.data.id)
+    .order('order', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (stageResult.error) throw new Error(stageResult.error.message);
+  if (!stageResult.data?.id) return null;
+
+  return {
+    boardId: boardResult.data.id,
+    stageId: stageResult.data.id,
+  };
+}
+
+async function ensureConversationDeal(params: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+  threadId: string;
+  threadDealId: string | null;
+  contactId: string | null;
+  canonicalPhone: string;
+  contactName: string | null;
+  preview: string;
+  now: string;
+}) {
+  const {
+    admin,
+    organizationId,
+    threadId,
+    threadDealId,
+    contactId,
+    canonicalPhone,
+    contactName,
+    preview,
+    now,
+  } = params;
+
+  if (threadDealId) return threadDealId;
+  if (!contactId) return null;
+
+  const existingDeal = await admin
+    .from('deals')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('contact_id', contactId)
+    .eq('is_won', false)
+    .eq('is_lost', false)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingDeal.error) throw new Error(existingDeal.error.message);
+
+  if (existingDeal.data?.id) {
+    const threadUpdate = await admin
+      .from('conversation_threads')
+      .update({
+        deal_id: existingDeal.data.id,
+        updated_at: now,
+      })
+      .eq('id', threadId)
+      .eq('organization_id', organizationId);
+
+    if (threadUpdate.error) throw new Error(threadUpdate.error.message);
+    return existingDeal.data.id;
+  }
+
+  const boardStage = await resolveDefaultBoardAndStage({ admin, organizationId });
+  if (!boardStage) return null;
+
+  const createdDeal = await admin
+    .from('deals')
+    .insert({
+      organization_id: organizationId,
+      title: `${contactName || canonicalPhone} - WhatsApp`,
+      value: 0,
+      probability: 0,
+      status: boardStage.stageId,
+      priority: 'medium',
+      board_id: boardStage.boardId,
+      stage_id: boardStage.stageId,
+      contact_id: contactId,
+      tags: ['whatsapp', 'novo-lead'],
+      custom_fields: {
+        source: 'whatsapp',
+        origin_channel: 'evolution',
+        first_inbound_preview: preview,
+      },
+      is_won: false,
+      is_lost: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('id')
+    .single();
+
+  if (createdDeal.error) throw new Error(createdDeal.error.message);
+
+  const threadUpdate = await admin
+    .from('conversation_threads')
+    .update({
+      deal_id: createdDeal.data.id,
+      updated_at: now,
+    })
+    .eq('id', threadId)
+    .eq('organization_id', organizationId);
+
+  if (threadUpdate.error) throw new Error(threadUpdate.error.message);
+
+  return createdDeal.data.id;
+}
+
 export async function POST(req: Request, ctx: { params: Promise<{ connectionId: string }> }) {
   const { connectionId } = await ctx.params;
   const requestOrigin = new URL(req.url).origin;
@@ -149,25 +349,30 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     }
   }
 
-  let contactId: string | null = null;
   const phoneCandidates = buildConversationPhoneCandidates(contactPhone);
   const canonicalPhone = getCanonicalConversationPhone(contactPhone) || contactPhone;
-  const contactResult = await admin
-    .from('contacts')
-    .select('id, name, phone')
-    .eq('organization_id', connectionResult.data.organization_id)
-    .in('phone', phoneCandidates.length > 0 ? phoneCandidates : [contactPhone])
-    .limit(1)
-    .maybeSingle();
+  const now = new Date().toISOString();
+  let contactId: string | null = null;
+  let resolvedContactName: string | null = parsed.contactName;
 
-  if (contactResult.error) return json({ error: contactResult.error.message }, 500);
-  if (contactResult.data?.id) {
-    contactId = contactResult.data.id;
+  try {
+    const contact = await upsertConversationContact({
+      admin,
+      organizationId: connectionResult.data.organization_id,
+      phoneCandidates,
+      canonicalPhone,
+      contactName: parsed.contactName,
+      now,
+    });
+    contactId = contact.contactId;
+    resolvedContactName = contact.contactName;
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Falha ao materializar contato.' }, 500);
   }
 
   const threadResult = await admin
     .from('conversation_threads')
-    .select('id, status, metadata')
+    .select('id, status, metadata, deal_id')
     .eq('organization_id', connectionResult.data.organization_id)
     .eq('channel_connection_id', connectionId)
     .in('contact_phone', phoneCandidates.length > 0 ? phoneCandidates : [contactPhone])
@@ -177,7 +382,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   if (threadResult.error) return json({ error: threadResult.error.message }, 500);
 
-  const now = new Date().toISOString();
   let threadId = threadResult.data?.id ?? null;
 
   if (!threadId) {
@@ -187,8 +391,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         organization_id: connectionResult.data.organization_id,
         channel_connection_id: connectionId,
         contact_id: contactId,
-        title: buildThreadTitle(parsed.contactName || contactResult.data?.name || null, canonicalPhone),
-        contact_name: parsed.contactName || contactResult.data?.name || null,
+        title: buildThreadTitle(resolvedContactName, canonicalPhone),
+        contact_name: resolvedContactName,
         contact_phone: canonicalPhone,
         status: parsed.direction === 'inbound' ? 'ai_active' : 'resolved',
         metadata: buildConversationThreadMetadataUpdate(
@@ -224,7 +428,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .from('conversation_threads')
       .update({
         contact_id: contactId ?? undefined,
-        contact_name: parsed.contactName || contactResult.data?.name || undefined,
+        contact_name: resolvedContactName || undefined,
         contact_phone: canonicalPhone,
         status:
           parsed.direction === 'inbound'
@@ -289,6 +493,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   if (insertedMessage.error) return json({ error: insertedMessage.error.message }, 500);
 
+  let dealId: string | null = threadResult.data?.deal_id ?? null;
+  if (parsed.direction === 'inbound') {
+    try {
+      dealId = await ensureConversationDeal({
+        admin,
+        organizationId: connectionResult.data.organization_id,
+        threadId,
+        threadDealId: threadResult.data?.deal_id ?? null,
+        contactId,
+        canonicalPhone,
+        contactName: resolvedContactName,
+        preview: content.slice(0, 160),
+        now,
+      });
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Falha ao criar oportunidade.' }, 500);
+    }
+  }
+
   const currentConnectionMetadata = (connectionResult.data.metadata as Record<string, unknown> | null) || {};
   const connectionUpdate = await admin
     .from('channel_connections')
@@ -344,8 +567,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       status: threadStatus,
       contact: {
         id: contactId,
-        name: parsed.contactName || contactResult.data?.name || null,
+        name: resolvedContactName,
         phone: canonicalPhone,
+      },
+      deal: {
+        id: dealId,
       },
       message: {
         direction: parsed.direction,
@@ -381,6 +607,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   return json({
     ok: true,
     thread_id: threadId,
+    deal_id: dealId,
     message_id: insertedMessage.data.id,
     direction: parsed.direction,
   });

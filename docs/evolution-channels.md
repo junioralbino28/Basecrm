@@ -143,20 +143,23 @@ Comportamento atual:
 
 - valida a conexao `evolution` por `connectionId`
 - valida o `webhookSecret` salvo em `channel_connections.config`
+- aceita tanto o endpoint base quanto rotas com sufixo por evento (`/messages-upsert`, `/connection-update`, etc.)
 - interpreta payloads comuns de mensagem da Evolution
 - cria ou reutiliza `conversation_threads`
 - grava `conversation_messages`
 - faz dedupe best-effort por `metadata.provider_message_id`
 - atualiza `channel_connections.metadata` com ultimo inbound recebido
 - atualiza metadata da thread com preview, direcao e contador de nao lidas
-- tenta normalizar telefone para reaproveitar thread e vincular `contacts`
+- normaliza telefone para reaproveitar thread e vincular `contacts`
+- cria ou reaproveita `contacts` automaticamente no primeiro inbound
+- cria ou reaproveita `deals` automaticamente no primeiro inbound e vincula a thread ao funil
 
 Limitacoes atuais:
 
 - foco em mensagens individuais, nao grupos
 - suporte best-effort para formatos comuns de payload
-- ainda nao cria deal automaticamente
-- vinculo com contato depende de telefone igual ao salvo em `contacts.phone`
+- o deal automatico usa o primeiro board/estagio disponivel da clinica
+- se a clinica nao tiver board ou estagio, a conversa entra no inbox mas nao materializa oportunidade
 
 ## Como testar
 
@@ -169,9 +172,9 @@ Limitacoes atuais:
    - `Telefone` se desejar
 4. clicar `Testar conexao`
 5. clicar `Gerar pareamento`
-6. copiar o `Webhook do CRM`
-7. configurar essa URL na Evolution
-8. enviar mensagem real para validar entrada em `Conversations`
+6. clicar `Atualizar status` para forcar a reaplicacao do webhook na Evolution
+7. enviar mensagem real para validar entrada em `Conversations`
+8. confirmar se a thread apareceu e se o lead entrou no funil da clinica
 
 ## Estado atual da entrega
 
@@ -184,6 +187,7 @@ Ja entregue:
 - geracao automatica de `webhookSecret`
 - exibicao da URL do webhook do CRM
 - ingest inbound basico da Evolution em `Conversations`
+- materializacao automatica de contato e oportunidade no primeiro inbound
 - inbox operacional com filtros, atribuicao, status e timeline
 - exibicao do estado e do ultimo codigo
 - exibicao visual do payload de pareamento quando possivel
