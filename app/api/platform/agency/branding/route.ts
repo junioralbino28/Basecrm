@@ -42,16 +42,33 @@ export async function GET() {
   if ('error' in auth) return auth.error;
 
   const admin = createStaticAdminClient();
-  const { data, error } = await admin
-    .from('organization_editions')
-    .select('organization_id, branding_config')
-    .eq('organization_id', auth.profile.organization_id)
-    .maybeSingle();
+  const [editionResult, orgResult] = await Promise.all([
+    admin
+      .from('organization_editions')
+      .select('organization_id, branding_config')
+      .eq('organization_id', auth.profile.organization_id)
+      .maybeSingle(),
+    admin
+      .from('organizations')
+      .select('id, name')
+      .eq('id', auth.profile.organization_id)
+      .maybeSingle(),
+  ]);
 
-  if (error) return json({ error: error.message }, 500);
-  if (!data) return json({ error: 'Agency edition not found' }, 404);
+  if (editionResult.error) return json({ error: editionResult.error.message }, 500);
+  if (orgResult.error) return json({ error: orgResult.error.message }, 500);
+  if (!orgResult.data) return json({ error: 'Agency organization not found' }, 404);
 
-  return json({ branding: data.branding_config || {} });
+  const editionBranding = (editionResult.data?.branding_config || {}) as Record<string, unknown>;
+  const displayNameFromEdition =
+    typeof editionBranding.displayName === 'string' ? editionBranding.displayName.trim() : '';
+
+  const branding = {
+    ...editionBranding,
+    displayName: displayNameFromEdition || orgResult.data.name || 'BaseCRM Agencia',
+  };
+
+  return json({ branding });
 }
 
 export async function PATCH(req: Request) {
@@ -65,27 +82,59 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
 
   const admin = createStaticAdminClient();
-  const current = await admin
+  const orgResult = await admin
+    .from('organizations')
+    .select('id, name')
+    .eq('id', auth.profile.organization_id)
+    .maybeSingle();
+
+  if (orgResult.error) return json({ error: orgResult.error.message }, 500);
+  if (!orgResult.data) return json({ error: 'Agency organization not found' }, 404);
+
+  const currentEdition = await admin
     .from('organization_editions')
-    .select('branding_config')
+    .select('organization_id, branding_config')
     .eq('organization_id', auth.profile.organization_id)
     .maybeSingle();
 
-  if (current.error) return json({ error: current.error.message }, 500);
-  if (!current.data) return json({ error: 'Agency edition not found' }, 404);
+  if (currentEdition.error) return json({ error: currentEdition.error.message }, 500);
 
+  const normalizedDisplayName = parsed.data.displayName?.trim();
   const nextBranding = {
-    ...(current.data.branding_config || {}),
+    ...((currentEdition.data?.branding_config || {}) as Record<string, unknown>),
     ...parsed.data,
+    displayName: normalizedDisplayName || orgResult.data.name || 'BaseCRM Agencia',
   };
 
-  const { error } = await admin
+  const editionUpsert = await admin
     .from('organization_editions')
-    .update({ branding_config: nextBranding, updated_at: new Date().toISOString() })
+    .upsert(
+      {
+        organization_id: auth.profile.organization_id,
+        edition_key: 'agency',
+        branding_config: nextBranding,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'organization_id' }
+    );
+
+  if (editionUpsert.error) return json({ error: editionUpsert.error.message }, 500);
+
+  if (normalizedDisplayName && normalizedDisplayName !== orgResult.data.name) {
+    const orgUpdate = await admin
+      .from('organizations')
+      .update({ name: normalizedDisplayName })
+      .eq('id', auth.profile.organization_id);
+    if (orgUpdate.error) return json({ error: orgUpdate.error.message }, 500);
+  }
+
+  const { data: reloadedEdition, error: reloadError } = await admin
+    .from('organization_editions')
+    .select('branding_config')
     .eq('organization_id', auth.profile.organization_id);
 
-  if (error) return json({ error: error.message }, 500);
+  if (reloadError) return json({ error: reloadError.message }, 500);
 
-  return json({ ok: true, branding: nextBranding });
+  const finalBranding = ((reloadedEdition?.[0]?.branding_config || nextBranding) as Record<string, unknown>);
+  return json({ ok: true, branding: finalBranding });
 }
-
