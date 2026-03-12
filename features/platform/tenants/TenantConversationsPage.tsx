@@ -114,7 +114,7 @@ function routingLabel(thread: ConversationThreadListItem) {
 
 function directionTone(direction: ConversationMessageDirection) {
   if (direction === 'outbound') {
-    return 'ml-10 bg-emerald-100/90 text-slate-900 shadow-sm dark:bg-emerald-500/15 dark:text-slate-100';
+    return 'ml-10 bg-[#d9fdd3] text-slate-900 shadow-sm dark:bg-emerald-500/15 dark:text-slate-100';
   }
   if (direction === 'internal') {
     return 'mx-6 border border-amber-200 bg-amber-50/90 text-slate-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-slate-100';
@@ -575,7 +575,7 @@ export const TenantConversationsPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-8">
+    <div className="mx-auto max-w-[1440px] space-y-5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <Link
@@ -618,7 +618,7 @@ export const TenantConversationsPage: React.FC = () => {
       </div>
 
       {summary ? (
-        <div className="rounded-[2rem] border border-slate-200 bg-linear-to-r from-white via-cyan-50 to-emerald-50 px-5 py-4 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-cyan-500/5 dark:to-emerald-500/5">
+        <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-white via-cyan-50 to-emerald-50 px-4 py-3 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-cyan-500/5 dark:to-emerald-500/5">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {[
               { label: 'IA ativa', value: summary.ai_active, tone: 'text-cyan-600 dark:text-cyan-300' },
@@ -649,30 +649,30 @@ export const TenantConversationsPage: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="border-b border-slate-200 p-5 dark:border-white/10">
+      <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-800/80 bg-[#111b21] shadow-sm dark:border-white/10 dark:bg-[#111b21]">
+          <div className="border-b border-slate-700 p-4 dark:border-white/10">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
                 <MessagesSquare size={16} />
                 Conversas
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(current => !current)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-300 hover:text-cyan-200 dark:border-white/10 dark:text-slate-200"
               >
                 <PlusCircle size={14} />
                 Nova manual
               </button>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-3">
               <input
-                className={FIELD_CLASS}
+                className="w-full rounded-2xl border border-slate-700 bg-[#202c33] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Buscar por nome, telefone ou preview..."
+                placeholder="Pesquisar ou comecar nova conversa..."
               />
 
               <div className="flex flex-wrap gap-2">
@@ -691,7 +691,7 @@ export const TenantConversationsPage: React.FC = () => {
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                       filter === option.id
                         ? 'bg-cyan-500 text-slate-950'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                        : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                     }`}
                   >
                     {option.label}
@@ -706,7 +706,7 @@ export const TenantConversationsPage: React.FC = () => {
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     onlyUnread
                       ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                      : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                   }`}
                 >
                   So nao lidas
@@ -717,7 +717,7 @@ export const TenantConversationsPage: React.FC = () => {
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     onlyUnassigned
                       ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                      : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                   }`}
                 >
                   So sem dono
@@ -727,7 +727,7 @@ export const TenantConversationsPage: React.FC = () => {
 
             {showCreateForm ? (
               <form
-                className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                className="mt-4 space-y-3 rounded-2xl border border-slate-700 bg-[#202c33] p-4 dark:border-white/10 dark:bg-white/5"
                 onSubmit={event => {
                   event.preventDefault();
                   createThreadMutation.mutate();
@@ -783,14 +783,14 @@ export const TenantConversationsPage: React.FC = () => {
             ) : null}
           </div>
 
-          <div className="max-h-[74vh] space-y-2 overflow-y-auto bg-slate-50/70 p-3 dark:bg-slate-950/40">
+          <div className="max-h-[76vh] space-y-1 overflow-y-auto bg-[#111b21] p-2 dark:bg-slate-950/40">
               {inboxQuery.isLoading ? (
-                <div className="flex items-center gap-2 rounded-2xl px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2 rounded-2xl px-3 py-4 text-sm text-slate-300 dark:text-slate-400">
                   <Loader2 size={16} className="animate-spin" />
                   Carregando inbox...
                 </div>
               ) : filteredThreads.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-8 text-sm text-slate-300 dark:border-white/10 dark:text-slate-400">
                   Nenhuma conversa combina com os filtros atuais.
                 </div>
               ) : (
@@ -799,10 +799,10 @@ export const TenantConversationsPage: React.FC = () => {
                     key={thread.id}
                     type="button"
                     onClick={() => setSelectedThreadId(thread.id)}
-                    className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
                       selectedThreadId === thread.id
-                        ? 'border-cyan-400 bg-white shadow-md dark:border-cyan-500/50 dark:bg-slate-900'
-                        : 'border-slate-200 bg-white/80 hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/5'
+                        ? 'border-cyan-400 bg-[#202c33] shadow-md dark:border-cyan-500/50 dark:bg-slate-900'
+                        : 'border-transparent bg-[#111b21] hover:bg-[#202c33]'
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -811,11 +811,11 @@ export const TenantConversationsPage: React.FC = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                          <div className="truncate text-sm font-semibold text-white dark:text-white">
                             {thread.contact_name || thread.title}
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="text-[11px] text-slate-400 dark:text-slate-400">
                               {formatRelative(thread.last_message_sent_at || thread.updated_at)}
                             </span>
                             {thread.unread_count > 0 ? (
@@ -830,15 +830,15 @@ export const TenantConversationsPage: React.FC = () => {
                             {statusLabel(thread.status)}
                           </span>
                           {thread.assignee?.display_name ? (
-                            <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="truncate text-[11px] text-slate-400 dark:text-slate-400">
                               {thread.assignee.display_name}
                             </span>
                           ) : null}
                         </div>
-                        <div className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="mt-1 line-clamp-1 text-xs text-slate-300 dark:text-slate-400">
                           {thread.last_message_preview || 'Sem mensagem ainda'}
                         </div>
-                        <div className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
                           {thread.contact_phone || 'Sem telefone'}
                         </div>
                       </div>
@@ -862,122 +862,113 @@ export const TenantConversationsPage: React.FC = () => {
             </div>
           ) : (
             <div className="flex min-h-[620px] flex-col">
-              <div className="border-b border-slate-200 bg-white/90 p-6 backdrop-blur dark:border-white/10 dark:bg-slate-900/80">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-                        {selectedThread.contact_name || selectedThread.title}
-                      </h2>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
-                        {statusLabel(selectedThread.status)}
-                      </span>
-                      {selectedThread.unread_count > 0 ? (
-                        <span className="rounded-full bg-cyan-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-950">
-                          {selectedThread.unread_count} nao lidas
+              <div className="border-b border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-900/90">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
+                      {getThreadAvatar(selectedThread)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
+                          {selectedThread.contact_name || selectedThread.title}
+                        </h2>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
+                          {statusLabel(selectedThread.status)}
                         </span>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-wrap gap-3 text-sm text-slate-500 dark:text-slate-400">
-                      <span className="inline-flex items-center gap-2">
-                        <Phone size={14} />
-                        {selectedThread.contact_phone || 'Sem telefone'}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <Clock3 size={14} />
-                        Ultima atividade: {formatDateTime(selectedThread.last_message_sent_at || selectedThread.updated_at)}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <MessagesSquare size={14} />
-                        {selectedThread.message_count} mensagem(ns)
-                      </span>
-                    </div>
-                    <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                      {routingLabel(selectedThread)}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      {selectedThread.channel_connection ? (
-                        <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-white/5">
-                          WhatsApp: {selectedThread.channel_connection.name}
-                        </span>
-                      ) : null}
-                      {selectedThread.contact ? (
-                        <Link
-                          href={`/contacts?contactId=${selectedThread.contact.id}`}
-                          className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10"
-                        >
-                          Contato: {selectedThread.contact.name || selectedThread.contact.phone || selectedThread.contact.id}
-                        </Link>
-                      ) : null}
-                      {selectedThread.deal ? (
-                        <Link
-                          href={`/boards?deal=${selectedThread.deal.id}`}
-                          className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10"
-                        >
-                          Deal: {selectedThread.deal.title}
-                        </Link>
-                      ) : null}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {selectedThread.contact_phone || 'Sem telefone'} • {formatRelative(selectedThread.last_message_sent_at || selectedThread.updated_at)}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="min-w-[210px] rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
-                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                        <UserRound size={14} />
-                        Responsavel
-                      </label>
-                      <select
-                        className={FIELD_CLASS}
-                        value={selectedThread.assigned_user_id || ''}
-                        onChange={event =>
-                          updateThreadMutation.mutate({
-                            threadId: selectedThread.id,
-                            body: {
-                              assigned_user_id: event.target.value || null,
-                            },
-                          })
-                        }
-                        disabled={updateThreadMutation.isPending}
-                      >
-                        <option value="">Sem responsavel</option>
-                        {assignees.map(assignee => (
-                          <option key={assignee.id} value={assignee.id}>
-                            {assignee.display_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="min-w-[210px] rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
-                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                        <AlertCircle size={14} />
-                        Status operacional
-                      </label>
-                      <select
-                        className={FIELD_CLASS}
-                        value={selectedThread.status}
-                        onChange={event =>
-                          updateThreadMutation.mutate({
-                            threadId: selectedThread.id,
-                            body: {
-                              status: event.target.value as ConversationThreadListItem['status'],
-                            },
-                          })
-                        }
-                        disabled={updateThreadMutation.isPending}
-                      >
-                        <option value="ai_active">IA ativa</option>
-                        <option value="human_queue">Fila humana</option>
-                        <option value="human_active">Humano atendendo</option>
-                        <option value="resolved">Resolvido</option>
-                        <option value="closed">Fechado</option>
-                      </select>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void messagesQuery.refetch()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
+                    >
+                      <RefreshCcw size={14} />
+                      Atualizar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateThreadMutation.mutate({
+                          threadId: selectedThread.id,
+                          body: { mark_as_read: true },
+                        })
+                      }
+                      disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
+                    >
+                      <CheckCheck size={14} />
+                      Marcar lida
+                    </button>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-3">
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                      <UserRound size={12} />
+                      Responsavel
+                    </label>
+                    <select
+                      className={FIELD_CLASS}
+                      value={selectedThread.assigned_user_id || ''}
+                      onChange={event =>
+                        updateThreadMutation.mutate({
+                          threadId: selectedThread.id,
+                          body: {
+                            assigned_user_id: event.target.value || null,
+                          },
+                        })
+                      }
+                      disabled={updateThreadMutation.isPending}
+                    >
+                      <option value="">Sem responsavel</option>
+                      {assignees.map(assignee => (
+                        <option key={assignee.id} value={assignee.id}>
+                          {assignee.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                      <AlertCircle size={12} />
+                      Status
+                    </label>
+                    <select
+                      className={FIELD_CLASS}
+                      value={selectedThread.status}
+                      onChange={event =>
+                        updateThreadMutation.mutate({
+                          threadId: selectedThread.id,
+                          body: {
+                            status: event.target.value as ConversationThreadListItem['status'],
+                          },
+                        })
+                      }
+                      disabled={updateThreadMutation.isPending}
+                    >
+                      <option value="ai_active">IA ativa</option>
+                      <option value="human_queue">Fila humana</option>
+                      <option value="human_active">Humano atendendo</option>
+                      <option value="resolved">Resolvido</option>
+                      <option value="closed">Fechado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  {routingLabel(selectedThread)}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -1013,28 +1004,6 @@ export const TenantConversationsPage: React.FC = () => {
                     <CheckCheck size={16} />
                     Marcar como resolvido
                   </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateThreadMutation.mutate({
-                        threadId: selectedThread.id,
-                        body: { mark_as_read: true },
-                      })
-                    }
-                    disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
-                  >
-                    <CheckCheck size={16} />
-                    Marcar como lida
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void messagesQuery.refetch()}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:text-slate-200"
-                  >
-                    <RefreshCcw size={16} />
-                    Atualizar timeline
-                  </button>
                 </div>
 
                 {updateThreadMutation.error ? (
@@ -1044,8 +1013,8 @@ export const TenantConversationsPage: React.FC = () => {
                 ) : null}
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),linear-gradient(180deg,_rgba(248,250,252,1)_0%,_rgba(241,245,249,1)_100%)] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,1)_0%,_rgba(2,6,23,1)_100%)]">
-                <div className="mx-auto flex max-w-4xl flex-col gap-4">
+              <div className="flex-1 overflow-y-auto bg-[#efeae2] px-4 py-5 dark:bg-[linear-gradient(180deg,_rgba(15,23,42,1)_0%,_rgba(2,6,23,1)_100%)]">
+                <div className="mx-auto flex max-w-5xl flex-col gap-3">
                 {messagesQuery.isLoading ? (
                   <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                     <Loader2 size={16} className="animate-spin" />
@@ -1107,15 +1076,15 @@ export const TenantConversationsPage: React.FC = () => {
               </div>
 
               <form
-                className="border-t border-slate-200 bg-white/95 p-6 backdrop-blur dark:border-white/10 dark:bg-slate-900/90"
+                className="border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-900/90"
                 onSubmit={event => {
                   event.preventDefault();
                   setComposerFeedback(null);
                   sendMessageMutation.mutate();
                 }}
               >
-                <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-3 xl:grid-cols-[180px_180px_minmax(0,1fr)_auto]">
+                  <div>
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Tipo de envio</label>
                       <select
@@ -1132,66 +1101,65 @@ export const TenantConversationsPage: React.FC = () => {
                         <option value="internal">Nota interna</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Autor</label>
-                      <input
-                        className={FIELD_CLASS}
-                        value={composer.author_name}
-                        onChange={event => setComposer(current => ({ ...current, author_name: event.target.value }))}
-                        placeholder="Recepcao, operador..."
-                      />
-                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Autor</label>
+                    <input
+                      className={FIELD_CLASS}
+                      value={composer.author_name}
+                      onChange={event => setComposer(current => ({ ...current, author_name: event.target.value }))}
+                      placeholder="Recepcao, operador..."
+                    />
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Mensagem</label>
-                      <textarea
-                        className={`${FIELD_CLASS} min-h-28 resize-y rounded-[1.5rem] px-4 py-3`}
-                        value={composer.content}
-                        onChange={event => setComposer(current => ({ ...current, content: event.target.value }))}
-                        placeholder={
-                          composer.direction === 'internal'
-                            ? 'Contexto interno, handoff, observacao operacional...'
-                            : 'Responder como humano neste numero compartilhado...'
-                        }
-                        required
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="max-w-xl text-xs text-slate-500 dark:text-slate-400">
-                        Quando um atendente responde, a conversa entra em atendimento humano e a IA fica bloqueada ate ser marcada como resolvida.
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={sendMessageMutation.isPending || !composer.content.trim() || !canReply}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
-                      >
-                        {sendMessageMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                        Registrar mensagem
-                      </button>
-                    </div>
-                    {!canReply ? (
-                      <div className="text-sm text-amber-600 dark:text-amber-300">
-                        Seu usuario pode visualizar o inbox, mas nao tem permissao para responder.
-                      </div>
-                    ) : null}
-                    {composerFeedback ? (
-                      <div
-                        className={`text-sm ${
-                          composerFeedback.kind === 'success'
-                            ? 'text-emerald-600 dark:text-emerald-300'
-                            : composerFeedback.kind === 'warning'
-                              ? 'text-amber-600 dark:text-amber-300'
-                              : 'text-rose-600 dark:text-rose-300'
-                        }`}
-                      >
-                        {composerFeedback.text}
-                      </div>
-                    ) : null}
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Mensagem</label>
+                    <textarea
+                      className={`${FIELD_CLASS} min-h-12 resize-y rounded-2xl px-4 py-3`}
+                      value={composer.content}
+                      onChange={event => setComposer(current => ({ ...current, content: event.target.value }))}
+                      placeholder={
+                        composer.direction === 'internal'
+                          ? 'Contexto interno, handoff, observacao operacional...'
+                          : 'Digite uma mensagem...'
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={sendMessageMutation.isPending || !composer.content.trim() || !canReply}
+                      className="inline-flex h-12 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                    >
+                      {sendMessageMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      Enviar
+                    </button>
                   </div>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className="max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                    Quando um atendente responde, a conversa entra em atendimento humano e a IA fica bloqueada ate ser marcada como resolvida.
+                  </div>
+                  {!canReply ? (
+                    <div className="text-sm text-amber-600 dark:text-amber-300">
+                      Seu usuario pode visualizar o inbox, mas nao tem permissao para responder.
+                    </div>
+                  ) : null}
+                </div>
+                {composerFeedback ? (
+                  <div
+                    className={`mt-2 text-sm ${
+                      composerFeedback.kind === 'success'
+                        ? 'text-emerald-600 dark:text-emerald-300'
+                        : composerFeedback.kind === 'warning'
+                          ? 'text-amber-600 dark:text-amber-300'
+                          : 'text-rose-600 dark:text-rose-300'
+                    }`}
+                  >
+                    {composerFeedback.text}
+                  </div>
+                ) : null}
               </form>
             </div>
           )}
