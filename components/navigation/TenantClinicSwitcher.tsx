@@ -119,6 +119,25 @@ export function TenantClinicSwitcher({
     }
   };
 
+  const handleGoToAgencyPanel = async () => {
+    setSwitchingTenantId('platform');
+    try {
+      await fetch('/api/platform/tenant/current', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ tenantId: null }),
+      });
+    } finally {
+      setIsOpen(false);
+      setSwitchingTenantId(null);
+      router.push('/platform');
+    }
+  };
+
   return (
     <div className={`relative ${className || ''}`}>
       <button
@@ -152,6 +171,21 @@ export function TenantClinicSwitcher({
               Trocar clinica
             </div>
             <div className="max-h-80 overflow-y-auto py-1">
+              <button
+                type="button"
+                onClick={() => void handleGoToAgencyPanel()}
+                disabled={switchingTenantId === 'platform'}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5 disabled:cursor-wait disabled:opacity-70"
+              >
+                <div className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">Painel da agencia</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {switchingTenantId === 'platform' ? 'Abrindo...' : 'Voltar para modo plataforma'}
+                  </div>
+                </div>
+              </button>
+              <div className="my-1 border-t border-slate-200 dark:border-white/10" />
               {isLoading ? (
                 <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
                   Carregando clinicas...

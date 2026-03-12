@@ -24,7 +24,7 @@
  * ```
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -45,12 +45,15 @@ import {
   PanelLeftOpen,
   Building2,
   PlusSquare,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Camera,
+  X
 } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTenant } from '@/context/TenantContext';
+import { supabase } from '@/lib/supabase';
 import { prefetchRoute, RouteName } from '@/lib/prefetch';
 import { isDebugMode, enableDebugMode, disableDebugMode } from '@/lib/debug';
 import { SkipLink } from '@/lib/a11y';
@@ -158,6 +161,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isDesktop = mode === 'desktop';
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isUploadingAgencyLogo, setIsUploadingAgencyLogo] = useState(false);
+  const [agencyLogoUploadMessage, setAgencyLogoUploadMessage] = useState<string | null>(null);
+  const [isAgencyBrandingModalOpen, setIsAgencyBrandingModalOpen] = useState(false);
+  const [agencyBrandingLoading, setAgencyBrandingLoading] = useState(false);
+  const [agencyBrandingSaving, setAgencyBrandingSaving] = useState(false);
+  const [agencyBrandingMessage, setAgencyBrandingMessage] = useState<string | null>(null);
+  const [agencyDisplayName, setAgencyDisplayName] = useState('');
+  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   // Hydration safety: `isDebugMode()` reads localStorage. On SSR it is always false.
   // Initialize deterministically and sync on mount to avoid hydration mismatch warnings.
   const [debugEnabled, setDebugEnabled] = useState(false);
@@ -231,6 +243,47 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
+  const handleAgencyLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !profile?.organization_id || !isAdmin || !supabase) return;
+
+    setAgencyLogoUploadMessage(null);
+    const isPngMime = file.type === 'image/png' || file.type === 'image/x-png';
+    const isPngExt = file.name.toLowerCase().endsWith('.png');
+    if (!isPngMime && !isPngExt) {
+      setAgencyLogoUploadMessage('Envie um arquivo PNG.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAgencyLogoUploadMessage('O arquivo deve ter no máximo 2MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setIsUploadingAgencyLogo(true);
+    try {
+      const filePath = `agency-branding/${profile.organization_id}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true, contentType: 'image/png' });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const nextLogoUrl = `${data.publicUrl}?t=${Date.now()}`;
+      setAgencyLogoUrl(nextLogoUrl);
+      setAgencyLogoUploadMessage('Logo pronta para salvar.');
+    } catch (error) {
+      console.error('agency logo upload error', error);
+      setAgencyLogoUploadMessage('Falha ao enviar logo. Tente novamente.');
+    } finally {
+      setIsUploadingAgencyLogo(false);
+      event.target.value = '';
+    }
+  };
+
   // Gera iniciais do email
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
   const getScopedHref = useTenantScopedHrefBuilder();
@@ -246,7 +299,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const hasActiveClinic = Boolean(tenant?.organizationId);
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
-    ? 'BaseCRM Agencia'
+    ? (agencyDisplayName.trim() || 'BaseCRM Agencia')
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
@@ -264,6 +317,72 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
       ]
     : [];
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let active = true;
+    setAgencyBrandingLoading(true);
+
+    const loadAgencyBranding = async () => {
+      try {
+        const response = await fetch('/api/platform/agency/branding', {
+          method: 'GET',
+          credentials: 'include',
+          headers: { accept: 'application/json' },
+        });
+        const payload = (await response.json().catch(() => null)) as { branding?: Record<string, unknown>; error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar dados da agencia.');
+        if (!active) return;
+        const branding = payload?.branding || {};
+        const currentDisplayName = typeof branding.displayName === 'string' ? branding.displayName : '';
+        const currentLogo = typeof branding.logoUrl === 'string' ? branding.logoUrl : null;
+        setAgencyDisplayName(currentDisplayName || 'BaseCRM Agencia');
+        setAgencyLogoUrl(currentLogo);
+      } catch (error) {
+        if (!active) return;
+        console.error('loadAgencyBranding error', error);
+        setAgencyDisplayName('BaseCRM Agencia');
+        setAgencyLogoUrl(null);
+      } finally {
+        if (active) setAgencyBrandingLoading(false);
+      }
+    };
+
+    void loadAgencyBranding();
+    return () => {
+      active = false;
+    };
+  }, [isAdmin]);
+
+  const handleSaveAgencyBranding = async () => {
+    if (!isAdmin) return;
+    setAgencyBrandingSaving(true);
+    setAgencyBrandingMessage(null);
+    try {
+      const payload = {
+        displayName: agencyDisplayName.trim() || 'BaseCRM Agencia',
+        logoUrl: agencyLogoUrl,
+      };
+      const response = await fetch('/api/platform/agency/branding', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || 'Falha ao salvar agencia.');
+      setAgencyBrandingMessage('Agencia atualizada com sucesso.');
+      setTimeout(() => setIsAgencyBrandingModalOpen(false), 500);
+    } catch (error) {
+      console.error('saveAgencyBranding error', error);
+      setAgencyBrandingMessage('Nao foi possivel salvar. Tente novamente.');
+    } finally {
+      setAgencyBrandingSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (loading || tenantLoading) return;
@@ -325,8 +444,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className={`h-16 flex items-center border-b border-[var(--color-border-subtle)] transition-all duration-300 px-5 ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
           <div className={`flex items-center transition-all duration-300 ${sidebarCollapsed ? 'gap-0 justify-center' : 'gap-3'}`}>
-            <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20 shrink-0" aria-hidden="true">
-              {brandName.slice(0, 1).toUpperCase()}
+            <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20 shrink-0 overflow-hidden" aria-hidden="true">
+              {isAdmin && agencyLogoUrl ? (
+                <Image
+                  src={agencyLogoUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 object-cover"
+                  unoptimized
+                />
+              ) : (
+                brandName.slice(0, 1).toUpperCase()
+              )}
             </div>
             <span className={`text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
               {brandName}
@@ -472,6 +602,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <div className="p-1">
                     {isAdmin ? (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgencyBrandingMessage(null);
+                            setAgencyLogoUploadMessage(null);
+                            setIsAgencyBrandingModalOpen(true);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          <Camera className="w-4 h-4 text-slate-400" />
+                          Editar agencia
+                        </button>
+                        <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
                         <Link
                           href="/platform"
                           onClick={() => setIsUserMenuOpen(false)}
@@ -487,6 +631,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         >
                           <PlusSquare className="w-4 h-4 text-slate-400" />
                           Nova Clinica
+                        </Link>
+                        <Link
+                          href="/settings/users"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          <Users className="w-4 h-4 text-slate-400" />
+                          Equipe da Agencia
                         </Link>
                         <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
                       </>
@@ -613,6 +765,93 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </aside>
       </div>
+
+      {isAdmin && isAgencyBrandingModalOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Editar agencia</h3>
+              <button
+                type="button"
+                onClick={() => setIsAgencyBrandingModalOpen(false)}
+                className="rounded-lg p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-700 dark:text-slate-300">Nome da agencia</span>
+                <input
+                  type="text"
+                  value={agencyDisplayName}
+                  onChange={(event) => setAgencyDisplayName(event.target.value)}
+                  placeholder="Nome da agencia"
+                  disabled={agencyBrandingLoading}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-primary-400 transition placeholder:text-slate-400 focus:ring-2 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </label>
+
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept=".png,image/png"
+                onChange={handleAgencyLogoUpload}
+                className="hidden"
+              />
+
+              <div>
+                <span className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Logo (PNG)</span>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-800">
+                    {agencyLogoUrl ? (
+                      <Image src={agencyLogoUrl} alt="" width={48} height={48} className="h-12 w-12 object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {brandName.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingAgencyLogo}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
+                  >
+                    {isUploadingAgencyLogo ? 'Enviando...' : 'Trocar logo'}
+                  </button>
+                </div>
+              </div>
+
+              {agencyLogoUploadMessage ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">{agencyLogoUploadMessage}</p>
+              ) : null}
+              {agencyBrandingMessage ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">{agencyBrandingMessage}</p>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAgencyBrandingModalOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveAgencyBranding()}
+                disabled={agencyBrandingSaving || isUploadingAgencyLogo}
+                className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {agencyBrandingSaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Mobile app shell */}
       <BottomNav onOpenMore={() => setIsMoreOpen(true)} />
