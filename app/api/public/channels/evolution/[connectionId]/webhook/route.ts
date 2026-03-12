@@ -6,6 +6,7 @@ import {
   getCanonicalConversationPhone,
 } from '@/lib/conversations/threadMetadata';
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
+import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -35,6 +36,7 @@ function buildThreadTitle(contactName: string | null, contactPhone: string) {
 
 export async function POST(req: Request, ctx: { params: Promise<{ connectionId: string }> }) {
   const { connectionId } = await ctx.params;
+  const requestOrigin = new URL(req.url).origin;
   const secret = getSecretFromRequest(req);
   if (!secret) return json({ error: 'Secret ausente' }, 401);
 
@@ -246,6 +248,75 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .eq('organization_id', connectionResult.data.organization_id);
 
   if (connectionUpdate.error) return json({ error: connectionUpdate.error.message }, 500);
+
+  const connectionConfig = (connectionResult.data.config as Record<string, unknown> | null) || {};
+  const automationWebhookUrl = String(connectionConfig.webhookUrl || '').trim();
+  const threadStatus =
+    threadResult.data?.status && parsed.direction === 'inbound'
+      ? getConversationStatusAfterInbound(threadResult.data.status)
+      : parsed.direction === 'inbound'
+        ? 'ai_active'
+        : threadResult.data?.status ?? 'resolved';
+
+  if (parsed.direction === 'inbound' && automationWebhookUrl && threadStatus === 'ai_active') {
+    const recentMessagesResult = await admin
+      .from('conversation_messages')
+      .select('id, direction, message_type, author_name, content, sent_at, metadata')
+      .eq('organization_id', connectionResult.data.organization_id)
+      .eq('thread_id', threadId)
+      .order('sent_at', { ascending: false })
+      .limit(12);
+
+    if (recentMessagesResult.error) {
+      console.warn('[Evolution webhook] Failed to load recent conversation messages for automation', {
+        connectionId,
+        threadId,
+        error: recentMessagesResult.error.message,
+      });
+    }
+
+    const automationPayload = {
+      source: 'basecrm.conversations.inbound',
+      organizationId: connectionResult.data.organization_id,
+      connectionId,
+      threadId,
+      messageId: insertedMessage.data.id,
+      status: threadStatus,
+      contact: {
+        id: contactId,
+        name: parsed.contactName || contactResult.data?.name || null,
+        phone: canonicalPhone,
+      },
+      message: {
+        direction: parsed.direction,
+        type: parsed.messageType,
+        content,
+        providerMessageId: parsed.providerMessageId,
+        sentAt: parsed.sentAt,
+      },
+      recentMessages: (recentMessagesResult.data || []).slice().reverse(),
+      connection: {
+        provider: connectionResult.data.provider,
+        channelType: connectionResult.data.channel_type,
+        name: connectionResult.data.name,
+      },
+      aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
+    };
+
+    try {
+      await notifyConversationAutomation({
+        webhookUrl: automationWebhookUrl,
+        secret: expectedSecret,
+        payload: automationPayload,
+      });
+    } catch (automationError) {
+      console.warn('[Evolution webhook] Failed to notify automation webhook', {
+        connectionId,
+        threadId,
+        error: automationError instanceof Error ? automationError.message : String(automationError),
+      });
+    }
+  }
 
   return json({
     ok: true,

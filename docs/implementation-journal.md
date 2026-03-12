@@ -600,3 +600,85 @@ Pendencias:
 
 - validar manualmente o fluxo com pelo menos duas clinicas reais no browser
 - decidir se `WhatsApp` e `Conversations` devem continuar como itens secundarios ou subir para grupo principal do menu
+
+## 2026-03-11 - Playbook de engenharia do BaseCRM
+
+Objetivo:
+
+- consolidar uma referencia pratica de arquitetura, validacao e correcao para reduzir regressao e mistura entre clinicas
+
+Entregas:
+
+- playbook interno de construcao, investigacao de bugs, Definition of Done e checklist de release
+- consolidacao das regras de multi-tenant, cache, permissao, UX e hotfix operacional
+
+Arquivos principais:
+
+- `docs/basecrm-engineering-playbook.md`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- revisao manual do documento
+- alinhamento com `multi-tenant-hardening-plan` e `multi-tenant-hardening-audit`
+
+Pendencias:
+
+- transformar o playbook em rotina operacional da equipe
+- criar ADR template e checklist de release separado se a equipe passar a usar isso com frequencia
+
+## 2026-03-11 - MVP imediato de IA no WhatsApp com n8n
+
+Objetivo:
+
+- colocar uma empresa operando com IA no WhatsApp no menor prazo possivel
+- preservar o funil comercial que ja vai entrar em andamento
+- evitar acoplamento ruim entre atendimento, canal e pipeline
+
+Decisoes:
+
+- o CRM continua como fonte de verdade da conversa
+- a Evolution continua como canal de entrada e saida
+- o n8n entra como cerebro/orquestrador da IA
+- o fluxo oficial passa a ser `Evolution -> CRM -> n8n -> CRM -> Evolution`
+- a IA atua inicialmente em `Conversas`, resumo e handoff
+- a IA nao movimenta automaticamente o funil nesta fase
+
+Entregas:
+
+- helper de automacao externa por conversa no CRM
+- endpoint publico `ai-reply` para retorno do n8n
+- webhook inbound da Evolution ajustado para disparar automacao quando a thread estiver em `ai_active`
+- workflow `agente CRM` gerado a partir do fluxo da clinica, removendo dependencias frageis de Redis e envio direto para Evolution
+
+Arquivos principais:
+
+- `lib/conversations/n8nAutomation.ts`
+- `app/api/public/channels/evolution/[connectionId]/webhook/route.ts`
+- `app/api/public/channels/evolution/[connectionId]/ai-reply/route.ts`
+- `scripts/build-n8n-agente-crm.mjs`
+- `tmp/n8n/agente-crm.workflow.json`
+- `docs/n8n-agente-crm-mvp.md`
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+- revisao funcional do fluxo CRM -> n8n -> CRM
+
+Guardrails:
+
+- nao mexer automaticamente em etapas do funil
+- nao ligar follow-up automatico agora
+- nao acoplar o atendimento ao pipeline ativo da clinica
+- qualquer automacao futura de funil deve ser adicionada por configuracao explicita
+
+Pendencias:
+
+- ativar workflow do n8n no ambiente real
+- configurar `webhookUrl` e `webhookSecret` na conexao da empresa
+- validar ponta a ponta com uma conversa real no WhatsApp
