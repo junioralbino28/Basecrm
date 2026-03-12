@@ -65,7 +65,7 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-10 md:left-[var(--app-sidebar-width,0px)]"
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute top-full left-0 mt-2 z-50 w-72 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden">
