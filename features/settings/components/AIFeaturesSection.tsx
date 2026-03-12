@@ -1,67 +1,91 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { Copy, Loader2, Pencil, RotateCcw, SlidersHorizontal, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
-import { Copy, Loader2, Pencil, RotateCcw, SlidersHorizontal, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
-import { Modal } from '@/components/ui/Modal';
-import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
 import { canManageClinicSettings } from '@/lib/auth/scope';
+import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
 
 type FeatureItem = {
   key: string;
   title: string;
   description: string;
-  /** Prompt key (catalog/override) to edit inside this function */
   promptKey?: string;
 };
 
 const FEATURES: FeatureItem[] = [
-  { key: 'ai_chat_agent', title: 'Chat do agente (Pilot)', description: 'Chat principal com ferramentas do CRM.', promptKey: 'agent_crm_base_instructions' },
-  { key: 'ai_sales_script', title: 'Script de vendas', description: 'Geração de script (Inbox / ações).', promptKey: 'task_inbox_sales_script' },
-  { key: 'ai_daily_briefing', title: 'Briefing diário', description: 'Resumo diário de prioridades.', promptKey: 'task_inbox_daily_briefing' },
-  { key: 'ai_deal_analyze', title: 'Análise de deal (coach)', description: 'Sugere próxima ação e urgência.', promptKey: 'task_deals_analyze' },
-  { key: 'ai_email_draft', title: 'Rascunho de e-mail', description: 'Gera email profissional para o deal.', promptKey: 'task_deals_email_draft' },
-  { key: 'ai_objection_responses', title: 'Objeções (3 respostas)', description: 'Gera alternativas para contornar objeções.', promptKey: 'task_deals_objection_responses' },
-  { key: 'ai_board_generate_structure', title: 'Boards: gerar estrutura', description: 'Cria estágios e automações sugeridas.', promptKey: 'task_boards_generate_structure' },
-  { key: 'ai_board_generate_strategy', title: 'Boards: gerar estratégia', description: 'Define meta/KPI/persona do board.', promptKey: 'task_boards_generate_strategy' },
-  { key: 'ai_board_refine', title: 'Boards: refinar com IA', description: 'Refina o board via chat/instruções.', promptKey: 'task_boards_refine' },
+  {
+    key: 'ai_chat_agent',
+    title: 'Chat do agente (Pilot)',
+    description: 'Chat principal com ferramentas do CRM.',
+    promptKey: 'agent_crm_base_instructions',
+  },
+  {
+    key: 'ai_sales_script',
+    title: 'Script de vendas',
+    description: 'Geração de script (Inbox / ações).',
+    promptKey: 'task_inbox_sales_script',
+  },
+  {
+    key: 'ai_daily_briefing',
+    title: 'Briefing diário',
+    description: 'Resumo diário de prioridades.',
+    promptKey: 'task_inbox_daily_briefing',
+  },
+  {
+    key: 'ai_deal_analyze',
+    title: 'Análise de deal (coach)',
+    description: 'Sugere próxima ação e urgência.',
+    promptKey: 'task_deals_analyze',
+  },
+  {
+    key: 'ai_email_draft',
+    title: 'Rascunho de e-mail',
+    description: 'Gera email profissional para o deal.',
+    promptKey: 'task_deals_email_draft',
+  },
+  {
+    key: 'ai_objection_responses',
+    title: 'Objeções (3 respostas)',
+    description: 'Gera alternativas para contornar objeções.',
+    promptKey: 'task_deals_objection_responses',
+  },
+  {
+    key: 'ai_conversation_auto_reply',
+    title: 'Atendimento WhatsApp',
+    description: 'Resposta automática da Julia nas conversas inbound do WhatsApp.',
+    promptKey: 'task_conversations_whatsapp_auto_reply',
+  },
+  {
+    key: 'ai_board_generate_structure',
+    title: 'Boards: gerar estrutura',
+    description: 'Cria estágios e automações sugeridas.',
+    promptKey: 'task_boards_generate_structure',
+  },
+  {
+    key: 'ai_board_generate_strategy',
+    title: 'Boards: gerar estratégia',
+    description: 'Define meta/KPI/persona do board.',
+    promptKey: 'task_boards_generate_strategy',
+  },
+  {
+    key: 'ai_board_refine',
+    title: 'Boards: refinar com IA',
+    description: 'Refina o board via chat/instruções.',
+    promptKey: 'task_boards_refine',
+  },
 ];
 
-/**
- * Componente React `AIFeaturesSection`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export const AIFeaturesSection: React.FC = () => {
   const { profile } = useAuth();
   const isAdmin = canManageClinicSettings(profile?.role);
   const { aiFeatureFlags, setAIFeatureFlag } = useCRM();
   const { showToast } = useToast();
+
   const [savingKey, setSavingKey] = useState<string | null>(null);
-
-  const items = useMemo(() => FEATURES, []);
-  const catalogMap = useMemo(() => getPromptCatalogMap(), []);
-
-  const getEnabled = (key: string) => {
-    const v = aiFeatureFlags?.[key];
-    return v !== false; // default: enabled
-  };
-
-  const toggle = async (key: string, enabled: boolean) => {
-    if (!isAdmin) return;
-    setSavingKey(key);
-    try {
-      await setAIFeatureFlag(key, enabled);
-      showToast(enabled ? 'Função ativada' : 'Função desativada', 'success');
-    } catch (e: any) {
-      showToast(e?.message || 'Falha ao salvar', 'error');
-    } finally {
-      setSavingKey(null);
-    }
-  };
-
-  // Prompt editor state (inside functions)
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState<FeatureItem | null>(null);
   const [promptDraft, setPromptDraft] = useState('');
@@ -69,27 +93,52 @@ export const AIFeaturesSection: React.FC = () => {
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptResetting, setPromptResetting] = useState(false);
 
-  const openPromptEditor = async (feature: FeatureItem) => {
+  const items = useMemo(() => FEATURES, []);
+  const catalogMap = useMemo(() => getPromptCatalogMap(), []);
+
+  const getEnabled = (key: string) => {
+    const value = aiFeatureFlags?.[key];
+    return value !== false;
+  };
+
+  const toggle = async (key: string, enabled: boolean) => {
     if (!isAdmin) return;
-    if (!feature.promptKey) return;
+
+    setSavingKey(key);
+    try {
+      await setAIFeatureFlag(key, enabled);
+      showToast(enabled ? 'Função ativada' : 'Função desativada', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Falha ao salvar', 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const openPromptEditor = async (feature: FeatureItem) => {
+    if (!isAdmin || !feature.promptKey) return;
+
     setEditingFeature(feature);
     setPromptEditorOpen(true);
     setPromptLoading(true);
+
     try {
-      const res = await fetch(`/api/settings/ai-prompts/${encodeURIComponent(feature.promptKey)}`, {
+      const response = await fetch(`/api/settings/ai-prompts/${encodeURIComponent(feature.promptKey)}`, {
         method: 'GET',
         headers: { accept: 'application/json' },
         credentials: 'include',
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao carregar prompt (HTTP ${res.status})`);
-      // API returns { key, active, versions }. If no override is active, we should fall back to the catalog default.
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || `Falha ao carregar prompt (HTTP ${response.status})`);
+      }
+
       const activeContent = (data?.active?.content as string | undefined) || '';
       const fallbackDefault = catalogMap?.[feature.promptKey]?.defaultTemplate || '';
-      const next = activeContent.trim().length > 0 ? activeContent : fallbackDefault;
-      setPromptDraft(next || '');
-    } catch (e: any) {
-      showToast(e?.message || 'Falha ao carregar prompt', 'error');
+      const nextPrompt = activeContent.trim().length > 0 ? activeContent : fallbackDefault;
+      setPromptDraft(nextPrompt || '');
+    } catch (error: any) {
+      showToast(error?.message || 'Falha ao carregar prompt', 'error');
       setPromptDraft('');
     } finally {
       setPromptLoading(false);
@@ -98,6 +147,7 @@ export const AIFeaturesSection: React.FC = () => {
 
   const closePromptEditor = () => {
     if (promptSaving) return;
+
     setPromptEditorOpen(false);
     setEditingFeature(null);
     setPromptDraft('');
@@ -114,20 +164,24 @@ export const AIFeaturesSection: React.FC = () => {
 
   const savePromptOverride = async () => {
     if (!editingFeature?.promptKey) return;
+
     setPromptSaving(true);
     try {
-      const res = await fetch('/api/settings/ai-prompts', {
+      const response = await fetch('/api/settings/ai-prompts', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ key: editingFeature.promptKey, content: promptDraft }),
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao salvar prompt (HTTP ${res.status})`);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || `Falha ao salvar prompt (HTTP ${response.status})`);
+      }
+
       showToast('Prompt salvo!', 'success');
       closePromptEditor();
-    } catch (e: any) {
-      showToast(e?.message || 'Falha ao salvar prompt', 'error');
+    } catch (error: any) {
+      showToast(error?.message || 'Falha ao salvar prompt', 'error');
     } finally {
       setPromptSaving(false);
     }
@@ -135,19 +189,23 @@ export const AIFeaturesSection: React.FC = () => {
 
   const resetPromptOverride = async () => {
     if (!editingFeature?.promptKey) return;
+
     setPromptResetting(true);
     try {
-      const res = await fetch(`/api/settings/ai-prompts/${encodeURIComponent(editingFeature.promptKey)}`, {
+      const response = await fetch(`/api/settings/ai-prompts/${encodeURIComponent(editingFeature.promptKey)}`, {
         method: 'DELETE',
         headers: { accept: 'application/json' },
         credentials: 'include',
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao resetar prompt (HTTP ${res.status})`);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || `Falha ao resetar prompt (HTTP ${response.status})`);
+      }
+
       showToast('Prompt resetado (voltou ao padrão)', 'success');
       closePromptEditor();
-    } catch (e: any) {
-      showToast(e?.message || 'Falha ao resetar prompt', 'error');
+    } catch (error: any) {
+      showToast(error?.message || 'Falha ao resetar prompt', 'error');
     } finally {
       setPromptResetting(false);
     }
@@ -155,48 +213,53 @@ export const AIFeaturesSection: React.FC = () => {
 
   return (
     <div id="ai-features" className="mb-12 scroll-mt-8">
-      <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+            <h3 className="mb-1 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
               <SlidersHorizontal className="h-5 w-5" /> Funções de IA
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Toggle + prompt no mesmo lugar (mais simples de entender e de gravar).
+              Toggle + prompt no mesmo lugar para facilitar ajustes rápidos por clínica.
             </p>
           </div>
         </div>
 
         {!isAdmin && (
-          <div className="mt-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
             Apenas administradores podem configurar as funções de IA.
           </div>
         )}
 
-        <div className="mt-6 border-t border-slate-200 dark:border-white/10 pt-4">
+        <div className="mt-6 border-t border-slate-200 pt-4 dark:border-white/10">
           <div className="space-y-2">
-            {items.map((f) => {
-              const enabled = getEnabled(f.key);
-              const saving = savingKey === f.key;
+            {items.map((feature) => {
+              const enabled = getEnabled(feature.key);
+              const saving = savingKey === feature.key;
+
               return (
                 <div
-                  key={f.key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/3 px-4 py-3"
+                  key={feature.key}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/3"
                 >
                   <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 dark:text-white truncate">{f.title}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{f.description}</div>
+                    <div className="truncate font-semibold text-slate-900 dark:text-white">
+                      {feature.title}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                      {feature.description}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : null}
 
-                    {f.promptKey ? (
+                    {feature.promptKey ? (
                       <button
                         type="button"
-                        onClick={() => openPromptEditor(f)}
+                        onClick={() => openPromptEditor(feature)}
                         disabled={!isAdmin || saving}
-                        className="px-2 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                         title="Editar prompt"
                         aria-label="Editar prompt"
                       >
@@ -206,10 +269,10 @@ export const AIFeaturesSection: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => toggle(f.key, !enabled)}
-                      className="px-2 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => toggle(feature.key, !enabled)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                       title={enabled ? 'Desativar' : 'Ativar'}
-                      aria-label={enabled ? `Desativar ${f.title}` : `Ativar ${f.title}`}
+                      aria-label={enabled ? `Desativar ${feature.title}` : `Ativar ${feature.title}`}
                       disabled={!isAdmin || saving}
                     >
                       {enabled ? (
@@ -236,11 +299,11 @@ export const AIFeaturesSection: React.FC = () => {
         {editingFeature?.promptKey ? (
           <>
             <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <div className="font-mono truncate">key: {editingFeature.promptKey}</div>
+              <div className="truncate font-mono">key: {editingFeature.promptKey}</div>
               <button
                 type="button"
                 onClick={() => copyToClipboard(editingFeature.promptKey!)}
-                className="h-8 w-8 rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 inline-flex items-center justify-center"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
                 title="Copiar key"
                 aria-label="Copiar key"
               >
@@ -249,7 +312,7 @@ export const AIFeaturesSection: React.FC = () => {
             </div>
 
             {promptLoading ? (
-              <div className="min-h-[280px] flex items-center justify-center text-slate-500 dark:text-slate-400">
+              <div className="flex min-h-[280px] items-center justify-center text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Carregando prompt...
@@ -258,9 +321,9 @@ export const AIFeaturesSection: React.FC = () => {
             ) : (
               <textarea
                 value={promptDraft}
-                onChange={(e) => setPromptDraft(e.target.value)}
-                placeholder="Cole/edite o prompt aqui…"
-                className="w-full min-h-[280px] resize-y bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-sm text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"
+                onChange={(event) => setPromptDraft(event.target.value)}
+                placeholder="Cole ou edite o prompt aqui..."
+                className="min-h-[280px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white"
               />
             )}
 
@@ -269,10 +332,10 @@ export const AIFeaturesSection: React.FC = () => {
                 type="button"
                 onClick={resetPromptOverride}
                 disabled={!isAdmin || promptResetting || promptSaving}
-                className={`px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 border ${
+                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
                   !isAdmin || promptResetting || promptSaving
-                    ? 'border-slate-200 dark:border-white/10 text-slate-400 cursor-not-allowed'
-                    : 'border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5'
+                    ? 'cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10'
+                    : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5'
                 }`}
               >
                 {promptResetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
@@ -284,7 +347,7 @@ export const AIFeaturesSection: React.FC = () => {
                   type="button"
                   onClick={closePromptEditor}
                   disabled={promptSaving}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-60"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:text-slate-200 dark:hover:bg-white/5"
                 >
                   Fechar
                 </button>
@@ -292,9 +355,9 @@ export const AIFeaturesSection: React.FC = () => {
                   type="button"
                   onClick={savePromptOverride}
                   disabled={!isAdmin || promptSaving || promptLoading || !promptDraft.trim()}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium text-white inline-flex items-center gap-2 ${
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white ${
                     !isAdmin || promptSaving || promptLoading || !promptDraft.trim()
-                      ? 'bg-slate-300 dark:bg-white/10 cursor-not-allowed'
+                      ? 'cursor-not-allowed bg-slate-300 dark:bg-white/10'
                       : 'bg-primary-600 hover:bg-primary-700'
                   }`}
                 >
@@ -309,4 +372,3 @@ export const AIFeaturesSection: React.FC = () => {
     </div>
   );
 };
-

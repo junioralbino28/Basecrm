@@ -925,3 +925,33 @@ Pendencias:
 - validar em producao se a Julia responde automaticamente ao primeiro inbound
 - ajustar o prompt por clinica caso a resposta fique generica demais
 - retomar os detalhes visuais finos da caixa de dialogo depois que a automacao estiver estavel
+
+## 2026-03-12 - Prompt da Julia exposto na Central de I.A.
+
+Objetivo:
+
+- permitir ajuste do prompt de atendimento WhatsApp diretamente pela interface
+- reduzir dependencia de deploy para refinamentos operacionais da Julia
+
+Entregas:
+
+- inclusao da funcao `Atendimento WhatsApp` na lista de `Funcoes de IA`
+- a entrada reutiliza a feature flag `ai_conversation_auto_reply`
+- a edicao continua apontando para a chave de prompt `task_conversations_whatsapp_auto_reply`
+
+Arquivos principais:
+
+- `features/settings/components/AIFeaturesSection.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- pendente de validacao visual no ambiente publicado
+
+Observacoes:
+
+- a mudanca nao altera a logica-base da Julia
+- apenas deixa o mesmo prompt editavel pela Central de I.A., no mesmo padrao das demais funcoes
