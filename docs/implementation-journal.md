@@ -1085,3 +1085,36 @@ Observacoes:
 
 - esta implementacao e propositalmente simples e curta
 - no futuro isso deve migrar para scheduler/worker dedicado, para nao depender de execucao longa em background
+
+## 2026-03-12 - Conversas com shell fixo e foco nas mensagens atuais
+
+Objetivo:
+
+- transformar a tela de Conversas em um inbox mais operacional, sem efeito de card flutuando
+- manter as acoes da thread sempre visiveis enquanto apenas a lista de mensagens rola
+- abrir a conversa ja ancorada nas mensagens mais recentes
+
+Entregas:
+
+- remocao do container central limitado por largura maxima
+- shell da pagina ajustado para ocupar toda a largura util da area de trabalho
+- coluna da thread com header fixo, composer fixo e somente o miolo de mensagens com rolagem
+- botao `Conectar WhatsApp` movido para o header operacional da conversa
+- auto-scroll para a ultima mensagem ao trocar de thread ou receber novas mensagens
+
+Arquivos principais:
+
+- `features/platform/tenants/TenantConversationsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- pendente de `typecheck`, `lint` e `build`
+
+Observacoes:
+
+- esta etapa prioriza estrutura e usabilidade do inbox
+- refinamentos visuais adicionais da caixa de dialogo continuam em aberto
