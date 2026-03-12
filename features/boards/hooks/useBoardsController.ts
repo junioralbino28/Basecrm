@@ -87,6 +87,8 @@ export const useBoardsController = () => {
     isFetched: boardsFetched,
     isFetching: boardsFetching,
     dataUpdatedAt: boardsUpdatedAt,
+    isError: boardsIsError,
+    error: boardsError,
   } = useBoards();
   const { data: defaultBoard } = useDefaultBoard();
   const createBoardMutation = useCreateBoard();
@@ -358,7 +360,15 @@ export const useBoardsController = () => {
   // boards fetch happened (dataUpdatedAt>0). This is more robust than relying solely on `isFetched`,
   // which can be true via cache/hydration even when the live fetch hasn't run yet.
   const hasEverLoadedBoards = boardsUpdatedAt > 0;
-  const isLoading = (boardsLoading || boardsFetching || !hasEverLoadedBoards) && boards.length === 0;
+  const hasCompletedInitialBoardsQuery = boardsFetched || boardsIsError || hasEverLoadedBoards;
+  const isLoading =
+    (boardsLoading || boardsFetching || !hasCompletedInitialBoardsQuery) && boards.length === 0;
+  const boardsErrorMessage =
+    boardsIsError
+      ? boardsError instanceof Error
+        ? boardsError.message
+        : 'Falha ao carregar os funis da empresa.'
+      : null;
 
   useEffect(() => {
     const handleClickOutside = () => setOpenActivityMenuId(null);
@@ -853,6 +863,7 @@ export const useBoardsController = () => {
     boards,
     boardsLoading, // Specific loading state for boards
     boardsFetched, // True after first successful fetch
+    boardsErrorMessage,
     activeBoard,
     activeBoardId, // Persisted selection (best for perf-first refresh)
     effectiveActiveBoardId, // Actually resolved board id (null until boards arrive)

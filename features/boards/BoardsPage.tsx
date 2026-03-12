@@ -42,6 +42,20 @@ export const BoardsPage: React.FC = () => {
         completeOnboarding();
     };
 
+    if (controller.boardsErrorMessage) {
+        return (
+            <div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center px-6">
+                <div className="w-full rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
+                    <h2 className="text-xl font-semibold text-white">Falha ao abrir Funis</h2>
+                    <p className="mt-2 text-sm text-rose-100/90">{controller.boardsErrorMessage}</p>
+                    <p className="mt-3 text-xs text-slate-300">
+                        O sistema saiu do carregamento infinito para permitir diagnostico e navegacao.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
             <PipelineView {...controller} />
