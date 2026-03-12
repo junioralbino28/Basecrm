@@ -315,10 +315,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const adminSidebarNav = isAdmin
     ? [
         { to: '/platform', icon: Building2, label: 'Plataforma', prefetch: 'dashboard' as const },
+        { to: '/platform/team', icon: Users, label: 'Equipe da Agencia', prefetch: 'dashboard' as const },
         { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
         { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
       ]
     : [];
+  const showClinicNav = !isAdmin || !isPlatformRoute;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -479,13 +481,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <nav className={`flex-1 p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
           {[
-            ...primarySidebarNav,
-            ...tenantWorkspaceNav.map((item) => ({
-              to: item.href,
-              icon: item.icon,
-              label: item.label,
-              prefetch: 'dashboard' as const,
-            })),
+            ...(showClinicNav ? primarySidebarNav : []),
+            ...(showClinicNav
+              ? tenantWorkspaceNav.map((item) => ({
+                  to: item.href,
+                  icon: item.icon,
+                  label: item.label,
+                  prefetch: 'dashboard' as const,
+                }))
+              : []),
             ...adminSidebarNav,
           ].map((item) => {
             if (sidebarCollapsed) {
@@ -635,7 +639,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           Nova Clinica
                         </Link>
                         <Link
-                          href="/settings/users"
+                          href="/platform/team"
                           onClick={() => setIsUserMenuOpen(false)}
                           className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
                         >
