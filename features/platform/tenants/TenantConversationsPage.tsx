@@ -17,12 +17,15 @@ import {
   Search,
   Send,
   SmilePlus,
+  Trash2,
   UserRound,
 } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 import { useAuth } from '@/context/AuthContext';
 import { queryKeys } from '@/lib/query';
 import { Modal } from '@/components/ui/Modal';
+import ConfirmModal from '@/components/ConfirmModal';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -275,6 +278,7 @@ export const TenantConversationsPage: React.FC = () => {
     kind: 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = React.useState(false);
   const [activeConnectionId, setActiveConnectionId] = React.useState<string | null>(null);
   const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
@@ -311,6 +315,7 @@ export const TenantConversationsPage: React.FC = () => {
     () => inboxQuery.data?.threads.find(thread => thread.id === selectedThreadId) || null,
     [inboxQuery.data?.threads, selectedThreadId]
   );
+  const canDeleteLead = canManageClinicSettings(profile?.role);
 
   React.useEffect(() => {
     if (!inboxQuery.data?.threads?.length) {
@@ -439,6 +444,46 @@ export const TenantConversationsPage: React.FC = () => {
       setComposerFeedback({
         kind: 'error',
         text: error instanceof Error ? error.message : 'Falha ao registrar mensagem.',
+      });
+    },
+  });
+
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (threadId: string) => {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${threadId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { accept: 'application/json' },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao apagar lead (HTTP ${res.status})`);
+      return data as {
+        ok: true;
+        deleted: {
+          threadId: string;
+          dealId: string | null;
+          contactId: string | null;
+        };
+      };
+    },
+    onSuccess: async data => {
+      queryClient.removeQueries({ queryKey: queryKeys.conversations.messages(data.deleted.threadId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.list({ tenantId }) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.deals.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all }),
+      ]);
+      setSelectedThreadId(current => (current === data.deleted.threadId ? null : current));
+      setComposerFeedback({
+        kind: 'success',
+        text: 'Lead de teste apagado com sucesso. Conversa, contato e oportunidade foram removidos.',
+      });
+      await reload();
+    },
+    onError: error => {
+      setComposerFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Falha ao apagar lead.',
       });
     },
   });
@@ -784,6 +829,20 @@ export const TenantConversationsPage: React.FC = () => {
                       <CheckCheck size={14} />
                       Marcar lida
                     </button>
+                    {canDeleteLead ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setComposerFeedback(null);
+                          setIsDeleteConfirmOpen(true);
+                        }}
+                        disabled={deleteLeadMutation.isPending}
+                        className="inline-flex items-center gap-2 rounded-full border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-300 transition hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleteLeadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Apagar lead
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 text-slate-200 transition hover:border-slate-500"
@@ -1182,6 +1241,21 @@ export const TenantConversationsPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          if (selectedThreadId) {
+            deleteLeadMutation.mutate(selectedThreadId);
+          }
+        }}
+        title="Apagar lead de teste"
+        message="Isso vai apagar a conversa, o lead e a oportunidade vinculada. Use essa acao apenas para limpeza de testes."
+        confirmText="Apagar definitivamente"
+        cancelText="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 };

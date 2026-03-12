@@ -988,3 +988,38 @@ Observacoes:
 
 - o tempo inicial ficou fixado em 7 segundos
 - depois podemos tornar esse debounce configuravel por clinica, se fizer sentido operacionalmente
+
+## 2026-03-12 - Apagar lead de teste direto em Conversas
+
+Objetivo:
+
+- permitir limpeza rapida dos testes de WhatsApp sem depender de operacao manual em varias telas
+- remover conversa, lead e oportunidade vinculada de uma vez so
+
+Entregas:
+
+- rota `DELETE` em `conversations/[threadId]`
+- validacao para permitir exclusao apenas para perfis administrativos da agencia ou da clinica
+- exclusao da thread com limpeza dos registros vinculados de contato e oportunidade
+- botao `Apagar lead` no header da conversa selecionada
+- confirmacao explicita antes de excluir
+- refresh da lista de conversas, contatos e funil apos a remocao
+
+Arquivos principais:
+
+- `app/api/platform/tenants/[tenantId]/conversations/[threadId]/route.ts`
+- `features/platform/tenants/TenantConversationsPage.tsx`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Observacoes:
+
+- a acao foi pensada para limpeza de testes e nao para rotina operacional do time

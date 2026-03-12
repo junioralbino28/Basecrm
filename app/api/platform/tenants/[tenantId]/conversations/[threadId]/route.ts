@@ -5,6 +5,7 @@ import { buildConversationThreadMetadataUpdate, getCanonicalConversationPhone } 
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { pickNextHumanAssignee } from '@/lib/conversations/routing';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
+import { canManageClinicSettings } from '@/lib/auth/scope';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -130,4 +131,77 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Falha ao carregar conversa atualizada.' }, 500);
   }
+}
+
+export async function DELETE(req: Request, ctx: { params: Promise<{ tenantId: string; threadId: string }> }) {
+  if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
+
+  const { tenantId, threadId } = await ctx.params;
+  const auth = await requireTenantAccess(tenantId, {
+    requiredPermissions: ['conversations.access'],
+  });
+  if ('error' in auth) return auth.error;
+
+  if (!canManageClinicSettings(auth.profile.role)) {
+    return json({ error: 'Forbidden' }, 403);
+  }
+
+  const admin = createStaticAdminClient();
+
+  const existingThread = await admin
+    .from('conversation_threads')
+    .select('id, contact_id, deal_id')
+    .eq('id', threadId)
+    .eq('organization_id', tenantId)
+    .maybeSingle();
+
+  if (existingThread.error) return json({ error: existingThread.error.message }, 500);
+  if (!existingThread.data) return json({ error: 'Thread not found' }, 404);
+
+  const { contact_id: contactId, deal_id: dealId } = existingThread.data;
+
+  if (dealId) {
+    const deleteDeal = await admin
+      .from('deals')
+      .delete()
+      .eq('id', dealId)
+      .eq('organization_id', tenantId);
+
+    if (deleteDeal.error) return json({ error: deleteDeal.error.message }, 500);
+  }
+
+  if (contactId) {
+    const deleteActivities = await admin
+      .from('activities')
+      .delete()
+      .eq('organization_id', tenantId)
+      .eq('contact_id', contactId);
+
+    if (deleteActivities.error) return json({ error: deleteActivities.error.message }, 500);
+
+    const deleteContact = await admin
+      .from('contacts')
+      .delete()
+      .eq('id', contactId)
+      .eq('organization_id', tenantId);
+
+    if (deleteContact.error) return json({ error: deleteContact.error.message }, 500);
+  }
+
+  const deleteThread = await admin
+    .from('conversation_threads')
+    .delete()
+    .eq('id', threadId)
+    .eq('organization_id', tenantId);
+
+  if (deleteThread.error) return json({ error: deleteThread.error.message }, 500);
+
+  return json({
+    ok: true,
+    deleted: {
+      threadId,
+      dealId: dealId ?? null,
+      contactId: contactId ?? null,
+    },
+  });
 }
