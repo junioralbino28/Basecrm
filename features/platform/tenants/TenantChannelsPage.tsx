@@ -254,6 +254,24 @@ export const TenantChannelsPage: React.FC = () => {
     setSaving(true);
     setMessage(null);
 
+    const payload = {
+      ...(isEditing ? {} : { provider: form.provider, channel_type: form.channel_type }),
+      name: form.name,
+      status: form.status,
+      config: {
+        apiUrl: normalizedApiUrl,
+        instanceName: form.instanceName,
+        webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
+        apiKey: form.apiKey,
+        sendMode: form.sendMode,
+      },
+      metadata: {
+        phoneNumber: form.phoneNumber,
+        apiKeyLast4: form.apiKeyLast4,
+        notes: form.notes,
+      },
+    };
+
     try {
       const res = await fetch(
         isEditing
@@ -266,24 +284,7 @@ export const TenantChannelsPage: React.FC = () => {
             'content-type': 'application/json',
             accept: 'application/json',
           },
-          body: JSON.stringify({
-            provider: form.provider,
-            channel_type: form.channel_type,
-            name: form.name,
-            status: form.status,
-            config: {
-              apiUrl: normalizedApiUrl,
-              instanceName: form.instanceName,
-              webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
-              apiKey: form.apiKey,
-              sendMode: form.sendMode,
-            },
-            metadata: {
-              phoneNumber: form.phoneNumber,
-              apiKeyLast4: form.apiKeyLast4,
-              notes: form.notes,
-            },
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
