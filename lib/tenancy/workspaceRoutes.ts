@@ -9,9 +9,17 @@ const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/pipeline',
 ]);
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_REGEX.test(value));
+}
+
 export function getTenantIdFromPathname(pathname: string): string | null {
   const match = pathname.match(/^\/platform\/tenants\/([^/]+)(?:\/|$)/);
-  return match?.[1] ?? null;
+  const candidate = match?.[1] ?? null;
+  return isUuid(candidate) ? candidate : null;
 }
 
 export function getTenantWorkspaceHref(href: string, tenantId?: string | null): string {
@@ -33,11 +41,13 @@ export function getTenantWorkspaceHref(href: string, tenantId?: string | null): 
 }
 
 export function isTenantWorkspacePath(pathname: string): boolean {
-  return /^\/platform\/tenants\/[^/]+(?:\/|$)/.test(pathname);
+  return getTenantIdFromPathname(pathname) !== null;
 }
 
 export function getTenantWorkspaceRelativeHref(pathname: string): string {
-  const match = pathname.match(/^\/platform\/tenants\/[^/]+(\/.*)?$/);
+  const tenantId = getTenantIdFromPathname(pathname);
+  if (!tenantId) return '/dashboard';
+  const match = pathname.match(/^\/platform\/tenants\/[0-9a-f-]+(\/.*)?$/i);
   const relativePath = match?.[1] || '/dashboard';
   return relativePath === '/pipeline' ? '/boards' : relativePath;
 }
