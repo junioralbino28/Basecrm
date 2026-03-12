@@ -10,11 +10,11 @@ export const PlatformPage: React.FC = () => {
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
               <Building2 size={14} />
-              Platform Admin
+              Painel da Agencia
             </div>
-            <h1 className="text-3xl font-semibold">Operacao de implantacao</h1>
+            <h1 className="text-3xl font-semibold">Central da Agencia</h1>
             <p className="max-w-2xl text-sm text-white/80">
-              Painel interno para criar clinicas, preparar novas contas e acompanhar a linha de implantacao.
+              Gerencie suas empresas, equipe interna e o processo de implantacao em um unico lugar.
             </p>
           </div>
 

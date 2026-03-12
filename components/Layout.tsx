@@ -692,21 +692,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAdmin ? (
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isPlatformRoute ? 'Modo Plataforma' : hasActiveClinic ? 'Area da empresa' : 'Selecione uma empresa'}
+                    {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area da empresa' : 'Selecione uma empresa'}
                   </div>
 
                   {!isPlatformRoute && hasActiveClinic ? (
-                    <>
-                      <TenantClinicSwitcher />
-                    </>
-                  ) : (
+                    <TenantClinicSwitcher />
+                  ) : !isPlatformRoute ? (
                     <Link
                       href="/platform/tenants/new"
                       className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 md:inline-flex dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                     >
                       Nova clinica
                     </Link>
-                  )}
+                  ) : null
+                  }
                 </div>
               ) : tenant ? (
                 <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
