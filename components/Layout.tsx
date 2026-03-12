@@ -166,8 +166,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [agencyBrandingLoading, setAgencyBrandingLoading] = useState(false);
   const [agencyBrandingSaving, setAgencyBrandingSaving] = useState(false);
   const [agencyBrandingMessage, setAgencyBrandingMessage] = useState<string | null>(null);
-  const [agencyDisplayName, setAgencyDisplayName] = useState('');
-  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
+  const [agencyDisplayName, setAgencyDisplayName] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem('basecrm_agency_display_name') || '';
+  });
+  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('basecrm_agency_logo_url') || null;
+  });
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   // Hydration safety: `isDebugMode()` reads localStorage. On SSR it is always false.
   // Initialize deterministically and sync on mount to avoid hydration mismatch warnings.
@@ -341,13 +347,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const branding = payload?.branding || {};
         const currentDisplayName = typeof branding.displayName === 'string' ? branding.displayName : '';
         const currentLogo = typeof branding.logoUrl === 'string' ? branding.logoUrl : null;
-        setAgencyDisplayName(currentDisplayName || 'BaseCRM Agencia');
+        const nextDisplayName = currentDisplayName || 'BaseCRM Agencia';
+        setAgencyDisplayName(nextDisplayName);
         setAgencyLogoUrl(currentLogo);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('basecrm_agency_display_name', nextDisplayName);
+          if (currentLogo) {
+            window.localStorage.setItem('basecrm_agency_logo_url', currentLogo);
+          } else {
+            window.localStorage.removeItem('basecrm_agency_logo_url');
+          }
+        }
       } catch (error) {
         if (!active) return;
         console.error('loadAgencyBranding error', error);
-        setAgencyDisplayName('BaseCRM Agencia');
-        setAgencyLogoUrl(null);
+        // Mantém o último valor conhecido para evitar "piscar" para nome antigo.
       } finally {
         if (active) setAgencyBrandingLoading(false);
       }
@@ -379,6 +393,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || 'Falha ao salvar agencia.');
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('basecrm_agency_display_name', payload.displayName);
+        if (payload.logoUrl) {
+          window.localStorage.setItem('basecrm_agency_logo_url', payload.logoUrl);
+        } else {
+          window.localStorage.removeItem('basecrm_agency_logo_url');
+        }
+      }
       setAgencyBrandingMessage('Agencia atualizada com sucesso.');
       setTimeout(() => setIsAgencyBrandingModalOpen(false), 500);
     } catch (error) {
