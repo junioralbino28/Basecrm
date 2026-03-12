@@ -53,7 +53,6 @@ import { useCRM } from '../context/CRMContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTenant } from '@/context/TenantContext';
-import { supabase } from '@/lib/supabase';
 import { prefetchRoute, RouteName } from '@/lib/prefetch';
 import { isDebugMode, enableDebugMode, disableDebugMode } from '@/lib/debug';
 import { SkipLink } from '@/lib/a11y';
@@ -245,7 +244,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const handleAgencyLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !profile?.organization_id || !isAdmin || !supabase) return;
+    if (!file || !profile?.organization_id || !isAdmin) return;
 
     setAgencyLogoUploadMessage(null);
     const isPngMime = file.type === 'image/png' || file.type === 'image/x-png';
@@ -264,20 +263,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     setIsUploadingAgencyLogo(true);
     try {
-      const filePath = `agency-branding/${profile.organization_id}.png`;
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true, contentType: 'image/png' });
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/platform/agency/logo', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => null)) as { logoUrl?: string; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || 'Falha ao enviar arquivo.');
 
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const nextLogoUrl = `${data.publicUrl}?t=${Date.now()}`;
+      const nextLogoUrl = payload?.logoUrl || null;
+      if (!nextLogoUrl) throw new Error('Logo nao retornada pelo servidor.');
       setAgencyLogoUrl(nextLogoUrl);
       setAgencyLogoUploadMessage('Logo pronta para salvar.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('agency logo upload error', error);
-      setAgencyLogoUploadMessage('Falha ao enviar logo. Tente novamente.');
+      setAgencyLogoUploadMessage(error?.message || 'Falha ao enviar logo. Tente novamente.');
     } finally {
       setIsUploadingAgencyLogo(false);
       event.target.value = '';
