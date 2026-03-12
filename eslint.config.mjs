@@ -17,6 +17,9 @@ const eslintConfig = defineConfig([
     // Repo-specific ignores (generated/auxiliary code)
     "testsprite_tests/**",
     "tmp/**",
+    "playwright-report/**",
+    "test-results/**",
+    "playwright/.auth/**",
     "**/*.bak",
 
     // Build/runtime artifacts

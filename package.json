@@ -16,6 +16,7 @@
     "test:run": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "test:e2e:auth": "playwright test test/e2e/auth.setup.ts",
     "smoke:integrations": "node scripts/smoke-integrations.mjs"
   },
   "dependencies": {

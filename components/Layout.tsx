@@ -106,6 +106,7 @@ const NavItem = ({
   onItemClick?: (path: string) => void;
 }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = pathname === to || (to === '/boards' && pathname === '/pipeline');
   const wasJustClicked = clickedPath === to;
 
@@ -119,7 +120,11 @@ const NavItem = ({
       href={to}
       onMouseEnter={prefetch ? () => prefetchRoute(prefetch) : undefined}
       onFocus={prefetch ? () => prefetchRoute(prefetch) : undefined}
-      onClick={() => onItemClick?.(to)}
+      onClick={(event) => {
+        event.preventDefault();
+        onItemClick?.(to);
+        router.push(to);
+      }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
     ${isActuallyActive
           ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
@@ -360,7 +365,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.to}
                   href={item.to}
                   onMouseEnter={() => prefetchRoute(item.prefetch)}
-                  onClick={() => setClickedPath(item.to)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setClickedPath(item.to);
+                    router.push(item.to);
+                  }}
                   className={(() => {
                     const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
                     const wasJustClicked = clickedPath === item.to;
