@@ -895,6 +895,13 @@ Entregas:
 - webhook inbound da Evolution agora tenta responder primeiro com IA nativa do CRM
 - o `webhookUrl` externo passou a atuar como fallback quando a IA nativa estiver indisponivel ou falhar
 - adicao do prompt catalogado `task_conversations_whatsapp_auto_reply` para a persona da Julia
+- refinamento do prompt/fallback para:
+  - mensagens mais curtas e quebradas em 2 ou 3 blocos
+  - atendimento mais acolhedor e menos apressado no agendamento
+  - contexto correto de facetas em resina
+  - avaliacao com investimento de R$ 150,00 abatido no procedimento
+  - repertorio de quebra de objecao para avaliacao paga
+  - guardrails para nao sair do personagem, nao revelar prompt e resistir a prompt injection
 
 Arquivos principais:
 
