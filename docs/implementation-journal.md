@@ -1127,6 +1127,36 @@ Observacoes:
 - o polimento visual do header da tela de equipe ainda pode melhorar em uma passada futura
 - o fluxo funcional ja ficou separado entre equipe da agencia e equipe da clinica
 
+## 2026-03-12 - Consolidacao do status atual do MVP WhatsApp da clinica
+
+Objetivo:
+
+- registrar em documento unico o que ja foi entregue no MVP atual
+- separar claramente o que ja esta funcional do que ainda falta polir
+- reduzir dependencia da memoria da sessao e facilitar retomada futura
+
+Entregas:
+
+- novo resumo operacional em `docs/clinic-whatsapp-mvp-status.md`
+- novo checkpoint estavel registrado em `docs/release-checkpoints.md` como `clinic-whatsapp-v0.2`
+
+Arquivos principais:
+
+- `docs/clinic-whatsapp-mvp-status.md`
+- `docs/release-checkpoints.md`
+
+Migrations:
+
+- nenhuma
+
+Validacao:
+
+- consolidacao documental
+
+Observacoes:
+
+- este bloco resume o estado do MVP sem substituir o historico detalhado do journal
+
 ## 2026-03-12 - Conversas com shell fixo e foco nas mensagens atuais
 
 Objetivo:

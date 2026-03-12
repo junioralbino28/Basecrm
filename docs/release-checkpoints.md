@@ -74,3 +74,33 @@ Observacoes:
 
 - este checkpoint ainda nao representa inbox completo
 - outbound real e vinculacao profunda com contato/deal ainda estao pendentes
+
+## 2026-03-12 - `clinic-whatsapp-v0.2`
+
+Escopo:
+
+- inbound real do WhatsApp ate o CRM
+- criacao automatica de lead/contato
+- criacao automatica de oportunidade no primeiro estagio do funil
+- `Conversas` funcional como inbox operacional por clinica
+- IA Julia respondendo nativamente pelo CRM
+- debounce de 7 segundos para agrupar mensagens curtas do lead
+- nudge curto de inatividade
+- exclusao de lead de teste direto em `Conversas`
+- convites separados entre equipe da agencia e equipe da clinica
+
+Estado validado:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+- validacao manual de conexao WhatsApp
+- validacao manual de inbound criando lead e oportunidade
+- validacao manual da Julia respondendo
+
+Observacoes:
+
+- este checkpoint ja representa um MVP funcional para operacao inicial da clinica
+- ainda faltam refinamentos visuais na tela `Conversas`
+- a agenda da clinica ainda nao esta integrada ao CRM
+- o follow-up de longo prazo ainda nao esta implementado
