@@ -246,7 +246,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const hasActiveClinic = Boolean(tenant?.organizationId);
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
-    ? ((isTenantWorkspaceRoute || isClinicWorkspaceActive) ? currentClinicName : 'BaseCRM Agencia')
+    ? 'BaseCRM Agencia'
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
