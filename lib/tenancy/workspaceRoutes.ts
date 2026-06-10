@@ -1,6 +1,7 @@
 const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/inbox',
   '/dashboard',
+  '/visao-geral',
   '/boards',
   '/contacts',
   '/activities',
@@ -8,6 +9,8 @@ const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/tarefas',
   '/atendimentos',
   '/reports',
+  '/reports/financeiro',
+  '/reports/profissionais',
   '/settings',
   '/pipeline',
 ]);

@@ -50,6 +50,8 @@ import {
   PlusSquare,
   ArrowRightLeft,
   Camera,
+  Wallet,
+  Stethoscope,
   X
 } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
@@ -64,7 +66,7 @@ import { BottomNav, MoreMenuSheet, NavigationRail } from '@/components/navigatio
 import { usePlatformTenantWorkspaceNav } from '@/components/navigation/usePlatformTenantWorkspaceNav';
 import { useTenantScopedHrefBuilder } from '@/components/navigation/useTenantScopedHref';
 import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
-import { getRoleLabel, isAgencyAdminRole } from '@/lib/auth/scope';
+import { getRoleLabel, isAgencyAdminRole, canManageClinicSettings } from '@/lib/auth/scope';
 import { isTenantWorkspacePath } from '@/lib/tenancy/workspaceRoutes';
 
 // Lazy load AI Assistant (deprecated - using UIChat now)
@@ -286,7 +288,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isAdmin = isAgencyAdminRole(profile?.role);
   const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
   const isPlatformRoute = pathname.startsWith('/platform') && !isTenantWorkspaceRoute;
-  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|call-list|tarefas|atendimentos|reports|settings)(\/|$)/.test(pathname);
+  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|visao-geral|boards|pipeline|contacts|activities|call-list|tarefas|atendimentos|reports|settings)(\/|$)/.test(pathname);
   const isPlatformAdminRoute =
     pathname === '/platform' ||
     pathname === '/platform/tenants' ||
@@ -300,13 +302,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
     { to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const },
-    { to: getScopedHref('/dashboard'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
+    // Visão Geral (N5) = o mês da clínica num olhar (mockup); /dashboard segue acessível por URL.
+    { to: getScopedHref('/visao-geral'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
     { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
     { to: getScopedHref('/activities'), icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
     { to: getScopedHref('/tarefas'), icon: ListChecks, label: 'Tarefas', prefetch: 'tarefas' as const },
     { to: getScopedHref('/atendimentos'), icon: ClipboardPlus, label: 'Atendimentos', prefetch: 'atendimentos' as const },
     { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
+    // Financeiro/Profissionais (F8): SÓ admin — espelha o gate das abas F5 e o
+    // grupo "Clínica · Adel" do mockup. O RPC re-valida no banco (defense-in-depth).
+    ...(canManageClinicSettings(profile?.role)
+      ? [
+          { to: getScopedHref('/reports/financeiro'), icon: Wallet, label: 'Financeiro', prefetch: 'reports' as const },
+          { to: getScopedHref('/reports/profissionais'), icon: Stethoscope, label: 'Profissionais', prefetch: 'reports' as const },
+        ]
+      : []),
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];
   const adminSidebarNav = isAdmin
