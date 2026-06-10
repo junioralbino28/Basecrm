@@ -98,3 +98,23 @@ export {
   useUpdateAtendimento,
   useDeleteAtendimento,
 } from './useAtendimentosQuery';
+
+// Configs financeiras (só admin — RLS can_configure)
+export {
+  usePaymentMethodFees,
+  useCreatePaymentMethodFee,
+  useUpdatePaymentMethodFee,
+  useDeletePaymentMethodFee,
+} from './usePaymentMethodFeesQuery';
+export {
+  useCommissionRules,
+  useCreateCommissionRule,
+  useUpdateCommissionRule,
+  useDeleteCommissionRule,
+} from './useCommissionRulesQuery';
+export {
+  useFixedCosts,
+  useCreateFixedCost,
+  useUpdateFixedCost,
+  useDeleteFixedCost,
+} from './useFixedCostsQuery';

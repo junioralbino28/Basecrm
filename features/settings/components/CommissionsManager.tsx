@@ -47,7 +47,6 @@ export const CommissionsManager: React.FC = () => {
       professionalName(a.professionalId).localeCompare(professionalName(b.professionalId))
     );
     return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rules, professionals]);
 
   const create = async () => {
