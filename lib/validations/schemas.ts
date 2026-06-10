@@ -231,6 +231,33 @@ export const professionalFormSchema = z.object({
 
 export type ProfessionalFormData = z.infer<typeof professionalFormSchema>;
 
+// ============ TASKS SCHEMAS (N2 — tarefas & lembretes) ============
+
+export const taskTypeSchema = z.enum(['call', 'reminder', 'message'], {
+  message: msg('SELECTION_INVALID'),
+});
+
+export const taskFormSchema = z.object({
+  /** Paciente opcional — tarefa geral da recepção quando vazio. */
+  contactId: z.string().max(100, 'Seleção inválida').optional().transform(val => val || ''),
+  type: taskTypeSchema,
+  /** Motivo (ex.: "Retorno do raio-X — marcar consulta de retorno"). */
+  title: requiredString('Motivo', MAX_LENGTHS.TITLE),
+  note: optionalLongString,
+  dueDate: requiredDate('Data'),
+  /** Hora opcional (HH:MM). */
+  dueTime: z
+    .string()
+    .max(10, 'Hora inválida')
+    .optional()
+    .transform(val => val || '')
+    .refine(val => val === '' || /^\d{2}:\d{2}$/.test(val), 'Hora inválida'),
+  /** Toggle "Julia avisa primeiro no WhatsApp" — v1 só persiste a intenção. */
+  juliaFirst: z.boolean().default(false),
+});
+
+export type TaskFormData = z.infer<typeof taskFormSchema>;
+
 // ============ LEAD SOURCES SCHEMAS (N1 — origens editáveis) ============
 
 export const leadSourceFormSchema = z.object({
