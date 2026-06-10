@@ -231,6 +231,15 @@ export const professionalFormSchema = z.object({
 
 export type ProfessionalFormData = z.infer<typeof professionalFormSchema>;
 
+// ============ LEAD SOURCES SCHEMAS (N1 — origens editáveis) ============
+
+export const leadSourceFormSchema = z.object({
+  name: requiredString('Nome da origem', MAX_LENGTHS.SHORT_TEXT),
+  active: z.boolean().default(true),
+});
+
+export type LeadSourceFormData = z.infer<typeof leadSourceFormSchema>;
+
 // ============ FINANCE CONFIG SCHEMAS (gate do Adel — só admin) ============
 
 /**
