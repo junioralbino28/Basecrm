@@ -107,6 +107,14 @@ export {
   useDeleteAtendimento,
 } from './useAtendimentosQuery';
 
+// Tarefas & lembretes (N2)
+export {
+  useTasks,
+  useCreateTask,
+  useUpdateTask,
+  useDeleteTask,
+} from './useTasksQuery';
+
 // Configs financeiras (só admin — RLS can_configure)
 export {
   usePaymentMethodFees,

@@ -44,6 +44,9 @@ export const queryKeys = {
 
     atendimentos: createQueryKeys('atendimentos'),
 
+    // Tarefas & lembretes (N2)
+    tasks: createQueryKeys('tasks'),
+
     // Configs financeiras (só admin — RLS can_configure)
     paymentMethodFees: createQueryKeys('paymentMethodFees'),
     commissionRules: createQueryKeys('commissionRules'),

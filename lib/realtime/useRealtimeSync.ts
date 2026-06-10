@@ -57,6 +57,7 @@ type RealtimeTable =
   | 'crm_companies'
   | 'professionals'
   | 'lead_sources'
+  | 'tasks'
   | 'payment_method_fees'
   | 'commission_rules'
   | 'fixed_costs';
@@ -73,6 +74,7 @@ const getTableQueryKeys = (table: RealtimeTable): readonly (readonly unknown[])[
     crm_companies: [queryKeys.companies.all],
     professionals: [queryKeys.professionals.all],
     lead_sources: [queryKeys.leadSources.all],
+    tasks: [queryKeys.tasks.all],
     payment_method_fees: [queryKeys.paymentMethodFees.all],
     commission_rules: [queryKeys.commissionRules.all],
     fixed_costs: [queryKeys.fixedCosts.all],
