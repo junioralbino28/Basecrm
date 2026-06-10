@@ -240,6 +240,9 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
           procedimento: `Avaliação ${runId}`,
           valor: 700,
           desconto: 0,
+          // bulk insert: PostgREST unifica as chaves do lote — coluna omitida
+          // vira null explícito (não DEFAULT); installments é NOT NULL.
+          installments: 1,
           recebido: false,
           paid_at: null,
           performed_at: '2026-06-16T10:00:00-03:00',
@@ -262,6 +265,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
           procedimento: `Org B ${runId}`,
           valor: 9999,
           desconto: 0,
+          installments: 1,
           recebido: true,
           paid_at: '2026-06-10T12:00:00-03:00',
           performed_at: '2026-06-10T11:00:00-03:00',
