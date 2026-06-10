@@ -135,6 +135,10 @@ export const useAtendimentosController = () => {
       return;
     }
 
+    // Defesa: bandeira/parcelas só fazem sentido em cartão (o drawer já zera no onChange).
+    const isCardPayment =
+      parsed.data.paymentMethod === 'credito' || parsed.data.paymentMethod === 'debito';
+
     const basePayload = {
       procedimento: parsed.data.procedimento,
       productId: parsed.data.productId || undefined,
@@ -144,8 +148,8 @@ export const useAtendimentosController = () => {
       dealId: formData.dealId || undefined,
       contactId: selectedContact?.id || undefined,
       paymentMethod: parsed.data.paymentMethod || undefined,
-      cardBrand: parsed.data.cardBrand || undefined,
-      installments: parsed.data.installments,
+      cardBrand: isCardPayment ? parsed.data.cardBrand || undefined : undefined,
+      installments: isCardPayment ? parsed.data.installments : 1,
       recebido: parsed.data.recebido,
     };
 

@@ -77,6 +77,34 @@ describe('useAtendimentosController', () => {
     expect(typeof arg.atendimento.paidAt).toBe('string');
   });
 
+  it('não envia bandeira/parcelas órfãs quando a forma de pagamento não é cartão (defesa no payload)', () => {
+    const { result } = renderHook(() => useAtendimentosController());
+
+    act(() => {
+      result.current.setFormData({
+        procedimento: 'Limpeza',
+        productId: 'prod1',
+        valor: '250',
+        desconto: '0',
+        professionalId: 'p1',
+        dealId: 'd1',
+        paymentMethod: 'pix',
+        cardBrand: 'visa',
+        installments: '3',
+        recebido: false,
+      });
+    });
+
+    act(() => {
+      result.current.handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+    });
+
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const arg = createMutate.mock.calls[0][0];
+    expect(arg.atendimento.cardBrand).toBeUndefined();
+    expect(arg.atendimento.installments).toBe(1);
+  });
+
   describe('validação zod no submit (schema deixa de ser dead code)', () => {
     it('aborta com toast de erro quando desconto > valor (nenhuma mutação disparada)', () => {
       const { result } = renderHook(() => useAtendimentosController());

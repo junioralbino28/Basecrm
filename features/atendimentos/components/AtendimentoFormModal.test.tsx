@@ -98,6 +98,36 @@ describe('AtendimentoFormModal', () => {
     expect(screen.getByLabelText(/bandeira/i)).toBeTruthy();
   });
 
+  it('zera bandeira e reseta parcelas ao trocar a forma de pagamento pra fora de cartão', async () => {
+    const setFormData = vi.fn();
+    render(
+      <AtendimentoFormModal
+        {...baseProps}
+        setFormData={setFormData}
+        formData={{ ...baseForm, paymentMethod: 'credito', cardBrand: 'visa', installments: '3' }}
+      />
+    );
+    await userEvent.selectOptions(screen.getByLabelText(/forma de pagamento/i), 'pix');
+    expect(setFormData).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: 'pix', cardBrand: '', installments: '1' })
+    );
+  });
+
+  it('mantém bandeira e parcelas ao alternar entre crédito e débito', async () => {
+    const setFormData = vi.fn();
+    render(
+      <AtendimentoFormModal
+        {...baseProps}
+        setFormData={setFormData}
+        formData={{ ...baseForm, paymentMethod: 'credito', cardBrand: 'visa', installments: '3' }}
+      />
+    );
+    await userEvent.selectOptions(screen.getByLabelText(/forma de pagamento/i), 'debito');
+    expect(setFormData).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: 'debito', cardBrand: 'visa', installments: '3' })
+    );
+  });
+
   it('não tem violações de acessibilidade', async () => {
     const { container } = render(<AtendimentoFormModal {...baseProps} />);
     expect(await axe(container)).toHaveNoViolations();

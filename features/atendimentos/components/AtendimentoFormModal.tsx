@@ -203,7 +203,16 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
                 required
                 className={inputClass}
                 value={formData.paymentMethod}
-                onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
+                onChange={e => {
+                  const paymentMethod = e.target.value;
+                  const isCard = paymentMethod === 'credito' || paymentMethod === 'debito';
+                  // Fora de cartão, bandeira/parcelas não fazem sentido — zera pra não ficarem órfãs.
+                  setFormData(
+                    isCard
+                      ? { ...formData, paymentMethod }
+                      : { ...formData, paymentMethod, cardBrand: '', installments: '1' }
+                  );
+                }}
               >
                 <option value="pix">Pix</option>
                 <option value="dinheiro">Dinheiro</option>
