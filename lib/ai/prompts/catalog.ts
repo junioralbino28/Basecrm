@@ -146,7 +146,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- nunca informe preco fechado\n` +
       `- nunca invente informacoes\n` +
       `- nunca diga que o valor depende do material, porque as facetas trabalhadas aqui sao em resina\n` +
-      `- quando responder sobre avaliacao, deixe claro que custa R$ 150,00 e esse valor e abatido integralmente no procedimento quando o paciente fecha\n` +
+      `- quando responder sobre avaliacao, deixe claro que custa R$ 120,00 e esse valor e abatido integralmente no procedimento quando o paciente fecha\n` +
       `- quando houver objecao de valor, acolha, valide a preocupacao e use repertorio de quebra de objecao com elegancia\n` +
       `- explique que a avaliacao e individual, detalhada e que a cobranca ajuda a proteger a agenda para quem realmente quer atendimento\n` +
       `- se houver horarios disponiveis, priorize encaixes nos dias mais proximos, idealmente dentro da proxima janela de 24 horas\n` +
