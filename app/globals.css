@@ -23,11 +23,75 @@
   --color-primary-800: #075985;
   --color-primary-900: #0c4a6e;
 
+  /* Brand — teal-emerald premium (mockup aprovado 2026-06-10).
+   * 300 não existia no mockup (bug: usado 2x sem definição) — definido aqui.
+   * 400 também não existia no mockup; interpolado entre 300 e 500 (app usa o tom 400). */
+  --color-brand-50: #eaf4f0;
+  --color-brand-100: #cfe7df;
+  --color-brand-200: #a6d3c6;
+  --color-brand-300: #5fd0b6;
+  --color-brand-400: #3cb69c;
+  --color-brand-500: #1a9b82;
+  --color-brand-600: #0e7d69;
+  --color-brand-700: #0b6354;
+  --color-brand-800: #0a4f43;
+  --color-brand-900: #083d34;
+
+  /* Gold — dourado champanhe (luxo, CTA único) */
+  --color-gold-50: #f6efe1;
+  --color-gold-100: #ecdfc4;
+  --color-gold-500: #b0883f;
+  --color-gold-600: #946b2c;
+  --color-gold-700: #7c5a23;
+
+  /* WhatsApp */
+  --color-wa: #1fa855;
+
   /* Dark Theme Colors */
   --color-dark-bg: #020617;
   --color-dark-card: #0f172a;
   --color-dark-border: #1e293b;
   --color-dark-hover: #334155;
+}
+
+/* ========================================
+ * Tokens semânticos do mockup (canvas/card/surface/line/ink/muted/faint)
+ * Valores em triplas RGB pra trocar light/dark via `.dark` no <html>.
+ * `@theme inline` faz as utilities resolverem a var no elemento (dark mode ok).
+ * ======================================== */
+@theme inline {
+  --color-canvas: rgb(var(--canvas));
+  --color-card: rgb(var(--card));
+  --color-surface: rgb(var(--surface));
+  --color-line: rgb(var(--line));
+  --color-ink: rgb(var(--ink));
+  --color-muted: rgb(var(--muted));
+  --color-faint: rgb(var(--faint));
+
+  --shadow-soft: 0 1px 2px rgba(27, 23, 20, .05), 0 8px 24px rgba(27, 23, 20, .08);
+  --shadow-hover: 0 12px 32px rgba(11, 99, 84, .12);
+}
+
+:root {
+  /* Light (mockup :root) */
+  --canvas: 236 226 210;
+  --card: 255 255 255;
+  --surface: 245 239 229;
+  --line: 226 215 197;
+  --ink: 27 23 20;
+  --muted: 95 87 78;
+  --faint: 156 146 134;
+}
+
+.dark {
+  /* Dark (mockup html.dark) */
+  --canvas: 19 17 15;
+  --card: 30 27 24;
+  --surface: 38 34 29;
+  --line: 51 46 40;
+  --ink: 243 237 227;
+  --muted: 179 168 153;
+  --faint: 125 116 104;
 }
 
 /* ========================================
