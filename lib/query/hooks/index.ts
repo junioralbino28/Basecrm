@@ -115,6 +115,12 @@ export {
   useDeleteTask,
 } from './useTasksQuery';
 
+// Config por organização (N3 — nudge de tarefas)
+export {
+  useTaskNudgeInterval,
+  useUpdateTaskNudgeInterval,
+} from './useOrganizationSettingsQuery';
+
 // Configs financeiras (só admin — RLS can_configure)
 export {
   usePaymentMethodFees,

@@ -258,6 +258,21 @@ export const taskFormSchema = z.object({
 
 export type TaskFormData = z.infer<typeof taskFormSchema>;
 
+/**
+ * Intervalo do nudge de tarefas (N3): '' = desligado (null); senão 15/30/60.
+ * Espelha o CHECK organization_settings_task_nudge_interval_chk — o zod barra
+ * ANTES do update, o banco é a última linha de defesa.
+ */
+export const taskNudgeIntervalSchema = z
+  .string()
+  .transform(val => (val === '' ? null : Number(val)))
+  .refine(
+    val => val === null || val === 15 || val === 30 || val === 60,
+    'Intervalo do aviso inválido (15, 30, 60 minutos ou desligado)'
+  );
+
+export type TaskNudgeIntervalData = z.infer<typeof taskNudgeIntervalSchema>;
+
 // ============ LEAD SOURCES SCHEMAS (N1 — origens editáveis) ============
 
 export const leadSourceFormSchema = z.object({

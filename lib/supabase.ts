@@ -16,6 +16,8 @@ export { commissionRulesService } from './supabase/commissionRules';
 export { fixedCostsService } from './supabase/fixedCosts';
 export { commissionPaymentsService } from './supabase/commissionPayments';
 export { settingsService, lifecycleStagesService } from './supabase/settings';
+export { organizationSettingsService } from './supabase/organizationSettings';
+export type { TaskNudgeInterval } from './supabase/organizationSettings';
 
 // Re-export Realtime hooks
 export { useRealtimeSync, useRealtimeSyncAll, useRealtimeSyncKanban } from './realtime';

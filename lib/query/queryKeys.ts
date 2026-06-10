@@ -47,6 +47,9 @@ export const queryKeys = {
     // Tarefas & lembretes (N2)
     tasks: createQueryKeys('tasks'),
 
+    // Config por organização (N3 — nudge; select access, mutate can_configure)
+    organizationSettings: createQueryKeys('organizationSettings'),
+
     // Configs financeiras (só admin — RLS can_configure)
     paymentMethodFees: createQueryKeys('paymentMethodFees'),
     commissionRules: createQueryKeys('commissionRules'),

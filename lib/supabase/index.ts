@@ -13,3 +13,5 @@ export { commissionRulesService } from './commissionRules';
 export { fixedCostsService } from './fixedCosts';
 export { commissionPaymentsService } from './commissionPayments';
 export { settingsService, lifecycleStagesService } from './settings';
+export { organizationSettingsService } from './organizationSettings';
+export type { TaskNudgeInterval } from './organizationSettings';
