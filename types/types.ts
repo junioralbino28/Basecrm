@@ -185,6 +185,18 @@ export interface Product {
   active?: boolean;
 }
 
+// ITEM CLÍNICO: Profissionais (dentistas)
+export interface Professional {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  name: string;
+  specialty?: string;
+  active: boolean;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DealItem {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
