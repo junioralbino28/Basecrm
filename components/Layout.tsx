@@ -127,11 +127,11 @@ const NavItem = ({
       onClick={() => dispatchSidebarNavigationIntent(to)}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
     ${isActive
-          ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
-          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+          ? 'bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/15 dark:text-brand-300'
+          : 'text-muted hover:bg-surface hover:text-ink'
         }`}
     >
-      <Icon size={20} className={isActive ? 'text-brand-500' : ''} aria-hidden="true" />
+      <Icon size={20} className={isActive ? 'text-brand-700 dark:text-brand-300' : ''} aria-hidden="true" />
       <span className="font-display tracking-wide">{label}</span>
     </Link>
   );
@@ -444,7 +444,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   if (shouldBlockAgencyWorkspace) {
     return (
-      <div className="flex h-screen items-center justify-center bg-surface-bg bg-dots">
+      <div className="flex h-screen items-center justify-center bg-canvas">
         <div className="text-center">
           <PageLoader />
           {!tenantLoading && !tenant?.organizationId ? (
@@ -458,7 +458,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-bg bg-dots">
+    <div className="flex h-screen overflow-hidden bg-canvas">
       {/* Skip Link for keyboard users */}
       <SkipLink targetId="main-content" />
 
@@ -468,13 +468,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Sidebar - Collapsible */}
       {isDesktop ? (
       <aside
-        className={`hidden md:flex flex-col z-20 glass border-r border-[var(--color-border-subtle)] transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20 items-center' : 'w-64'
+        className={`hidden md:flex flex-col z-20 bg-card border-r border-line transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20 items-center' : 'w-64'
           }`}
         aria-label="Menu principal"
       >
-        <div className={`h-16 flex items-center border-b border-[var(--color-border-subtle)] transition-all duration-300 px-5 ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
+        <div className={`h-16 flex items-center border-b border-line transition-all duration-300 px-5 ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
           <div className={`flex items-center transition-all duration-300 ${sidebarCollapsed ? 'gap-0 justify-center' : 'gap-3'}`}>
-            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-brand-500/20 shrink-0 overflow-hidden" aria-hidden="true">
+            <div className="w-9 h-9 bg-gradient-to-br from-brand-600 to-brand-800 rounded-xl flex items-center justify-center text-white font-serif font-semibold text-lg ring-1 ring-gold-500/30 shadow-lg shadow-brand-500/20 shrink-0 overflow-hidden" aria-hidden="true">
               {isAdmin && agencyLogoUrl ? (
                 <Image
                   src={agencyLogoUrl}
@@ -488,7 +488,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 brandName.slice(0, 1).toUpperCase()
               )}
             </div>
-            <span className={`text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+            <span className={`text-xl font-semibold font-display tracking-tight text-ink whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
               {brandName}
             </span>
           </div>
@@ -497,7 +497,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {!sidebarCollapsed && (
             <button
               onClick={() => setSidebarCollapsed(true)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5"
+              className="text-faint hover:text-ink transition-colors p-1 rounded-md hover:bg-surface"
               title="Recolher Menu"
             >
               <PanelLeftClose size={20} />
@@ -507,48 +507,65 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <nav className={`flex-1 p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
           {[
-            ...(showClinicNav ? primarySidebarNav : []),
-            ...(showClinicNav
-              ? tenantWorkspaceNav.map((item) => ({
-                  to: item.href,
-                  icon: item.icon,
-                  label: item.label,
-                  prefetch: 'dashboard' as const,
-                }))
-              : []),
-            ...adminSidebarNav,
-          ].map((item) => {
-            if (sidebarCollapsed) {
-              return (
-                <Link
-                  key={item.to}
-                  href={item.to}
-                  onMouseEnter={() => prefetchRoute(item.prefetch)}
-                  onClick={() => dispatchSidebarNavigationIntent(item.to)}
-                  className={(() => {
-                    const isActive = isSidebarRouteActive(pathname, item.to);
-                    return `w-10 h-10 rounded-lg flex items-center justify-center ${isActive
-                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
-                      }`;
-                  })()}
-                  title={item.label}
-                >
-                  <item.icon size={20} />
-                </Link>
-              );
-            }
+            {
+              key: 'clinica',
+              header: 'Clínica',
+              items: showClinicNav
+                ? [
+                    ...primarySidebarNav,
+                    ...tenantWorkspaceNav.map((item) => ({
+                      to: item.href,
+                      icon: item.icon,
+                      label: item.label,
+                      prefetch: 'dashboard' as const,
+                    })),
+                  ]
+                : [],
+            },
+            { key: 'agencia', header: 'Agência', items: adminSidebarNav },
+          ]
+            .filter((section) => section.items.length > 0)
+            .map((section) => (
+              <React.Fragment key={section.key}>
+                {!sidebarCollapsed && (
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-faint">
+                    {section.header}
+                  </div>
+                )}
+                {section.items.map((item) => {
+                  if (sidebarCollapsed) {
+                    return (
+                      <Link
+                        key={item.to}
+                        href={item.to}
+                        onMouseEnter={() => prefetchRoute(item.prefetch)}
+                        onClick={() => dispatchSidebarNavigationIntent(item.to)}
+                        className={(() => {
+                          const isActive = isSidebarRouteActive(pathname, item.to);
+                          return `w-10 h-10 rounded-lg flex items-center justify-center ${isActive
+                            ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                            : 'text-muted hover:bg-surface hover:text-ink'
+                            }`;
+                        })()}
+                        title={item.label}
+                      >
+                        <item.icon size={20} />
+                      </Link>
+                    );
+                  }
 
-            return (
-              <NavItem
-                key={item.to}
-                to={item.to}
-                icon={item.icon}
-                label={item.label}
-                prefetch={item.prefetch}
-              />
-            );
-          })}
+                  return (
+                    <NavItem
+                      key={item.to}
+                      to={item.to}
+                      icon={item.icon}
+                      label={item.label}
+                      prefetch={item.prefetch}
+                    />
+                  );
+                })}
+              </React.Fragment>
+            ))}
         </nav>
 
         {/* Sidebar Toggle Button (Footer) - Only visible when collapsed */}
@@ -556,7 +573,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="px-4 pb-2 flex justify-center">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="flex items-center justify-center w-10 h-10 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+              className="flex items-center justify-center w-10 h-10 p-2 rounded-lg text-faint hover:text-ink hover:bg-surface transition-all"
               title="Expandir Menu"
             >
               <PanelLeftOpen size={20} />
@@ -564,12 +581,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         )}
 
-        <div className={`p-4 border-t border-[var(--color-border-subtle)] ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <div className={`p-4 border-t border-line ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
           <div className="relative">
             {/* User Card - Clickable */}
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className={`flex items-center gap-3 rounded-xl bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-all group focus-visible-ring ${sidebarCollapsed ? 'p-0 w-10 h-10 justify-center' : 'w-full p-3'
+              className={`flex items-center gap-3 rounded-xl bg-surface/60 border border-line hover:bg-surface transition-all group focus-visible-ring ${sidebarCollapsed ? 'p-0 w-10 h-10 justify-center' : 'w-full p-3'
                 }`}
             >
               {profile?.avatar_url ? (
@@ -582,7 +599,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   unoptimized
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-white dark:ring-slate-800 shadow-lg shrink-0" aria-hidden="true">
+                <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300 flex items-center justify-center font-semibold text-sm shrink-0" aria-hidden="true">
                   {profile?.first_name && profile?.last_name
                     ? `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase()
                     : profile?.nickname?.substring(0, 2).toUpperCase() || userInitials}
@@ -592,10 +609,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {!sidebarCollapsed && (
                 <>
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                    <p className="text-sm font-semibold text-ink truncate">
                       {profile?.nickname || profile?.first_name || profile?.email?.split('@')[0] || 'Usuário'}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{getRoleLabel(profile?.role)}</p>
+                    <p className="text-xs text-faint truncate">{getRoleLabel(profile?.role)}</p>
                   </div>
                   <svg
                     className={`w-4 h-4 text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`}
@@ -699,11 +716,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Ambient background glow */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
             <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-brand-500/10 rounded-full blur-[100px]"></div>
-            <div className="absolute top-[40%] right-[0%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]"></div>
+            <div className="absolute top-[40%] right-[0%] w-[40%] h-[40%] bg-gold-500/10 rounded-full blur-[100px]"></div>
           </div>
 
           {/* Header */}
-          <header className="h-16 glass border-b border-[var(--color-border-subtle)] flex items-center justify-between px-6 z-40 shrink-0" role="banner">
+          <header className="h-16 bg-card border-b border-line flex items-center justify-between px-6 z-40 shrink-0" role="banner">
             <div className="min-w-0">
               {isAdmin ? (
                 <div className="flex items-center gap-2">
@@ -724,7 +741,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   }
                 </div>
               ) : tenant ? (
-                <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                <div className="text-sm font-medium text-muted">
                   {currentClinicName}
                 </div>
               ) : null}
@@ -777,7 +794,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <aside
           aria-label="Assistente de IA"
           aria-hidden={!isGlobalAIOpen}
-          className={`border-l border-[var(--color-border)] bg-surface transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${isGlobalAIOpen ? 'w-96 opacity-100' : 'w-0 opacity-0'}`}
+          className={`border-l border-line bg-surface transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${isGlobalAIOpen ? 'w-96 opacity-100' : 'w-0 opacity-0'}`}
         >
           <div className="w-96 h-full">
             {isGlobalAIOpen && (
