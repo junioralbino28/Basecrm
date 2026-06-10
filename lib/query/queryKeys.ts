@@ -31,6 +31,7 @@ export const queryKeys = {
 
     companies: createQueryKeys('companies'),
     boards: createQueryKeys('boards'),
+    professionals: createQueryKeys('professionals'),
     conversations: createExtendedQueryKeys('conversations', base => ({
         messages: (threadId: string) => [...base.detail(threadId), 'messages'] as const,
     })),

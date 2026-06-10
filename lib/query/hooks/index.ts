@@ -79,3 +79,11 @@ export {
   useMoveDeal,
   useMoveDealSimple,
 } from './useMoveDeal';
+
+// Professionals
+export {
+  useProfessionals,
+  useCreateProfessional,
+  useUpdateProfessional,
+  useDeleteProfessional,
+} from './useProfessionalsQuery';
