@@ -43,6 +43,11 @@ export const queryKeys = {
 
     atendimentos: createQueryKeys('atendimentos'),
 
+    // Configs financeiras (só admin — RLS can_configure)
+    paymentMethodFees: createQueryKeys('paymentMethodFees'),
+    commissionRules: createQueryKeys('commissionRules'),
+    fixedCosts: createQueryKeys('fixedCosts'),
+
     // Dashboard (non-standard structure)
     dashboard: {
         stats: ['dashboard', 'stats'] as const,

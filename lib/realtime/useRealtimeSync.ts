@@ -55,7 +55,10 @@ type RealtimeTable =
   | 'boards'
   | 'board_stages'
   | 'crm_companies'
-  | 'professionals';
+  | 'professionals'
+  | 'payment_method_fees'
+  | 'commission_rules'
+  | 'fixed_costs';
 
 // Lazy getter for query keys mapping - avoids initialization issues in tests
 const getTableQueryKeys = (table: RealtimeTable): readonly (readonly unknown[])[] => {
@@ -68,6 +71,9 @@ const getTableQueryKeys = (table: RealtimeTable): readonly (readonly unknown[])[
     board_stages: [queryKeys.boards.all], // stages invalidate boards
     crm_companies: [queryKeys.companies.all],
     professionals: [queryKeys.professionals.all],
+    payment_method_fees: [queryKeys.paymentMethodFees.all],
+    commission_rules: [queryKeys.commissionRules.all],
+    fixed_costs: [queryKeys.fixedCosts.all],
   };
   return mapping[table];
 };
