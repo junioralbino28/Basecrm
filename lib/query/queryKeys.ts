@@ -41,6 +41,8 @@ export const queryKeys = {
         byDeal: (dealId: string) => [...base.all, 'deal', dealId] as const,
     })),
 
+    atendimentos: createQueryKeys('atendimentos'),
+
     // Dashboard (non-standard structure)
     dashboard: {
         stats: ['dashboard', 'stats'] as const,
