@@ -113,6 +113,10 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '⚙️ Deletando configurações...';
     
+    -- Profile Permissions (dependem de profiles e organizations) — deletar antes de profiles
+    DELETE FROM profile_permissions;
+    RAISE NOTICE '   ✓ profile_permissions deletadas';
+
     -- User Settings
     DELETE FROM user_settings;
     RAISE NOTICE '   ✓ user_settings deletadas';
