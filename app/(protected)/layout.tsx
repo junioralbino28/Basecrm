@@ -5,12 +5,30 @@ import { useEffect } from 'react'
 
 import { QueryProvider } from '@/lib/query'
 import { ToastProvider } from '@/context/ToastContext'
-import { ThemeProvider } from '@/context/ThemeContext'
-import { AuthProvider } from '@/context/AuthContext'
+import { ThemeProvider, useTheme } from '@/context/ThemeContext'
+import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { CRMProvider } from '@/context/CRMContext'
 import { AIProvider } from '@/context/AIContext'
 import { TenantProvider } from '@/context/TenantContext'
+import { isClinicRole } from '@/lib/auth/scope'
 import Layout from '@/components/Layout'
+
+/**
+ * Aplica o tema default por role: usuários de clínica (clinic_admin/clinic_staff/
+ * vendedor) nascem no tema CLARO (mockup é light-first). Só age quando não há
+ * preferência salva — o toggle do usuário continua mandando. Agência mantém dark.
+ */
+function ThemeRoleDefault() {
+    const { profile } = useAuth()
+    const { applyRoleDefault } = useTheme()
+
+    useEffect(() => {
+        if (!profile?.role) return
+        if (isClinicRole(profile.role)) applyRoleDefault(false)
+    }, [profile?.role, applyRoleDefault])
+
+    return null
+}
 
 /**
  * Componente React `ProtectedLayout`.
@@ -76,6 +94,7 @@ export default function ProtectedLayout({
             <ToastProvider>
                 <ThemeProvider>
                     <AuthProvider>
+                        <ThemeRoleDefault />
                         <TenantProvider>
                             <CRMProvider>
                                 <AIProvider>
