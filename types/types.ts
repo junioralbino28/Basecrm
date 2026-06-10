@@ -162,7 +162,8 @@ export interface Contact {
   birthDate?: string; // New field for Agentic AI tasks
   status: 'ACTIVE' | 'INACTIVE' | 'CHURNED';
   stage: string; // ID do LifecycleStage (antes era ContactStage enum)
-  source?: 'WEBSITE' | 'LINKEDIN' | 'REFERRAL' | 'MANUAL'; // Origem do contato
+  /** Origem do contato — nome livre, alimentado por lead_sources (N1). */
+  source?: string;
   notes?: string; // Anotações gerais
   lastPurchaseDate?: string;
   totalValue?: number; // LTV
@@ -183,6 +184,17 @@ export interface Product {
   sku?: string;
   /** Se está ativo no catálogo (itens inativos não devem aparecer no dropdown do deal). */
   active?: boolean;
+}
+
+// N1 — Origem de lead editável (alimenta o select de origem do contato)
+export interface LeadSource {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  name: string;
+  active: boolean;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ITEM CLÍNICO: Profissionais (dentistas)
