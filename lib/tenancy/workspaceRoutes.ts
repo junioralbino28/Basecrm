@@ -4,6 +4,7 @@ const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/boards',
   '/contacts',
   '/activities',
+  '/call-list',
   '/tarefas',
   '/atendimentos',
   '/reports',

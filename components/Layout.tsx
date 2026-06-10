@@ -36,6 +36,7 @@ import {
   Sun,
   Moon,
   BarChart3,
+  BellRing,
   Sparkles,
   LogOut,
   User,
@@ -284,7 +285,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isAdmin = isAgencyAdminRole(profile?.role);
   const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
   const isPlatformRoute = pathname.startsWith('/platform') && !isTenantWorkspaceRoute;
-  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|tarefas|atendimentos|reports|settings)(\/|$)/.test(pathname);
+  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|call-list|tarefas|atendimentos|reports|settings)(\/|$)/.test(pathname);
   const isPlatformAdminRoute =
     pathname === '/platform' ||
     pathname === '/platform/tenants' ||
@@ -297,6 +298,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Base CRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
+    { to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const },
     { to: getScopedHref('/dashboard'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
     { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
