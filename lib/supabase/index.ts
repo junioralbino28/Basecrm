@@ -6,6 +6,7 @@ export { activitiesService } from './activities';
 export { atendimentosService } from './atendimentos';
 export { productsService } from './products';
 export { professionalsService } from './professionals';
+export { leadSourcesService } from './leadSources';
 export { paymentMethodFeesService } from './paymentMethodFees';
 export { commissionRulesService } from './commissionRules';
 export { fixedCostsService } from './fixedCosts';
