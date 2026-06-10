@@ -334,3 +334,172 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
     // Clean up after 1 minute (optional but good practice)
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 };
+
+// ============================================
+// RELATÓRIO FINANCEIRO (F8 — faturamento · comissão · líquido)
+// ============================================
+
+interface FinanceReportData {
+    faturamento: number;
+    taxas: number;
+    comissoes: number;
+    contasFixas: number;
+    liquido: number;
+    totalAtendimentos: number;
+    porMes: Array<{ mes: string; faturamento: number }>;
+    porSemana: Array<{ semana: string; faturamento: number; atendimentos: number }>;
+}
+
+/**
+ * Gera o PDF do relatório financeiro (cascata até o líquido + listas).
+ *
+ * A tela Financeiro é exclusiva do admin (gate F5 espelhado), então o PDF
+ * sempre exporta a cascata completa. Reusa COLORS e o padrão de dynamic
+ * import / Blob URL do generateReportPDF.
+ *
+ * @param data - Agregados financeiros do período (RPCs F8).
+ * @param period - Período selecionado.
+ */
+export const generateFinanceReportPDF = async (
+    data: FinanceReportData,
+    period: PeriodFilter
+) => {
+    const { jsPDF } = await import('jspdf');
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 15;
+    const contentWidth = pageWidth - margin * 2;
+
+    const formatBRL = (value: number) =>
+        value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    // Título
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.primary);
+    doc.text('Relatório Financeiro', margin, 21);
+
+    // Período + metadados
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.secondary);
+    doc.text(`Período: ${PERIOD_LABELS[period]}`, margin, 32);
+    doc.text(`${dateStr} às ${timeStr}`, pageWidth - margin, 32, { align: 'right' });
+
+    // Divider
+    doc.setDrawColor(...COLORS.border);
+    doc.setLineWidth(0.3);
+    doc.line(margin, 38, pageWidth - margin, 38);
+
+    // KPI cards — cascata do mockup (5 cards)
+    const kpis = [
+        { label: 'Recebido bruto', value: formatBRL(data.faturamento), accent: COLORS.blue },
+        { label: 'Taxas de cartão', value: `- ${formatBRL(data.taxas)}`, accent: COLORS.red },
+        { label: 'Comissões', value: `- ${formatBRL(data.comissoes)}`, accent: COLORS.purple },
+        { label: 'Contas fixas', value: `- ${formatBRL(data.contasFixas)}`, accent: COLORS.orange },
+        { label: 'Líquido', value: formatBRL(data.liquido), accent: COLORS.emerald },
+    ];
+
+    const kpiY = 45;
+    const cardGap = 4;
+    const cardWidth = (contentWidth - cardGap * (kpis.length - 1)) / kpis.length;
+    const cardHeight = 32;
+
+    kpis.forEach((kpi, i) => {
+        const x = margin + i * (cardWidth + cardGap);
+
+        doc.setFillColor(...COLORS.white);
+        doc.setDrawColor(...COLORS.border);
+        doc.roundedRect(x, kpiY, cardWidth, cardHeight, 2, 2, 'FD');
+
+        doc.setFillColor(...kpi.accent);
+        doc.roundedRect(x, kpiY, cardWidth, 4, 2, 2, 'F');
+        doc.setFillColor(...COLORS.white);
+        doc.rect(x, kpiY + 2, cardWidth, 2, 'F');
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...COLORS.secondary);
+        doc.text(kpi.label, x + 3, kpiY + 11);
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.primary);
+        doc.text(kpi.value, x + 3, kpiY + 22);
+    });
+
+    // Resumo do período
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.secondary);
+    doc.text(
+        `${data.totalAtendimentos} atendimentos pagos no período · só conta o que foi recebido`,
+        margin,
+        kpiY + cardHeight + 8
+    );
+
+    // Recebido por semana (lista)
+    const weekY = kpiY + cardHeight + 18;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.primary);
+    doc.text('Recebido por Semana', margin, weekY);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (data.porSemana.length > 0) {
+        data.porSemana.forEach((s, i) => {
+            const y = weekY + 8 + i * 7;
+            doc.setTextColor(...COLORS.secondary);
+            doc.text(`Semana de ${s.semana} · ${s.atendimentos} atendimentos`, margin, y);
+            doc.setTextColor(...COLORS.primary);
+            doc.text(formatBRL(s.faturamento), pageWidth - margin, y, { align: 'right' });
+        });
+    } else {
+        doc.setTextColor(...COLORS.secondary);
+        doc.text('Sem recebimentos no período.', margin, weekY + 8);
+    }
+
+    // Faturamento por mês (lista)
+    const listY = weekY + 14 + Math.max(data.porSemana.length, 1) * 7;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.primary);
+    doc.text('Faturamento por Mês', margin, listY);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (data.porMes.length > 0) {
+        data.porMes.forEach((m, i) => {
+            const y = listY + 8 + i * 7;
+            doc.setTextColor(...COLORS.secondary);
+            doc.text(m.mes, margin, y);
+            doc.setTextColor(...COLORS.primary);
+            doc.text(formatBRL(m.faturamento), pageWidth - margin, y, { align: 'right' });
+        });
+    } else {
+        doc.setTextColor(...COLORS.secondary);
+        doc.text('Sem faturamento no período.', margin, listY + 8);
+    }
+
+    // Footer
+    doc.setDrawColor(...COLORS.border);
+    doc.setLineWidth(0.3);
+    doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
+    doc.setFontSize(7);
+    doc.setTextColor(...COLORS.secondary);
+    doc.text('Base CRM', margin, pageHeight - 10);
+    doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+    // Output via Blob URL
+    const pdfBlob = doc.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+};
