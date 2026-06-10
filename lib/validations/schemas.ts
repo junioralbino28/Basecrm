@@ -231,6 +231,58 @@ export const professionalFormSchema = z.object({
 
 export type ProfessionalFormData = z.infer<typeof professionalFormSchema>;
 
+// ============ FINANCE CONFIG SCHEMAS (gate do Adel — só admin) ============
+
+/**
+ * Percentual de domínio financeiro (taxa de cartão, comissão): 0..100.
+ * Espelha os CHECKs do banco (20260616000000_finance_config.sql) — o zod
+ * barra ANTES do insert, o banco é a última linha de defesa.
+ */
+export const percentSchema = z.coerce
+  .number({ message: msg('NUMBER_REQUIRED', { field: 'Percentual' }) })
+  .min(0, msg('NUMBER_MUST_BE_POSITIVE', { field: 'Percentual' }))
+  .max(100, 'Percentual não pode passar de 100%');
+
+export const paymentTypeSchema = z.enum(['credito', 'debito', 'pix', 'dinheiro'], {
+  message: msg('SELECTION_INVALID'),
+});
+
+export const paymentMethodFeeFormSchema = z.object({
+  label: requiredString('Descrição', MAX_LENGTHS.SHORT_TEXT),
+  paymentType: paymentTypeSchema,
+  cardBrand: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  installments: z.coerce
+    .number({ message: msg('NUMBER_REQUIRED', { field: 'Parcelas' }) })
+    .int('Parcelas inválidas')
+    .min(1, 'Mínimo de 1 parcela')
+    .max(48, 'Máximo de 48 parcelas')
+    .default(1),
+  feePercent: percentSchema,
+});
+
+export type PaymentMethodFeeFormData = z.infer<typeof paymentMethodFeeFormSchema>;
+
+export const commissionRuleFormSchema = z.object({
+  professionalId: requiredSelect('Profissional'),
+  specialty: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  percent: percentSchema,
+});
+
+export type CommissionRuleFormData = z.infer<typeof commissionRuleFormSchema>;
+
+export const fixedCostFormSchema = z.object({
+  name: requiredString('Nome da conta', MAX_LENGTHS.NAME),
+  amount: currencySchema,
+  dueDay: z.coerce
+    .number()
+    .int('Dia inválido')
+    .min(1, 'Dia entre 1 e 31')
+    .max(31, 'Dia entre 1 e 31')
+    .optional(),
+});
+
+export type FixedCostFormData = z.infer<typeof fixedCostFormSchema>;
+
 // ============ AI CONFIG SCHEMAS ============
 
 export const aiConfigSchema = z.object({
