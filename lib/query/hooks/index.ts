@@ -90,3 +90,11 @@ export {
 
 // Products (catálogo de procedimentos)
 export { useProducts } from './useProductsQuery';
+
+// Atendimentos (registro clínico-financeiro)
+export {
+  useAtendimentos,
+  useCreateAtendimento,
+  useUpdateAtendimento,
+  useDeleteAtendimento,
+} from './useAtendimentosQuery';
