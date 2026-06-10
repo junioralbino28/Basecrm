@@ -111,6 +111,9 @@ export const useAtendimentosController = () => {
     if (window.confirm('Tem certeza que deseja excluir este atendimento?')) {
       deleteMutation.mutate(id, {
         onSuccess: () => showToast('Atendimento excluído com sucesso', 'success'),
+        onError: (error: Error) => {
+          showToast(`Erro ao excluir atendimento: ${error.message}`, 'error');
+        },
       });
     }
   };
@@ -169,6 +172,9 @@ export const useAtendimentosController = () => {
           onSuccess: () => {
             showToast('Atendimento atualizado com sucesso', 'success');
             setIsModalOpen(false);
+          },
+          onError: (error: Error) => {
+            showToast(`Erro ao atualizar atendimento: ${error.message}`, 'error');
           },
         }
       );

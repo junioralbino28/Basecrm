@@ -38,10 +38,10 @@ vi.mock('@/lib/query/hooks/useProductsQuery', () => ({
 
 describe('useAtendimentosController', () => {
   beforeEach(() => {
-    createMutate.mockClear();
-    updateMutate.mockClear();
-    deleteMutate.mockClear();
-    showToast.mockClear();
+    createMutate.mockReset();
+    updateMutate.mockReset();
+    deleteMutate.mockReset();
+    showToast.mockReset();
   });
 
   it('ao submeter, deriva contactId/dealId e marca recebido com performedAt + desconto', () => {
@@ -231,5 +231,25 @@ describe('useAtendimentosController', () => {
       expect(arg.updates.paidAt).toBeUndefined();
       expect(arg.updates.recebido).toBe(false);
     });
+
+    it('mostra toast de erro quando o update falha (sem falha silenciosa)', () => {
+      updateMutate.mockImplementation((_vars, opts) => opts?.onError?.(new Error('RLS negou')));
+      editAndSubmit({ ...baseAtendimento, recebido: false }, true);
+      expect(showToast).toHaveBeenCalledWith('Erro ao atualizar atendimento: RLS negou', 'error');
+    });
+  });
+
+  it('mostra toast de erro quando o delete falha (sem falha silenciosa)', () => {
+    deleteMutate.mockImplementation((_id, opts) => opts?.onError?.(new Error('RLS negou')));
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    const { result } = renderHook(() => useAtendimentosController());
+
+    act(() => {
+      result.current.handleDelete('a1');
+    });
+
+    expect(deleteMutate).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith('Erro ao excluir atendimento: RLS negou', 'error');
+    vi.unstubAllGlobals();
   });
 });
