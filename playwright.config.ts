@@ -16,12 +16,22 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://basecrm.vercel.app',
+    // NUNCA produção por default: o banco é compartilhado com a clínica piloto.
+    // Pra rodar contra preview/prod, exportar PLAYWRIGHT_BASE_URL explicitamente.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
     storageState: hasAuthState ? authStatePath : undefined,
   },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://localhost:3000',
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
   projects: [
     {
       name: 'setup',
