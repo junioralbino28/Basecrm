@@ -12,6 +12,8 @@ const routeImports = {
   contacts: () => import('@/features/contacts/ContactsPage'),
   settings: () => import('@/features/settings/SettingsPage'),
   activities: () => import('@/features/activities/ActivitiesPage'),
+  tarefas: () => import('@/features/tarefas/TarefasPage'),
+  atendimentos: () => import('@/features/atendimentos/AtendimentosPage'),
   reports: () => import('@/features/reports/ReportsPage'),
 } as const;
 

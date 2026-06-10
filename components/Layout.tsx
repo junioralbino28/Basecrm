@@ -41,6 +41,8 @@ import {
   User,
   Bug,
   CheckSquare,
+  ClipboardPlus,
+  ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Building2,
@@ -282,7 +284,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isAdmin = isAgencyAdminRole(profile?.role);
   const isTenantWorkspaceRoute = isTenantWorkspacePath(pathname);
   const isPlatformRoute = pathname.startsWith('/platform') && !isTenantWorkspaceRoute;
-  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|reports|settings)(\/|$)/.test(pathname);
+  const isGlobalWorkspaceRoute = /^\/(inbox|dashboard|boards|pipeline|contacts|activities|tarefas|atendimentos|reports|settings)(\/|$)/.test(pathname);
   const isPlatformAdminRoute =
     pathname === '/platform' ||
     pathname === '/platform/tenants' ||
@@ -299,6 +301,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
     { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
     { to: getScopedHref('/activities'), icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
+    { to: getScopedHref('/tarefas'), icon: ListChecks, label: 'Tarefas', prefetch: 'tarefas' as const },
+    { to: getScopedHref('/atendimentos'), icon: ClipboardPlus, label: 'Atendimentos', prefetch: 'atendimentos' as const },
     { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];
