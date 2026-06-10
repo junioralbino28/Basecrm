@@ -631,3 +631,56 @@ export interface ContactsServerFilters {
 
 /** Colunas ordenáveis na tabela de contatos. */
 export type ContactSortableColumn = 'name' | 'created_at' | 'updated_at' | 'stage';
+
+// ============================================
+// RELATÓRIOS FINANCEIROS (RPC outputs — F8)
+// ============================================
+
+/** Faturamento de um mês ('YYYY-MM', fuso da clínica). */
+export interface RevenueReportMonth {
+  mes: string; // 'YYYY-MM'
+  faturamento: number;
+}
+
+/** Faturamento de uma semana (início da semana 'YYYY-MM-DD', fuso da clínica). */
+export interface RevenueReportWeek {
+  semana: string; // 'YYYY-MM-DD' (segunda-feira)
+  faturamento: number;
+  atendimentos: number;
+}
+
+/** Saída do RPC get_revenue_report (faturamento = recebido, valor − desconto). */
+export interface RevenueReport {
+  faturamento: number;
+  totalAtendimentos: number;
+  porMes: RevenueReportMonth[];
+  porSemana: RevenueReportWeek[];
+}
+
+/** Linha de comissão por profissional (RPC get_commission_report). */
+export interface CommissionReportRow {
+  professionalId: string;
+  professionalName: string;
+  atendimentos: number;
+  comissao: number;
+  faturamentoBase: number;
+  /** Comissão já paga no(s) período(s) do range (commission_payments). */
+  pago: number;
+  /** A pagar = max(comissao − pago, 0) — derivado no service. */
+  aPagar: number;
+}
+
+/** Saída do RPC get_commission_report. */
+export interface CommissionReport {
+  totalComissao: number;
+  porProfissional: CommissionReportRow[];
+}
+
+/** Saída do RPC get_net_result (líquido = faturamento − comissões − taxas − contas). */
+export interface NetResult {
+  faturamento: number;
+  comissoes: number;
+  taxas: number;
+  contasFixas: number;
+  liquido: number;
+}

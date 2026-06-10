@@ -1,0 +1,67 @@
+import { describe, it, expect } from 'vitest';
+import { calcLiquido, buildMoneyAllocation, periodFromISO } from './financeMath';
+
+describe('calcLiquido', () => {
+  it('subtrai comissões, taxas e contas do faturamento', () => {
+    expect(calcLiquido(10000, 2000, 300, 1500)).toBe(6200);
+  });
+
+  it('retorna o próprio faturamento quando não há deduções', () => {
+    expect(calcLiquido(5000, 0, 0, 0)).toBe(5000);
+  });
+
+  it('pode ficar negativo quando as despesas superam o faturamento', () => {
+    expect(calcLiquido(1000, 500, 100, 800)).toBe(-400);
+  });
+
+  it('trata valores indefinidos/NaN como zero', () => {
+    // @ts-expect-error testando robustez com entradas inválidas
+    expect(calcLiquido(10000, undefined, NaN, null)).toBe(10000);
+  });
+});
+
+describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
+  it('divide o faturamento em sobra, contas, comissões e taxas com percentuais', () => {
+    const segments = buildMoneyAllocation({
+      faturamento: 18430,
+      comissoes: 4890,
+      taxas: 312,
+      contasFixas: 6200,
+      liquido: 7028,
+    });
+
+    expect(segments.map((s) => s.key)).toEqual(['liquido', 'contas', 'comissoes', 'taxas']);
+    const sobra = segments.find((s) => s.key === 'liquido')!;
+    expect(sobra.value).toBe(7028);
+    expect(sobra.percent).toBe(38); // 7028/18430 ≈ 38%
+    expect(segments.reduce((acc, s) => acc + s.value, 0)).toBe(18430);
+  });
+
+  it('líquido negativo vira sobra zero (donut não tem fatia negativa)', () => {
+    const segments = buildMoneyAllocation({
+      faturamento: 1000,
+      comissoes: 800,
+      taxas: 100,
+      contasFixas: 500,
+      liquido: -400,
+    });
+    expect(segments.find((s) => s.key === 'liquido')!.value).toBe(0);
+  });
+
+  it('faturamento zero retorna lista vazia (nada pra alocar)', () => {
+    expect(
+      buildMoneyAllocation({ faturamento: 0, comissoes: 0, taxas: 0, contasFixas: 0, liquido: 0 })
+    ).toEqual([]);
+  });
+});
+
+describe('periodFromISO (período YYYY-MM pro "pagar" de comissão)', () => {
+  it('extrai o ano-mês local da data ISO', () => {
+    // meio do mês: sem ambiguidade de fuso
+    expect(periodFromISO(new Date(2026, 5, 15, 12, 0, 0).toISOString())).toBe('2026-06');
+  });
+
+  it('vira o ano corretamente em dezembro', () => {
+    expect(periodFromISO(new Date(2026, 11, 20, 12, 0, 0).toISOString())).toBe('2026-12');
+  });
+});
