@@ -42,6 +42,20 @@ BEGIN
     DELETE FROM crm_companies;
     RAISE NOTICE '   ✓ crm_companies deletadas';
     
+    -- Configs financeiras (commission_rules/commission_payments referenciam
+    -- professionals — deletar ANTES de professionals)
+    DELETE FROM commission_payments;
+    RAISE NOTICE '   ✓ commission_payments deletados';
+
+    DELETE FROM commission_rules;
+    RAISE NOTICE '   ✓ commission_rules deletadas';
+
+    DELETE FROM payment_method_fees;
+    RAISE NOTICE '   ✓ payment_method_fees deletadas';
+
+    DELETE FROM fixed_costs;
+    RAISE NOTICE '   ✓ fixed_costs deletados';
+
     -- Professionals (camada clínico-financeira)
     DELETE FROM professionals;
     RAISE NOTICE '   ✓ professionals deletados';
