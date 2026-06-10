@@ -4,6 +4,7 @@ export { contactsService, companiesService } from './contacts';
 export { dealsService } from './deals';
 export { activitiesService } from './activities';
 export { atendimentosService } from './atendimentos';
+export { tasksService } from './tasks';
 export { productsService } from './products';
 export { professionalsService } from './professionals';
 export { leadSourcesService } from './leadSources';

@@ -53,6 +53,8 @@ export interface DbContact {
   stage: string;
   /** Fonte de origem do contato. */
   source: string | null;
+  /** Preferência de contato (N2): any | whatsapp_only. */
+  contact_preference?: string | null;
   /** Data de aniversário. */
   birth_date: string | null;
   /** Data da última interação. */
@@ -112,7 +114,8 @@ const transformContact = (db: DbContact): Contact => ({
   notes: db.notes || '',
   status: db.status as Contact['status'],
   stage: db.stage,
-  source: db.source as Contact['source'] || undefined,
+  source: db.source || undefined,
+  contactPreference: (db.contact_preference as Contact['contactPreference']) || undefined,
   birthDate: db.birth_date || undefined,
   lastInteraction: db.last_interaction || undefined,
   lastPurchaseDate: db.last_purchase_date || undefined,
@@ -161,6 +164,7 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
   if (contact.status !== undefined) db.status = contact.status;
   if (contact.stage !== undefined) db.stage = contact.stage;
   if (contact.source !== undefined) db.source = contact.source || null;
+  if (contact.contactPreference !== undefined) db.contact_preference = contact.contactPreference;
   if (contact.birthDate !== undefined) db.birth_date = contact.birthDate || null;
   if (contact.lastInteraction !== undefined) db.last_interaction = contact.lastInteraction || null;
   if (contact.lastPurchaseDate !== undefined) db.last_purchase_date = contact.lastPurchaseDate || null;
