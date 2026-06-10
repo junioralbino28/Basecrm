@@ -41,3 +41,26 @@ describe('multi-tenant core RLS migration', () => {
     expect(sql).toContain('public.can_operate_deal(deal_id)');
   });
 });
+
+const hardeningMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260612000000_rls_hardening_clinic_pii.sql'
+);
+
+describe('rls hardening migration (clinic PII)', () => {
+  const sql = readFileSync(hardeningMigrationPath, 'utf-8');
+
+  it('blinda profiles_select por tenant (remove USING (true))', () => {
+    expect(sql).toContain('drop policy if exists "profiles_select" on public.profiles');
+    expect(sql).toContain('create policy "profiles_select" on public.profiles');
+    expect(sql).toContain('public.can_access_organization(organization_id)');
+    expect(sql).toContain('id = auth.uid()');
+  });
+
+  it('nunca reintroduz policies permissivas', () => {
+    expect(sql).not.toContain('using (true)');
+    expect(sql).not.toContain('USING (true)');
+    expect(sql).not.toContain('with check (true)');
+    expect(sql).not.toContain('WITH CHECK (true)');
+  });
+});
