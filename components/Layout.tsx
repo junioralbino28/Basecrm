@@ -73,6 +73,7 @@ import { UIChat } from './ai/UIChat';
 
 import { NotificationPopover } from './notifications/NotificationPopover';
 import PageLoader from '@/components/PageLoader';
+import { TaskNudge } from '@/features/tarefas/components/TaskNudge';
 
 /**
  * Props do componente Layout
@@ -896,6 +897,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
       ) : null}
+
+      {/* Nudge de tarefas (N3): SÓ no workspace clínica — agência fora dele
+          (rotas /platform) não vê o pop-up. Intervalo vem da org (null = off). */}
+      {isClinicWorkspaceActive ? <TaskNudge /> : null}
 
       {/* Mobile app shell */}
       <BottomNav onOpenMore={() => setIsMoreOpen(true)} />
