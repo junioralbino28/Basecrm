@@ -289,6 +289,38 @@ export interface Activity {
   completed: boolean;
 }
 
+// ITEM CLÍNICO-FINANCEIRO: Atendimento registrado (faturamento = RECEBIDO)
+export interface Atendimento {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
+  /** Paciente (contato CRM) associado. */
+  contactId?: string;
+  /** Deal/oportunidade de onde o atendimento foi derivado. */
+  dealId?: string;
+  /** Dentista/profissional que executou o procedimento. */
+  professionalId?: string;
+  /** Procedimento do catálogo (products.id). */
+  productId?: string;
+  /** Nome do procedimento (snapshot do catálogo). */
+  procedimento: string;
+  /** Valor cobrado (bruto). */
+  valor: number;
+  /** Desconto concedido (planilha do Adel: total = valor − desconto). */
+  desconto: number;
+  /** Forma de pagamento ('credito'|'debito'|'pix'|'dinheiro'). */
+  paymentMethod?: string;
+  /** Bandeira do cartão, quando aplicável. */
+  cardBrand?: string;
+  /** Número de parcelas (1 = à vista). */
+  installments: number;
+  /** Se o pagamento foi recebido (faturamento conta SÓ quando true). */
+  recebido: boolean;
+  /** Quando foi marcado como recebido (setado pelo service quando recebido=true). */
+  paidAt?: string;
+  /** Quando o procedimento foi realizado. */
+  performedAt: string;
+}
+
 export interface DashboardStats {
   totalDeals: number;
   pipelineValue: number;
