@@ -6,10 +6,10 @@
  * Migrated from tailwind.config.js
  * ======================================== */
 @theme {
-  /* Font Families */
-  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-serif: 'Cinzel', serif;
+  /* Font Families (mockup aprovado: Plus Jakarta Sans corpo + Fraunces titulos) */
+  --font-sans: var(--font-jakarta), 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-fraunces), 'Fraunces', serif;
+  --font-serif: var(--font-fraunces), 'Fraunces', serif;
 
   /* Brand — teal-emerald premium (mockup aprovado 2026-06-10).
    * 300 não existia no mockup (bug: usado 2x sem definição) — definido aqui.

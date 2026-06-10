@@ -15,9 +15,9 @@ const config = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['var(--font-inter)', 'Inter', 'sans-serif'],
-                display: ['Space Grotesk', 'sans-serif'],
-                serif: ['Cinzel', 'serif'],
+                sans: ['var(--font-jakarta)', 'Plus Jakarta Sans', 'sans-serif'],
+                display: ['var(--font-fraunces)', 'Fraunces', 'serif'],
+                serif: ['var(--font-fraunces)', 'Fraunces', 'serif'],
             },
             colors: {
                 dark: {
