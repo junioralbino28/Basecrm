@@ -206,6 +206,50 @@ export interface DealItem {
   price: number; // Snapshot of price
 }
 
+// ============ CAMADA CLÍNICO-FINANCEIRA — CONFIGS (só admin · RLS can_configure) ============
+
+export type PaymentType = 'credito' | 'debito' | 'pix' | 'dinheiro';
+
+/** Taxa percentual por meio de pagamento (config financeira — só clinic_admin lê/escreve). */
+export interface PaymentMethodFee {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  label: string;
+  paymentType: PaymentType;
+  cardBrand?: string;
+  installments: number;
+  feePercent: number;
+}
+
+/** Regra de comissão por dentista × especialidade (config financeira — só clinic_admin). */
+export interface CommissionRule {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  professionalId?: string;
+  specialty?: string;
+  percent: number;
+}
+
+/** Conta fixa mensal (config financeira — só clinic_admin). */
+export interface FixedCost {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  name: string;
+  amount: number;
+  dueDay?: number;
+  active: boolean;
+}
+
+/** Pagamento de comissão por profissional × período YYYY-MM (adendo 2026-06-10 — "Paga/A pagar"). */
+export interface CommissionPayment {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  professionalId: string;
+  amount: number;
+  paidAt: string;
+  period: string;
+}
+
 // CUSTOM FIELDS DEFINITION
 export type CustomFieldType = 'text' | 'number' | 'date' | 'select';
 
