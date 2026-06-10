@@ -148,6 +148,9 @@ export interface CRMCompany {
 // Contact (Person we talk to)
 // =============================================================================
 
+/** Preferência de contato do paciente (N2): 'whatsapp_only' = "não gosta de ligação". */
+export type ContactPreference = 'any' | 'whatsapp_only';
+
 // A Pessoa (Com quem falamos)
 export interface Contact {
   id: string;
@@ -164,6 +167,8 @@ export interface Contact {
   stage: string; // ID do LifecycleStage (antes era ContactStage enum)
   /** Origem do contato — nome livre, alimentado por lead_sources (N1). */
   source?: string;
+  /** Preferência de contato (N2): whatsapp_only sai da call-list e ganha badge. */
+  contactPreference?: ContactPreference;
   notes?: string; // Anotações gerais
   lastPurchaseDate?: string;
   totalValue?: number; // LTV
@@ -184,6 +189,44 @@ export interface Product {
   sku?: string;
   /** Se está ativo no catálogo (itens inativos não devem aparecer no dropdown do deal). */
   active?: boolean;
+}
+
+// ============ N2 — TAREFAS & LEMBRETES (núcleo novo do mockup) ============
+
+/** Tipo da tarefa: ligação, lembrete ou mensagem (WhatsApp). */
+export type TaskType = 'call' | 'reminder' | 'message';
+
+/** Status da tarefa: aberta, concluída (carimba completedAt) ou adiada. */
+export type TaskStatus = 'open' | 'done' | 'snoozed';
+
+/** Tarefa/lembrete da recepção (N2 — "nada de paciente esquecido"). */
+export interface Task {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  /** Paciente (contato CRM) — opcional: tarefa geral da recepção. */
+  contactId?: string;
+  type: TaskType;
+  /** Motivo da tarefa (ex.: "Retorno do raio-X — marcar consulta"). */
+  title: string;
+  /** Anotação livre. */
+  note?: string;
+  /** Quando vence (YYYY-MM-DD). */
+  dueDate: string;
+  /** Hora opcional (HH:MM). */
+  dueTime?: string;
+  status: TaskStatus;
+  /**
+   * Toggle "Julia avisa primeiro no WhatsApp" (mockup drawer-task).
+   * v1 só persiste a intenção — automação é fase posterior atrás de flag.
+   */
+  juliaFirst: boolean;
+  /** Quem criou a tarefa (profiles.id). */
+  createdBy?: string;
+  /** Carimbado quando status vira done; limpo ao reabrir (CHECK no banco). */
+  completedAt?: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // N1 — Origem de lead editável (alimenta o select de origem do contato)
