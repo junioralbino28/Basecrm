@@ -39,7 +39,9 @@ export const TaskNudge: React.FC = () => {
 
   // Refs lidas no tick — o timer só reinstala quando o INTERVALO muda.
   const dueTodayCountRef = useRef(dueToday.length);
-  dueTodayCountRef.current = dueToday.length;
+  useEffect(() => {
+    dueTodayCountRef.current = dueToday.length;
+  }, [dueToday.length]);
 
   useEffect(() => {
     if (!interval) return; // null = desligado
