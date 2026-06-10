@@ -44,6 +44,7 @@ import { generateSalesScript } from '@/lib/ai/tasksClient';
 import { MessageComposerModal, type MessageChannel } from './MessageComposerModal';
 import { callAIProxy } from '@/lib/supabase/ai-proxy';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
+import { ContactCallOutcome } from '@/features/contacts/components/ContactCallOutcome';
 
 // Performance: reuse Intl formatter instances.
 const PT_BR_SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
@@ -1048,6 +1049,12 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                                     {contact.source}
                                                 </span>
                                             )}
+                                            {contact.contactPreference === 'whatsapp_only' && (
+                                                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20 inline-flex items-center gap-1">
+                                                    <MessageCircle size={10} aria-hidden="true" />
+                                                    prefere WhatsApp
+                                                </span>
+                                            )}
                                             {contact.status && (
                                                 <span className={`text-[10px] px-1.5 py-0.5 rounded border ${contact.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                                                     contact.status === 'INACTIVE' ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' :
@@ -1072,6 +1079,16 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                     </div>
                                 </div>
                             </div>
+                        )}
+
+                        {/* Última ligação — marcar resultado (N2, mockup) */}
+                        {contact && (
+                            <ContactCallOutcome
+                                contact={contact}
+                                dealId={deal.id}
+                                dealTitle={deal.title}
+                                activities={activities}
+                            />
                         )}
 
                         {/* Deal Info Card */}
