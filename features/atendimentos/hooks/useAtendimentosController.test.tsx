@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
+import { Atendimento } from '@/types';
 import { useAtendimentosController } from './useAtendimentosController';
 
 const createMutate = vi.fn();
+const updateMutate = vi.fn();
+const deleteMutate = vi.fn();
+const showToast = vi.fn();
 
-vi.mock('@/context/ToastContext', () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+vi.mock('@/context/ToastContext', () => ({ useToast: () => ({ showToast }) }));
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ profile: { id: 'u1', role: 'clinic_staff' }, organizationId: 'org1' }),
 }));
@@ -13,8 +17,8 @@ vi.mock('@/lib/realtime/useRealtimeSync', () => ({ useRealtimeSync: vi.fn() }));
 vi.mock('@/lib/query/hooks/useAtendimentosQuery', () => ({
   useAtendimentos: () => ({ data: [], isLoading: false }),
   useCreateAtendimento: () => ({ mutate: createMutate }),
-  useUpdateAtendimento: () => ({ mutate: vi.fn() }),
-  useDeleteAtendimento: () => ({ mutate: vi.fn() }),
+  useUpdateAtendimento: () => ({ mutate: updateMutate }),
+  useDeleteAtendimento: () => ({ mutate: deleteMutate }),
 }));
 vi.mock('@/lib/query/hooks/useDealsQuery', () => ({
   useDeals: () => ({
@@ -33,6 +37,13 @@ vi.mock('@/lib/query/hooks/useProductsQuery', () => ({
 }));
 
 describe('useAtendimentosController', () => {
+  beforeEach(() => {
+    createMutate.mockClear();
+    updateMutate.mockClear();
+    deleteMutate.mockClear();
+    showToast.mockClear();
+  });
+
   it('ao submeter, deriva contactId/dealId e marca recebido com performedAt + desconto', () => {
     const { result } = renderHook(() => useAtendimentosController());
 
@@ -64,5 +75,75 @@ describe('useAtendimentosController', () => {
     expect(arg.atendimento.desconto).toBe(30);
     expect(typeof arg.atendimento.performedAt).toBe('string');
     expect(typeof arg.atendimento.paidAt).toBe('string');
+  });
+
+  describe('update — preserva performedAt e só recomputa paidAt quando recebido muda', () => {
+    const ORIGINAL_PERFORMED_AT = '2026-06-01T10:00:00.000Z';
+    const ORIGINAL_PAID_AT = '2026-06-02T09:00:00.000Z';
+
+    const baseAtendimento: Atendimento = {
+      id: 'a1',
+      procedimento: 'Limpeza',
+      productId: 'prod1',
+      valor: 250,
+      desconto: 30,
+      professionalId: 'p1',
+      dealId: 'd1',
+      paymentMethod: 'pix',
+      installments: 1,
+      recebido: false,
+      performedAt: ORIGINAL_PERFORMED_AT,
+    };
+
+    /** Edita `atendimento`, alterna recebido pra `recebido` e submete. */
+    const editAndSubmit = (atendimento: Atendimento, recebido: boolean) => {
+      const { result } = renderHook(() => useAtendimentosController());
+      act(() => {
+        result.current.handleEdit(atendimento);
+      });
+      act(() => {
+        result.current.setFormData({ ...result.current.formData, recebido });
+      });
+      act(() => {
+        result.current.handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+      });
+      expect(updateMutate).toHaveBeenCalledTimes(1);
+      return updateMutate.mock.calls[0][0];
+    };
+
+    it('false→true: carimba paidAt = agora e PRESERVA performedAt original', () => {
+      const arg = editAndSubmit({ ...baseAtendimento, recebido: false }, true);
+      expect(arg.updates.performedAt).toBe(ORIGINAL_PERFORMED_AT);
+      expect(typeof arg.updates.paidAt).toBe('string');
+      expect(arg.updates.paidAt).not.toBe(ORIGINAL_PAID_AT);
+      expect(arg.updates.recebido).toBe(true);
+    });
+
+    it('true→false: zera paidAt e preserva performedAt', () => {
+      const arg = editAndSubmit(
+        { ...baseAtendimento, recebido: true, paidAt: ORIGINAL_PAID_AT },
+        false
+      );
+      expect(arg.updates.performedAt).toBe(ORIGINAL_PERFORMED_AT);
+      expect(arg.updates.paidAt).toBeUndefined();
+      expect(arg.updates.recebido).toBe(false);
+    });
+
+    it('true→true: PRESERVA o paidAt original (não re-carimba)', () => {
+      const arg = editAndSubmit(
+        { ...baseAtendimento, recebido: true, paidAt: ORIGINAL_PAID_AT },
+        true
+      );
+      expect(arg.updates.performedAt).toBe(ORIGINAL_PERFORMED_AT);
+      expect(arg.updates.paidAt).toBe(ORIGINAL_PAID_AT);
+      expect(arg.updates.recebido).toBe(true);
+    });
+
+    it('false→false: paidAt continua vazio e performedAt preservado', () => {
+      const arg = editAndSubmit({ ...baseAtendimento, recebido: false }, false);
+      expect(arg.updates.performedAt).toBe(ORIGINAL_PERFORMED_AT);
+      expect(arg.updates.paidAt).toBeUndefined();
+      expect(arg.updates.recebido).toBe(false);
+    });
   });
 });

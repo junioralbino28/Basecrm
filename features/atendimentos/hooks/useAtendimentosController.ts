@@ -124,7 +124,7 @@ export const useAtendimentosController = () => {
     const selectedProduct = formData.productId ? productsById.get(formData.productId) : undefined;
     const nowIso = new Date().toISOString();
 
-    const payload: Omit<Atendimento, 'id'> = {
+    const basePayload = {
       procedimento: formData.procedimento || selectedProduct?.name || '',
       productId: formData.productId || undefined,
       valor: Number(formData.valor) || 0,
@@ -136,13 +136,20 @@ export const useAtendimentosController = () => {
       cardBrand: formData.cardBrand || undefined,
       installments: Number(formData.installments) || 1,
       recebido: formData.recebido,
-      paidAt: formData.recebido ? nowIso : undefined,
-      performedAt: nowIso,
     };
 
     if (editing) {
+      const wasRecebido = editing.recebido ?? false;
+      const updates: Omit<Atendimento, 'id'> = {
+        ...basePayload,
+        // Edição NUNCA re-carimba performed_at (o form não tem campo de data).
+        performedAt: editing.performedAt,
+        // paid_at só recomputa quando `recebido` MUDOU:
+        // false→true carimba agora; true→false zera; true→true preserva o carimbo original.
+        paidAt: formData.recebido ? (wasRecebido ? editing.paidAt : nowIso) : undefined,
+      };
       updateMutation.mutate(
-        { id: editing.id, updates: payload },
+        { id: editing.id, updates },
         {
           onSuccess: () => {
             showToast('Atendimento atualizado com sucesso', 'success');
@@ -151,8 +158,13 @@ export const useAtendimentosController = () => {
         }
       );
     } else {
+      const atendimento: Omit<Atendimento, 'id'> = {
+        ...basePayload,
+        paidAt: formData.recebido ? nowIso : undefined,
+        performedAt: nowIso,
+      };
       createMutation.mutate(
-        { atendimento: payload },
+        { atendimento },
         {
           onSuccess: () => {
             showToast('Atendimento registrado com sucesso', 'success');
