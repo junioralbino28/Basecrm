@@ -140,3 +140,13 @@ export {
   useUpdateFixedCost,
   useDeleteFixedCost,
 } from './useFixedCostsQuery';
+
+// Relatórios financeiros (F8 — read-only, RPCs blindados)
+export {
+  useRevenueReport,
+  useCommissionReport,
+  useNetResult,
+} from './useFinanceReports';
+
+// Pagamentos de comissão (F8/adendo — ação "pagar")
+export { useCreateCommissionPayment } from './useCommissionPaymentsQuery';

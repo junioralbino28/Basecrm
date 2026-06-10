@@ -55,11 +55,24 @@ export const queryKeys = {
     commissionRules: createQueryKeys('commissionRules'),
     fixedCosts: createQueryKeys('fixedCosts'),
 
+    // Pagamentos de comissão (ação "pagar" — F8/adendo)
+    commissionPayments: createQueryKeys('commissionPayments'),
+
     // Dashboard (non-standard structure)
     dashboard: {
         stats: ['dashboard', 'stats'] as const,
         funnel: ['dashboard', 'funnel'] as const,
         timeline: ['dashboard', 'timeline'] as const,
+        // Relatórios financeiros (F8) — roots p/ invalidação por prefixo
+        revenueRoot: ['dashboard', 'revenue'] as const,
+        revenue: (start: string, end: string) =>
+            ['dashboard', 'revenue', start, end] as const,
+        commissionRoot: ['dashboard', 'commission'] as const,
+        commission: (start: string, end: string) =>
+            ['dashboard', 'commission', start, end] as const,
+        netResultRoot: ['dashboard', 'netResult'] as const,
+        netResult: (start: string, end: string) =>
+            ['dashboard', 'netResult', start, end] as const,
     },
 };
 
