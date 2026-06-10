@@ -87,3 +87,6 @@ export {
   useUpdateProfessional,
   useDeleteProfessional,
 } from './useProfessionalsQuery';
+
+// Products (catálogo de procedimentos)
+export { useProducts } from './useProductsQuery';
