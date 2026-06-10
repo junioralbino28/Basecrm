@@ -94,4 +94,20 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).toContain('user_id = auth.uid()');
     expect(sql).toContain('public.can_configure_organization(organization_id)');
   });
+
+  it('cada tabela blindada referencia helper can_*_organization', () => {
+    for (const tableName of [
+      'profiles',
+      'organizations',
+      'leads',
+      'tags',
+      'custom_field_definitions',
+      'profile_permissions',
+    ]) {
+      expect(sql).toContain(`on public.${tableName}`);
+    }
+    expect(sql).toContain('public.can_access_organization');
+    expect(sql).toContain('public.can_operate_organization');
+    expect(sql).toContain('public.can_configure_organization');
+  });
 });
