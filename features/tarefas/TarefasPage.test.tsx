@@ -41,6 +41,12 @@ const upcoming: Task[] = [
   },
 ];
 
+// Select do nudge (N3) tem hooks/gate próprios — testado em
+// TaskNudgeSettingsSelect.test.tsx; aqui só interessa o resto do header.
+vi.mock('./components/TaskNudgeSettingsSelect', () => ({
+  TaskNudgeSettingsSelect: () => null,
+}));
+
 vi.mock('./hooks/useTarefasController', () => ({
   useTarefasController: () => ({
     tasks: [],

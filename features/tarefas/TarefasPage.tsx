@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useTarefasController } from './hooks/useTarefasController';
 import { TasksList } from './components/TasksList';
 import { TaskFormDrawer } from './components/TaskFormDrawer';
+import { TaskNudgeSettingsSelect } from './components/TaskNudgeSettingsSelect';
 
 /**
  * Tela "Tarefas & lembretes" (N2) — espelho do mockup aprovado.
@@ -36,14 +37,18 @@ export const TarefasPage: React.FC = () => {
             ligações, retornos e avisos — nada de paciente esquecido
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleNew}
-          className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-gold-600 hover:bg-gold-700 text-white text-sm font-semibold shadow-lg shadow-gold-600/20 active:scale-[.98] transition-all"
-        >
-          <Plus size={18} aria-hidden="true" />
-          Nova tarefa
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Config do nudge (N3) — só quem pode configurar a org vê (role real). */}
+          <TaskNudgeSettingsSelect />
+          <button
+            type="button"
+            onClick={handleNew}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-gold-600 hover:bg-gold-700 text-white text-sm font-semibold shadow-lg shadow-gold-600/20 active:scale-[.98] transition-all"
+          >
+            <Plus size={18} aria-hidden="true" />
+            Nova tarefa
+          </button>
+        </div>
       </div>
 
       <TasksList
