@@ -88,6 +88,14 @@ export {
   useDeleteProfessional,
 } from './useProfessionalsQuery';
 
+// Lead Sources (N1 — origens editáveis)
+export {
+  useLeadSources,
+  useCreateLeadSource,
+  useUpdateLeadSource,
+  useDeleteLeadSource,
+} from './useLeadSourcesQuery';
+
 // Products (catálogo de procedimentos)
 export { useProducts } from './useProductsQuery';
 

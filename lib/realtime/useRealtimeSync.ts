@@ -56,6 +56,7 @@ type RealtimeTable =
   | 'board_stages'
   | 'crm_companies'
   | 'professionals'
+  | 'lead_sources'
   | 'payment_method_fees'
   | 'commission_rules'
   | 'fixed_costs';
@@ -71,6 +72,7 @@ const getTableQueryKeys = (table: RealtimeTable): readonly (readonly unknown[])[
     board_stages: [queryKeys.boards.all], // stages invalidate boards
     crm_companies: [queryKeys.companies.all],
     professionals: [queryKeys.professionals.all],
+    lead_sources: [queryKeys.leadSources.all],
     payment_method_fees: [queryKeys.paymentMethodFees.all],
     commission_rules: [queryKeys.commissionRules.all],
     fixed_costs: [queryKeys.fixedCosts.all],
