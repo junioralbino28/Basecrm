@@ -8,14 +8,15 @@ import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
 import { DataStorageSettings } from './components/DataStorageSettings';
 import { ProductsCatalogManager } from './components/ProductsCatalogManager';
+import { ProfessionalsManager } from './components/ProfessionalsManager';
 import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope } from 'lucide-react';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 
-type SettingsTab = 'general' | 'products' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'professionals' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -100,6 +101,14 @@ const ProductsSettings: React.FC = () => {
   return (
     <div className="pb-10">
       <ProductsCatalogManager />
+    </div>
+  );
+};
+
+const ProfessionalsSettings: React.FC = () => {
+  return (
+    <div className="pb-10">
+      <ProfessionalsManager />
     </div>
   );
 };
@@ -189,6 +198,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       setActiveTab('ai');
     } else if (pathname?.includes('/settings/products')) {
       setActiveTab('products');
+    } else if (pathname?.includes('/settings/profissionais')) {
+      setActiveTab('professionals');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
     } else if (pathname?.includes('/settings/data')) {
@@ -203,6 +214,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const tabs = [
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
     ...(canManageSettings ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    ...(canManageSettings ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
     ...(canManageSettings ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -213,6 +225,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     switch (activeTab) {
       case 'products':
         return <ProductsSettings />;
+      case 'professionals':
+        return <ProfessionalsSettings />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':

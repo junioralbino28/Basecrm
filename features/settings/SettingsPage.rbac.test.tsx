@@ -69,6 +69,14 @@ vi.mock('./components/McpSection', () => ({
   ),
 }))
 
+vi.mock('./components/ProfessionalsManager', () => ({
+  ProfessionalsManager: () => (
+    <div>
+      <h3>Profissionais</h3>
+    </div>
+  ),
+}))
+
 import SettingsPage from './SettingsPage'
 import { useAuth } from '@/context/AuthContext'
 
@@ -137,5 +145,33 @@ describe('SettingsPage RBAC', () => {
 
     fireEvent.click(mcpSubTab)
     expect(await screen.findByRole('heading', { name: /^MCP$/i })).toBeInTheDocument()
+  })
+
+  it('clinic_staff não vê a aba Profissionais', () => {
+    useAuthMock.mockReturnValue({
+      profile: { role: 'clinic_staff' },
+    } as any)
+
+    render(<SettingsPage />)
+
+    expect(
+      screen.queryByRole('button', { name: /profissionais/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('clinic_admin vê e abre a aba Profissionais', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { role: 'clinic_admin' },
+    } as any)
+
+    render(<SettingsPage />)
+
+    const profTab = screen.getByRole('button', { name: /profissionais/i })
+    expect(profTab).toBeInTheDocument()
+    fireEvent.click(profTab)
+
+    expect(
+      await screen.findByRole('heading', { name: /^Profissionais$/i })
+    ).toBeInTheDocument()
   })
 })
