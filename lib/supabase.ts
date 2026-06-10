@@ -9,6 +9,10 @@ export { activitiesService } from './supabase/activities';
 export { atendimentosService } from './supabase/atendimentos';
 export { productsService } from './supabase/products';
 export { professionalsService } from './supabase/professionals';
+export { paymentMethodFeesService } from './supabase/paymentMethodFees';
+export { commissionRulesService } from './supabase/commissionRules';
+export { fixedCostsService } from './supabase/fixedCosts';
+export { commissionPaymentsService } from './supabase/commissionPayments';
 export { settingsService, lifecycleStagesService } from './supabase/settings';
 
 // Re-export Realtime hooks
