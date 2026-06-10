@@ -19,6 +19,7 @@ export default defineConfig({
       ['test/tools.salesTeamMatrix.test.ts', 'node'],
       ['test/tools.multiTenant.test.ts', 'node'],
       ['test/rlsHardening.crossTenant.test.ts', 'node'],
+      ['test/professionals.multiTenant.test.ts', 'node'],
       ['lib/utils/csv.test.ts', 'node'],
       ['lib/query/__tests__/cache-integrity.test.ts', 'node'],
     ],
