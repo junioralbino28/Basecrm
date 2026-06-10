@@ -13,6 +13,7 @@ import { useContacts } from '@/lib/query/hooks/useContactsQuery';
 import { useProfessionals } from '@/lib/query/hooks/useProfessionalsQuery';
 import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
+import { atendimentoFormSchema } from '@/lib/validations/schemas';
 
 export interface AtendimentoFormState {
   procedimento: string;
@@ -124,18 +125,28 @@ export const useAtendimentosController = () => {
     const selectedProduct = formData.productId ? productsById.get(formData.productId) : undefined;
     const nowIso = new Date().toISOString();
 
-    const basePayload = {
+    // Valida (e coage valor/desconto/parcelas) com o schema antes de montar o payload.
+    const parsed = atendimentoFormSchema.safeParse({
+      ...formData,
       procedimento: formData.procedimento || selectedProduct?.name || '',
-      productId: formData.productId || undefined,
-      valor: Number(formData.valor) || 0,
-      desconto: Number(formData.desconto) || 0,
-      professionalId: formData.professionalId || undefined,
+    });
+    if (!parsed.success) {
+      showToast(parsed.error.issues[0]?.message || 'Dados do atendimento inválidos', 'error');
+      return;
+    }
+
+    const basePayload = {
+      procedimento: parsed.data.procedimento,
+      productId: parsed.data.productId || undefined,
+      valor: parsed.data.valor,
+      desconto: parsed.data.desconto,
+      professionalId: parsed.data.professionalId || undefined,
       dealId: formData.dealId || undefined,
       contactId: selectedContact?.id || undefined,
-      paymentMethod: formData.paymentMethod || undefined,
-      cardBrand: formData.cardBrand || undefined,
-      installments: Number(formData.installments) || 1,
-      recebido: formData.recebido,
+      paymentMethod: parsed.data.paymentMethod || undefined,
+      cardBrand: parsed.data.cardBrand || undefined,
+      installments: parsed.data.installments,
+      recebido: parsed.data.recebido,
     };
 
     if (editing) {
@@ -146,7 +157,7 @@ export const useAtendimentosController = () => {
         performedAt: editing.performedAt,
         // paid_at só recomputa quando `recebido` MUDOU:
         // false→true carimba agora; true→false zera; true→true preserva o carimbo original.
-        paidAt: formData.recebido ? (wasRecebido ? editing.paidAt : nowIso) : undefined,
+        paidAt: parsed.data.recebido ? (wasRecebido ? editing.paidAt : nowIso) : undefined,
       };
       updateMutation.mutate(
         { id: editing.id, updates },
@@ -160,7 +171,7 @@ export const useAtendimentosController = () => {
     } else {
       const atendimento: Omit<Atendimento, 'id'> = {
         ...basePayload,
-        paidAt: formData.recebido ? nowIso : undefined,
+        paidAt: parsed.data.recebido ? nowIso : undefined,
         performedAt: nowIso,
       };
       createMutation.mutate(

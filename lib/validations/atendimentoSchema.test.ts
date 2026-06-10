@@ -46,6 +46,52 @@ describe('atendimentoFormSchema', () => {
     expect(r.success).toBe(false);
   });
 
+  it('rejeita desconto maior que o valor (mensagem PT-BR clara)', () => {
+    const r = atendimentoFormSchema.safeParse({
+      procedimento: 'Limpeza',
+      productId: 'prod1',
+      valor: '250',
+      desconto: '300',
+      professionalId: 'p1',
+      paymentMethod: 'pix',
+      recebido: false,
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]?.message).toBe(
+        'Desconto não pode ser maior que o valor do atendimento'
+      );
+    }
+  });
+
+  it('aceita desconto igual ao valor (cortesia 100%)', () => {
+    const r = atendimentoFormSchema.safeParse({
+      procedimento: 'Limpeza',
+      productId: 'prod1',
+      valor: '250',
+      desconto: '250',
+      professionalId: 'p1',
+      paymentMethod: 'pix',
+      recebido: false,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejeita valor negativo, desconto negativo e parcelas < 1', () => {
+    const base = {
+      procedimento: 'Limpeza',
+      productId: 'prod1',
+      valor: '250',
+      desconto: '0',
+      professionalId: 'p1',
+      paymentMethod: 'pix',
+      recebido: false,
+    };
+    expect(atendimentoFormSchema.safeParse({ ...base, valor: '-10' }).success).toBe(false);
+    expect(atendimentoFormSchema.safeParse({ ...base, desconto: '-5' }).success).toBe(false);
+    expect(atendimentoFormSchema.safeParse({ ...base, installments: '0' }).success).toBe(false);
+  });
+
   it('rejeita quando o profissional não é selecionado', () => {
     const r = atendimentoFormSchema.safeParse({
       procedimento: 'Limpeza',

@@ -77,6 +77,64 @@ describe('useAtendimentosController', () => {
     expect(typeof arg.atendimento.paidAt).toBe('string');
   });
 
+  describe('validação zod no submit (schema deixa de ser dead code)', () => {
+    it('aborta com toast de erro quando desconto > valor (nenhuma mutação disparada)', () => {
+      const { result } = renderHook(() => useAtendimentosController());
+
+      act(() => {
+        result.current.setFormData({
+          procedimento: 'Limpeza',
+          productId: 'prod1',
+          valor: '250',
+          desconto: '300',
+          professionalId: 'p1',
+          dealId: 'd1',
+          paymentMethod: 'pix',
+          cardBrand: '',
+          installments: '1',
+          recebido: false,
+        });
+      });
+
+      act(() => {
+        result.current.handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+      });
+
+      expect(createMutate).not.toHaveBeenCalled();
+      expect(updateMutate).not.toHaveBeenCalled();
+      expect(showToast).toHaveBeenCalledWith(
+        'Desconto não pode ser maior que o valor do atendimento',
+        'error'
+      );
+    });
+
+    it('aborta com toast quando o profissional não foi selecionado', () => {
+      const { result } = renderHook(() => useAtendimentosController());
+
+      act(() => {
+        result.current.setFormData({
+          procedimento: 'Limpeza',
+          productId: 'prod1',
+          valor: '250',
+          desconto: '0',
+          professionalId: '',
+          dealId: 'd1',
+          paymentMethod: 'pix',
+          cardBrand: '',
+          installments: '1',
+          recebido: false,
+        });
+      });
+
+      act(() => {
+        result.current.handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+      });
+
+      expect(createMutate).not.toHaveBeenCalled();
+      expect(showToast).toHaveBeenCalledWith(expect.any(String), 'error');
+    });
+  });
+
   describe('update — preserva performedAt e só recomputa paidAt quando recebido muda', () => {
     const ORIGINAL_PERFORMED_AT = '2026-06-01T10:00:00.000Z';
     const ORIGINAL_PAID_AT = '2026-06-02T09:00:00.000Z';
