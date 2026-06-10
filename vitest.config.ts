@@ -24,7 +24,7 @@ export default defineConfig({
     ],
     setupFiles: ['test/setup.ts', 'test/setup.dom.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', '.next', 'dist', 'tmp', '**/*.bak', '**/*.bkp'],
+    exclude: ['node_modules', '.next', 'dist', 'tmp', 'test/e2e/**', '**/*.bak', '**/*.bkp'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     maxWorkers: 1,
