@@ -198,6 +198,16 @@ export const lifecycleStageSchema = z.object({
 
 export type LifecycleStageFormData = z.infer<typeof lifecycleStageSchema>;
 
+// ============ PROFESSIONALS SCHEMAS ============
+
+export const professionalFormSchema = z.object({
+  name: requiredString('Nome do profissional', MAX_LENGTHS.NAME),
+  specialty: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  active: z.boolean().default(true),
+});
+
+export type ProfessionalFormData = z.infer<typeof professionalFormSchema>;
+
 // ============ AI CONFIG SCHEMAS ============
 
 export const aiConfigSchema = z.object({
