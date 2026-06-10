@@ -63,4 +63,13 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).not.toContain('with check (true)');
     expect(sql).not.toContain('WITH CHECK (true)');
   });
+
+  it('restringe organizations a can_access/can_configure (mantém deleted_at)', () => {
+    expect(sql).toContain('drop policy if exists "authenticated_access" on public.organizations');
+    expect(sql).toContain('create policy "organizations_select_by_tenant" on public.organizations');
+    expect(sql).toContain('create policy "organizations_mutate_by_tenant_admin" on public.organizations');
+    expect(sql).toContain('public.can_access_organization(id)');
+    expect(sql).toContain('public.can_configure_organization(id)');
+    expect(sql).toContain('deleted_at is null');
+  });
 });
