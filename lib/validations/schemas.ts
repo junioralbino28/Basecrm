@@ -180,6 +180,23 @@ export const activityFormSchema = z.object({
 
 export type ActivityFormData = z.infer<typeof activityFormSchema>;
 
+// ============ ATENDIMENTO SCHEMAS ============
+
+export const atendimentoFormSchema = z.object({
+  procedimento: requiredString('Procedimento', MAX_LENGTHS.TITLE),
+  productId: requiredSelect('Procedimento'),
+  valor: currencySchema,
+  /** Desconto da planilha do Adel (total a receber = valor − desconto). */
+  desconto: currencySchema,
+  professionalId: requiredSelect('Profissional'),
+  paymentMethod: requiredSelect('Forma de pagamento'),
+  cardBrand: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  installments: z.coerce.number().int().min(1).max(48).default(1),
+  recebido: z.boolean().default(false),
+});
+
+export type AtendimentoFormData = z.infer<typeof atendimentoFormSchema>;
+
 // ============ BOARD SCHEMAS ============
 
 export const boardFormSchema = z.object({
