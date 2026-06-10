@@ -22,6 +22,10 @@ BEGIN
     DELETE FROM deal_items;
     RAISE NOTICE '   ✓ deal_items deletados';
     
+    -- Atendimentos (dependem de deals, contacts, professionals, products)
+    DELETE FROM atendimentos;
+    RAISE NOTICE '   ✓ atendimentos deletados';
+
     -- Activities (dependem de deals e contacts)
     DELETE FROM activities;
     RAISE NOTICE '   ✓ activities deletadas';
