@@ -60,9 +60,12 @@ Tabela `lead_sources` (id, organization_id, name, active; RLS select `can_access
 ### N6 — Funil follow-up F1–F9
 Board novo "Follow-up · Cadência F1–F9" criado no provisionamento do tenant (9 stages com nomes/subtítulos do mockup) + switcher de board (UI de boards já suporta múltiplos — conferir o seletor atual em `features/boards/`). **Avanço AUTOMÁTICO por dia = v1.1/fase posterior** (guardrail: sistema não move oportunidade sozinho no MVP); v1 = board + movimentação manual + a call-list lê o estágio pra etiqueta.
 
+### N7 — Planilhas conectadas (link vivo =IMPORTDATA)
+Pedido do Junior 2026-06-10 (mockup v9-01, card no Financeiro). "Conectar planilha": gera link secreto READ-ONLY por relatório (atendimentos pagos, comissão, leads) → endpoint público CSV (`app/api/public/v1/...` — reusar o padrão da public API existente + `api_keys` p/ token revogável + `rate_limits`) → Adel cola `=IMPORTDATA(link)` no Google Sheets dele = espelho vivo. UI: card "Planilhas conectadas" no Financeiro (listar/copiar/revogar). Segurança M6: token por relatório+org, sem PII além do relatório, revogação imediata, rate limit. **v1** (é o critério de sucesso materializado: "as planilhas dele se preenchem sozinhas"). Formatos custom via n8n/Make = v1.1.
+
 ## Ordem de execução do provisionamento (branch `feat/v1-provisionamento`)
 
-1. **Fase D** (design system) → 2. **F3** professionals+catálogo → 3. **F4** atendimentos (c/ desconto/total) → 4. **F5** configs financeiras + `commission_payments` → 5. **N1** origens + **N2** tarefas (núcleo) → 6. **F6** call-list (integra N2) + **N3** nudge → 7. **F8** relatórios+gráficos (Financeiro/Profissionais/Visão Geral N5) → 8. **N4** conversas → 9. **F7** agenda (precisa `subscriber_id`/`code_link`/`business_id` do Clinicorp) → 10. **N6** board F1-F9 + **F2** seed 202 (precisa aba LEAD.xlsx→CSV) → review final + merge + **1 deploy**.
+1. **Fase D** (design system) → 2. **F3** professionals+catálogo → 3. **F4** atendimentos (c/ desconto/total) → 4. **F5** configs financeiras + `commission_payments` → 5. **N1** origens + **N2** tarefas (núcleo) → 6. **F6** call-list (integra N2) + **N3** nudge → 7. **F8** relatórios+gráficos (Financeiro/Profissionais/Visão Geral N5) → 8. **N4** conversas → 9. **F7** agenda (precisa `subscriber_id`/`code_link`/`business_id` do Clinicorp) → 10. **N7** planilhas conectadas → 11. **N6** board F1-F9 + **F2** seed 202 (precisa aba LEAD.xlsx→CSV) → review final + merge + **1 deploy**.
 
 **Dependências humanas (Junior/Adel):** (a) aba canônica da LEAD.xlsx → CSV; (b) arquivos reais das planilhas do Adel (pré-req F4 — validar campos); (c) credenciais one-time do Clinicorp pra F7. Nada disso bloqueia os passos 1-8.
 
