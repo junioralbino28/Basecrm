@@ -7,6 +7,7 @@ export { contactsService, companiesService } from './supabase/contacts';
 export { dealsService } from './supabase/deals';
 export { activitiesService } from './supabase/activities';
 export { atendimentosService } from './supabase/atendimentos';
+export { tasksService } from './supabase/tasks';
 export { productsService } from './supabase/products';
 export { professionalsService } from './supabase/professionals';
 export { leadSourcesService } from './supabase/leadSources';
