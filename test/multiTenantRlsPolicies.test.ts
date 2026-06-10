@@ -72,4 +72,10 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).toContain('public.can_configure_organization(id)');
     expect(sql).toContain('deleted_at is null');
   });
+
+  it('blinda leads por tenant (select can_access, mutate can_operate)', () => {
+    expect(sql).toContain('drop policy if exists "Enable all access for authenticated users" on public.leads');
+    expect(sql).toContain('create policy "leads_select_by_tenant" on public.leads');
+    expect(sql).toContain('create policy "leads_mutate_by_tenant_operator" on public.leads');
+  });
 });

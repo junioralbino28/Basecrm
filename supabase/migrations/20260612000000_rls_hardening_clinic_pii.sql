@@ -29,3 +29,17 @@ create policy "organizations_mutate_by_tenant_admin" on public.organizations
   to authenticated
   using (public.can_configure_organization(id))
   with check (public.can_configure_organization(id));
+
+-- 3a. leads — era "Enable all access for authenticated users" USING(true). recebe os 202 pacientes reais → prioridade
+drop policy if exists "Enable all access for authenticated users" on public.leads;
+
+create policy "leads_select_by_tenant" on public.leads
+  for select
+  to authenticated
+  using (public.can_access_organization(organization_id));
+
+create policy "leads_mutate_by_tenant_operator" on public.leads
+  for all
+  to authenticated
+  using (public.can_operate_organization(organization_id))
+  with check (public.can_operate_organization(organization_id));
