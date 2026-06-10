@@ -43,3 +43,31 @@ create policy "leads_mutate_by_tenant_operator" on public.leads
   to authenticated
   using (public.can_operate_organization(organization_id))
   with check (public.can_operate_organization(organization_id));
+
+-- 3b. tags — era "Enable all access for authenticated users" USING(true)
+drop policy if exists "Enable all access for authenticated users" on public.tags;
+
+create policy "tags_select_by_tenant" on public.tags
+  for select
+  to authenticated
+  using (public.can_access_organization(organization_id));
+
+create policy "tags_mutate_by_tenant_operator" on public.tags
+  for all
+  to authenticated
+  using (public.can_operate_organization(organization_id))
+  with check (public.can_operate_organization(organization_id));
+
+-- 3c. custom_field_definitions — era "Enable all access for authenticated users" USING(true)
+drop policy if exists "Enable all access for authenticated users" on public.custom_field_definitions;
+
+create policy "custom_field_definitions_select_by_tenant" on public.custom_field_definitions
+  for select
+  to authenticated
+  using (public.can_access_organization(organization_id));
+
+create policy "custom_field_definitions_mutate_by_tenant_operator" on public.custom_field_definitions
+  for all
+  to authenticated
+  using (public.can_operate_organization(organization_id))
+  with check (public.can_operate_organization(organization_id));

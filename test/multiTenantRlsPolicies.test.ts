@@ -78,4 +78,13 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).toContain('create policy "leads_select_by_tenant" on public.leads');
     expect(sql).toContain('create policy "leads_mutate_by_tenant_operator" on public.leads');
   });
+
+  it('blinda tags e custom_field_definitions por tenant', () => {
+    expect(sql).toContain('drop policy if exists "Enable all access for authenticated users" on public.tags');
+    expect(sql).toContain('create policy "tags_select_by_tenant" on public.tags');
+    expect(sql).toContain('create policy "tags_mutate_by_tenant_operator" on public.tags');
+    expect(sql).toContain('drop policy if exists "Enable all access for authenticated users" on public.custom_field_definitions');
+    expect(sql).toContain('create policy "custom_field_definitions_select_by_tenant" on public.custom_field_definitions');
+    expect(sql).toContain('create policy "custom_field_definitions_mutate_by_tenant_operator" on public.custom_field_definitions');
+  });
 });
