@@ -16,6 +16,7 @@ export { commissionRulesService } from './supabase/commissionRules';
 export { fixedCostsService } from './supabase/fixedCosts';
 export { commissionPaymentsService } from './supabase/commissionPayments';
 export { settingsService, lifecycleStagesService } from './supabase/settings';
+export { reportsService } from './supabase/reports';
 export { organizationSettingsService } from './supabase/organizationSettings';
 export type { TaskNudgeInterval } from './supabase/organizationSettings';
 
