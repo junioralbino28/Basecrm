@@ -292,7 +292,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
     ? (isClientMounted ? agencyDisplayName.trim() : '') || 'Agencia'
-    : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'NossoCRM');
+    : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Base CRM');
   const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
   const primarySidebarNav = [
     { to: getScopedHref('/dashboard'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },

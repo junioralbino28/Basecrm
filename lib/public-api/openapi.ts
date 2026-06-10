@@ -10,10 +10,10 @@ export function getPublicApiOpenApiDocument(): OpenApiDocument {
   return {
     openapi: '3.1.2',
     info: {
-      title: 'NossoCRM Public API',
+      title: 'Base CRM Public API',
       version: 'v1',
       description:
-        'API pública do NossoCRM para integrações (n8n/Make). Produto em primeiro lugar: copiar → colar → testar.',
+        'API pública do Base CRM para integrações (n8n/Make). Produto em primeiro lugar: copiar → colar → testar.',
     },
     servers: [{ url: '/api/public/v1' }],
     tags: [

@@ -4,7 +4,7 @@ import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister'
 import { InstallBanner } from '@/components/pwa/InstallBanner'
 
 export const metadata: Metadata = {
-  title: 'NossoCRM',
+  title: 'Base CRM',
   description: 'CRM Inteligente para Gestão de Vendas',
 }
 
