@@ -9,14 +9,17 @@ import { McpSection } from './components/McpSection';
 import { DataStorageSettings } from './components/DataStorageSettings';
 import { ProductsCatalogManager } from './components/ProductsCatalogManager';
 import { ProfessionalsManager } from './components/ProfessionalsManager';
+import { CardFeesManager } from './components/CardFeesManager';
+import { CommissionsManager } from './components/CommissionsManager';
+import { FixedCostsManager } from './components/FixedCostsManager';
 import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign } from 'lucide-react';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 
-type SettingsTab = 'general' | 'products' | 'professionals' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'professionals' | 'financeiro' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -173,6 +176,66 @@ const IntegrationsSettings: React.FC = () => {
   );
 };
 
+const FinanceiroSettings: React.FC = () => {
+  type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas';
+  const [subTab, setSubTab] = useState<FinanceiroSubTab>('taxas');
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
+      if (h === 'taxas' || h === 'comissoes' || h === 'contas') setSubTab(h as FinanceiroSubTab);
+    };
+
+    syncFromHash();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hashchange', syncFromHash);
+      return () => window.removeEventListener('hashchange', syncFromHash);
+    }
+  }, []);
+
+  const setSubTabAndHash = (t: FinanceiroSubTab) => {
+    setSubTab(t);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.hash = `#${t}`;
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
+  return (
+    <div className="pb-10">
+      <div className="flex items-center gap-2 mb-6">
+        {([
+          { id: 'taxas' as const, label: 'Taxas' },
+          { id: 'comissoes' as const, label: 'Comissões' },
+          { id: 'contas' as const, label: 'Contas' },
+        ] as const).map((t) => {
+          const active = subTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSubTabAndHash(t.id)}
+              className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                active
+                  ? 'border-brand-500/50 bg-brand-500/10 text-brand-700 dark:text-brand-300'
+                  : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {subTab === 'taxas' && <CardFeesManager />}
+      {subTab === 'comissoes' && <CommissionsManager />}
+      {subTab === 'contas' && <FixedCostsManager />}
+    </div>
+  );
+};
+
 interface SettingsPageProps {
   tab?: SettingsTab;
 }
@@ -200,6 +263,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       setActiveTab('products');
     } else if (pathname?.includes('/settings/profissionais')) {
       setActiveTab('professionals');
+    } else if (pathname?.includes('/settings/financeiro')) {
+      setActiveTab('financeiro');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
     } else if (pathname?.includes('/settings/data')) {
@@ -215,6 +280,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
     ...(canManageSettings ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
     ...(canManageSettings ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
+    ...(canManageSettings ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
     ...(canManageSettings ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -227,6 +293,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
         return <ProductsSettings />;
       case 'professionals':
         return <ProfessionalsSettings />;
+      case 'financeiro':
+        return <FinanceiroSettings />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':
