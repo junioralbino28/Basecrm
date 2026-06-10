@@ -82,10 +82,10 @@ export const SelectBoardModal: React.FC<SelectBoardModalProps> = ({
               <button
                 key={board.id}
                 onClick={() => onSelect(board.id)}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-all group"
+                className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-white/10 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all group"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center group-hover:bg-primary-200 dark:group-hover:bg-primary-500/30 transition-colors">
-                  <LayoutGrid size={20} className="text-primary-600 dark:text-primary-400" />
+                <div className="w-10 h-10 rounded-lg bg-brand-100 dark:bg-brand-500/20 flex items-center justify-center group-hover:bg-brand-200 dark:group-hover:bg-brand-500/30 transition-colors">
+                  <LayoutGrid size={20} className="text-brand-600 dark:text-brand-400" />
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-medium text-slate-900 dark:text-white">

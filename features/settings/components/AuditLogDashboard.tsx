@@ -253,7 +253,7 @@ export const AuditLogDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary-500" />
+            <Shield className="w-6 h-6 text-brand-500" />
             Logs de Auditoria
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -263,7 +263,7 @@ export const AuditLogDashboard: React.FC = () => {
         <button
           onClick={fetchLogs}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Atualizar
@@ -332,7 +332,7 @@ export const AuditLogDashboard: React.FC = () => {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="all">Todas Severidades</option>
             <option value="critical">Crítico</option>
@@ -343,7 +343,7 @@ export const AuditLogDashboard: React.FC = () => {
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="all">Todas Ações</option>
             <option value="CROSS_TENANT_ATTEMPT">Cross-Tenant</option>
@@ -355,7 +355,7 @@ export const AuditLogDashboard: React.FC = () => {
           <select
             value={timeFilter}
             onChange={(e) => setTimeFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="24h">Últimas 24h</option>
             <option value="7d">Últimos 7 dias</option>

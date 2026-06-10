@@ -47,9 +47,9 @@ const getTypeConfig = (type: AISuggestionType) => {
     default:
       return {
         icon: Sparkles,
-        color: 'text-primary-500',
-        bg: 'bg-primary-50 dark:bg-primary-500/10',
-        border: 'border-primary-200 dark:border-primary-500/20',
+        color: 'text-brand-500',
+        bg: 'bg-brand-50 dark:bg-brand-500/10',
+        border: 'border-brand-200 dark:border-brand-500/20',
         label: 'IA'
       };
   }
@@ -83,13 +83,13 @@ export const AISuggestionsSection: React.FC<AISuggestionsSectionProps> = ({
     <div className="mb-8">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <div className="p-1.5 bg-gradient-to-br from-primary-500 to-purple-600 rounded-lg">
+        <div className="p-1.5 bg-gradient-to-br from-brand-500 to-purple-600 rounded-lg">
           <Sparkles size={16} className="text-white" />
         </div>
         <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
           Sugestões da IA
         </h2>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400 font-medium">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 font-medium">
           {suggestions.length}
         </span>
       </div>
@@ -160,7 +160,7 @@ export const AISuggestionsSection: React.FC<AISuggestionsSectionProps> = ({
                   </button>
                   <button
                     onClick={() => onAccept(suggestion)}
-                    className="p-2 text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors shadow-sm"
+                    className="p-2 text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-colors shadow-sm"
                     title="Aceitar"
                   >
                     <Check size={18} />
@@ -171,7 +171,7 @@ export const AISuggestionsSection: React.FC<AISuggestionsSectionProps> = ({
               {/* Quick action button (mobile friendly) */}
               <button
                 onClick={() => onAccept(suggestion)}
-                className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 rounded-lg transition-colors md:hidden"
+                className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/20 rounded-lg transition-colors md:hidden"
               >
                 Aceitar sugestão <ChevronRight size={16} />
               </button>

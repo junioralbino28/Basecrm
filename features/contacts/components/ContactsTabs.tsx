@@ -36,7 +36,7 @@ export const ContactsTabs: React.FC<ContactsTabsProps> = ({
                 <button
                     onClick={() => setViewMode('people')}
                     className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${viewMode === 'people'
-                        ? 'border-primary-500 text-primary-600 dark:text-white'
+                        ? 'border-brand-500 text-brand-600 dark:text-white'
                         : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                         }`}
                 >
@@ -48,7 +48,7 @@ export const ContactsTabs: React.FC<ContactsTabsProps> = ({
                 <button
                     onClick={() => setViewMode('companies')}
                     className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${viewMode === 'companies'
-                        ? 'border-primary-500 text-primary-600 dark:text-white'
+                        ? 'border-brand-500 text-brand-600 dark:text-white'
                         : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                         }`}
                 >

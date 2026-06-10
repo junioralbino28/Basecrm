@@ -822,7 +822,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
             aria-label={installProgress && installProgress.total === 1 ? 'Criando board' : 'Instalando funil'}
           >
             <div className="flex items-start gap-3">
-              <Loader2 className="mt-0.5 animate-spin text-primary-500" size={22} />
+              <Loader2 className="mt-0.5 animate-spin text-brand-500" size={22} />
               <div className="min-w-0 flex-1">
                 <div className="text-base font-semibold text-slate-900 dark:text-white">
                   {installProgress && installProgress.total === 1 ? 'Criando board…' : 'Instalando funil…'}
@@ -838,7 +838,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
               <div className="mt-4">
                 <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
                   <div
-                    className="h-full bg-primary-500 transition-all"
+                    className="h-full bg-brand-500 transition-all"
                     style={{
                       width: `${Math.min(
                         100,
@@ -870,7 +870,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
           <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             {isChatMode ? (
               <>
-                <MessageSquare size={24} className="text-primary-500" /> Refinar com IA
+                <MessageSquare size={24} className="text-brand-500" /> Refinar com IA
               </>
             ) : (
               'Criar Novo Board'
@@ -897,7 +897,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                   >
                     <div
                       className={`max-w-[90%] p-3 rounded-xl text-sm whitespace-pre-wrap ${msg.role === 'user'
-                        ? 'bg-primary-600 text-white rounded-br-none'
+                        ? 'bg-brand-600 text-white rounded-br-none'
                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-none'
                         }`}
                     >
@@ -939,7 +939,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                 {isRefining && (
                   <div className="flex justify-start">
                     <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 p-3 rounded-xl rounded-bl-none flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin text-primary-500" />
+                      <Loader2 size={14} className="animate-spin text-brand-500" />
                       <span className="text-xs text-slate-500">
                         Pensando...
                       </span>
@@ -958,13 +958,13 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                       if (e.key === 'Enter' && !isRefining) handleRefineBoard();
                     }}
                     placeholder="Ex: Adicione uma etapa de 'Negociação'..."
-                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     disabled={isRefining}
                   />
                   <button
                     onClick={handleRefineBoard}
                     disabled={!chatInput.trim() || isRefining}
-                    className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-500 disabled:opacity-50 transition-colors"
+                    className="p-2 bg-brand-600 text-white rounded-lg hover:bg-brand-500 disabled:opacity-50 transition-colors"
                   >
                     <Send size={18} />
                   </button>
@@ -991,7 +991,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                     {/* Primary CTA: AI */}
                     <button
                       onClick={() => setStep('ai-input')}
-                      className="mt-4 w-full relative overflow-hidden p-1 rounded-2xl group transition-all hover:shadow-lg hover:shadow-primary-500/20"
+                      className="mt-4 w-full relative overflow-hidden p-1 rounded-2xl group transition-all hover:shadow-lg hover:shadow-brand-500/20"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-95 group-hover:opacity-100 transition-opacity" />
                       <div className="relative bg-white dark:bg-slate-900 rounded-[14px] px-4 py-3 flex items-center justify-center gap-3 transition-colors group-hover:bg-opacity-90 dark:group-hover:bg-opacity-90">
@@ -1018,11 +1018,11 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                           setSelectBrowseFocus('playbooks');
                           setActiveTab('official');
                         }}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all text-left"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all text-left"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
-                            <LayoutTemplate className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                          <div className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center">
+                            <LayoutTemplate className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900 dark:text-white">
@@ -1041,7 +1041,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                           setSelectBrowseFocus('templates');
                           setActiveTab('official');
                         }}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all text-left"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all text-left"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center">
@@ -1065,7 +1065,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                           onOpenCustomModal();
                           handleReset();
                         }}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all text-left"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all text-left"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center">
@@ -1158,15 +1158,15 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                                   setSelectedPlaybookId(journey.id);
                                   setStep('playbook-preview');
                                 }}
-                                className="group relative w-full text-left overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                className="group relative w-full text-left overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-card hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all duration-200 shadow-sm hover:shadow-md"
                               >
-                                <div className="absolute inset-0 bg-gradient-to-r from-primary-50/50 to-transparent dark:from-primary-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="absolute inset-0 bg-gradient-to-r from-brand-50/50 to-transparent dark:from-brand-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                 <div className="relative p-4 flex items-center gap-3">
-                                  <div className="w-10 h-10 flex items-center justify-center bg-primary-50 dark:bg-primary-900/20 rounded-lg text-xl shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                  <div className="w-10 h-10 flex items-center justify-center bg-brand-50 dark:bg-brand-900/20 rounded-lg text-xl shrink-0 group-hover:scale-110 transition-transform duration-300">
                                     {journey.icon}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">
                                       {journey.name}
                                     </h4>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
@@ -1174,7 +1174,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                                     </p>
                                   </div>
                                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-primary-600 dark:text-primary-400 text-xs">
+                                    <div className="w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-brand-600 dark:text-brand-400 text-xs">
                                       →
                                     </div>
                                   </div>
@@ -1203,13 +1203,13 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                                 onClick={() => {
                                   handleTemplateSelect(key);
                                 }}
-                                className="p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl hover:border-primary-500/50 dark:hover:border-primary-500/50 hover:shadow-md transition-all text-left group flex flex-col h-full min-h-[140px]"
+                                className="p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl hover:border-brand-500/50 dark:hover:border-brand-500/50 hover:shadow-md transition-all text-left group flex flex-col h-full min-h-[140px]"
                               >
                                 <div className="flex items-center gap-3 mb-3 shrink-0">
                                   <span className="text-2xl group-hover:scale-110 transition-transform duration-200">
                                     {template.emoji}
                                   </span>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white text-base group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors truncate">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white text-base group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">
                                     {template.name}
                                   </h4>
                                 </div>
@@ -1241,7 +1241,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
                         {isLoadingRegistry ? (
                           <div className="flex items-center justify-center py-12">
-                            <Loader2 className="animate-spin text-primary-500" size={32} />
+                            <Loader2 className="animate-spin text-brand-500" size={32} />
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 gap-4 mb-6">
@@ -1250,17 +1250,17 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                                 key={template.id}
                                 onClick={() => handleInstallJourney(template.path)}
                                 disabled={isInstalling}
-                                className="p-4 border-2 border-slate-200 dark:border-white/10 rounded-xl hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all text-left group disabled:opacity-50"
+                                className="p-4 border-2 border-slate-200 dark:border-white/10 rounded-xl hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all text-left group disabled:opacity-50"
                               >
                                 <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 flex items-center gap-2">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 flex items-center gap-2">
                                     🚀 {template.name}
                                     <span className="text-xs bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-full text-slate-500">
                                       v{template.version}
                                     </span>
                                   </h4>
                                   {isInstalling && (
-                                    <Loader2 className="animate-spin text-primary-500" size={16} />
+                                    <Loader2 className="animate-spin text-brand-500" size={16} />
                                   )}
                                 </div>
                                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
@@ -1298,7 +1298,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                 <div className="bg-white dark:bg-dark-card border-b border-slate-200 dark:border-white/10 py-5 px-8 shrink-0">
                   <div className="flex items-center gap-5">
                     {/* System Icon */}
-                    <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center text-primary-600 dark:text-primary-400 border border-primary-100 dark:border-primary-500/20 shrink-0">
+                    <div className="w-12 h-12 bg-brand-50 dark:bg-brand-900/20 rounded-xl flex items-center justify-center text-brand-600 dark:text-brand-400 border border-brand-100 dark:border-brand-500/20 shrink-0">
                       <LayoutTemplate className="w-6 h-6" />
                     </div>
 
@@ -1337,7 +1337,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                             type="checkbox"
                             checked={includeSubscriptionRenewals}
                             onChange={e => setIncludeSubscriptionRenewals(e.target.checked)}
-                            className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                           />
                           <div className="flex-1">
                             <label htmlFor="include-renewals" className="font-semibold text-slate-900 dark:text-white">
@@ -1358,12 +1358,12 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                       {(getJourneyForInstall(selectedPlaybookId)?.boards ?? OFFICIAL_JOURNEYS[selectedPlaybookId].boards).map((board, index) => (
                         <div key={index} className="relative pl-20 group">
                           {/* Number Bubble - Vertically Centered */}
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white dark:bg-dark-card border-2 border-slate-200 dark:border-white/10 flex items-center justify-center text-lg font-bold text-slate-400 shadow-sm z-10 group-hover:border-primary-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 group-hover:scale-110 transition-all duration-300">
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white dark:bg-dark-card border-2 border-slate-200 dark:border-white/10 flex items-center justify-center text-lg font-bold text-slate-400 shadow-sm z-10 group-hover:border-brand-500 group-hover:text-brand-600 dark:group-hover:text-brand-400 group-hover:scale-110 transition-all duration-300">
                             {index + 1}
                           </div>
 
                           {/* Card */}
-                          <div className="bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-white/10 p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-primary-500/30 group-hover:-translate-y-1">
+                          <div className="bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-white/10 p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-brand-500/30 group-hover:-translate-y-1">
                             <div className="flex items-center justify-between mb-4">
                               <h4 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                                 {board.name}
@@ -1391,7 +1391,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                               <div className="flex flex-wrap gap-2">
                                 {board.columns.map((column, i) => (
                                   <div key={i} className="flex items-center group/tag">
-                                    <span className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-white/5 group-hover/tag:border-primary-200 dark:group-hover/tag:border-primary-500/30 group-hover/tag:bg-primary-50 dark:group-hover/tag:bg-primary-900/20 transition-colors">
+                                    <span className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-white/5 group-hover/tag:border-brand-200 dark:group-hover/tag:border-brand-500/30 group-hover/tag:bg-brand-50 dark:group-hover/tag:bg-brand-900/20 transition-colors">
                                       {column.name}
                                     </span>
                                     {i < board.columns.length - 1 && (
@@ -1416,7 +1416,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <Sparkles size={20} className="text-primary-600 dark:text-primary-400" />
+                    <Sparkles size={20} className="text-brand-600 dark:text-brand-400" />
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                       Descreva seu negócio em 1 frase:
                     </h3>
@@ -1427,7 +1427,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                     value={aiInput}
                     onChange={e => setAiInput(e.target.value)}
                     placeholder="Ex: Sou tatuador, Vendo cursos online, Consultoria de TI..."
-                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     autoFocus
                     onKeyDown={e => {
                       if (e.key === 'Enter') handleAIGenerate();
@@ -1477,7 +1477,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                 )}
 
                 <div
-                  className={`p-4 rounded-xl border ${isChatMode ? 'bg-white dark:bg-dark-card border-slate-200 dark:border-white/10 shadow-sm' : 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-500/20'}`}
+                  className={`p-4 rounded-xl border ${isChatMode ? 'bg-white dark:bg-dark-card border-slate-200 dark:border-white/10 shadow-sm' : 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-500/20'}`}
                 >
                   <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
                     📋 {displayBoard.boardName}
@@ -1546,7 +1546,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
               </button>
               <button
                 onClick={() => handleInstallOfficialJourney(selectedPlaybookId)}
-                className="px-8 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl transition-all shadow-lg hover:shadow-primary-500/25 font-bold flex items-center gap-2"
+                className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl transition-all shadow-lg hover:shadow-brand-500/25 font-bold flex items-center gap-2"
               >
                 <span className="text-lg">🚀</span> Instalar Playbook Completo
               </button>
@@ -1567,7 +1567,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
               <button
                 onClick={handleAIGenerate}
                 disabled={!aiInput.trim() || isGenerating}
-                className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isGenerating ? (
                   <>

@@ -152,7 +152,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         onClick={() => setViewMode('kanban')}
                         aria-label="Visualização em quadro Kanban"
                         aria-pressed={viewMode === 'kanban'}
-                        className={`p-1.5 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        className={`p-1.5 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-brand-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
                     >
                         <LayoutGrid size={16} aria-hidden="true" />
                     </button>
@@ -160,7 +160,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         onClick={() => setViewMode('list')}
                         aria-label="Visualização em lista"
                         aria-pressed={viewMode === 'list'}
-                        className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-brand-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
                     >
                         <TableIcon size={16} aria-hidden="true" />
                     </button>
@@ -174,7 +174,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         placeholder="Filtrar negócios ou empresas..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm"
                     />
                 </div>
                 <div className="relative">
@@ -182,7 +182,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as any)}
                         aria-label="Filtrar por status"
-                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
                     >
                         <option value="open">Em Aberto</option>
                         <option value="won">Ganhos</option>
@@ -202,7 +202,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         value={ownerFilter}
                         onChange={(e) => setOwnerFilter(e.target.value as 'all' | 'mine')}
                         aria-label="Filtrar negócios por proprietário"
-                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
                     >
                         <option value="all">Todos os Donos</option>
                         <option value="mine">Meus Negócios</option>
@@ -214,7 +214,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
             <div className="flex gap-3">
                 <button
                     onClick={onNewDeal}
-                    className="bg-primary-700 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-primary-700/20"
+                    className="bg-brand-700 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-brand-700/20"
                 >
                     <Plus size={18} aria-hidden="true" /> Novo Negócio
                 </button>

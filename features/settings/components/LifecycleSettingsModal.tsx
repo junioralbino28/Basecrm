@@ -119,7 +119,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                     type="text"
                                     value={stage.name}
                                     onChange={(e) => updateLifecycleStage(stage.id, { name: e.target.value })}
-                                    className="flex-1 bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none border-b border-transparent focus:border-primary-500 px-1"
+                                    className="flex-1 bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none border-b border-transparent focus:border-brand-500 px-1"
                                 />
 
                                 {/* Count Badge */}
@@ -136,14 +136,14 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                         <button
                                             onClick={() => handleMove(index, 'up')}
                                             disabled={index === 0}
-                                            className="p-0.5 text-slate-400 hover:text-primary-500 disabled:opacity-30"
+                                            className="p-0.5 text-slate-400 hover:text-brand-500 disabled:opacity-30"
                                         >
                                             <ArrowUp size={12} />
                                         </button>
                                         <button
                                             onClick={() => handleMove(index, 'down')}
                                             disabled={index === lifecycleStages.length - 1}
-                                            className="p-0.5 text-slate-400 hover:text-primary-500 disabled:opacity-30"
+                                            className="p-0.5 text-slate-400 hover:text-brand-500 disabled:opacity-30"
                                         >
                                             <ArrowDown size={12} />
                                         </button>
@@ -169,7 +169,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
 
                         {/* Add New */}
                         {isAdding ? (
-                            <div className="flex items-center gap-3 p-2 border border-primary-200 dark:border-primary-800 rounded-lg bg-primary-50 dark:bg-primary-900/10 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-3 p-2 border border-brand-200 dark:border-brand-800 rounded-lg bg-brand-50 dark:bg-brand-900/10 animate-in fade-in slide-in-from-top-2">
                                 <div className={`w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-600`} />
                                 <input
                                     autoFocus
@@ -183,7 +183,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                 <button
                                     onClick={handleAdd}
                                     disabled={!newStageName.trim()}
-                                    className="p-1.5 bg-primary-500 text-white rounded-md hover:bg-primary-600 disabled:opacity-50"
+                                    className="p-1.5 bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-50"
                                 >
                                     <Check size={14} />
                                 </button>
@@ -197,7 +197,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                         ) : (
                             <button
                                 onClick={() => setIsAdding(true)}
-                                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-primary-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 transition-all"
+                                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 transition-all"
                             >
                                 <Plus size={16} />
                                 Adicionar Estágio

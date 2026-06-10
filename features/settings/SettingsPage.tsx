@@ -52,7 +52,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
             aria-label="Selecionar página inicial"
             value={controller.defaultRoute}
             onChange={(e) => controller.setDefaultRoute(e.target.value)}
-            className="w-full max-w-xs px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900 dark:text-white transition-all"
+            className="w-full max-w-xs px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-slate-900 dark:text-white transition-all"
           >
             <option value="/dashboard">Dashboard</option>
             <option value="/inbox-list">Inbox (Lista)</option>
@@ -147,7 +147,7 @@ const IntegrationsSettings: React.FC = () => {
               onClick={() => setSubTabAndHash(t.id)}
               className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                 active
-                  ? 'border-primary-500/50 bg-primary-500/10 text-primary-700 dark:text-primary-300'
+                  ? 'border-brand-500/50 bg-brand-500/10 text-brand-700 dark:text-brand-300'
                   : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
               }`}
             >
@@ -237,14 +237,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${isActive
-                ? 'text-primary-600 dark:text-primary-400'
+                ? 'text-brand-600 dark:text-brand-400'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
             >
               <tab.icon className="h-4 w-4" />
               {tab.name}
               {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 dark:bg-primary-400 rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-600 dark:bg-brand-400 rounded-full" />
               )}
             </button>
           );

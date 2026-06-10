@@ -396,7 +396,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     <input
                       autoFocus
                       type="text"
-                      className="text-2xl font-bold text-slate-900 dark:text-white bg-white dark:bg-black/20 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 w-full outline-none focus:ring-2 focus:ring-primary-500"
+                      className="text-2xl font-bold text-slate-900 dark:text-white bg-white dark:bg-black/20 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 w-full outline-none focus:ring-2 focus:ring-brand-500"
                       value={editTitle}
                       onChange={e => setEditTitle(e.target.value)}
                       onBlur={saveTitle}
@@ -413,7 +413,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       setEditTitle(deal.title);
                       setIsEditingTitle(true);
                     }}
-                    className="text-2xl font-bold text-slate-900 dark:text-white font-display leading-tight cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-2 group transition-colors"
+                    className="text-2xl font-bold text-slate-900 dark:text-white font-display leading-tight cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-2 group transition-colors"
                     title="Clique para editar"
                   >
                     {deal.title}
@@ -427,7 +427,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     <input
                       autoFocus
                       type="number"
-                      className="text-lg font-mono font-bold text-primary-600 dark:text-primary-400 bg-white dark:bg-black/20 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 w-32 outline-none focus:ring-2 focus:ring-primary-500"
+                      className="text-lg font-mono font-bold text-brand-600 dark:text-brand-400 bg-white dark:bg-black/20 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 w-32 outline-none focus:ring-2 focus:ring-brand-500"
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
                       onBlur={saveValue}
@@ -443,7 +443,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       setEditValue(deal.value.toString());
                       setIsEditingValue(true);
                     }}
-                    className="text-lg text-primary-600 dark:text-primary-400 font-mono font-bold cursor-pointer hover:underline decoration-dashed underline-offset-4"
+                    className="text-lg text-brand-600 dark:text-brand-400 font-mono font-bold cursor-pointer hover:underline decoration-dashed underline-offset-4"
                     title="Clique para editar valor"
                   >
                     ${deal.value.toLocaleString()}
@@ -700,14 +700,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           }
                         }}
                         placeholder="Ex: VIP, Urgente, Q4..."
-                        className="min-w-0 flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                        className="min-w-0 flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                         aria-label="Adicionar tag"
                       />
                       <button
                         type="button"
                         onClick={() => addDealTag(tagQuery)}
                         disabled={!normalizeTag(tagQuery)}
-                        className="shrink-0 h-10 w-10 inline-flex items-center justify-center rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
+                        className="shrink-0 h-10 w-10 inline-flex items-center justify-center rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
                         aria-label="Adicionar tag"
                         title="Adicionar tag"
                       >
@@ -748,7 +748,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                             <select
                               value={deal.customFields?.[field.key] || ''}
                               onChange={e => updateCustomField(field.key, e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded px-2 py-1.5 text-sm dark:text-white focus:ring-1 focus:ring-primary-500 outline-none"
+                              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded px-2 py-1.5 text-sm dark:text-white focus:ring-1 focus:ring-brand-500 outline-none"
                             >
                               <option value="">Selecione...</option>
                               {field.options?.map(opt => (
@@ -762,7 +762,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                               type={field.type}
                               value={deal.customFields?.[field.key] || ''}
                               onChange={e => updateCustomField(field.key, e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded px-2 py-1.5 text-sm dark:text-white focus:ring-1 focus:ring-primary-500 outline-none"
+                              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded px-2 py-1.5 text-sm dark:text-white focus:ring-1 focus:ring-brand-500 outline-none"
                             />
                           )}
                         </div>
@@ -779,19 +779,19 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                 <div className="flex gap-6">
                   <button
                     onClick={() => setActiveTab('timeline')}
-                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'timeline' ? 'border-primary-500 text-primary-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'timeline' ? 'border-brand-500 text-brand-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
                   >
                     Timeline
                   </button>
                   <button
                     onClick={() => setActiveTab('products')}
-                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'products' ? 'border-primary-500 text-primary-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'products' ? 'border-brand-500 text-brand-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
                   >
                     Produtos
                   </button>
                   <button
                     onClick={() => setActiveTab('info')}
-                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'info' ? 'border-primary-500 text-primary-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'info' ? 'border-brand-500 text-brand-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
                   >
                     IA Insights
                   </button>
@@ -814,7 +814,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         <button
                           onClick={handleAddNote}
                           disabled={!newNote.trim()}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
+                          className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
                         >
                           <Check size={14} /> Enviar
                         </button>
@@ -853,7 +853,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       </h3>
                       <div className="flex gap-3">
                         <select
-                          className="flex-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                          className="flex-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                           value={selectedProductId}
                           onChange={e => setSelectedProductId(e.target.value)}
                         >
@@ -867,14 +867,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         <input
                           type="number"
                           min="1"
-                          className="w-20 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                          className="w-20 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                           value={productQuantity}
                           onChange={e => setProductQuantity(parseInt(e.target.value))}
                         />
                         <button
                           onClick={handleAddProduct}
                           disabled={!selectedProductId}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+                          className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
                         >
                           Adicionar
                         </button>
@@ -887,7 +887,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         <button
                           type="button"
                           onClick={() => setShowCustomItem(v => !v)}
-                          className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline"
+                          className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline"
                         >
                           {showCustomItem ? 'Fechar' : 'Adicionar item personalizado'}
                         </button>
@@ -902,7 +902,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                                 value={customItemName}
                                 onChange={e => setCustomItemName(e.target.value)}
                                 placeholder="Ex.: Pacote personalizado, Procedimento X…"
-                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                               />
                             </div>
                             <div className="sm:col-span-3">
@@ -911,7 +911,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                                 value={customItemPrice}
                                 onChange={e => setCustomItemPrice(e.target.value)}
                                 inputMode="decimal"
-                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                               />
                             </div>
                             <div className="sm:col-span-2">
@@ -921,14 +921,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                                 min={1}
                                 value={customItemQuantity}
                                 onChange={e => setCustomItemQuantity(parseInt(e.target.value))}
-                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                               />
                             </div>
                             <div className="sm:col-span-1">
                               <button
                                 type="button"
                                 onClick={handleAddCustomItem}
-                                className="w-full bg-primary-600 hover:bg-primary-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                                className="w-full bg-brand-600 hover:bg-brand-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors"
                               >
                                 +
                               </button>
@@ -991,7 +991,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                             >
                               Total do Pedido
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-primary-600 dark:text-primary-400 text-lg">
+                            <td className="px-4 py-3 text-right font-bold text-brand-600 dark:text-brand-400 text-lg">
                               ${deal.value.toLocaleString()}
                             </td>
                             <td></td>
@@ -1004,9 +1004,9 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
 
                 {activeTab === 'info' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                    <div className="bg-linear-to-br from-primary-50 to-white dark:from-primary-900/10 dark:to-dark-card p-6 rounded-xl border border-primary-100 dark:border-primary-500/20">
+                    <div className="bg-linear-to-br from-brand-50 to-white dark:from-brand-900/10 dark:to-dark-card p-6 rounded-xl border border-brand-100 dark:border-brand-500/20">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-primary-100 dark:bg-primary-500/20 rounded-lg text-primary-600 dark:text-primary-400">
+                        <div className="p-2 bg-brand-100 dark:bg-brand-500/20 rounded-lg text-brand-600 dark:text-brand-400">
                           <BrainCircuit size={20} />
                         </div>
                         <div>
@@ -1067,9 +1067,9 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         </button>
                       </div>
                       {aiResult && (
-                        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-4 rounded-lg border border-primary-100 dark:border-primary-500/20 mb-4">
-                          <div className="flex justify-between mb-2 border-b border-primary-100 dark:border-white/5 pb-2">
-                            <span className="text-xs font-bold text-primary-700 dark:text-primary-300 uppercase tracking-wider">
+                        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-4 rounded-lg border border-brand-100 dark:border-brand-500/20 mb-4">
+                          <div className="flex justify-between mb-2 border-b border-brand-100 dark:border-white/5 pb-2">
+                            <span className="text-xs font-bold text-brand-700 dark:text-brand-300 uppercase tracking-wider">
                               Sugestão
                             </span>
                             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-2 rounded">
@@ -1082,8 +1082,8 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         </div>
                       )}
                       {emailDraft && (
-                        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-4 rounded-lg border border-primary-100 dark:border-primary-500/20">
-                          <h4 className="text-xs font-bold text-primary-700 dark:text-primary-300 uppercase tracking-wider mb-2">
+                        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-4 rounded-lg border border-brand-100 dark:border-brand-500/20">
+                          <h4 className="text-xs font-bold text-brand-700 dark:text-brand-300 uppercase tracking-wider mb-2">
                             Rascunho de Email
                           </h4>
                           <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed italic">

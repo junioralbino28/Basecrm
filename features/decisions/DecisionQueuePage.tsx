@@ -82,7 +82,7 @@ export const DecisionQueuePage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Zap className="text-primary-500" size={28} />
+            <Zap className="text-brand-500" size={28} />
             Central de Decisões
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -94,7 +94,7 @@ export const DecisionQueuePage: React.FC = () => {
           <button
             onClick={runAnalyzers}
             disabled={isAnalyzing}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             {isAnalyzing ? (
               <Loader2 size={16} className="animate-spin" />
@@ -175,7 +175,7 @@ export const DecisionQueuePage: React.FC = () => {
         {decisions.length > 0 && (
           <button
             onClick={approveAll}
-            className="flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+            className="flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium"
           >
             <CheckCircle2 size={14} />
             Aprovar todas as sugeridas
@@ -186,7 +186,7 @@ export const DecisionQueuePage: React.FC = () => {
       {/* Empty State */}
       {decisions.length === 0 && (
         <div className="text-center py-16">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-50 dark:bg-primary-500/10 text-primary-500 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-50 dark:bg-brand-500/10 text-brand-500 mb-4">
             <Sparkles size={32} />
           </div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -199,7 +199,7 @@ export const DecisionQueuePage: React.FC = () => {
           <button
             onClick={runAnalyzers}
             disabled={isAnalyzing}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
           >
             {isAnalyzing ? (
               <Loader2 size={18} className="animate-spin" />

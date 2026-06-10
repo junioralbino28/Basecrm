@@ -413,7 +413,7 @@ export const UsersPage: React.FC = () => {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="animate-spin h-8 w-8 text-primary-500" />
+                    <Loader2 className="animate-spin h-8 w-8 text-brand-500" />
                     <span className="text-sm text-slate-500 dark:text-slate-400">Carregando equipe...</span>
                 </div>
             </div>
@@ -463,7 +463,7 @@ export const UsersPage: React.FC = () => {
                     <button
                         onClick={() => setIsModalOpen(true)}
                         disabled={isClinicScopeUnavailable}
-                        className="group flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-500 transition-all shadow-lg shadow-primary-600/25 hover:shadow-xl hover:shadow-primary-600/30 hover:-translate-y-0.5 font-medium"
+                        className="group flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/25 hover:shadow-xl hover:shadow-brand-600/30 hover:-translate-y-0.5 font-medium"
                     >
                         <UserPlus className="w-4 h-4 transition-transform group-hover:scale-110" />
                         Convidar
@@ -483,7 +483,7 @@ export const UsersPage: React.FC = () => {
                         <div
                             key={user.id}
                             className={`group relative bg-white dark:bg-white/[0.03] border rounded-2xl p-5 transition-all duration-200 hover:shadow-lg dark:hover:bg-white/[0.05] ${isCurrentUser
-                                ? 'border-primary-200 dark:border-primary-500/30 ring-1 ring-primary-100 dark:ring-primary-500/10'
+                                ? 'border-brand-200 dark:border-brand-500/30 ring-1 ring-brand-100 dark:ring-brand-500/10'
                                 : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
                                 }`}
                         >
@@ -505,7 +505,7 @@ export const UsersPage: React.FC = () => {
                                             {user.email}
                                         </h3>
                                         {isCurrentUser && (
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
                                                 você
                                             </span>
                                         )}
@@ -586,7 +586,7 @@ export const UsersPage: React.FC = () => {
                                             value={normalizedRole}
                                             disabled={roleLoading === user.id}
                                             onChange={(event) => void handleRoleChange(user.id, event.target.value as AppUserRole)}
-                                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-primary-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                                         >
                                             {roleOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
@@ -664,7 +664,7 @@ export const UsersPage: React.FC = () => {
                     </p>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-500 transition-all font-medium"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-500 transition-all font-medium"
                     >
                         <UserPlus className="w-4 h-4" />
                         Convidar primeiro membro
@@ -688,7 +688,7 @@ export const UsersPage: React.FC = () => {
                         {/* Modal Header */}
                         <div className="px-6 pt-6 pb-4">
                             <div className="flex items-center gap-3 mb-1">
-                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
                                     <Link className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -738,7 +738,7 @@ export const UsersPage: React.FC = () => {
                                             <select
                                                 value={selectedClinicId || ''}
                                                 onChange={(event) => setSelectedClinicId(event.target.value || null)}
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                                 disabled={tenantOptionsLoading}
                                             >
                                                 {!selectedClinicId ? <option value="">Selecione uma clinica</option> : null}
@@ -776,7 +776,7 @@ export const UsersPage: React.FC = () => {
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${normalizeAppUserRole(invite.role) === 'agency_admin' || normalizeAppUserRole(invite.role) === 'clinic_admin' || normalizeAppUserRole(invite.role) === 'admin'
                                                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                                            : 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                                                            : 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
                                                             }`}>
                                                             {getRoleLabel(invite.role)}
                                                         </span>
@@ -795,7 +795,7 @@ export const UsersPage: React.FC = () => {
                                                     <button
                                                         onClick={() => copyLink(inviteToken)}
                                                         disabled={!inviteToken}
-                                                        className="p-2 text-primary-600 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+                                                        className="p-2 text-brand-600 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
                                                         title="Copiar link"
                                                     >
                                                         <Copy className="h-4 w-4" />
@@ -838,7 +838,7 @@ export const UsersPage: React.FC = () => {
                                                     className={`relative p-3 rounded-xl border-2 text-left transition-all ${isSelected
                                                         ? isAdminOption
                                                             ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                                                            : 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                                                            : 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
                                                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                                         }`}
                                                 >
@@ -846,12 +846,12 @@ export const UsersPage: React.FC = () => {
                                                         {isAdminOption ? (
                                                             <Crown className={`h-4 w-4 ${isSelected ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
                                                         ) : (
-                                                            <Briefcase className={`h-4 w-4 ${isSelected ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`} />
+                                                            <Briefcase className={`h-4 w-4 ${isSelected ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}`} />
                                                         )}
                                                         <span className={`font-medium text-sm ${isSelected
                                                             ? isAdminOption
                                                                 ? 'text-amber-900 dark:text-amber-100'
-                                                                : 'text-primary-900 dark:text-primary-100'
+                                                                : 'text-brand-900 dark:text-brand-100'
                                                             : 'text-slate-700 dark:text-slate-300'
                                                             }`}>
                                                             {option.label}
@@ -861,7 +861,7 @@ export const UsersPage: React.FC = () => {
                                                         {option.description}
                                                     </p>
                                                     {isSelected && (
-                                                        <div className={`absolute top-2 right-2 h-2 w-2 rounded-full ${isAdminOption ? 'bg-amber-500' : 'bg-primary-500'}`} />
+                                                        <div className={`absolute top-2 right-2 h-2 w-2 rounded-full ${isAdminOption ? 'bg-amber-500' : 'bg-brand-500'}`} />
                                                     )}
                                                 </button>
                                             );
@@ -919,7 +919,7 @@ export const UsersPage: React.FC = () => {
                                 <button
                                     onClick={handleGenerateLink}
                                     disabled={sendingInvites || isClinicScopeUnavailable}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-600/25 transition-all"
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-600/25 transition-all"
                                 >
                                     {sendingInvites ? (
                                         <>

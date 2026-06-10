@@ -19,7 +19,7 @@ const baseInputStyles = cn(
   'border border-slate-200 dark:border-slate-700',
   'rounded-lg px-3 py-2 text-sm',
   'text-slate-900 dark:text-white',
-  'outline-none focus:ring-2 focus:ring-primary-500',
+  'outline-none focus:ring-2 focus:ring-brand-500',
   'transition-all duration-200',
   'placeholder:text-slate-400'
 );
@@ -447,7 +447,7 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = ({
           id={id}
           className={cn(
             'w-4 h-4 rounded border-slate-300 dark:border-slate-600',
-            'text-primary-600 focus:ring-primary-500',
+            'text-brand-600 focus:ring-brand-500',
             'dark:bg-slate-800',
             error && 'border-red-500'
           )}
@@ -478,7 +478,7 @@ interface SubmitButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const buttonVariants = {
-  primary: 'bg-primary-600 hover:bg-primary-500 shadow-primary-600/20',
+  primary: 'bg-brand-600 hover:bg-brand-500 shadow-brand-600/20',
   secondary: 'bg-slate-600 hover:bg-slate-500 shadow-slate-600/20',
   danger: 'bg-red-600 hover:bg-red-500 shadow-red-600/20',
 };

@@ -84,7 +84,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
               value={newFieldLabel}
               onChange={(e) => setNewFieldLabel(e.target.value)}
               placeholder="Ex: Data de Validade"
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
             />
           </div>
           <div className="w-40">
@@ -93,7 +93,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
               id="custom-field-type"
               value={newFieldType}
               onChange={(e) => setNewFieldType(e.target.value as CustomFieldType)}
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
             >
               <option value="text">Texto</option>
               <option value="number">Número</option>
@@ -113,7 +113,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
             <button
               onClick={onSaveField}
               disabled={!newFieldLabel.trim()}
-              className={`${editingId ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' : 'bg-primary-600 hover:bg-primary-500 shadow-primary-600/20'} text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg`}
+              className={`${editingId ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' : 'bg-brand-600 hover:bg-brand-500 shadow-brand-600/20'} text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg`}
             >
               {editingId ? <Check size={16} /> : <Plus size={16} />}
               {editingId ? 'Salvar' : 'Criar'}
@@ -131,7 +131,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
               value={newFieldOptions}
               onChange={(e) => setNewFieldOptions(e.target.value)}
               placeholder="Ex: Google, Facebook, Instagram, Indicação"
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
             />
             <p className="text-[10px] text-slate-400 mt-1">Essas opções aparecerão em um menu dropdown no detalhe do negócio.</p>
           </div>
@@ -140,7 +140,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
 
       <div className="space-y-2">
         {customFieldDefinitions.map(field => (
-          <div key={field.id} className={`flex items-center justify-between p-3 bg-white dark:bg-white/5 border rounded-lg group transition-colors ${editingId === field.id ? 'border-amber-400 dark:border-amber-500/50 ring-1 ring-amber-400/30' : 'border-slate-200 dark:border-white/10 hover:border-primary-300 dark:hover:border-primary-500/50'}`}>
+          <div key={field.id} className={`flex items-center justify-between p-3 bg-white dark:bg-white/5 border rounded-lg group transition-colors ${editingId === field.id ? 'border-amber-400 dark:border-amber-500/50 ring-1 ring-amber-400/30' : 'border-slate-200 dark:border-white/10 hover:border-brand-300 dark:hover:border-brand-500/50'}`}>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400">
                 <Tag size={14} />
@@ -154,7 +154,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
                   {field.options && (
                     <>
                       <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                      <span className="text-primary-500">{field.options.length} opções</span>
+                      <span className="text-brand-500">{field.options.length} opções</span>
                     </>
                   )}
                 </div>

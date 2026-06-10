@@ -375,7 +375,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         const next = availableBoards.find(b => b.id === e.target.value);
                         if (next) onSwitchEditingBoard(next);
                       }}
-                      className="w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       aria-label="Selecionar board para editar"
                     >
                       {availableBoards.map(b => (
@@ -410,7 +410,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                     if (!keyTouched) setBoardKey(slugify(next));
                   }}
                   placeholder="Ex: Pipeline de Vendas, Onboarding, etc"
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 />
               </div>
 
@@ -428,7 +428,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                       setBoardKey(e.target.value);
                     }}
                     placeholder="ex: vendas-b2b"
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent font-mono text-sm"
                   />
                   <button
                     type="button"
@@ -455,7 +455,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Breve descrição do propósito deste board"
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 />
               </div>
 
@@ -468,7 +468,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   <select
                     value={selectedTemplate}
                     onChange={(e) => handleTemplateSelect(e.target.value as BoardTemplateType | '')}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   >
                     <option value="">Board em branco</option>
                     <option value="PRE_SALES">🎯 Pré-venda (Lead → MQL)</option>
@@ -492,7 +492,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={linkedLifecycleStage}
                   onChange={(e) => setLinkedLifecycleStage(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 >
                   <option value="">Nenhum (board genérico)</option>
                   {lifecycleStages.map(stage => (
@@ -512,7 +512,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={defaultProductId}
                   onChange={(e) => setDefaultProductId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 >
                   <option value="">Nenhum</option>
                   {products
@@ -536,7 +536,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={nextBoardId}
                   onChange={(e) => setNextBoardId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 >
                   <option value="">Nenhum (Finalizar aqui)</option>
                   {validNextBoards.map(board => (
@@ -567,7 +567,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setWonStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   >
                     <option value="">Automático (pelo ciclo)</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -594,7 +594,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setLostStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   >
                     <option value="">Automático</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -617,7 +617,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleAddStage}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
                     >
                       <Plus size={14} />
                       Adicionar etapa
@@ -639,9 +639,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                       data-stage-card="true"
                       className={`p-4 bg-slate-50 dark:bg-white/5 rounded-xl border transition-colors ${
                         dragOverStageId === stage.id
-                          ? 'border-primary-500/60 ring-2 ring-primary-500/20'
+                          ? 'border-brand-500/60 ring-2 ring-brand-500/20'
                           : draggingStageId === stage.id
-                            ? 'border-primary-500/40 ring-2 ring-primary-500/10 opacity-70 shadow-lg'
+                            ? 'border-brand-500/40 ring-2 ring-brand-500/10 opacity-70 shadow-lg'
                             : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
                       }`}
                       onDragOver={(e) => {
@@ -708,7 +708,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                           type="text"
                           value={stage.label}
                           onChange={(e) => handleUpdateStage(stage.id, { label: e.target.value })}
-                          className="flex-1 px-3 py-2 text-base font-medium rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          className="flex-1 px-3 py-2 text-base font-medium rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                           placeholder="Nome da etapa"
                         />
 
@@ -732,8 +732,8 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                           <select
                             value={stage.linkedLifecycleStage || ''}
                             onChange={(e) => handleUpdateStage(stage.id, { linkedLifecycleStage: e.target.value || undefined })}
-                            className={`w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none cursor-pointer
-                            ${stage.linkedLifecycleStage ? 'font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700' : ''}
+                            className={`w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all appearance-none cursor-pointer
+                            ${stage.linkedLifecycleStage ? 'font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700' : ''}
                           `}
                           >
                             <option value="">Sem automação</option>
@@ -764,7 +764,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
               <button
                 onClick={handleSave}
                 disabled={!name.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors focus-visible-ring"
+                className="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors focus-visible-ring"
               >
                 {editingBoard ? 'Salvar Alterações' : 'Criar Board'}
               </button>

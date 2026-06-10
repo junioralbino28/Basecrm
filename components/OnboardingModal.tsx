@@ -57,7 +57,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     aria-describedby={descId}
                 >
                     {/* Main Card */}
-                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 dark:from-primary-600 dark:to-primary-700 rounded-3xl shadow-2xl overflow-hidden">
+                    <div className="bg-gradient-to-br from-brand-500 to-brand-600 dark:from-brand-600 dark:to-brand-700 rounded-3xl shadow-2xl overflow-hidden">
                         {/* Skip Button */}
                         <button
                             type="button"
@@ -120,7 +120,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={onStart}
-                                    className="px-8 py-4 bg-white text-primary-600 font-bold rounded-xl hover:bg-white/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 text-lg focus-visible-ring"
+                                    className="px-8 py-4 bg-white text-brand-600 font-bold rounded-xl hover:bg-white/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 text-lg focus-visible-ring"
                                     autoFocus
                                 >
                                     Começar agora
@@ -144,7 +144,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     </div>
 
                     {/* Bottom gradient decoration */}
-                    <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary-500/30 rounded-full blur-3xl -z-10" aria-hidden="true" />
+                    <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-brand-500/30 rounded-full blur-3xl -z-10" aria-hidden="true" />
                 </div>
             </div>
         </FocusTrap>

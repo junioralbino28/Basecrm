@@ -36,7 +36,7 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 duration-300">
             <div className="bg-slate-900 text-white rounded-2xl shadow-2xl border border-white/10 px-6 py-4 flex items-center gap-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center font-bold text-sm">
+                    <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center font-bold text-sm">
                         {selectedCount}
                     </div>
                     <span className="font-medium">

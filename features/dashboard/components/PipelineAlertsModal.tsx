@@ -126,7 +126,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-white/10">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Clock className="text-primary-500" size={24} />
+              <Clock className="text-brand-500" size={24} />
               Alertas de Pipeline
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -192,7 +192,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
                       </div>
                       <ChevronRight 
                         size={18} 
-                        className="text-slate-400 group-hover:text-primary-500 transition-colors flex-shrink-0" 
+                        className="text-slate-400 group-hover:text-brand-500 transition-colors flex-shrink-0" 
                       />
                     </button>
                   ))}

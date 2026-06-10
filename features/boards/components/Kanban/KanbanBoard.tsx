@@ -234,8 +234,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {/* Automation Indicator - Always rendered for consistent height */}
               <div className="mb-2 flex items-center gap-1.5 min-h-[22px]">
                 {linkedStageName ? (
-                  <span className="text-[10px] uppercase font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-1.5 py-0.5 rounded border border-primary-100 dark:border-primary-800/50 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-primary-500 animate-pulse"></span>
+                  <span className="text-[10px] uppercase font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-100 dark:border-brand-800/50 flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-brand-500 animate-pulse"></span>
                     Promove para: {linkedStageName}
                   </span>
                 ) : (

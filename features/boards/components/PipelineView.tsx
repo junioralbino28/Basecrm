@@ -270,7 +270,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
           <div className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur p-5 shadow-2xl">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-primary-500/30 border-t-primary-500 animate-spin" />
+              <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-brand-500/30 border-t-brand-500 animate-spin" />
               <div className="min-w-0 flex-1">
                 <div className="text-base font-semibold text-slate-900 dark:text-white">
                   {boardCreateOverlay.title}
@@ -284,7 +284,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
             </div>
             <div className="mt-4">
               <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
-                <div className="h-full w-1/2 bg-primary-500/80 animate-pulse" />
+                <div className="h-full w-1/2 bg-brand-500/80 animate-pulse" />
               </div>
             </div>
           </div>
@@ -292,7 +292,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
       )}
       {!activeBoard ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-24 h-24 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mb-6">
+          <div className="w-24 h-24 bg-brand-50 dark:bg-brand-900/20 rounded-full flex items-center justify-center mb-6">
             <span className="text-4xl">🚀</span>
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -304,7 +304,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           </p>
           <button
             onClick={() => setIsWizardOpen(true)}
-            className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2 shadow-lg shadow-primary-600/20"
+            className="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2 shadow-lg shadow-brand-600/20"
           >
             ✨ Criar meu primeiro Board
           </button>

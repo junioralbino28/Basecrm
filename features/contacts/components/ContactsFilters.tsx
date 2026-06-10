@@ -19,7 +19,7 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({ dateRange, set
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Criação (Início)</label>
                     <input
                         type="date"
-                        className="bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                        className="bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                         value={dateRange.start}
                         onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                     />
@@ -28,7 +28,7 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({ dateRange, set
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Criação (Fim)</label>
                     <input
                         type="date"
-                        className="bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                        className="bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
                         value={dateRange.end}
                         onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
                     />

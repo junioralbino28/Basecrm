@@ -109,18 +109,18 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
                           onClick={() => onSelectTargetBoard(board.id)}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
                             selectedTargetBoardId === board.id
-                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                              ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
                               : 'border-slate-200 dark:border-dark-border hover:border-slate-300 dark:hover:border-slate-600'
                           }`}
                         >
                           <FolderOutput className={`w-5 h-5 flex-shrink-0 ${
                             selectedTargetBoardId === board.id
-                              ? 'text-primary-600 dark:text-primary-400'
+                              ? 'text-brand-600 dark:text-brand-400'
                               : 'text-slate-400'
                           }`} />
                           <span className={`text-sm ${
                             selectedTargetBoardId === board.id
-                              ? 'text-primary-700 dark:text-primary-300 font-medium'
+                              ? 'text-brand-700 dark:text-brand-300 font-medium'
                               : 'text-slate-700 dark:text-slate-300'
                           }`}>
                             Mover para "{board.name}"

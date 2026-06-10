@@ -124,7 +124,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <input
               required
               type="text"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="Ex: Ana Souza"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -135,7 +135,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <input
               required
               type="email"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="ana@empresa.com"
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
@@ -148,7 +148,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               </label>
               <input
                 type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="+5511999999999"
                 value={formData.phone}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
@@ -158,7 +158,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label>
               <input
                 type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="Gerente"
                 value={formData.role}
                 onChange={e => setFormData({ ...formData, role: e.target.value })}
@@ -171,7 +171,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             </label>
             <input
               type="text"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="Nome da Empresa"
               value={formData.companyName}
               onChange={e => setFormData({ ...formData, companyName: e.target.value })}
@@ -186,7 +186,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <button
             type="submit"
               disabled={isSubmitting}
-            className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-2.5 rounded-lg mt-2 shadow-lg shadow-primary-600/20 transition-all"
+            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg mt-2 shadow-lg shadow-brand-600/20 transition-all"
           >
             {isSubmitting ? 'Criando...' : (editingContact ? 'Salvar Alterações' : 'Criar Contato')}
           </button>

@@ -545,7 +545,7 @@ export function UIChat({
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 z-50 p-4 bg-linear-to-r from-primary-600 to-violet-600 hover:from-primary-500 hover:to-violet-500 text-white rounded-full shadow-lg shadow-primary-500/25 transition-all hover:scale-105"
+                className="fixed bottom-6 right-6 z-50 p-4 bg-linear-to-r from-brand-600 to-violet-600 hover:from-brand-500 hover:to-violet-500 text-white rounded-full shadow-lg shadow-brand-500/25 transition-all hover:scale-105"
             >
                 <MessageCircle className="w-6 h-6" />
             </button>
@@ -557,8 +557,8 @@ export function UIChat({
         <>
             {/* Header */}
             <div className="flex items-center gap-3 p-4 border-b border-slate-700/50">
-                <div className="p-2 bg-linear-to-br from-primary-500/20 to-violet-500/20 rounded-xl">
-                    <Sparkles className="w-5 h-5 text-primary-400" />
+                <div className="p-2 bg-linear-to-br from-brand-500/20 to-violet-500/20 rounded-xl">
+                    <Sparkles className="w-5 h-5 text-brand-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <h2 className="font-semibold text-white">Base CRM Pilot</h2>
@@ -605,8 +605,8 @@ export function UIChat({
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-                        <div className="p-3 bg-linear-to-br from-primary-500/20 to-violet-500/20 rounded-2xl">
-                            <Bot className="w-10 h-10 text-primary-400" />
+                        <div className="p-3 bg-linear-to-br from-brand-500/20 to-violet-500/20 rounded-2xl">
+                            <Bot className="w-10 h-10 text-brand-400" />
                         </div>
                         <div>
                             <p className="text-slate-300 mb-1">Como posso ajudar?</p>
@@ -694,12 +694,12 @@ export function UIChat({
                             className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             {message.role === 'assistant' && (
-                                <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-primary-500 to-violet-500 flex items-center justify-center">
+                                <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-brand-500 to-violet-500 flex items-center justify-center">
                                     <Bot className="w-3.5 h-3.5 text-white" />
                                 </div>
                             )}
                             <div className={`max-w-[85%] ${message.role === 'user'
-                                ? 'bg-primary-600 text-white rounded-2xl rounded-tr-sm'
+                                ? 'bg-brand-600 text-white rounded-2xl rounded-tr-sm'
                                 : 'bg-slate-800/80 text-slate-200 rounded-2xl rounded-tl-sm border border-slate-700/50'
                                 } px-3 py-2`}>
 
@@ -1106,7 +1106,7 @@ export function UIChat({
                                                             <code className="rounded bg-black/20 px-1 py-0.5 font-mono text-[0.85em]" {...props} />
                                                         ),
                                                         a: (props) => (
-                                                            <a className="text-primary-300 underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />
+                                                            <a className="text-brand-300 underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />
                                                         ),
                                                     }}
                                                 >
@@ -1197,7 +1197,7 @@ export function UIChat({
 
                 {isLoading && (
                     <div className="flex gap-2">
-                        <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-primary-500 to-violet-500 flex items-center justify-center">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-brand-500 to-violet-500 flex items-center justify-center">
                             <Bot className="w-3.5 h-3.5 text-white" />
                         </div>
                         <div className="bg-slate-800/80 text-slate-400 rounded-2xl rounded-tl-sm px-3 py-2 border border-slate-700/50">
@@ -1234,12 +1234,12 @@ export function UIChat({
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Pergunte algo..."
                         disabled={!canSend}
-                        className="flex-1 px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all disabled:opacity-50"
+                        className="flex-1 px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all disabled:opacity-50"
                     />
                     <button
                         type="submit"
                         disabled={!input.trim() || !canSend}
-                        className="px-3 py-2 bg-linear-to-r from-primary-600 to-violet-600 hover:from-primary-500 hover:to-violet-500 disabled:from-slate-600 disabled:to-slate-700 text-white rounded-xl transition-all disabled:opacity-50"
+                        className="px-3 py-2 bg-linear-to-r from-brand-600 to-violet-600 hover:from-brand-500 hover:to-violet-500 disabled:from-slate-600 disabled:to-slate-700 text-white rounded-xl transition-all disabled:opacity-50"
                     >
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>

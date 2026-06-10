@@ -77,7 +77,7 @@ export const StatCard: React.FC<StatCardProps> = ({
     return (
         <div
             onClick={onClick}
-            className={`glass p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm relative overflow-hidden group ${onClick ? 'cursor-pointer hover:border-primary-500/50 transition-colors' : ''}`}
+            className={`glass p-6 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm relative overflow-hidden group ${onClick ? 'cursor-pointer hover:border-brand-500/50 transition-colors' : ''}`}
         >
             <div className={`absolute top-0 right-0 p-20 rounded-full blur-3xl opacity-10 -mr-10 -mt-10 transition-opacity group-hover:opacity-20 ${color}`}></div>
 

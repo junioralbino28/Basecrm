@@ -38,7 +38,7 @@ export const ActivitiesFilters: React.FC<ActivitiesFiltersProps> = ({
         <input
           type="text"
           placeholder="Buscar atividades..."
-          className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+          className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
         />
@@ -46,7 +46,7 @@ export const ActivitiesFilters: React.FC<ActivitiesFiltersProps> = ({
       <div className="flex items-center gap-2">
         <Filter size={20} className="text-slate-400" />
         <select
-          className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+          className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
           value={filterType}
           onChange={e => setFilterType(e.target.value as Activity['type'] | 'ALL')}
         >

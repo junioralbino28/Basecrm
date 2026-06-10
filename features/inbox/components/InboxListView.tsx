@@ -86,9 +86,9 @@ const SuggestionRow: React.FC<{
       <button
         onClick={handleNavigate}
         disabled={!navigationTarget}
-        className="flex-1 min-w-0 text-left hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60 disabled:hover:text-inherit"
+        className="flex-1 min-w-0 text-left hover:text-brand-600 dark:hover:text-brand-400 transition-colors disabled:opacity-60 disabled:hover:text-inherit"
       >
-        <p className="text-sm text-slate-700 dark:text-slate-200 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
+        <p className="text-sm text-slate-700 dark:text-slate-200 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">
           {suggestion.description}
         </p>
       </button>
@@ -127,7 +127,7 @@ const SuggestionRow: React.FC<{
         </button>
         <button
           onClick={handleNavigate}
-          className="p-1.5 text-slate-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-md transition-colors"
+          className="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-md transition-colors"
           aria-label={navigationTarget?.label || 'Abrir'}
           title={navigationTarget?.label || 'Abrir'}
           disabled={!navigationTarget}
@@ -178,16 +178,16 @@ const AISuggestionsCard: React.FC<{
   const hasMore = suggestions.length > MAX_SUGGESTIONS;
 
   return (
-    <div className="mb-6 border border-primary-200 dark:border-primary-500/20 rounded-xl overflow-hidden bg-primary-50/50 dark:bg-primary-500/5">
+    <div className="mb-6 border border-brand-200 dark:border-brand-500/20 rounded-xl overflow-hidden bg-brand-50/50 dark:bg-brand-500/5">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-primary-100/50 dark:hover:bg-primary-500/10 transition-colors"
+        className="w-full flex items-center gap-3 p-4 hover:bg-brand-100/50 dark:hover:bg-brand-500/10 transition-colors"
       >
-        <div className="p-1.5 rounded-lg bg-primary-100 dark:bg-primary-500/20">
-          <Sparkles size={16} className="text-primary-600 dark:text-primary-400" />
+        <div className="p-1.5 rounded-lg bg-brand-100 dark:bg-brand-500/20">
+          <Sparkles size={16} className="text-brand-600 dark:text-brand-400" />
         </div>
         <span className="font-semibold text-slate-900 dark:text-white">Sugestões da IA</span>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-primary-200 dark:bg-primary-500/30 text-primary-700 dark:text-primary-300">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-brand-200 dark:bg-brand-500/30 text-brand-700 dark:text-brand-300">
           {suggestions.length}
         </span>
         <div className="flex-1" />
@@ -199,7 +199,7 @@ const AISuggestionsCard: React.FC<{
       </button>
 
       {isOpen && (
-        <div className="border-t border-primary-200 dark:border-primary-500/20 divide-y divide-primary-100 dark:divide-primary-500/10">
+        <div className="border-t border-brand-200 dark:border-brand-500/20 divide-y divide-brand-100 dark:divide-brand-500/10">
           {visibleSuggestions.map(suggestion => (
             <SuggestionRow
               key={suggestion.id}
@@ -213,7 +213,7 @@ const AISuggestionsCard: React.FC<{
           {hasMore && !showAll && (
             <button
               onClick={() => setShowAll(true)}
-              className="w-full py-3 px-4 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-100/50 dark:hover:bg-primary-500/10 transition-colors"
+              className="w-full py-3 px-4 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-100/50 dark:hover:bg-brand-500/10 transition-colors"
             >
               Ver todas as {suggestions.length} sugestões
             </button>

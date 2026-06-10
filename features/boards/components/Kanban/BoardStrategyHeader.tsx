@@ -97,10 +97,10 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
       <div className="mb-4">
         <button
           onClick={() => setIsEditing(true)}
-          className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 hover:border-primary-500 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all group bg-slate-50/50 dark:bg-white/5"
+          className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 hover:border-brand-500 dark:hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 transition-all group bg-slate-50/50 dark:bg-white/5"
         >
           <div className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
-            <Target size={16} className="text-primary-500" />
+            <Target size={16} className="text-brand-500" />
           </div>
           <span className="font-medium text-sm">
             Definir Estratégia do Board (Meta, Agente e Gatilhos)

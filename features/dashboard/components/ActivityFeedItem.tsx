@@ -96,7 +96,7 @@ export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({ activity }) 
                 {icon}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                     {activity.title}
                 </p>
                 {activity.dealTitle && (

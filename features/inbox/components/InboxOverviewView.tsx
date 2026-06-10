@@ -78,7 +78,7 @@ const SuggestionMiniRow: React.FC<{
       case 'UPSELL':
         return <TrendingUp size={16} className="text-green-600 dark:text-green-400" aria-hidden="true" />;
       default:
-        return <Sparkles size={16} className="text-primary-600 dark:text-primary-400" aria-hidden="true" />;
+        return <Sparkles size={16} className="text-brand-600 dark:text-brand-400" aria-hidden="true" />;
     }
   }, [suggestion.type]);
 
@@ -203,7 +203,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
           <button
             onClick={onStartFocus}
             disabled={!canStartFocus}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-50"
             title={canStartFocus ? 'Começar a executar' : 'Nada pendente'}
           >
             <Target size={16} aria-hidden="true" />
@@ -254,7 +254,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
             </div>
             <button
               onClick={onGoToList}
-              className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+              className="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
             >
               Ver tudo
             </button>
@@ -282,7 +282,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
             </div>
             <button
               onClick={onGoToList}
-              className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+              className="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
             >
               Ver tudo
             </button>

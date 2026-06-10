@@ -570,7 +570,7 @@ export const WebhooksSection: React.FC = () => {
                 <button
                   onClick={() => openQuickStart('inbound')}
                   disabled={loading || boardsLoading || boards.length === 0}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   Ativar entrada de leads
                   <ArrowRight className="h-4 w-4" />
@@ -736,7 +736,7 @@ export const WebhooksSection: React.FC = () => {
                       if (endpoint?.url) setFollowUpUrl(endpoint.url);
                       setIsFollowUpOpen(true);
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 transition-colors"
                   >
                     Configurar
                     <ArrowRight className="h-4 w-4" />
@@ -771,7 +771,7 @@ export const WebhooksSection: React.FC = () => {
                       className={cn(
                         'h-6 w-6 rounded-full inline-flex items-center justify-center text-xs border',
                         inboundStep === s.n
-                          ? 'bg-primary-600 text-white border-primary-600'
+                          ? 'bg-brand-600 text-white border-brand-600'
                           : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 group-hover:bg-white dark:group-hover:bg-black/20'
                       )}
                     >
@@ -799,7 +799,7 @@ export const WebhooksSection: React.FC = () => {
                 setSelectedBoardId(e.target.value);
                 setSelectedStageId('');
               }}
-                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
                         disabled={boardsLoading || boards.length === 0}
             >
                         {boards.map((b) => (
@@ -816,7 +816,7 @@ export const WebhooksSection: React.FC = () => {
             <select
               value={selectedStageId}
               onChange={(e) => setSelectedStageId(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
               disabled={!selectedBoard || stages.length === 0}
             >
                         {stages.map((s) => (
@@ -855,7 +855,7 @@ export const WebhooksSection: React.FC = () => {
                           type="button"
                           onClick={() => setInboundStep(2)}
                           disabled={!selectedBoard?.id || !selectedStageId}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
                           Continuar
               <ArrowRight className="h-4 w-4" />
@@ -942,7 +942,7 @@ export const WebhooksSection: React.FC = () => {
                           type="button"
                           onClick={createInboundSource}
                           disabled={loading || !selectedBoard?.id || !selectedStageId}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                         >
                           Gerar URL e Secret
                           <ArrowRight className="h-4 w-4" />
@@ -1017,7 +1017,7 @@ export const WebhooksSection: React.FC = () => {
                       type="button"
                       onClick={() => setInboundStep(3)}
                       disabled={!activeInbound}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
                       Fazer teste
                       <ArrowRight className="h-4 w-4" />
@@ -1042,7 +1042,7 @@ export const WebhooksSection: React.FC = () => {
                           type="button"
                           onClick={runInboundTest}
                           disabled={!activeInbound || testLoading}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                         >
                           {testLoading ? 'Enviando...' : 'Enviar teste'}
                           <ArrowRight className="h-4 w-4" />
@@ -1123,7 +1123,7 @@ export const WebhooksSection: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsQuickStartOpen(false)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 transition-colors"
                     >
                       Concluir
                     </button>
@@ -1152,7 +1152,7 @@ export const WebhooksSection: React.FC = () => {
               value={followUpUrl}
               onChange={(e) => setFollowUpUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
             />
           </div>
 
@@ -1166,7 +1166,7 @@ export const WebhooksSection: React.FC = () => {
             <button
               onClick={handleSaveFollowUp}
               disabled={loading || !followUpUrl.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {endpoint?.id ? 'Salvar' : 'Conectar'}
               <ArrowRight className="h-4 w-4" />

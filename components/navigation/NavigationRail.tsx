@@ -39,7 +39,7 @@ export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps)
       )}
     >
       <div className="flex flex-col items-center gap-2 py-4">
-        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20">
+        <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-brand-500/20">
           N
         </div>
       </div>
@@ -57,14 +57,14 @@ export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps)
                 className={cn(
                   'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
                   isActive
-                    ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                    ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                 )}
                 aria-current={isActive ? 'page' : undefined}
                 title={item.label}
                 aria-label={item.label}
               >
-                <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+                <Icon className={cn('h-5 w-5', isActive ? 'text-brand-500' : '')} aria-hidden="true" />
               </Link>
             );
           })}
@@ -83,14 +83,14 @@ export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps)
                 className={cn(
                   'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
                   isActive
-                    ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                    ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                 )}
                 aria-current={isActive ? 'page' : undefined}
                 title={item.label}
                 aria-label={item.label}
               >
-                <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+                <Icon className={cn('h-5 w-5', isActive ? 'text-brand-500' : '')} aria-hidden="true" />
               </Link>
             );
           })}
@@ -110,14 +110,14 @@ export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps)
                     className={cn(
                       'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
                       isActive
-                        ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                        ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                     )}
                     aria-current={isActive ? 'page' : undefined}
                     title={item.label}
                     aria-label={item.label}
                   >
-                    <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+                    <Icon className={cn('h-5 w-5', isActive ? 'text-brand-500' : '')} aria-hidden="true" />
                   </Link>
                 );
               })}

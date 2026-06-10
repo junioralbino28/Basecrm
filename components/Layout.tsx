@@ -127,11 +127,11 @@ const NavItem = ({
       onClick={() => dispatchSidebarNavigationIntent(to)}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium focus-visible-ring
     ${isActive
-          ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+          ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
         }`}
     >
-      <Icon size={20} className={isActive ? 'text-primary-500' : ''} aria-hidden="true" />
+      <Icon size={20} className={isActive ? 'text-brand-500' : ''} aria-hidden="true" />
       <span className="font-display tracking-wide">{label}</span>
     </Link>
   );
@@ -474,7 +474,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className={`h-16 flex items-center border-b border-[var(--color-border-subtle)] transition-all duration-300 px-5 ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
           <div className={`flex items-center transition-all duration-300 ${sidebarCollapsed ? 'gap-0 justify-center' : 'gap-3'}`}>
-            <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20 shrink-0 overflow-hidden" aria-hidden="true">
+            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-brand-500/20 shrink-0 overflow-hidden" aria-hidden="true">
               {isAdmin && agencyLogoUrl ? (
                 <Image
                   src={agencyLogoUrl}
@@ -528,7 +528,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   className={(() => {
                     const isActive = isSidebarRouteActive(pathname, item.to);
                     return `w-10 h-10 rounded-lg flex items-center justify-center ${isActive
-                      ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900/50'
                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                       }`;
                   })()}
@@ -582,7 +582,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   unoptimized
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-white dark:ring-slate-800 shadow-lg shrink-0" aria-hidden="true">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-white dark:ring-slate-800 shadow-lg shrink-0" aria-hidden="true">
                   {profile?.first_name && profile?.last_name
                     ? `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase()
                     : profile?.nickname?.substring(0, 2).toUpperCase() || userInitials}
@@ -698,7 +698,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
           {/* Ambient background glow */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-            <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-primary-500/10 rounded-full blur-[100px]"></div>
+            <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-brand-500/10 rounded-full blur-[100px]"></div>
             <div className="absolute top-[40%] right-[0%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]"></div>
           </div>
 
@@ -735,7 +735,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 type="button"
                 onClick={() => setIsGlobalAIOpen(!isGlobalAIOpen)}
                 className={`p-2 rounded-full transition-all active:scale-95 focus-visible-ring ${isGlobalAIOpen
-                  ? 'text-primary-600 bg-primary-50 dark:text-primary-400 dark:bg-primary-900/20'
+                  ? 'text-brand-600 bg-brand-50 dark:text-brand-400 dark:bg-brand-900/20'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10'
                   }`}
               >
@@ -810,7 +810,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   onChange={(event) => setAgencyDisplayName(event.target.value)}
                   placeholder="Nome da agencia"
                   disabled={agencyBrandingLoading}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-primary-400 transition placeholder:text-slate-400 focus:ring-2 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-400 transition placeholder:text-slate-400 focus:ring-2 dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 />
               </label>
 
@@ -865,7 +865,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 type="button"
                 onClick={() => void handleSaveAgencyBranding()}
                 disabled={agencyBrandingSaving || isUploadingAgencyLogo}
-                className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {agencyBrandingSaving ? 'Salvando...' : 'Salvar'}
               </button>

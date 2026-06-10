@@ -34,14 +34,14 @@ export const InboxBriefing: React.FC<InboxBriefingProps> = ({
   return (
     <div className="relative mb-8 p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/10 rounded-full blur-3xl" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl" />
       
       <div className="relative z-10">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-white/10 rounded-xl">
-            <Sparkles size={20} className="text-primary-400" />
+            <Sparkles size={20} className="text-brand-400" />
           </div>
           <div>
             <h2 className="text-lg font-bold">Bom dia! 👋</h2>
@@ -78,7 +78,7 @@ export const InboxBriefing: React.FC<InboxBriefingProps> = ({
             </div>
           )}
           {stats.suggestionsCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-primary-500/20 text-primary-300 rounded-full text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-brand-300 rounded-full text-sm">
               <Sparkles size={14} />
               {stats.suggestionsCount} sugestão{stats.suggestionsCount > 1 ? 'ões' : ''}
             </div>

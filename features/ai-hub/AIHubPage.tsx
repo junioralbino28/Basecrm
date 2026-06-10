@@ -12,7 +12,7 @@ const ChatMessage: React.FC<{ message: AgentMessage }> = ({ message }) => {
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser
-          ? 'bg-primary-500 text-white'
+          ? 'bg-brand-500 text-white'
           : 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
         }`}>
         {isUser ? <User size={16} /> : <Bot size={16} />}
@@ -21,7 +21,7 @@ const ChatMessage: React.FC<{ message: AgentMessage }> = ({ message }) => {
       {/* Conteúdo */}
       <div className={`flex-1 max-w-[80%] ${isUser ? 'text-right' : ''}`}>
         <div className={`inline-block px-4 py-3 rounded-2xl ${isUser
-            ? 'bg-primary-500 text-white rounded-br-md'
+            ? 'bg-brand-500 text-white rounded-br-md'
             : 'bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 rounded-bl-md'
           }`}>
           <div className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -243,7 +243,7 @@ export const AIHubPage: React.FC = () => {
               <button
                 key={suggestion}
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-white/5 hover:bg-primary-100 dark:hover:bg-primary-500/20 text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-full transition-colors border border-transparent hover:border-primary-300 dark:hover:border-primary-500/30"
+                className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-white/5 hover:bg-brand-100 dark:hover:bg-brand-500/20 text-slate-700 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 rounded-full transition-colors border border-transparent hover:border-brand-300 dark:hover:border-brand-500/30"
               >
                 {suggestion}
               </button>
@@ -255,7 +255,7 @@ export const AIHubPage: React.FC = () => {
       {/* Input Area */}
       <div className="px-4 pb-4">
         <form onSubmit={handleSubmit} className="relative">
-          <div className="flex items-center gap-2 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-2xl shadow-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500">
+          <div className="flex items-center gap-2 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-2xl shadow-lg overflow-hidden focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500">
             <input
               ref={inputRef}
               type="text"
@@ -278,7 +278,7 @@ export const AIHubPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="m-1.5 p-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-300 disabled:dark:bg-slate-700 text-white rounded-xl transition-colors disabled:cursor-not-allowed"
+                className="m-1.5 p-2 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 disabled:dark:bg-slate-700 text-white rounded-xl transition-colors disabled:cursor-not-allowed"
               >
                 <Send size={20} />
               </button>

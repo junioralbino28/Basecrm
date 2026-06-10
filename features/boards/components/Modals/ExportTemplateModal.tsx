@@ -467,7 +467,7 @@ export function ExportTemplateModal(props: {
               disabled={!importJourney || isImporting}
               className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${(!importJourney || isImporting)
                 ? 'bg-slate-200 dark:bg-white/10 text-slate-400 cursor-not-allowed'
-                : 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-brand-600 hover:bg-brand-700 text-white'
                 }`}
             >
               <Download size={16} /> {isImporting ? 'Instalando…' : 'Instalar jornada'}
@@ -556,7 +556,7 @@ export function ExportTemplateModal(props: {
               <button
                 type="button"
                 onClick={handleDownloadJourney}
-                className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold flex items-center gap-2"
               >
                 <Download size={16} /> Baixar arquivo
               </button>

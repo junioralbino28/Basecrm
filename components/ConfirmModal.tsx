@@ -116,7 +116,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
                         <div 
                             className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${variant === 'danger'
                                     ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
-                                    : 'bg-primary-100 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+                                    : 'bg-brand-100 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400'
                                 }`}
                             aria-hidden="true"
                         >
@@ -155,7 +155,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
                                 }}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold text-white shadow-lg transition-all focus-visible-ring ${variant === 'danger'
                                         ? 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
-                                        : 'bg-primary-600 hover:bg-primary-500 shadow-primary-600/20'
+                                        : 'bg-brand-600 hover:bg-brand-500 shadow-brand-600/20'
                                     }`}
                             >
                                 {confirmText}

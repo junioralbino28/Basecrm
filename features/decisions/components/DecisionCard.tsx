@@ -136,7 +136,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({
         {/* Reasoning Toggle */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+          className="flex items-center gap-1 mt-3 text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
         >
           <Lightbulb size={14} />
           <span>Por que estou sugerindo isso?</span>
@@ -160,17 +160,17 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({
           Ação sugerida:
         </div>
 
-        <div className="p-3 rounded-lg bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30">
+        <div className="p-3 rounded-lg bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/30">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400">
+            <div className="p-1.5 rounded-lg bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400">
               {getActionIcon(selectedAction.icon)}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-primary-700 dark:text-primary-300">
+              <div className="text-sm font-medium text-brand-700 dark:text-brand-300">
                 {selectedAction.label}
               </div>
               {selectedAction.preview?.scheduledFor && (
-                <div className="text-xs text-primary-600/70 dark:text-primary-400/70">
+                <div className="text-xs text-brand-600/70 dark:text-brand-400/70">
                   {new Date(selectedAction.preview.scheduledFor).toLocaleDateString('pt-BR', {
                     weekday: 'short',
                     day: 'numeric',
@@ -195,7 +195,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({
                 className={`
                   text-xs px-2 py-1 rounded-full border transition-colors
                   ${selectedAction.id === action.id
-                    ? 'bg-primary-100 dark:bg-primary-500/20 border-primary-300 dark:border-primary-500/50 text-primary-700 dark:text-primary-300'
+                    ? 'bg-brand-100 dark:bg-brand-500/20 border-brand-300 dark:border-brand-500/50 text-brand-700 dark:text-brand-300'
                     : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/10'
                   }
                 `}
@@ -212,7 +212,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({
         <button
           onClick={handleApprove}
           disabled={isExecuting}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
         >
           {isExecuting ? (
             <Loader2 size={16} className="animate-spin" />

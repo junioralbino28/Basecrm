@@ -251,7 +251,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
               />
             ) : (
               <div
-                className="w-5 h-5 rounded-full bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 flex items-center justify-center text-[9px] font-bold ring-1 ring-white dark:ring-slate-800"
+                className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 flex items-center justify-center text-[9px] font-bold ring-1 ring-white dark:ring-slate-800"
                 title={`Responsável: ${deal.owner.name}`}
               >
                 {getInitials(deal.owner.name)}

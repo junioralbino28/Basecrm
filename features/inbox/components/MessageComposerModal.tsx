@@ -350,7 +350,7 @@ export function MessageComposerModal({
                             )}
                         </div>
                         {aiBadge && (
-                            <p className="mt-1 text-[11px] text-primary-600 dark:text-primary-400 flex items-center gap-1">
+                            <p className="mt-1 text-[11px] text-brand-600 dark:text-brand-400 flex items-center gap-1">
                                 <Sparkles size={12} /> Reescrito com IA
                             </p>
                         )}

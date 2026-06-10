@@ -504,7 +504,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
               key={i}
               aria-hidden="true"
               className={`w-2 h-2 rounded-full transition-all ${i === currentIndex
-                ? 'w-6 bg-primary-500'
+                ? 'w-6 bg-brand-500'
                 : 'bg-slate-300 dark:bg-slate-600'
                 }`}
             />
@@ -595,7 +595,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
                     value={contextSearch}
                     onChange={e => setContextSearch(e.target.value)}
                     placeholder="Buscar negócio pelo título…"
-                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500/40"
+                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-brand-500/40"
                   />
                 </div>
 

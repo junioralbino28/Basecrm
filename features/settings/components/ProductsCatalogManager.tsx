@@ -196,7 +196,7 @@ export const ProductsCatalogManager: React.FC = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex.: Sessão, Pacote, Implantação…"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
             />
           </div>
           <div className="lg:col-span-2">
@@ -205,7 +205,7 @@ export const ProductsCatalogManager: React.FC = () => {
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               inputMode="decimal"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
             />
           </div>
           <div className="lg:col-span-2">
@@ -214,7 +214,7 @@ export const ProductsCatalogManager: React.FC = () => {
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               placeholder="SKU"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
             />
           </div>
           <div className="lg:col-span-3">
@@ -223,7 +223,7 @@ export const ProductsCatalogManager: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Curta e objetiva"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
             />
           </div>
           <div className="lg:col-span-1">
@@ -231,7 +231,7 @@ export const ProductsCatalogManager: React.FC = () => {
               type="button"
               onClick={create}
               disabled={loading || !canCreate}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Criar produto"
             >
               <Plus className="h-4 w-4" />
@@ -264,7 +264,7 @@ export const ProductsCatalogManager: React.FC = () => {
                             <input
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                             />
                           </div>
                           <div className="sm:col-span-2">
@@ -273,7 +273,7 @@ export const ProductsCatalogManager: React.FC = () => {
                               value={editPrice}
                               onChange={(e) => setEditPrice(e.target.value)}
                               inputMode="decimal"
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                             />
                           </div>
                           <div className="sm:col-span-2">
@@ -281,7 +281,7 @@ export const ProductsCatalogManager: React.FC = () => {
                             <input
                               value={editSku}
                               onChange={(e) => setEditSku(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                             />
                           </div>
                           <div className="sm:col-span-3">
@@ -289,7 +289,7 @@ export const ProductsCatalogManager: React.FC = () => {
                             <input
                               value={editDescription}
                               onChange={(e) => setEditDescription(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                             />
                           </div>
                         </div>
@@ -320,7 +320,7 @@ export const ProductsCatalogManager: React.FC = () => {
                             aria-label="Salvar alterações"
                             disabled={loading}
                           >
-                            <Save className="h-4 w-4 text-primary-600" />
+                            <Save className="h-4 w-4 text-brand-600" />
                           </button>
                           <button
                             type="button"

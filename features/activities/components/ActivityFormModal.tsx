@@ -93,7 +93,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             <input
               required
               type="text"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="Ex: Ligar para Cliente"
               value={formData.title}
               onChange={e => setFormData({ ...formData, title: e.target.value })}
@@ -104,7 +104,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
               <select
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 value={formData.type}
                 onChange={e =>
                   setFormData({ ...formData, type: e.target.value as Activity['type'] })
@@ -122,7 +122,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               </label>
               <select
                 required={!editingActivity}
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 value={formData.dealId}
                 onChange={e => setFormData({ ...formData, dealId: e.target.value })}
               >
@@ -142,7 +142,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               <input
                 required
                 type="date"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
               />
@@ -152,7 +152,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               <input
                 required
                 type="time"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 value={formData.time}
                 onChange={e => setFormData({ ...formData, time: e.target.value })}
               />
@@ -164,7 +164,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               Descrição
             </label>
             <textarea
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500 min-h-[80px]"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500 min-h-[80px]"
               placeholder="Detalhes da atividade..."
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -173,7 +173,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
 
           <button
             type="submit"
-            className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-2.5 rounded-lg mt-2 shadow-lg shadow-primary-600/20 transition-all"
+            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg mt-2 shadow-lg shadow-brand-600/20 transition-all"
           >
             {editingActivity ? 'Salvar Alterações' : 'Criar Atividade'}
           </button>

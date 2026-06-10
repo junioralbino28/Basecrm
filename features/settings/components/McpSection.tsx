@@ -233,7 +233,7 @@ export const McpSection: React.FC = () => {
                   type="button"
                   onClick={connectMagic}
                   disabled={connecting || creatingKey || testing}
-                  className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
+                  className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
                 >
                   {(connecting || creatingKey || testing) ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   {(connecting || creatingKey || testing) ? 'Conectando…' : 'Conectar'}
@@ -242,7 +242,7 @@ export const McpSection: React.FC = () => {
                 <button
                   type="button"
                   onClick={copyUrlAndToken}
-                  className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold inline-flex items-center gap-2"
+                  className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold inline-flex items-center gap-2"
                 >
                   <Copy className="h-4 w-4" />
                   Copiar URL + Token
@@ -339,7 +339,7 @@ export const McpSection: React.FC = () => {
                   type="button"
                   onClick={testConnection}
                   disabled={testing}
-                  className="px-3 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
+                  className="px-3 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
                 >
                   <Play className="h-4 w-4" />
                   {testing ? 'Testando…' : 'Testar'}

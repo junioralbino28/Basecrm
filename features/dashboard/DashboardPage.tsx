@@ -118,7 +118,7 @@ const DashboardPage: React.FC = () => {
             value={selectedBoardId}
             onChange={(e) => setSelectedBoardId(e.target.value)}
             aria-label="Selecionar Pipeline de Vendas"
-            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             {boards.map(board => (
               <option key={board.id} value={board.id}>{board.name}</option>
@@ -193,12 +193,12 @@ const DashboardPage: React.FC = () => {
       {/* Wallet Health Section - Compact */}
       <div className="space-y-3 shrink-0">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-          <Users className="text-primary-500" size={20} />
+          <Users className="text-brand-500" size={20} />
           Saúde da Carteira
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
-            className="glass p-5 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm cursor-pointer hover:border-primary-500/50 transition-colors"
+            className="glass p-5 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm cursor-pointer hover:border-brand-500/50 transition-colors"
             onClick={() => router.push(getScopedHref('/contacts'))}
           >
             <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
@@ -325,7 +325,7 @@ const DashboardPage: React.FC = () => {
 
             <button
               onClick={() => router.push(getScopedHref('/activities'))}
-              className="w-full mt-4 py-2 text-sm text-primary-500 border border-dashed border-primary-500/30 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
+              className="w-full mt-4 py-2 text-sm text-brand-500 border border-dashed border-brand-500/30 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
             >
               Ver todas as atividades
             </button>

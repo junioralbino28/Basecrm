@@ -237,7 +237,7 @@ export function ContactsImportExportModal(props: {
             className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${
               isExporting
                 ? 'bg-slate-200 dark:bg-white/10 text-slate-400 cursor-not-allowed'
-                : 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-brand-600 hover:bg-brand-700 text-white'
             }`}
           >
             <FileDown size={16} /> {isExporting ? 'Gerando…' : 'Exportar CSV'}
@@ -341,7 +341,7 @@ export function ContactsImportExportModal(props: {
               className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${
                 !file || isImporting
                   ? 'bg-slate-200 dark:bg-white/10 text-slate-400 cursor-not-allowed'
-                  : 'bg-primary-600 hover:bg-primary-700 text-white'
+                  : 'bg-brand-600 hover:bg-brand-700 text-white'
               }`}
             >
               <Upload size={16} /> {isImporting ? 'Importando…' : 'Importar'}
@@ -360,7 +360,7 @@ export function ContactsImportExportModal(props: {
                 <button
                   type="button"
                   onClick={handleDownloadErrorReport}
-                  className="text-xs font-semibold text-primary-700 dark:text-primary-300 hover:underline w-fit"
+                  className="text-xs font-semibold text-brand-700 dark:text-brand-300 hover:underline w-fit"
                 >
                   Baixar relatório de erros (CSV)
                 </button>

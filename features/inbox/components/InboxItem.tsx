@@ -63,7 +63,7 @@ const InboxItemComponent: React.FC<InboxItemProps> = ({
           onClick={() => onSelect?.(activity.id)}
           className="text-left group/title"
         >
-          <h3 className={`font-medium text-slate-900 dark:text-white group-hover/title:text-primary-500 transition-colors ${activity.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+          <h3 className={`font-medium text-slate-900 dark:text-white group-hover/title:text-brand-500 transition-colors ${activity.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
             {activity.title}
           </h3>
         </button>
@@ -86,7 +86,7 @@ const InboxItemComponent: React.FC<InboxItemProps> = ({
         {!activity.dealTitle && onSelect && (
           <button
             onClick={() => onSelect(activity.id)}
-            className="flex items-center gap-1 mt-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+            className="flex items-center gap-1 mt-2 text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline"
           >
             Ver detalhes
           </button>

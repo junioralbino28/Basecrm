@@ -323,7 +323,7 @@ export const AIFeaturesSection: React.FC = () => {
                 value={promptDraft}
                 onChange={(event) => setPromptDraft(event.target.value)}
                 placeholder="Cole ou edite o prompt aqui..."
-                className="min-h-[280px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                className="min-h-[280px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white"
               />
             )}
 
@@ -358,7 +358,7 @@ export const AIFeaturesSection: React.FC = () => {
                   className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white ${
                     !isAdmin || promptSaving || promptLoading || !promptDraft.trim()
                       ? 'cursor-not-allowed bg-slate-300 dark:bg-white/10'
-                      : 'bg-primary-600 hover:bg-primary-700'
+                      : 'bg-brand-600 hover:bg-brand-700'
                   }`}
                 >
                   {promptSaving ? <Loader2 size={16} className="animate-spin" /> : null}

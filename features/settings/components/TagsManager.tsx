@@ -51,13 +51,13 @@ export const TagsManager: React.FC<TagsManagerProps> = ({
               onChange={(e) => setNewTagName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onAddTag()}
               placeholder="Ex: VIP, Urgente, Q4..."
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
             />
           </div>
           <button
             onClick={onAddTag}
             disabled={!newTagName.trim()}
-            className="bg-primary-600 hover:bg-primary-500 shadow-primary-600/20 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-brand-600 hover:bg-brand-500 shadow-brand-600/20 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={16} /> Adicionar
           </button>

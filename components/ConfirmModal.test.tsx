@@ -145,7 +145,7 @@ describe('ConfirmModal', () => {
     it('should apply primary variant styles', () => {
       render(<ConfirmModal {...defaultProps} variant="primary" />);
       const confirmButton = screen.getByRole('button', { name: /confirmar/i });
-      expect(confirmButton).toHaveClass('bg-primary-600');
+      expect(confirmButton).toHaveClass('bg-brand-600');
     });
   });
 });

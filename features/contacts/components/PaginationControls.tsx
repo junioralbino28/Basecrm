@@ -103,7 +103,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   // Common button classes
   const buttonBaseClass = `
     p-1.5 rounded-md transition-colors
-    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1
+    focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1
     dark:focus:ring-offset-dark-bg
   `;
   
@@ -139,7 +139,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
             className="
               px-2 py-1 text-sm rounded-md border border-gray-200
               bg-white dark:bg-dark-card dark:border-dark-border
-              focus:outline-none focus:ring-2 focus:ring-primary-500
+              focus:outline-none focus:ring-2 focus:ring-brand-500
               disabled:opacity-50 disabled:cursor-not-allowed
             "
             aria-label="Selecionar quantidade de itens por página"
@@ -171,7 +171,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
             className="
               w-16 px-2 py-1 text-sm text-center rounded-md border border-gray-200
               bg-white dark:bg-dark-card dark:border-dark-border
-              focus:outline-none focus:ring-2 focus:ring-primary-500
+              focus:outline-none focus:ring-2 focus:ring-brand-500
               disabled:opacity-50 disabled:cursor-not-allowed
               [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
             "
@@ -234,7 +234,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         {/* Loading indicator (T033) */}
         {isFetching && (
           <output 
-            className="ml-2 text-sm text-primary-600 dark:text-primary-400 animate-pulse"
+            className="ml-2 text-sm text-brand-600 dark:text-brand-400 animate-pulse"
             aria-label="Carregando"
           >
             Carregando...

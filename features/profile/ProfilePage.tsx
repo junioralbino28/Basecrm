@@ -401,7 +401,7 @@ export const ProfilePage: React.FC = () => {
                     {!isEditingProfile && (
                         <button
                             onClick={() => setIsEditingProfile(true)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-xl transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-colors"
                         >
                             <Pencil className="w-4 h-4" />
                             Editar
@@ -421,7 +421,7 @@ export const ProfilePage: React.FC = () => {
                                     type="text"
                                     value={firstName}
                                     onChange={(e) => setFirstName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary-500 transition-all"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="Seu nome"
                                 />
                             </div>
@@ -433,7 +433,7 @@ export const ProfilePage: React.FC = () => {
                                     type="text"
                                     value={lastName}
                                     onChange={(e) => setLastName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary-500 transition-all"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="Seu sobrenome"
                                 />
                             </div>
@@ -448,7 +448,7 @@ export const ProfilePage: React.FC = () => {
                                 type="text"
                                 value={nickname}
                                 onChange={(e) => setNickname(e.target.value)}
-                                className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary-500 transition-all"
+                                className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                 placeholder="Seu apelido"
                             />
                         </div>
@@ -463,7 +463,7 @@ export const ProfilePage: React.FC = () => {
                                     type="tel"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary-500 transition-all"
+                                    className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="+5511999999999"
                                 />
                             </div>
@@ -488,7 +488,7 @@ export const ProfilePage: React.FC = () => {
                             <button
                                 onClick={handleSaveProfile}
                                 disabled={savingProfile}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-xl shadow-lg shadow-primary-600/25 transition-all disabled:opacity-50"
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-lg shadow-brand-600/25 transition-all disabled:opacity-50"
                             >
                                 {savingProfile ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -512,7 +512,7 @@ export const ProfilePage: React.FC = () => {
                             {!isChangingEmail && (
                                 <button
                                     onClick={() => setIsChangingEmail(true)}
-                                    className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+                                    className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 font-medium"
                                 >
                                     Alterar
                                 </button>
@@ -529,7 +529,7 @@ export const ProfilePage: React.FC = () => {
                                     type="email"
                                     value={newEmail}
                                     onChange={(e) => setNewEmail(e.target.value)}
-                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-primary-500"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                                     placeholder="seu@novoemail.com"
                                     required
                                 />
@@ -547,7 +547,7 @@ export const ProfilePage: React.FC = () => {
                                     <button
                                         type="submit"
                                         disabled={loading}
-                                        className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                        className="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
                                     >
                                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
                                     </button>
@@ -586,7 +586,7 @@ export const ProfilePage: React.FC = () => {
                     {!isChangingPassword && (
                         <button
                             onClick={() => setIsChangingPassword(true)}
-                            className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                            className="px-4 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
                         >
                             Alterar Senha
                         </button>
@@ -604,7 +604,7 @@ export const ProfilePage: React.FC = () => {
                                     type={showPasswords ? 'text' : 'password'}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary-500 transition-all pr-10"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all pr-10"
                                     placeholder="Mínimo 6 caracteres"
                                     required
                                     minLength={6}
@@ -652,7 +652,7 @@ export const ProfilePage: React.FC = () => {
                                     ? (newPassword === confirmPassword && confirmPassword.length > 0)
                                         ? 'border-green-500 focus:border-green-500'
                                         : 'border-red-500 focus:border-red-500'
-                                    : 'border-slate-200 dark:border-slate-700 focus:border-primary-500'
+                                    : 'border-slate-200 dark:border-slate-700 focus:border-brand-500'
                                     }`}
                                 placeholder="Digite novamente"
                                 required
@@ -691,7 +691,7 @@ export const ProfilePage: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-xl shadow-lg shadow-primary-600/25 transition-all disabled:opacity-50"
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-lg shadow-brand-600/25 transition-all disabled:opacity-50"
                             >
                                 {loading ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />

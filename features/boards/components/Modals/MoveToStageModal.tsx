@@ -88,8 +88,8 @@ export const MoveToStageModal: React.FC<MoveToStageModalProps> = ({
                 aria-selected={false}
                 onClick={() => handleMove(stage.id)}
                 className="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-white/10 
-                           hover:border-primary-300 dark:hover:border-primary-500/50 
-                           hover:bg-primary-50 dark:hover:bg-primary-900/10
+                           hover:border-brand-300 dark:hover:border-brand-500/50 
+                           hover:bg-brand-50 dark:hover:bg-brand-900/10
                            focus-visible-ring transition-all text-left group"
                 autoFocus={index === 0}
               >
@@ -98,12 +98,12 @@ export const MoveToStageModal: React.FC<MoveToStageModalProps> = ({
                   style={{ backgroundColor: stage.color || '#3b82f6' }}
                   aria-hidden="true"
                 />
-                <span className="flex-1 font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 dark:group-hover:text-primary-400">
+                <span className="flex-1 font-medium text-slate-700 dark:text-slate-300 group-hover:text-brand-600 dark:group-hover:text-brand-400">
                   {stage.label}
                 </span>
                 <ArrowRight 
                   size={16} 
-                  className="text-slate-400 group-hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" 
+                  className="text-slate-400 group-hover:text-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" 
                   aria-hidden="true"
                 />
               </button>

@@ -433,14 +433,14 @@ export const ApiKeysSection: React.FC = () => {
             <input
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Nome (ex: n8n, make, parceiro-x)"
             />
             <button
               type="button"
               onClick={createKey}
               disabled={creating}
-              className="shrink-0 px-3 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
+              className="shrink-0 px-3 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
             >
               {creating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Criar
@@ -509,7 +509,7 @@ export const ApiKeysSection: React.FC = () => {
           <select
             value={action}
             onChange={(e) => setAction(e.target.value as any)}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           >
             <option value="create_lead">Criar/Atualizar Lead (Contato)</option>
             <option value="create_deal">Criar Negócio (Deal)</option>
@@ -645,7 +645,7 @@ export const ApiKeysSection: React.FC = () => {
                       onClick={() => setIdentityMode('phone')}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
                         identityMode === 'phone'
-                          ? 'border-primary-500/50 bg-primary-500/10 text-primary-700 dark:text-primary-300'
+                          ? 'border-brand-500/50 bg-brand-500/10 text-brand-700 dark:text-brand-300'
                           : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
                       }`}
                     >
@@ -656,7 +656,7 @@ export const ApiKeysSection: React.FC = () => {
                       onClick={() => setIdentityMode('email')}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
                         identityMode === 'email'
-                          ? 'border-primary-500/50 bg-primary-500/10 text-primary-700 dark:text-primary-300'
+                          ? 'border-brand-500/50 bg-brand-500/10 text-brand-700 dark:text-brand-300'
                           : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
                       }`}
                     >
@@ -756,7 +756,7 @@ export const ApiKeysSection: React.FC = () => {
             type="button"
             onClick={runActionTest}
             disabled={actionTestLoading}
-            className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
+            className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
           >
             <Play className="h-4 w-4" />
             {actionTestLoading ? 'Testando…' : 'Testar agora'}

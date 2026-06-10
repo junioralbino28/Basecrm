@@ -124,7 +124,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                     </h2>
                     <button
                         onClick={goToToday}
-                        className="px-4 py-2 text-sm font-bold bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-105"
+                        className="px-4 py-2 text-sm font-bold bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:scale-105"
                     >
                         <CalendarIcon size={14} />
                         Hoje
@@ -150,7 +150,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                             <div
                                 key={i}
                                 className={`p-4 text-center border-l border-slate-200 dark:border-white/10 transition-all ${isToday(date)
-                                        ? 'bg-gradient-to-b from-primary-50 to-primary-100 dark:from-primary-500/20 dark:to-primary-500/10'
+                                        ? 'bg-gradient-to-b from-brand-50 to-brand-100 dark:from-brand-500/20 dark:to-brand-500/10'
                                         : 'bg-slate-50 dark:bg-white/5'
                                     }`}
                             >
@@ -158,7 +158,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                                     {DAYS_OF_WEEK[date.getDay()]}
                                 </div>
                                 <div className={`text-2xl font-black mt-1 font-display ${isToday(date)
-                                        ? 'text-primary-600 dark:text-primary-400'
+                                        ? 'text-brand-600 dark:text-brand-400'
                                         : 'text-slate-900 dark:text-white'
                                     }`}>
                                     {date.getDate()}
@@ -180,7 +180,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                                     <div
                                         key={i}
                                         className={`min-h-[70px] p-2 border-l border-slate-200 dark:border-white/10 transition-colors ${isToday(date)
-                                                ? 'bg-primary-50/20 dark:bg-primary-500/5'
+                                                ? 'bg-brand-50/20 dark:bg-brand-500/5'
                                                 : ''
                                             }`}
                                     >

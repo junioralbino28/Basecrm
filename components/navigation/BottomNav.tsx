@@ -60,12 +60,12 @@ export function BottomNav({ onOpenMore }: BottomNavProps) {
                 'flex flex-1 flex-col items-center justify-center gap-1',
                 'text-xs font-medium focus-visible-ring',
                 isActive
-                  ? 'text-primary-600 dark:text-primary-400'
+                  ? 'text-brand-600 dark:text-brand-400'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               )}
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+              <Icon className={cn('h-5 w-5', isActive ? 'text-brand-500' : '')} aria-hidden="true" />
               <span className="font-display tracking-wide">{item.label}</span>
             </Link>
           );

@@ -151,7 +151,7 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
           onFocus={() => searchTerm && setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
         />
       </div>
 
@@ -172,7 +172,7 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
                     onClick={() => handleSelect(contact)}
                     className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
                       index === highlightedIndex
-                        ? 'bg-primary-50 dark:bg-primary-900/30'
+                        ? 'bg-brand-50 dark:bg-brand-900/30'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
                     }`}
                   >
@@ -211,15 +211,15 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
             onClick={handleCreateNew}
             className={`w-full flex items-center gap-3 p-3 border-t border-slate-100 dark:border-slate-700 text-left transition-colors ${
               highlightedIndex === filteredContacts.length
-                ? 'bg-primary-50 dark:bg-primary-900/30'
+                ? 'bg-brand-50 dark:bg-brand-900/30'
                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
             }`}
           >
-            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/50 rounded-full flex items-center justify-center flex-shrink-0">
-              <Plus size={18} className="text-primary-600 dark:text-primary-400" />
+            <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+              <Plus size={18} className="text-brand-600 dark:text-brand-400" />
             </div>
             <div>
-              <p className="font-medium text-primary-600 dark:text-primary-400">
+              <p className="font-medium text-brand-600 dark:text-brand-400">
                 Criar novo contato
               </p>
               {searchTerm && (

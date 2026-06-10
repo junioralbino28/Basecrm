@@ -49,7 +49,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         <input 
           type="text"
           placeholder="Buscar por nome ou email..."
-          className="w-full pl-10 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
+          className="w-full pl-10 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
           onChange={(e) => onSearch(e.target.value)}
         />
       </div>

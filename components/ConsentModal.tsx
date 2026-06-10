@@ -173,7 +173,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
                 href="/termos-de-uso" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                className="text-brand-600 hover:text-brand-700 dark:text-brand-400"
               >
                 Termos de Uso (v{CONSENT_VERSIONS.terms})
               </a>
@@ -181,7 +181,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
                 href="/politica-de-privacidade" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                className="text-brand-600 hover:text-brand-700 dark:text-brand-400"
               >
                 Política de Privacidade (v{CONSENT_VERSIONS.privacy})
               </a>
@@ -204,7 +204,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
             <button
               onClick={handleAccept}
               disabled={!canSubmit || isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Salvando...' : 'Aceitar e Continuar'}
             </button>
@@ -238,7 +238,7 @@ const ConsentItem: React.FC<ConsentItemProps> = ({
           checked={checked}
           onChange={onChange}
           disabled={required}
-          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:opacity-75"
+          className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500 disabled:opacity-75"
         />
       </div>
       <div className="flex-1">

@@ -55,7 +55,7 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
         aria-label="Selecionar funil da clinica"
       >
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-primary-500" />
+          <div className="w-2 h-2 rounded-full bg-brand-500" />
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
               Funil
@@ -82,18 +82,18 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
                   key={board.id}
                   className={`group flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${
                     board.id === activeBoard.id
-                      ? 'bg-primary-50 dark:bg-primary-500/10'
+                      ? 'bg-brand-50 dark:bg-brand-500/10'
                       : 'hover:bg-slate-50 dark:hover:bg-white/5'
                   }`}
                   onClick={() => { onSelectBoard(board.id); setIsOpen(false); }}
                 >
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    board.id === activeBoard.id ? 'bg-primary-500' : 'bg-slate-300 dark:bg-slate-600'
+                    board.id === activeBoard.id ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'
                   }`} />
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${
                       board.id === activeBoard.id
-                        ? 'text-primary-600 dark:text-primary-400'
+                        ? 'text-brand-600 dark:text-brand-400'
                         : 'text-slate-700 dark:text-slate-200'
                     }`}>
                       {board.name}
@@ -146,7 +146,7 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
               <button
                 type="button"
                 onClick={() => { onCreateBoard(); setIsOpen(false); }}
-                className="w-full flex items-center gap-2 px-4 py-3 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
               >
                 <Plus size={16} />
                 Criar novo board

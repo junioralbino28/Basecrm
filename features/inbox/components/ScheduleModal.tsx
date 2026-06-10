@@ -143,7 +143,7 @@ export function ScheduleModal({
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
                     <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Calendar size={20} className="text-primary-400" />
+                        <Calendar size={20} className="text-brand-400" />
                         Agendar Atividade
                     </h2>
                     <button
@@ -196,7 +196,7 @@ export function ScheduleModal({
                                 setTitleTouched(true);
                                 setTitle(e.target.value);
                             }}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500"
                             placeholder="Ex: Ligar para João"
                         />
                     </div>
@@ -210,7 +210,7 @@ export function ScheduleModal({
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
                                 min={new Date().toISOString().split('T')[0]}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-500"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500"
                             />
                         </div>
                         <div>
@@ -219,7 +219,7 @@ export function ScheduleModal({
                                 type="time"
                                 value={time}
                                 onChange={(e) => setTime(e.target.value)}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-500"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500"
                             />
                         </div>
                     </div>
@@ -236,7 +236,7 @@ export function ScheduleModal({
                                     key={label}
                                     onClick={() => setDate(dateStr)}
                                     className={`px-3 py-1 text-xs rounded-full transition-colors ${date === dateStr
-                                            ? 'bg-primary-500 text-white'
+                                            ? 'bg-brand-500 text-white'
                                             : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                                         }`}
                                 >
@@ -253,7 +253,7 @@ export function ScheduleModal({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={4}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500 resize-y min-h-[120px] max-h-[40vh]"
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500 resize-y min-h-[120px] max-h-[40vh]"
                             placeholder="Notas adicionais..."
                         />
                     </div>
@@ -270,7 +270,7 @@ export function ScheduleModal({
                     <button
                         onClick={handleSave}
                         disabled={!title.trim() || !date || isSaving}
-                        className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                         {isSaving ? (
                             <span className="animate-spin">⏳</span>

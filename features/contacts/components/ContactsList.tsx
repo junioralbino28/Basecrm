@@ -54,7 +54,7 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ label, column, currentS
         <th scope="col" className="px-6 py-4">
             <button
                 onClick={() => onSort(column)}
-                className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider hover:text-primary-600 dark:hover:text-primary-400 transition-colors group"
+                className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider hover:text-brand-600 dark:hover:text-brand-400 transition-colors group"
                 aria-label={`Ordenar por ${label}`}
             >
                 {label}
@@ -187,7 +187,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         ref={(el) => { if (el) el.indeterminate = someSelected; }}
                                         onChange={toggleSelectAll}
                                         aria-label={allSelected ? 'Desmarcar todos os contatos' : 'Selecionar todos os contatos'}
-                                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10" 
+                                        className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:bg-white/5 dark:border-white/10" 
                                     />
                                 </th>
                                 {onSort ? (
@@ -214,14 +214,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                             {filteredContacts.map((contact) => (
-                                <tr key={contact.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(contact.id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}>
+                                <tr key={contact.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(contact.id) ? 'bg-brand-50/50 dark:bg-brand-900/10' : ''}`}>
                                     <td className="px-6 py-4">
                                         <input 
                                             type="checkbox" 
                                             checked={selectedIds.has(contact.id)}
                                             onChange={() => toggleSelect(contact.id)}
                                             aria-label={`Selecionar ${contact.name}`}
-                                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10" 
+                                            className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:bg-white/5 dark:border-white/10" 
                                         />
                                     </td>
                                     <td className="px-6 py-4">
@@ -229,7 +229,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => openEditModal(contact)}
-                                                className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 text-primary-700 dark:text-primary-200 flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white dark:ring-white/5 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
+                                                className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900 dark:to-brand-800 text-brand-700 dark:text-brand-200 flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white dark:ring-white/5 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
                                                 aria-label={`Editar contato: ${contact.name || 'Sem nome'}`}
                                                 title={contact.name || 'Sem nome'}
                                             >
@@ -308,7 +308,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={() => openEditModal(contact)}
-                                                className="p-1.5 text-slate-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                                                className="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded transition-colors"
                                                 aria-label={`Editar ${contact.name}`}
                                             >
                                                 <Pencil size={16} aria-hidden="true" />
@@ -337,7 +337,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         ref={(el) => { if (el) el.indeterminate = someSelected; }}
                                         onChange={toggleSelectAll}
                                         aria-label={allSelected ? 'Desmarcar todas as empresas' : 'Selecionar todas as empresas'}
-                                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10"
+                                        className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:bg-white/5 dark:border-white/10"
                                     />
                                 </th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Empresa</th>
@@ -349,14 +349,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                             {filteredCompanies.map((company) => (
-                                <tr key={company.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(company.id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}>
+                                <tr key={company.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(company.id) ? 'bg-brand-50/50 dark:bg-brand-900/10' : ''}`}>
                                     <td className="px-6 py-4">
                                         <input
                                             type="checkbox"
                                             checked={selectedIds.has(company.id)}
                                             onChange={() => toggleSelect(company.id)}
                                             aria-label={`Selecionar ${company.name}`}
-                                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10"
+                                            className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:bg-white/5 dark:border-white/10"
                                         />
                                     </td>
                                     <td className="px-6 py-4">
@@ -370,7 +370,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                                             if (firstLinkedContact) openEditModal(firstLinkedContact);
                                                         }}
                                                         disabled={!firstLinkedContact}
-                                                        className={`w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card ${
+                                                        className={`w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card ${
                                                             firstLinkedContact
                                                                 ? 'hover:bg-slate-200 dark:hover:bg-white/15'
                                                                 : 'opacity-50 cursor-not-allowed'
@@ -393,7 +393,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                             <div>
                                                 <span className="font-semibold text-slate-900 dark:text-white block">{company.name}</span>
                                                 {company.website && (
-                                                    <a href={`https://${company.website}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-500 hover:underline flex items-center gap-1">
+                                                    <a href={`https://${company.website}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
                                                         <Globe size={10} /> {company.website}
                                                     </a>
                                                 )}
@@ -421,7 +421,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                                     key={c.id}
                                                     type="button"
                                                     onClick={() => openEditModal(c)}
-                                                    className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-dark-card bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
+                                                    className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-dark-card bg-brand-100 dark:bg-brand-900 flex items-center justify-center text-[10px] font-bold text-brand-700 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-800 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
                                                     title={c.name || 'Sem nome'}
                                                     aria-label={`Editar contato: ${c.name || 'Sem nome'}`}
                                                 >
@@ -437,7 +437,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={() => openEditCompanyModal?.(company)}
-                                                className="p-1.5 text-slate-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                                                className="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded transition-colors"
                                                 aria-label={`Editar ${company.name}`}
                                             >
                                                 <Pencil size={16} aria-hidden="true" />

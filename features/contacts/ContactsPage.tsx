@@ -79,14 +79,14 @@ export const ContactsPage: React.FC = () => {
 
             {/* Bulk Actions Bar */}
             {controller.selectedIds.size > 0 && (
-                <div className="flex items-center justify-between bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg px-4 py-3">
+                <div className="flex items-center justify-between bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg px-4 py-3">
                     <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
+                        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
                             {controller.selectedIds.size} {controller.viewMode === 'people' ? 'contato(s)' : 'empresa(s)'} selecionado(s)
                         </span>
                         <button
                             onClick={controller.clearSelection}
-                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                            className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
                         >
                             Limpar seleção
                         </button>
@@ -194,7 +194,7 @@ export const ContactsPage: React.FC = () => {
                                 <li key={deal.id} className="text-sm">
                                     <button
                                         onClick={() => goToDeal(deal.id)}
-                                        className="text-primary-600 dark:text-primary-400 hover:underline font-medium text-left"
+                                        className="text-brand-600 dark:text-brand-400 hover:underline font-medium text-left"
                                     >
                                         • {deal.title}
                                     </button>

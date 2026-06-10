@@ -99,13 +99,13 @@ export const NotificationPopover = () => {
                             {count > 0 && (
                                 <button
                                     onClick={() => markAllAsRead()}
-                                    className="text-xs text-slate-500 hover:text-primary-600 transition-colors"
+                                    className="text-xs text-slate-500 hover:text-brand-600 transition-colors"
                                 >
                                     Marcar todas como lidas
                                 </button>
                             )}
                             {count > 0 && (
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
                                     {count} nova{count !== 1 && 's'}
                                 </span>
                             )}
@@ -135,7 +135,7 @@ export const NotificationPopover = () => {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start">
-                                                    <p className={`text-sm font-medium group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors ${notification.readAt ? 'text-slate-600 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
+                                                    <p className={`text-sm font-medium group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors ${notification.readAt ? 'text-slate-600 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
                                                         {notification.title}
                                                     </p>
                                                     {!notification.readAt && (
@@ -161,7 +161,7 @@ export const NotificationPopover = () => {
                         <Link
                             href={dashboardHref}
                             onClick={() => setIsOpen(false)}
-                            className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                            className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
                         >
                             Ver Dashboard Completo
                         </Link>

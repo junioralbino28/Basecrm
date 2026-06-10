@@ -127,13 +127,13 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
     }
 
     return (
-        <div className={`group flex items-center gap-4 p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/5 rounded-xl hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all ${activity.completed ? 'opacity-60' : ''} ${isSelected ? 'border-primary-500 dark:border-primary-500 bg-primary-50/50 dark:bg-primary-500/10' : ''}`}>
+        <div className={`group flex items-center gap-4 p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/5 rounded-xl hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all ${activity.completed ? 'opacity-60' : ''} ${isSelected ? 'border-brand-500 dark:border-brand-500 bg-brand-50/50 dark:bg-brand-500/10' : ''}`}>
             {onSelect && (
                 <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={(e) => onSelect(activity.id, e.target.checked)}
-                    className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                    className="w-4 h-4 text-brand-600 bg-gray-100 border-gray-300 rounded focus:ring-brand-500 dark:focus:ring-brand-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
                 />
             )}
 
@@ -163,7 +163,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                 </div>
                 <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
                     {deal && (
-                        <span className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-medium">
+                        <span className="flex items-center gap-1.5 text-brand-600 dark:text-brand-400 font-medium">
                             <Circle size={8} fill="currentColor" />
                             {deal.title}
                         </span>
@@ -171,7 +171,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                     {!deal && contact && (
                         <Link
                             href={`/contacts?contactId=${contact.id}`}
-                            className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-medium hover:underline"
+                            className="flex items-center gap-1.5 text-brand-600 dark:text-brand-400 font-medium hover:underline"
                             title={`Abrir contato: ${contact.name}`}
                         >
                             <Users size={14} />
@@ -194,7 +194,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                     onClick={() => onEdit(activity)}
-                    className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
+                    className="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg transition-colors"
                     title="Editar"
                 >
                     <Edit2 size={16} />

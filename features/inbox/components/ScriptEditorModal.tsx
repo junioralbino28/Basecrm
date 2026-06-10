@@ -143,7 +143,7 @@ export function ScriptEditorModal({
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             placeholder="Ex: Follow-up de Proposta"
-                            className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-transparent"
+                            className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-transparent"
                         />
                     </div>
 
@@ -157,7 +157,7 @@ export function ScriptEditorModal({
                             <select
                                 value={formData.category}
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value as ScriptCategory })}
-                                className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-transparent appearance-none cursor-pointer"
+                                className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-transparent appearance-none cursor-pointer"
                             >
                                 {CATEGORIES.map((cat) => (
                                     <option key={cat.value} value={cat.value}>
@@ -180,7 +180,7 @@ export function ScriptEditorModal({
                                             key={iconOption.value}
                                             onClick={() => setFormData({ ...formData, icon: iconOption.value })}
                                             className={`p-2.5 rounded-lg border transition-all ${formData.icon === iconOption.value
-                                                    ? 'bg-primary-500/20 border-primary-500/50 text-primary-400'
+                                                    ? 'bg-brand-500/20 border-brand-500/50 text-brand-400'
                                                     : 'bg-slate-800/50 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                                                 }`}
                                             title={iconOption.label}
@@ -202,7 +202,7 @@ export function ScriptEditorModal({
                             <button
                                 onClick={() => setShowPreview(!showPreview)}
                                 className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${showPreview
-                                        ? 'bg-primary-500/20 text-primary-400'
+                                        ? 'bg-brand-500/20 text-brand-400'
                                         : 'text-slate-500 hover:text-slate-300'
                                     }`}
                             >
@@ -217,7 +217,7 @@ export function ScriptEditorModal({
                                 onChange={(e) => setFormData({ ...formData, template: e.target.value })}
                                 placeholder="Olá {nome}! 👋&#10;&#10;Escreva sua mensagem aqui...&#10;&#10;Use {nome} e {empresa} como variáveis."
                                 rows={8}
-                                className="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-transparent resize-none font-mono text-sm"
+                                className="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-transparent resize-none font-mono text-sm"
                             />
                         ) : (
                             <div className="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-lg min-h-[200px] whitespace-pre-wrap text-sm text-white">
@@ -244,7 +244,7 @@ export function ScriptEditorModal({
                     <button
                         onClick={handleSave}
                         disabled={!formData.title.trim() || !formData.template.trim() || isSaving}
-                        className="flex items-center gap-2 px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Save size={16} />
                         {isSaving ? 'Salvando...' : 'Salvar Script'}

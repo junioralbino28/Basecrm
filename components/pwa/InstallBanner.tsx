@@ -13,8 +13,8 @@ export function InstallBanner() {
     <div className="fixed left-3 right-3 top-3 z-[9999] md:left-[calc(0.75rem+var(--app-sidebar-width,0px))] md:right-3">
       <div className="glass border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 shadow-lg">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 h-9 w-9 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
-            <Download className="h-5 w-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
+          <div className="mt-0.5 h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center shrink-0">
+            <Download className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -33,7 +33,7 @@ export function InstallBanner() {
                   type="button"
                   onClick={promptInstall}
                   disabled={!canPrompt}
-                  className="px-3 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:text-slate-600 text-white text-xs font-semibold transition-colors"
+                  className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 disabled:text-slate-600 text-white text-xs font-semibold transition-colors"
                 >
                   Instalar
                 </button>

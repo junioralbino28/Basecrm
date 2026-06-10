@@ -82,8 +82,8 @@ export const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ isOpen, cu
             <div className="relative z-10 w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] border border-white/40 dark:border-white/20 overflow-hidden transform transition-all duration-500 scale-100">
                 {/* Header */}
                 <div className="p-8 bg-gradient-to-b from-white/50 to-transparent dark:from-white/5 border-b border-slate-100/50 dark:border-white/5 text-center">
-                    <div className="w-16 h-16 bg-gradient-to-tr from-primary-100 to-blue-50 dark:from-primary-900/30 dark:to-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner ring-1 ring-white/50 dark:ring-white/10">
-                        <Sparkles className="text-primary-600 dark:text-primary-400 animate-pulse drop-shadow-sm" size={32} />
+                    <div className="w-16 h-16 bg-gradient-to-tr from-brand-100 to-blue-50 dark:from-brand-900/30 dark:to-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner ring-1 ring-white/50 dark:ring-white/10">
+                        <Sparkles className="text-brand-600 dark:text-brand-400 animate-pulse drop-shadow-sm" size={32} />
                     </div>
                     <h3 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                         {phase === 'structure' ? 'Criando seu CRM' : 'Definindo Estratégia'}
@@ -110,22 +110,22 @@ export const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ isOpen, cu
                                         </div>
                                     ) : isActive ? (
                                         <div className="relative">
-                                            <div className="absolute inset-0 bg-primary-500 blur-md opacity-40 rounded-full animate-pulse" />
-                                            <Loader2 className="text-primary-600 dark:text-primary-400 animate-spin relative z-10" size={22} />
+                                            <div className="absolute inset-0 bg-brand-500 blur-md opacity-40 rounded-full animate-pulse" />
+                                            <Loader2 className="text-brand-600 dark:text-brand-400 animate-spin relative z-10" size={22} />
                                         </div>
                                     ) : (
                                         <Circle className="text-slate-300 dark:text-slate-600" size={22} />
                                     )}
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className={`font-semibold text-base transition-colors duration-300 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-900 dark:text-white'}`}>
+                                    <h4 className={`font-semibold text-base transition-colors duration-300 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-900 dark:text-white'}`}>
                                         {step.label}
                                     </h4>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                                         {step.description}
                                     </p>
                                 </div>
-                                <div className={`p-2.5 rounded-xl transition-colors duration-300 ${isActive ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 shadow-sm ring-1 ring-primary-100 dark:ring-primary-500/30' : 'bg-slate-50 dark:bg-white/5 text-slate-400'}`}>
+                                <div className={`p-2.5 rounded-xl transition-colors duration-300 ${isActive ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 shadow-sm ring-1 ring-brand-100 dark:ring-brand-500/30' : 'bg-slate-50 dark:bg-white/5 text-slate-400'}`}>
                                     <step.icon size={18} />
                                 </div>
                             </div>
@@ -136,7 +136,7 @@ export const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ isOpen, cu
                 {/* Progress Bar */}
                 <div className="h-1.5 bg-slate-100 dark:bg-white/5 w-full">
                     <div
-                        className="h-full bg-gradient-to-r from-primary-500 to-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-700 ease-out"
+                        className="h-full bg-gradient-to-r from-brand-500 to-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-700 ease-out"
                         style={{ width: `${((activeIndex + 0.5) / steps.length) * 100}%` }}
                     />
                 </div>
