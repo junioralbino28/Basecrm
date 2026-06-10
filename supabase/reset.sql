@@ -38,6 +38,10 @@ BEGIN
     DELETE FROM crm_companies;
     RAISE NOTICE '   ✓ crm_companies deletadas';
     
+    -- Professionals (camada clínico-financeira)
+    DELETE FROM professionals;
+    RAISE NOTICE '   ✓ professionals deletados';
+
     -- Products
     DELETE FROM products;
     RAISE NOTICE '   ✓ products deletados';

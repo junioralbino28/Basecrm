@@ -111,3 +111,35 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).toContain('public.can_configure_organization');
   });
 });
+
+const professionalsMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260613000000_professionals.sql'
+);
+
+describe('professionals RLS migration', () => {
+  const sql = readFileSync(professionalsMigrationPath, 'utf-8');
+
+  it('cria a tabela professionals com RLS habilitada', () => {
+    expect(sql).toContain('create table if not exists public.professionals');
+    expect(sql).toContain('alter table public.professionals enable row level security');
+  });
+
+  it('aplica SELECT por can_access e mutação por can_configure', () => {
+    expect(sql).toContain('public.can_access_organization(organization_id)');
+    expect(sql).toContain('public.can_configure_organization(organization_id)');
+  });
+
+  it('nunca usa políticas permissivas', () => {
+    expect(sql).not.toContain('using (true)');
+    expect(sql).not.toContain('with check (true)');
+  });
+
+  it('registra a tabela no reset.sql na ordem FK-safe', () => {
+    const resetSql = readFileSync(
+      resolve(process.cwd(), 'supabase/reset.sql'),
+      'utf-8'
+    );
+    expect(resetSql).toContain('DELETE FROM professionals');
+  });
+});
