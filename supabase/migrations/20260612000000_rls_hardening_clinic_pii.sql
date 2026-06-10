@@ -71,3 +71,20 @@ create policy "custom_field_definitions_mutate_by_tenant_operator" on public.cus
   to authenticated
   using (public.can_operate_organization(organization_id))
   with check (public.can_operate_organization(organization_id));
+
+-- 4. profile_permissions — tinha RLS ENABLE mas SEM policy (deny-all). usuário lê a própria permissão; só admin gerencia
+drop policy if exists "profile_permissions_select" on public.profile_permissions;
+create policy "profile_permissions_select" on public.profile_permissions
+  for select
+  to authenticated
+  using (
+    user_id = auth.uid()
+    or public.can_configure_organization(organization_id)
+  );
+
+drop policy if exists "profile_permissions_mutate_by_admin" on public.profile_permissions;
+create policy "profile_permissions_mutate_by_admin" on public.profile_permissions
+  for all
+  to authenticated
+  using (public.can_configure_organization(organization_id))
+  with check (public.can_configure_organization(organization_id));

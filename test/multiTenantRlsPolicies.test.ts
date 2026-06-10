@@ -87,4 +87,11 @@ describe('rls hardening migration (clinic PII)', () => {
     expect(sql).toContain('create policy "custom_field_definitions_select_by_tenant" on public.custom_field_definitions');
     expect(sql).toContain('create policy "custom_field_definitions_mutate_by_tenant_operator" on public.custom_field_definitions');
   });
+
+  it('adiciona policies a profile_permissions (era deny-all)', () => {
+    expect(sql).toContain('create policy "profile_permissions_select" on public.profile_permissions');
+    expect(sql).toContain('create policy "profile_permissions_mutate_by_admin" on public.profile_permissions');
+    expect(sql).toContain('user_id = auth.uid()');
+    expect(sql).toContain('public.can_configure_organization(organization_id)');
+  });
 });
