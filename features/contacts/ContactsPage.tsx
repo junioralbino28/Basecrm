@@ -141,6 +141,7 @@ export const ContactsPage: React.FC = () => {
                 formData={controller.formData}
                 setFormData={controller.setFormData}
                 editingContact={controller.editingContact}
+                leadSources={controller.leadSources}
                 createFakeContactsBatch={controller.createFakeContactsBatch}
                 isSubmitting={controller.isSubmittingContact}
             />

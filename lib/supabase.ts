@@ -9,6 +9,7 @@ export { activitiesService } from './supabase/activities';
 export { atendimentosService } from './supabase/atendimentos';
 export { productsService } from './supabase/products';
 export { professionalsService } from './supabase/professionals';
+export { leadSourcesService } from './supabase/leadSources';
 export { paymentMethodFeesService } from './supabase/paymentMethodFees';
 export { commissionRulesService } from './supabase/commissionRules';
 export { fixedCostsService } from './supabase/fixedCosts';

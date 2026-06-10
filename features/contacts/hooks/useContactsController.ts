@@ -19,6 +19,7 @@ import {
 } from '@/lib/query/hooks/useContactsQuery';
 import { useCreateDeal } from '@/lib/query/hooks/useDealsQuery';
 import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
+import { useLeadSources } from '@/lib/query/hooks/useLeadSourcesQuery';
 import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 import { normalizePhoneE164 } from '@/lib/phone';
 import { generateFakeContacts } from '@/lib/debug';
@@ -37,6 +38,7 @@ export const useContactsController = () => {
   // TanStack Query hooks
   const { data: companies = [], isLoading: companiesLoading } = useCompanies();
   const { data: boards = [] } = useBoards();
+  const { data: leadSources = [] } = useLeadSources();
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();
   const deleteContactMutation = useDeleteContact();
@@ -161,6 +163,7 @@ export const useContactsController = () => {
     phone: '',
     role: '',
     companyName: '',
+    source: '',
   });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
 
@@ -177,7 +180,7 @@ export const useContactsController = () => {
       return;
     }
     setEditingContact(null);
-    setFormData({ name: '', email: '', phone: '', role: '', companyName: '' });
+    setFormData({ name: '', email: '', phone: '', role: '', companyName: '', source: '' });
     setIsModalOpen(true);
   };
 
@@ -190,6 +193,7 @@ export const useContactsController = () => {
       phone: contact.phone,
       role: contact.role || '',
       companyName: company?.name || '',
+      source: contact.source || '',
     });
     setIsModalOpen(true);
   };
@@ -420,6 +424,7 @@ export const useContactsController = () => {
             phone: normalizedPhone,
             role: formData.role,
             companyId: companyId,
+            source: formData.source,
           },
         },
         {
@@ -441,6 +446,7 @@ export const useContactsController = () => {
           status: 'ACTIVE',
           stage: ContactStage.LEAD,
           totalValue: 0,
+          source: formData.source || undefined,
         },
         {
           onSuccess: () => {
@@ -701,6 +707,7 @@ export const useContactsController = () => {
     // Data
     contacts,
     companies,
+    leadSources,
     filteredContacts,
     filteredCompanies,
 

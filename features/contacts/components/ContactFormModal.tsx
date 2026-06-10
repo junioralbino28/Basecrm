@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { X } from 'lucide-react';
-import { Contact } from '@/types';
+import { Contact, LeadSource } from '@/types';
 import { DebugFillButton } from '@/components/debug/DebugFillButton';
 import { fakeContact } from '@/lib/debug';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
@@ -11,6 +11,8 @@ interface ContactFormData {
   phone: string;
   role: string;
   companyName: string;
+  /** Origem do lead (N1) — alimentada por lead_sources; texto livre como fallback. */
+  source: string;
 }
 
 interface ContactFormModalProps {
@@ -20,6 +22,8 @@ interface ContactFormModalProps {
   formData: ContactFormData;
   setFormData: (data: ContactFormData) => void;
   editingContact: Contact | null;
+  /** Origens de lead do tenant (N1). Sem cadastro → campo vira texto livre. */
+  leadSources?: LeadSource[];
   createFakeContactsBatch?: (count: number) => Promise<void>;
   isSubmitting?: boolean;
 }
@@ -51,14 +55,22 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   formData,
   setFormData,
   editingContact,
+  leadSources = [],
   createFakeContactsBatch,
   isSubmitting = false,
 }) => {
   const headingId = useId();
+  const sourceFieldId = useId();
   useFocusReturn({ enabled: isOpen });
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
-  
+
   if (!isOpen) return null;
+
+  const activeSources = leadSources.filter(s => s.active);
+  // Fallback de edição: origem legada (texto livre/enum antigo) fora de
+  // lead_sources continua selecionável — não some nem é sobrescrita à força.
+  const hasLegacySource =
+    Boolean(formData.source) && !activeSources.some(s => s.name === formData.source);
 
   const fillWithFakeData = () => {
     const fake = fakeContact();
@@ -68,6 +80,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
       phone: fake.phone,
       role: fake.role,
       companyName: fake.companyName,
+      source: formData.source,
     });
   };
 
@@ -180,6 +193,41 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               {editingContact
                 ? 'Edite para alterar a empresa. Deixe em branco para desvincular.'
                 : 'Se a empresa já existir, o contato será vinculado a ela.'}
+            </p>
+          </div>
+          <div>
+            <label htmlFor={sourceFieldId} className="block text-xs font-bold text-slate-500 uppercase mb-1">
+              Origem
+            </label>
+            {activeSources.length > 0 ? (
+              <select
+                id={sourceFieldId}
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                value={formData.source}
+                onChange={e => setFormData({ ...formData, source: e.target.value })}
+              >
+                <option value="">Sem origem</option>
+                {hasLegacySource && (
+                  <option value={formData.source}>{formData.source}</option>
+                )}
+                {activeSources.map(source => (
+                  <option key={source.id} value={source.name}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={sourceFieldId}
+                type="text"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="Ex: Anúncio Meta, Indicação"
+                value={formData.source}
+                onChange={e => setFormData({ ...formData, source: e.target.value })}
+              />
+            )}
+            <p className="text-[10px] text-slate-400 mt-1">
+              De onde esse contato veio (cadastre as origens da clínica para virar lista).
             </p>
           </div>
 
