@@ -60,6 +60,9 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
   };
 
   const showCardBrand = formData.paymentMethod === 'credito' || formData.paymentMethod === 'debito';
+  // Desconto > valor bloqueia o submit (não só clampa a exibição do total).
+  const descontoMaiorQueValor =
+    (Number(formData.desconto) || 0) > (Number(formData.valor) || 0);
   const totalAReceber = Math.max((Number(formData.valor) || 0) - (Number(formData.desconto) || 0), 0);
 
   const inputClass =
@@ -180,8 +183,15 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
                 className={inputClass}
                 placeholder="0,00"
                 value={formData.desconto}
+                aria-invalid={descontoMaiorQueValor || undefined}
+                aria-describedby={descontoMaiorQueValor ? 'atd-desconto-erro' : undefined}
                 onChange={e => setFormData({ ...formData, desconto: e.target.value })}
               />
+              {descontoMaiorQueValor && (
+                <p id="atd-desconto-erro" role="alert" className="mt-1.5 text-xs text-red-500">
+                  Desconto não pode ser maior que o valor do atendimento
+                </p>
+              )}
             </div>
           </div>
 
@@ -284,7 +294,8 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
 
           <button
             type="submit"
-            className="w-full h-12 rounded-xl bg-gold-600 hover:bg-gold-700 text-white font-semibold text-[15px] inline-flex items-center justify-center gap-2 active:scale-[.99] transition shadow-lg shadow-gold-600/20"
+            disabled={descontoMaiorQueValor}
+            className="w-full h-12 rounded-xl bg-gold-600 hover:bg-gold-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-[15px] inline-flex items-center justify-center gap-2 active:scale-[.99] transition shadow-lg shadow-gold-600/20"
           >
             <Check size={20} aria-hidden="true" />
             {editing ? 'Salvar alterações' : 'Registrar atendimento'}

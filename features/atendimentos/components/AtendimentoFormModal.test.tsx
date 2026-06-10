@@ -59,6 +59,32 @@ describe('AtendimentoFormModal', () => {
     expect(screen.getByText(/320,00/)).toBeTruthy();
   });
 
+  it('bloqueia o submit quando desconto > valor (erro visível + botão desabilitado, total nunca negativo)', () => {
+    render(
+      <AtendimentoFormModal
+        {...baseProps}
+        formData={{ ...baseForm, valor: '100', desconto: '150' }}
+      />
+    );
+    expect(screen.getByText(/desconto não pode ser maior que o valor/i)).toBeTruthy();
+    const submit = screen.getByRole('button', { name: /registrar atendimento/i }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    // Exibição do total continua clampada em zero (nunca negativa).
+    expect(screen.getByText(/0,00/)).toBeTruthy();
+  });
+
+  it('com desconto válido não mostra erro e o submit fica habilitado', () => {
+    render(
+      <AtendimentoFormModal
+        {...baseProps}
+        formData={{ ...baseForm, valor: '350', desconto: '30' }}
+      />
+    );
+    expect(screen.queryByText(/desconto não pode ser maior que o valor/i)).toBeNull();
+    const submit = screen.getByRole('button', { name: /registrar atendimento/i }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+  });
+
   it('mostra a bandeira do cartão só para crédito/débito', () => {
     const { rerender } = render(<AtendimentoFormModal {...baseProps} />);
     expect(screen.queryByLabelText(/bandeira/i)).toBeNull();
