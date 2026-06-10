@@ -21,6 +21,7 @@ export default defineConfig({
       ['test/rlsHardening.crossTenant.test.ts', 'node'],
       ['test/professionals.multiTenant.test.ts', 'node'],
       ['test/atendimentos.multiTenant.test.ts', 'node'],
+      ['test/financeConfig.multiTenant.test.ts', 'node'],
       ['lib/utils/csv.test.ts', 'node'],
       ['lib/query/__tests__/cache-integrity.test.ts', 'node'],
     ],
