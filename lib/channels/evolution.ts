@@ -294,3 +294,92 @@ export async function sendEvolutionTextMessage(params: {
 
   throw lastError || new Error('Evolution send failed.');
 }
+
+export type EvolutionMediaType = 'image' | 'video' | 'document' | 'audio';
+
+/**
+ * Envia mídia (imagem/vídeo/documento) pelo endpoint `/message/sendMedia/{instance}`.
+ *
+ * ⚠️ SERVER-SIDE only: usa a `apiKey` (secret) no header — nunca chamar do browser.
+ * Mesmo padrão do `sendEvolutionTextMessage` (apikey header, parseEvolutionResponse,
+ * providerMessageId). `media` aceita URL pública/assinada OU base64.
+ */
+export async function sendEvolutionMediaMessage(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+  phone: string;
+  mediatype: EvolutionMediaType;
+  media: string;
+  caption?: string;
+  fileName?: string;
+  mimetype?: string;
+}): Promise<EvolutionSendMessageResult> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/message/sendMedia/${encodeURIComponent(params.instanceName)}`;
+
+  const body: Record<string, unknown> = {
+    number: params.phone,
+    mediatype: params.mediatype,
+    media: params.media,
+  };
+  if (params.caption) body.caption = params.caption;
+  if (params.fileName) body.fileName = params.fileName;
+  if (params.mimetype) body.mimetype = params.mimetype;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify(body),
+  });
+
+  const payload = await parseEvolutionResponse(response);
+  return {
+    raw: payload,
+    providerMessageId: getProviderMessageId(payload),
+    attemptLabel: `sendMedia:${params.mediatype}`,
+  };
+}
+
+/**
+ * Envia áudio (PTT) pelo endpoint `/message/sendWhatsAppAudio/{instance}`.
+ *
+ * ⚠️ SERVER-SIDE only. `audio` aceita URL pública/assinada OU base64. A Evolution
+ * auto-converte para PTT (a "bolha de áudio" do WhatsApp).
+ */
+export async function sendEvolutionAudioMessage(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+  phone: string;
+  audio: string;
+}): Promise<EvolutionSendMessageResult> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(params.instanceName)}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      number: params.phone,
+      audio: params.audio,
+    }),
+  });
+
+  const payload = await parseEvolutionResponse(response);
+  return {
+    raw: payload,
+    providerMessageId: getProviderMessageId(payload),
+    attemptLabel: 'sendWhatsAppAudio',
+  };
+}
