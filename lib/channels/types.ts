@@ -1,4 +1,4 @@
-export const CHANNEL_PROVIDERS = ['evolution'] as const;
+export const CHANNEL_PROVIDERS = ['evolution', 'clinicorp'] as const;
 export const CHANNEL_TYPES = ['whatsapp'] as const;
 export const CHANNEL_STATUSES = ['pending', 'connected', 'disconnected', 'error'] as const;
 

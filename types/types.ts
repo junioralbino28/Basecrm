@@ -248,8 +248,43 @@ export interface Professional {
   specialty?: string;
   active: boolean;
   ownerId?: string;
+  /** Mapa pro motor externo (Clinicorp Dentist_PersonId). Populado via sync da agenda. */
+  externalId?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ============ AGENDA — cache de resiliência (a VERDADE é o Clinicorp via API) ============
+
+/** Ciclo de status do agendamento (espelha o status do Clinicorp, normalizado). */
+export type AppointmentStatus =
+  | 'agendado'
+  | 'confirmado'
+  | 'compareceu'
+  | 'faltou'
+  | 'cancelado'
+  | 'remarcado';
+
+/** Origem do agendamento: manual (Basecrm) ou espelhado da API do Clinicorp. */
+export type AppointmentSource = 'manual' | 'clinicorp_api';
+
+/**
+ * Agendamento — cache LOCAL de resiliência da agenda.
+ * A fonte de verdade é o Clinicorp (book/list ao vivo via /api/agenda/*); esta entidade
+ * só espelha o mínimo pra tela carregar rápido e ter fallback. SEM PII crua de paciente.
+ */
+export interface Appointment {
+  id?: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  contactId?: string;
+  professionalId?: string;
+  startsAt: string;
+  endsAt?: string;
+  status: AppointmentStatus;
+  source: AppointmentSource;
+  /** id do agendamento no Clinicorp (dedupe org+source+external_id). */
+  externalId?: string;
+  notes?: string;
 }
 
 export interface DealItem {
