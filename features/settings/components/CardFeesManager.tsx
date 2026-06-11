@@ -8,6 +8,7 @@ import {
   useDeletePaymentMethodFee,
 } from '@/lib/query/hooks/usePaymentMethodFeesQuery';
 import { paymentMethodFeeFormSchema, percentSchema } from '@/lib/validations/schemas';
+import { CARD_BRAND_OPTIONS } from '@/lib/constants/cardBrands';
 import { useToast } from '@/context/ToastContext';
 
 const PAYMENT_TYPES: { value: PaymentType; label: string }[] = [
@@ -188,13 +189,23 @@ export const CardFeesManager: React.FC = () => {
           </div>
           <div className="lg:col-span-2">
             <label className="block text-xs font-semibold text-muted mb-1">Bandeira</label>
-            <input
+            {/* HIGH-2: MESMO conjunto de opções do atendimento (select, value
+                lowercase) — antes era texto livre e divergia do atendimento,
+                zerando a taxa no relatório. */}
+            <select
+              aria-label="Bandeira do cartão"
               value={cardBrand}
               onChange={(e) => setCardBrand(e.target.value)}
-              placeholder="Visa, Master…"
               disabled={!showCardFields}
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 disabled:opacity-50"
-            />
+            >
+              <option value="">Selecione…</option>
+              {CARD_BRAND_OPTIONS.map((brand) => (
+                <option key={brand.value} value={brand.value}>
+                  {brand.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="lg:col-span-2">
             <label className="block text-xs font-semibold text-muted mb-1">Parcelas</label>

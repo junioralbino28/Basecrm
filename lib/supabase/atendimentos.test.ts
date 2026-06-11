@@ -90,4 +90,25 @@ describe('atendimentos transform', () => {
     expect(row.installments).toBe(3);
     expect(row.performed_at).toBe('2026-06-10T12:00:00.000Z');
   });
+
+  it('HIGH-2: normaliza a bandeira (lower+trim) no insert pra casar com a config de taxas', () => {
+    const orgId = '11111111-1111-4111-8111-111111111111';
+    const ownerId = '22222222-2222-4222-8222-222222222222';
+    const row = __atendimentoToInsert(
+      {
+        procedimento: 'Faceta',
+        valor: 1000,
+        desconto: 0,
+        recebido: true,
+        installments: 1,
+        paymentMethod: 'credito',
+        cardBrand: '  Visa ',
+        performedAt: '2026-06-10T12:00:00.000Z',
+      },
+      orgId,
+      ownerId
+    );
+    // 'Visa ' free-text → 'visa' (mesma chave que payment_method_fees grava).
+    expect(row.card_brand).toBe('visa');
+  });
 });

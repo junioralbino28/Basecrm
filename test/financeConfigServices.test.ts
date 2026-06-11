@@ -106,6 +106,34 @@ describe('paymentMethodFeesService', () => {
     expect(payload.payment_type).toBe('pix');
   });
 
+  it('HIGH-2: create normaliza a bandeira (lower+trim) pra casar com o atendimento', async () => {
+    mockInsertReturning({
+      id: ROW_ID,
+      organization_id: ORG_ID,
+      label: 'Crédito Visa',
+      payment_type: 'credito',
+      card_brand: 'visa',
+      installments: 1,
+      fee_percent: 3.15,
+      owner_id: USER_ID,
+      created_at: 'now',
+      updated_at: 'now',
+    });
+
+    await paymentMethodFeesService.create({
+      label: 'Crédito Visa',
+      paymentType: 'credito',
+      cardBrand: '  Visa ',
+      installments: 1,
+      feePercent: 3.15,
+      organizationId: ORG_ID,
+    });
+
+    const payload = insertMock.mock.calls[0][0];
+    // free-text 'Visa ' → 'visa' (mesma chave que o atendimento grava no select).
+    expect(payload.card_brand).toBe('visa');
+  });
+
   it('update envia SÓ o campo editado (nunca re-carimba campos de domínio não editados)', async () => {
     const eqMock = vi.fn().mockResolvedValue({ error: null });
     updateMock.mockReturnValue({ eq: eqMock });

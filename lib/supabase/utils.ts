@@ -192,6 +192,32 @@ export function sanitizeText(value: string | undefined | null): string | null {
 }
 
 /**
+ * Normaliza a bandeira de cartão para casamento consistente entre config
+ * (payment_method_fees) e atendimento.
+ *
+ * A config grava a bandeira como texto livre ('Visa', 'Master…') e o
+ * atendimento grava em lowercase via select ('visa', 'mastercard'). O RPC de
+ * taxas casa forma + bandeira + parcelas — sem normalizar os dois lados, o
+ * left join zerava a taxa em silêncio (achado HIGH-2). Carimbar `lower(trim())`
+ * no insert/update dos DOIS lados mantém o histórico já consistente.
+ *
+ * @param value - Bandeira informada (texto livre ou opção de select).
+ * @returns Bandeira em minúsculas e trimada, ou null se vazia.
+ *
+ * @example
+ * ```typescript
+ * normalizeCardBrand('  Visa ') // 'visa'
+ * normalizeCardBrand('MasterCard') // 'mastercard'
+ * normalizeCardBrand('') // null
+ * ```
+ */
+export function normalizeCardBrand(value: string | undefined | null): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized === '' ? null : normalized;
+}
+
+/**
  * Sanitiza número - retorna valor default se inválido.
  * 
  * @param value - Valor a ser convertido.

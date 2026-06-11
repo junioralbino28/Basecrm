@@ -2,6 +2,7 @@ import React from 'react';
 import { BadgeCheck, Check, ClipboardPlus, X } from 'lucide-react';
 import { Atendimento, Deal, Professional, Product } from '@/types';
 import type { AtendimentoFormState } from '../hooks/useAtendimentosController';
+import { CARD_BRAND_OPTIONS } from '@/lib/constants/cardBrands';
 
 interface AtendimentoFormModalProps {
   isOpen: boolean;
@@ -18,7 +19,6 @@ interface AtendimentoFormModalProps {
 const formatBRL = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-const CARD_BRANDS = ['Visa', 'Mastercard', 'Elo', 'Amex', 'Hipercard', 'Outra'];
 
 /**
  * Drawer "1 toque" para registrar atendimento (mirror do mockup drawer-at).
@@ -230,9 +230,9 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
                   onChange={e => setFormData({ ...formData, cardBrand: e.target.value })}
                 >
                   <option value="">Selecione...</option>
-                  {CARD_BRANDS.map(brand => (
-                    <option key={brand} value={brand.toLowerCase()}>
-                      {brand}
+                  {CARD_BRAND_OPTIONS.map(brand => (
+                    <option key={brand.value} value={brand.value}>
+                      {brand.label}
                     </option>
                   ))}
                 </select>

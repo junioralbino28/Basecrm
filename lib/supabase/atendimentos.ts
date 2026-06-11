@@ -18,7 +18,7 @@
 
 import { supabase } from './client';
 import { Atendimento } from '@/types';
-import { sanitizeUUID } from './utils';
+import { sanitizeUUID, normalizeCardBrand } from './utils';
 
 const SELECT_COLUMNS =
   'id, organization_id, contact_id, deal_id, professional_id, product_id, procedimento, valor, desconto, payment_method, card_brand, installments, recebido, paid_at, performed_at, owner_id, created_at, updated_at';
@@ -84,7 +84,8 @@ function atendimentoToInsert(
     valor: input.valor ?? 0,
     desconto: input.desconto ?? 0,
     payment_method: input.paymentMethod || null,
-    card_brand: input.cardBrand || null,
+    // HIGH-2: bandeira normalizada (lower+trim) p/ casar com payment_method_fees.
+    card_brand: normalizeCardBrand(input.cardBrand),
     installments: input.installments ?? 1,
     recebido,
     paid_at: recebido ? (input.paidAt || new Date().toISOString()) : null,
@@ -161,7 +162,7 @@ export const atendimentosService = {
       if (updates.valor !== undefined) payload.valor = updates.valor;
       if (updates.desconto !== undefined) payload.desconto = updates.desconto;
       if (updates.paymentMethod !== undefined) payload.payment_method = updates.paymentMethod || null;
-      if (updates.cardBrand !== undefined) payload.card_brand = updates.cardBrand || null;
+      if (updates.cardBrand !== undefined) payload.card_brand = normalizeCardBrand(updates.cardBrand);
       if (updates.installments !== undefined) payload.installments = updates.installments;
       if (updates.performedAt !== undefined) payload.performed_at = updates.performedAt;
       if (updates.recebido !== undefined) {

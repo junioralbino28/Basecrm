@@ -10,7 +10,7 @@
 
 import { supabase } from './client';
 import { PaymentMethodFee, PaymentType } from '@/types';
-import { sanitizeUUID } from './utils';
+import { sanitizeUUID, normalizeCardBrand } from './utils';
 
 // =============================================================================
 // Organization inference (client-side, RLS-safe)
@@ -112,7 +112,8 @@ export const paymentMethodFeesService = {
         .insert({
           label: input.label,
           payment_type: input.paymentType,
-          card_brand: input.cardBrand || null,
+          // HIGH-2: bandeira normalizada (lower+trim) p/ casar com o atendimento.
+          card_brand: normalizeCardBrand(input.cardBrand),
           installments: input.installments,
           fee_percent: input.feePercent,
           owner_id: sanitizeUUID(user?.id),
@@ -139,7 +140,7 @@ export const paymentMethodFeesService = {
       const payload: Record<string, unknown> = {};
       if (updates.label !== undefined) payload.label = updates.label;
       if (updates.paymentType !== undefined) payload.payment_type = updates.paymentType;
-      if (updates.cardBrand !== undefined) payload.card_brand = updates.cardBrand || null;
+      if (updates.cardBrand !== undefined) payload.card_brand = normalizeCardBrand(updates.cardBrand);
       if (updates.installments !== undefined) payload.installments = updates.installments;
       if (updates.feePercent !== undefined) payload.fee_percent = updates.feePercent;
       payload.updated_at = new Date().toISOString();
