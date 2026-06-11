@@ -10696,6 +10696,25 @@ git commit -m "chore(agenda): fecha Fase 7 — Basecrm cara, Clinicorp motor (pr
 
 ---
 
+### Fase 7 — Nota de fechamento (honestidade, 2026-06-11)
+
+Fase 7 implementada via TDD (14 commits `feat(agenda)`/`test(agenda)` na branch `feat/v1-provisionamento`). Gate: **lint exit 0, typecheck exit 0, 505 testes passam + 1 skipped**. O ÚNICO teste vermelho é `test/appointmentsTenantIsolation.test.ts` (`PGRST205 — Could not find the table 'public.appointments'`): as migrações `appointments`/`clinicorp_config`/`professionals.external_id` foram criadas como **arquivo apenas** e **ainda NÃO aplicadas no banco** (orquestrador aplica via MCP). Assim que aplicadas, o teste fica verde (mesmo padrão de `professionals.multiTenant`, que passa porque sua tabela já está migrada).
+
+**Divergências realidade > plano (anotadas):**
+- Timestamps de migração: o plano sugeria `20260617000000` (COLIDE com `lead_sources` já existente) e `20260617100000`. Usei `20260626000000_clinicorp_config`, `20260627000000_appointments`, `20260628000000_professionals_external_id` (regra: `> 20260625000000`, último existente).
+- Tipo `Appointment` + enums `AppointmentStatus`/`AppointmentSource` não existiam em `types/types.ts` → criados.
+- `professionals.external_id` (coluna + tipo + service) não existia → migração nova + `professionalsService` passou a expor `externalId`. Necessário pro `onConflict` do sync e pro `AgendaBookModal`.
+- Barrel real consumido é `lib/supabase.ts` (shadow do dir), não `lib/supabase/index.ts` — adicionei o export do `appointmentsService` em AMBOS.
+- `reset.sql` usa bloco PL/pgSQL com `RAISE NOTICE`, não `delete from` solto → inseri `appointments` (antes de contacts/professionals) e `clinicorp_config` no estilo do arquivo.
+- `multiTenantRlsPolicies.test.ts` NÃO foi modificado (a própria nota do plano desautoriza; ele cobre só a migração core).
+- UUIDs dos testes de rota: zod v4.2.1 rejeita `1111…1111` (variant inválida) → usei `11111111-1111-4111-8111-111111111111` (v4, variant 8).
+- `scripts/clinicorp-live-check.mjs`: `scripts/` é gitignored (dev/debug) → script criado em disco mas NÃO commitado (consistente com a política do repo). Rodar manual com credenciais reais.
+- Token Clinicorp mora em `clinicorp_config.api_token` (DB, RLS `can_configure`, server-side only) — design verificado do plano; nunca chega ao browser (provado por asserts `not.toContain(apiToken)` em todas as rotas).
+
+**Pendências one-time (agenda só fica ao vivo com elas):** `subscriber_id`, `code_link`, `business_id` na conta da clínica + aplicar as 3 migrações. `code_link` não existe ainda (clínica não usa agendamento online) → validar ao vivo se `get_avaliable_times_calendar` reflete a agenda interna; se não, cair pra `appointment/list` + ocupação (decisão no doc, não no código).
+
+---
+
 ## Fase 8 — Relatórios core (faturamento · comissão · líquido)
 
 > Pré-requisitos travados: tabelas `atendimentos`, `commission_rules`, `payment_method_fees`, `fixed_costs`, `professionals` já existem (Fases anteriores), helper `public.current_profile_organization_id()` já existe, `lib/auth/scope.ts` já exporta `canManageClinicSettings`, `StatCard`, `PeriodFilterSelect`, `LazyRevenueTrendChart` e `generateReportPDF` já existem. Esta fase só adiciona: **3 RPCs SQL**, **1 service**, **3 hooks**, **1 função pura**, **1 página de relatório** + rota, e estende o PDF.
