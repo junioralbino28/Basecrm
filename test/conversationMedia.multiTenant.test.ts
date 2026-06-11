@@ -167,7 +167,6 @@ describeSupabase('deal-files storage — isolamento cross-tenant (usuário real,
     const probe = await probeClient.storage.from(BUCKET).createSignedUrl(fileA.filePath, 60);
     if (probe.error || !probe.data?.signedUrl) {
       storageRlsMissing = true;
-      // eslint-disable-next-line no-console
       console.warn(
         '[conversationMedia.multiTenant] staff não conseguiu signed URL do próprio arquivo — ' +
           'rodar pós-migração 20260625000000_deal_files_storage_tenant_rls.sql',
