@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { calcLiquido, buildMoneyAllocation, periodFromISO } from './financeMath';
+import {
+  calcLiquido,
+  buildMoneyAllocation,
+  periodFromISO,
+  isSingleCompetenceMonth,
+} from './financeMath';
 
 describe('calcLiquido', () => {
   it('subtrai comissões, taxas e contas do faturamento', () => {
@@ -63,5 +68,25 @@ describe('periodFromISO (período YYYY-MM pro "pagar" de comissão)', () => {
 
   it('vira o ano corretamente em dezembro', () => {
     expect(periodFromISO(new Date(2026, 11, 20, 12, 0, 0).toISOString())).toBe('2026-12');
+  });
+});
+
+describe('isSingleCompetenceMonth (trava "pagar" comissão a 1 mês — MEDIUM-5)', () => {
+  it('range dentro do mesmo mês é pagável', () => {
+    const start = new Date(2026, 5, 1, 0, 0, 0).toISOString();
+    const end = new Date(2026, 5, 30, 23, 59, 59).toISOString();
+    expect(isSingleCompetenceMonth(start, end)).toBe(true);
+  });
+
+  it('range cruzando meses NÃO é pagável (evita pagamento ambíguo)', () => {
+    const start = new Date(2026, 3, 1, 0, 0, 0).toISOString(); // abril
+    const end = new Date(2026, 5, 30, 23, 59, 59).toISOString(); // junho
+    expect(isSingleCompetenceMonth(start, end)).toBe(false);
+  });
+
+  it('range do ano inteiro NÃO é pagável', () => {
+    const start = new Date(2026, 0, 1, 0, 0, 0).toISOString();
+    const end = new Date(2026, 11, 31, 23, 59, 59).toISOString();
+    expect(isSingleCompetenceMonth(start, end)).toBe(false);
   });
 });

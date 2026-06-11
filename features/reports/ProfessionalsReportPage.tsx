@@ -5,7 +5,7 @@ import { Stethoscope, Lock, Check } from 'lucide-react';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { PeriodFilter } from '@/features/dashboard/hooks/useDashboardMetrics';
 import { getFinanceDateRange } from './utils/financeDateRange';
-import { periodFromISO } from './utils/financeMath';
+import { periodFromISO, isSingleCompetenceMonth } from './utils/financeMath';
 import { useCommissionReport } from '@/lib/query/hooks/useFinanceReports';
 import { useCreateCommissionPayment } from '@/lib/query/hooks/useCommissionPaymentsQuery';
 import { useAuth } from '@/context/AuthContext';
@@ -28,13 +28,27 @@ const ProfessionalsReportContent: React.FC = () => {
   const [payingId, setPayingId] = useState<string | null>(null);
 
   const { start, end } = useMemo(() => getFinanceDateRange(period), [period]);
-  const { data: report, isLoading, isError } = useCommissionReport(start, end);
+  const { data: report, isLoading, isError, isFetching } = useCommissionReport(start, end);
   const createPayment = useCreateCommissionPayment();
 
   const rows = report?.porProfissional ?? [];
 
+  // MEDIUM-5: "pagar" só faz sentido num único mês de competência. Se o range
+  // cruza meses (ano, trimestre, "30 dias"), travamos a ação — o pagamento
+  // grava period = mês do fim e a unique (org, prof, period) no banco rejeitaria
+  // dupla gravação. Pagar mês a mês (selecionar "este mês"/"mês passado").
+  const pagavel = useMemo(() => isSingleCompetenceMonth(start, end), [start, end]);
+
   const handlePagar = useCallback(
     async (professionalId: string, professionalName: string, amount: number) => {
+      // Guarda extra (além do disabled): nunca paga em range multi-mês.
+      if (!pagavel) {
+        addToast(
+          'Selecione um único mês (este mês / mês passado) para registrar o pagamento.',
+          'error'
+        );
+        return;
+      }
       setPayingId(professionalId);
       try {
         await createPayment.mutateAsync({
@@ -45,15 +59,22 @@ const ProfessionalsReportContent: React.FC = () => {
         });
         addToast(`${formatBRL(amount)} marcado como pago a ${professionalName}.`, 'success');
       } catch (e) {
+        const message = (e as Error)?.message || '';
+        // Unique parcial (org, prof, period): pagamento já existe nesse mês.
+        const jaPago =
+          (e as { code?: string })?.code === '23505' ||
+          /duplicate key|already exists|uniq_commission_payments/i.test(message);
         addToast(
-          `Não foi possível registrar o pagamento: ${(e as Error)?.message || 'erro inesperado'}`,
+          jaPago
+            ? `${professionalName} já tem um pagamento registrado neste mês.`
+            : `Não foi possível registrar o pagamento: ${message || 'erro inesperado'}`,
           'error'
         );
       } finally {
         setPayingId(null);
       }
     },
-    [createPayment, end, addToast]
+    [createPayment, end, addToast, pagavel]
   );
 
   return (
@@ -76,6 +97,17 @@ const ProfessionalsReportContent: React.FC = () => {
         <div className="glass p-4 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50/50 dark:bg-red-500/5 shadow-sm shrink-0">
           <p className="text-sm text-red-600 dark:text-red-400">
             Não foi possível carregar o relatório de comissões. Tente novamente.
+          </p>
+        </div>
+      ) : null}
+
+      {/* MEDIUM-5: aviso quando o período cobre mais de um mês — pagar fica travado */}
+      {!pagavel ? (
+        <div className="glass p-3 rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 shadow-sm shrink-0">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            O período selecionado cobre mais de um mês. Para registrar pagamentos, escolha
+            <span className="font-semibold"> este mês</span> ou
+            <span className="font-semibold"> mês passado</span> — comissão se paga mês a mês.
           </p>
         </div>
       ) : null}
@@ -135,9 +167,13 @@ const ProfessionalsReportContent: React.FC = () => {
                         </span>
                         <button
                           type="button"
-                          disabled={payingId === row.professionalId}
+                          // MEDIUM-5: desabilita fora de mês único, durante o
+                          // pagamento e enquanto o relatório refaz fetch (evita
+                          // clique duplo antes do "a pagar" recalcular).
+                          disabled={!pagavel || isFetching || payingId === row.professionalId}
+                          title={!pagavel ? 'Selecione um único mês para pagar' : undefined}
                           onClick={() => handlePagar(row.professionalId, row.professionalName, row.aPagar)}
-                          className="h-7 px-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 disabled:opacity-50 transition"
+                          className="h-7 px-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
                         >
                           {payingId === row.professionalId ? 'pagando...' : 'pagar'}
                         </button>

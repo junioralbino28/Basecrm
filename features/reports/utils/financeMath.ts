@@ -80,3 +80,20 @@ export function periodFromISO(iso: string): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   return `${d.getFullYear()}-${month}`;
 }
+
+/**
+ * O range cobre UM único mês de competência? (MEDIUM-5)
+ *
+ * A ação "pagar" comissão grava `period = mês do fim do range` e a "a pagar" é
+ * calculada sobre o range inteiro. Se o range cruzar meses, o valor pago não
+ * corresponde a um único período — o que, somado à unique parcial no banco
+ * (org, profissional, period), gera erro/inconsistência. Pagar só faz sentido
+ * mês a mês; esta checagem (início e fim no MESMO YYYY-MM local) trava a UI.
+ *
+ * @param startISO - Início do range.
+ * @param endISO - Fim do range.
+ * @returns true se início e fim caem no mesmo mês de competência.
+ */
+export function isSingleCompetenceMonth(startISO: string, endISO: string): boolean {
+  return periodFromISO(startISO) === periodFromISO(endISO);
+}
