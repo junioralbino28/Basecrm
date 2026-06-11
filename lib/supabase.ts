@@ -10,6 +10,7 @@ export { atendimentosService } from './supabase/atendimentos';
 export { tasksService } from './supabase/tasks';
 export { productsService } from './supabase/products';
 export { professionalsService } from './supabase/professionals';
+export { appointmentsService } from './supabase/appointments';
 export { leadSourcesService } from './supabase/leadSources';
 export { paymentMethodFeesService } from './supabase/paymentMethodFees';
 export { commissionRulesService } from './supabase/commissionRules';
