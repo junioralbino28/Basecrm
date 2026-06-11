@@ -152,23 +152,11 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       return;
     }
 
-    // Skip gracioso adicional: a migração de CORREÇÃO (20260624000000) traz
-    // campos novos (get_net_result.contas_fixas_mensal, get_commission_report.
-    // sem_profissional). Se ainda não aplicada, as asserções dos fixes não valem
-    // — pula a suíte com aviso (não falha o gate antes do orquestrador aplicar).
-    const netProbe = await admin.rpc('get_net_result', { p_start: P_START, p_end: P_END });
-    const fixApplied =
-      !netProbe.error &&
-      netProbe.data != null &&
-      Object.prototype.hasOwnProperty.call(netProbe.data, 'contas_fixas_mensal');
-    if (!fixApplied) {
-      rpcMissing = true;
-      console.warn(
-        '[financeReportsRpcs.multiTenant] migração de correção 20260624000000_finance_rpcs_fix.sql ainda não aplicada — pulando até o orquestrador aplicar via MCP',
-      );
-      return;
-    }
-
+    // Nota: a migração de CORREÇÃO 20260624000000 (pró-rateio de contas, bandeira
+    // normalizada, sem_profissional, desempate de comissão) JÁ está aplicada no
+    // banco compartilhado. Não dá pra detectá-la via service-role (a RPC barra
+    // service-role por design — sem org de perfil), então as asserções abaixo é
+    // que PROVAM o fix ao vivo, autenticadas como admin real.
     const fx = await createMinimalFixtures();
     runId = fx.runId;
     orgAId = fx.orgA.organizationId;
