@@ -5,18 +5,17 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
+  Bot,
   CheckCheck,
   Loader2,
   MessageCircle,
   MessagesSquare,
   MoreVertical,
-  Paperclip,
   Phone,
   QrCode,
   RefreshCcw,
   Search,
   Send,
-  SmilePlus,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -26,6 +25,10 @@ import { queryKeys } from '@/lib/query';
 import { Modal } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { canManageClinicSettings } from '@/lib/auth/scope';
+import { MessageBubble } from './conversations/MessageBubble';
+import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
+import { dealFilesService } from '@/lib/supabase/dealFiles';
+import { FileText, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -129,16 +132,6 @@ function routingLabel(thread: ConversationThreadListItem) {
   return 'IA pode responder';
 }
 
-function directionTone(direction: ConversationMessageDirection) {
-  if (direction === 'outbound') {
-    return 'ml-10 bg-[#d9fdd3] text-slate-900 shadow-sm dark:bg-emerald-500/15 dark:text-slate-100';
-  }
-  if (direction === 'internal') {
-    return 'mx-6 border border-amber-200 bg-amber-50/90 text-slate-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-slate-100';
-  }
-  return 'mr-10 bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100';
-}
-
 function recalculateSummary(threads: ConversationThreadListItem[]): ConversationsInboxSummary {
   return threads.reduce<ConversationsInboxSummary>(
     (acc, thread) => {
@@ -167,30 +160,6 @@ function getThreadAvatar(thread: ConversationThreadListItem) {
   const base = (thread.contact_name || thread.title || '?').trim();
   const parts = base.split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
-
-function getMessageMeta(message: ConversationMessage): ConversationMessageMetadata {
-  return (message.metadata || {}) as ConversationMessageMetadata;
-}
-
-function getDeliveryBadge(meta: ConversationMessageMetadata, direction: ConversationMessageDirection) {
-  if (direction !== 'outbound') return null;
-  if (meta.delivery_status === 'sent') {
-    return {
-      label: 'Enviada',
-      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-    };
-  }
-  if (meta.delivery_status === 'failed') {
-    return {
-      label: 'Falhou',
-      className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
-    };
-  }
-  return {
-    label: 'Registrada',
-    className: 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-300',
-  };
 }
 
 function collectPairingCandidates(value: unknown, acc: string[] = []): string[] {
@@ -280,6 +249,11 @@ export const TenantConversationsPage: React.FC = () => {
   } | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = React.useState(false);
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = React.useState(false);
+  const [isScriptsOpen, setIsScriptsOpen] = React.useState(false);
+  const documentInputRef = React.useRef<HTMLInputElement | null>(null);
+  const imageInputRef = React.useRef<HTMLInputElement | null>(null);
+  const { scripts: quickScripts, isLoading: scriptsLoading } = useQuickScripts();
   const [activeConnectionId, setActiveConnectionId] = React.useState<string | null>(null);
   const [pairingConnectionId, setPairingConnectionId] = React.useState<string | null>(null);
   const [healthcheckConnectionId, setHealthcheckConnectionId] = React.useState<string | null>(null);
@@ -459,6 +433,78 @@ export const TenantConversationsPage: React.FC = () => {
       });
     },
   });
+
+  // Envio de anexo: sobe o arquivo pro bucket deal-files (RLS por tenant) e POSTa
+  // a mensagem com o ponteiro; o SERVIDOR gera o signed URL e chama a Evolution.
+  const sendAttachmentMutation = useMutation({
+    mutationFn: async (input: { kind: 'image' | 'video' | 'document' | 'audio'; file: File; caption?: string }) => {
+      const dealId = selectedThread?.deal_id;
+      if (!dealId) {
+        throw new Error('Esta conversa ainda não tem oportunidade vinculada para anexar arquivos.');
+      }
+      const { data: uploaded, error: uploadError } = await dealFilesService.uploadFile(dealId, input.file);
+      if (uploadError || !uploaded) {
+        throw new Error(uploadError instanceof Error ? uploadError.message : 'Falha ao subir o arquivo.');
+      }
+
+      const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          direction: 'outbound',
+          send_external: true,
+          content: input.caption?.trim() || undefined,
+          attachment: {
+            kind: input.kind,
+            file_path: uploaded.file_path,
+            file_name: uploaded.file_name,
+            mime_type: uploaded.mime_type ?? undefined,
+            file_size: uploaded.file_size ?? undefined,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao enviar anexo (HTTP ${res.status})`);
+      return data as { ok: true; message: ConversationMessage; thread: ConversationThreadListItem; warning?: string | null };
+    },
+    onSuccess: data => {
+      queryClient.setQueryData<MessagesResponse | undefined>(
+        queryKeys.conversations.messages(data.thread.id),
+        current => ({ messages: [...(current?.messages || []), data.message] })
+      );
+      updateInboxThread(data.thread);
+      setComposerFeedback(
+        data.warning
+          ? { kind: 'warning', text: `Anexo registrado, mas o envio pela Evolution falhou: ${data.warning}` }
+          : { kind: 'success', text: 'Anexo enviado.' }
+      );
+    },
+    onError: error => {
+      setComposerFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Falha ao enviar anexo.',
+      });
+    },
+  });
+
+  function handleFilePicked(kind: 'image' | 'video' | 'document', event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setIsAttachMenuOpen(false);
+    if (!file) return;
+    setComposerFeedback(null);
+    // imagem x vídeo: o input de "Foto e vídeo" decide pelo mime real.
+    const realKind: 'image' | 'video' | 'document' =
+      kind === 'image' ? (file.type.startsWith('video/') ? 'video' : 'image') : 'document';
+    sendAttachmentMutation.mutate({ kind: realKind, file });
+  }
+
+  function handleInsertScript(content: string) {
+    setComposer(current => ({ ...current, content: current.content ? `${current.content}\n${content}` : content }));
+    setIsScriptsOpen(false);
+    setIsAttachMenuOpen(false);
+  }
 
   const deleteLeadMutation = useMutation({
     mutationFn: async (threadId: string) => {
@@ -647,10 +693,11 @@ export const TenantConversationsPage: React.FC = () => {
                 />
               </div>
 
+              {/* Pills do mockup (Tudo/Não lidas/Julia) + estados operacionais extras. */}
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'all', label: 'Todas' },
-                  { id: 'ai_active', label: 'IA ativa' },
+                  { id: 'all', label: 'Tudo' },
+                  { id: 'ai_active', label: 'Julia' },
                   { id: 'human_queue', label: 'Fila humana' },
                   { id: 'human_active', label: 'Humano' },
                   { id: 'resolved', label: 'Resolvidas' },
@@ -681,7 +728,7 @@ export const TenantConversationsPage: React.FC = () => {
                       : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                   }`}
                 >
-                  So nao lidas
+                  Não lidas
                 </button>
                 <button
                   type="button"
@@ -957,6 +1004,30 @@ export const TenantConversationsPage: React.FC = () => {
                     <CheckCheck size={16} />
                     Marcar como resolvido
                   </button>
+                  {/* Devolver pra Julia: libera a thread de volta pra IA (status ai_active). Reusa o modelo de handoff existente. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateThreadMutation.mutate({
+                        threadId: selectedThread.id,
+                        body: { status: 'ai_active', mark_as_read: true },
+                      })
+                    }
+                    disabled={updateThreadMutation.isPending || selectedThread.status === 'ai_active'}
+                    className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Bot size={16} />
+                    Devolver pra Julia
+                  </button>
+                  {selectedThread.contact_id ? (
+                    <Link
+                      href={`/platform/tenants/${tenantId}/contacts?contactId=${selectedThread.contact_id}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500"
+                    >
+                      <UserRound size={16} />
+                      Ficha do paciente
+                    </Link>
+                  ) : null}
                 </div>
 
                 {updateThreadMutation.error ? (
@@ -986,46 +1057,7 @@ export const TenantConversationsPage: React.FC = () => {
                   </div>
                 ) : (
                   (messagesQuery.data?.messages || []).map(message => (
-                    (() => {
-                      const meta = getMessageMeta(message);
-                      const badge = getDeliveryBadge(meta, message.direction);
-
-                      return (
-                        <div
-                          key={message.id}
-                          className={`max-w-[85%] rounded-[1.5rem] px-4 py-3 text-sm ${directionTone(message.direction)} ${
-                            message.direction === 'outbound'
-                              ? 'self-end rounded-br-md'
-                              : message.direction === 'internal'
-                                ? 'self-center'
-                                : 'self-start rounded-bl-md'
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span>{message.author_name || message.direction}</span>
-                              {badge ? (
-                                <span className={`rounded-full px-2 py-0.5 font-semibold ${badge.className}`}>
-                                  {badge.label}
-                                </span>
-                              ) : null}
-                              {meta.delivery_provider ? (
-                                <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                                  {meta.delivery_provider}
-                                </span>
-                              ) : null}
-                            </div>
-                            <span>{formatDateTime(message.sent_at)}</span>
-                          </div>
-                          <div className="mt-2 whitespace-pre-wrap">{message.content}</div>
-                          {meta.delivery_error ? (
-                            <div className="mt-3 rounded-2xl bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                              Falha no envio: {meta.delivery_error}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })()
+                    <MessageBubble key={message.id} message={message} />
                   ))
                 )}
                 <div ref={messagesBottomRef} />
@@ -1061,20 +1093,85 @@ export const TenantConversationsPage: React.FC = () => {
                     <span>{composer.author_name || 'Sem autor'}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-end gap-3">
+                <div className="relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-end gap-3">
+                  {/* Inputs ocultos: documento e foto/vídeo */}
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf"
+                    onChange={event => handleFilePicked('document', event)}
+                  />
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/*,video/*"
+                    onChange={event => handleFilePicked('image', event)}
+                  />
+
+                  {/* Menu de anexo (mirror mockup: Documento / Foto e vídeo / Script da cadência) */}
+                  {isAttachMenuOpen ? (
+                    <div className="absolute bottom-14 left-0 z-30 w-60 overflow-hidden rounded-xl border border-slate-700 bg-[#202c33] shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => documentInputRef.current?.click()}
+                        className="inline-flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] font-medium text-slate-100 transition hover:bg-white/5"
+                      >
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-rose-500/15 text-rose-300"><FileText size={16} /></span>
+                        Documento
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        className="inline-flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] font-medium text-slate-100 transition hover:bg-white/5"
+                      >
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500/15 text-brand-300"><ImageIcon size={16} /></span>
+                        Foto e vídeo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setIsScriptsOpen(true); setIsAttachMenuOpen(false); }}
+                        className="inline-flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] font-medium text-slate-100 transition hover:bg-white/5"
+                      >
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/15 text-gold-300"><Zap size={16} /></span>
+                        Script da cadência
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {/* Painel de scripts F1-F9 (lê quick_scripts existentes) */}
+                  {isScriptsOpen ? (
+                    <div className="absolute bottom-14 left-0 z-30 max-h-72 w-80 overflow-y-auto rounded-xl border border-slate-700 bg-[#202c33] p-2 shadow-xl">
+                      <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Scripts da cadência</div>
+                      {scriptsLoading ? (
+                        <div className="flex items-center gap-2 px-2 py-3 text-xs text-slate-400"><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+                      ) : quickScripts.length === 0 ? (
+                        <div className="px-2 py-3 text-xs text-slate-400">Nenhum script cadastrado ainda.</div>
+                      ) : (
+                        quickScripts.map(script => (
+                          <button
+                            key={script.id}
+                            type="button"
+                            onClick={() => handleInsertScript(script.template)}
+                            className="block w-full rounded-lg px-2 py-2 text-left transition hover:bg-white/5"
+                          >
+                            <div className="text-[12.5px] font-semibold text-slate-100">{script.title}</div>
+                            <div className="line-clamp-2 text-[11px] text-slate-400">{script.template}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+
                   <button
                     type="button"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
+                    onClick={() => { setIsScriptsOpen(false); setIsAttachMenuOpen(current => !current); }}
+                    disabled={!canReply || sendAttachmentMutation.isPending}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Anexar"
                   >
-                    <Paperclip size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
-                    aria-label="Emoji"
-                  >
-                    <SmilePlus size={18} />
+                    {sendAttachmentMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}
                   </button>
                   <div className="rounded-[1.75rem] bg-[#2a3942] px-4 py-2">
                     <textarea
@@ -1086,16 +1183,27 @@ export const TenantConversationsPage: React.FC = () => {
                           ? 'Escreva uma nota interna...'
                           : 'Digite uma mensagem'
                       }
-                      required
                     />
                   </div>
                   <div className="flex items-end">
                     <button
                       type="submit"
                       disabled={sendMessageMutation.isPending || !composer.content.trim() || !canReply}
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {sendMessageMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    </button>
+                  </div>
+                  {/* Mic: gravação de áudio é v1.1 (atrito MediaRecorder↔Evolution não verificado ao vivo). */}
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      disabled
+                      title="Gravar áudio chega na v1.1 (recebimento de áudio já funciona)"
+                      className="inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-full border border-slate-700 text-slate-500 opacity-60"
+                      aria-label="Gravar áudio (em breve)"
+                    >
+                      <Mic size={18} />
                     </button>
                   </div>
                 </div>
