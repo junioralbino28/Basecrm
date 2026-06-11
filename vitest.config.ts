@@ -20,6 +20,7 @@ export default defineConfig({
       ['test/tools.multiTenant.test.ts', 'node'],
       ['test/rlsHardening.crossTenant.test.ts', 'node'],
       ['test/professionals.multiTenant.test.ts', 'node'],
+      ['test/profilesPrivilegeEscalation.multiTenant.test.ts', 'node'],
       ['test/atendimentos.multiTenant.test.ts', 'node'],
       ['test/financeConfig.multiTenant.test.ts', 'node'],
       ['lib/utils/csv.test.ts', 'node'],
