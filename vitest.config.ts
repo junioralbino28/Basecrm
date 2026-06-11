@@ -24,6 +24,7 @@ export default defineConfig({
       ['test/atendimentos.multiTenant.test.ts', 'node'],
       ['test/financeConfig.multiTenant.test.ts', 'node'],
       ['test/evolutionMedia.test.ts', 'node'],
+      ['test/conversationMediaDispatch.test.ts', 'node'],
       ['test/conversationMedia.multiTenant.test.ts', 'node'],
       ['lib/utils/csv.test.ts', 'node'],
       ['lib/query/__tests__/cache-integrity.test.ts', 'node'],
