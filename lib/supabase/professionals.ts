@@ -46,6 +46,7 @@ type DbProfessional = {
   name: string;
   specialty: string | null;
   active: boolean | null;
+  external_id: string | null;
   owner_id: string | null;
   created_at: string;
   updated_at: string;
@@ -58,6 +59,7 @@ function transformProfessional(db: DbProfessional): Professional {
     name: db.name,
     specialty: db.specialty || undefined,
     active: db.active ?? true,
+    externalId: db.external_id || undefined,
     ownerId: db.owner_id || undefined,
     createdAt: db.created_at,
     updatedAt: db.updated_at,
@@ -71,7 +73,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, active, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (organizationId) {
@@ -95,7 +97,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, active, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
         .eq('active', true)
         .order('created_at', { ascending: false });
 
@@ -130,7 +132,7 @@ export const professionalsService = {
           owner_id: sanitizeUUID(user?.id),
           organization_id: organizationId,
         })
-        .select('id, organization_id, name, specialty, active, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
         .single();
 
       if (error) return { data: null, error };
