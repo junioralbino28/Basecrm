@@ -4,6 +4,7 @@ import {
   buildMoneyAllocation,
   periodFromISO,
   isSingleCompetenceMonth,
+  isMonthInRed,
 } from './financeMath';
 
 describe('calcLiquido', () => {
@@ -38,19 +39,37 @@ describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
     expect(segments.map((s) => s.key)).toEqual(['liquido', 'contas', 'comissoes', 'taxas']);
     const sobra = segments.find((s) => s.key === 'liquido')!;
     expect(sobra.value).toBe(7028);
-    expect(sobra.percent).toBe(38); // 7028/18430 ≈ 38%
+    expect(sobra.percent).toBe(38); // 7028/18430 ≈ 38,1% → 38
     expect(segments.reduce((acc, s) => acc + s.value, 0)).toBe(18430);
+    // MEDIUM-7: os percentuais fecham EXATAMENTE 100% (maior resto).
+    expect(segments.reduce((acc, s) => acc + s.percent, 0)).toBe(100);
   });
 
-  it('líquido negativo vira sobra zero (donut não tem fatia negativa)', () => {
+  it('MEDIUM-7: percentuais somam 100% mesmo com arredondamento ruim (1/3 cada)', () => {
+    // 3 fatias iguais de 33,33% → sem maior resto somaria 99%.
     const segments = buildMoneyAllocation({
+      faturamento: 300,
+      comissoes: 100,
+      taxas: 100,
+      contasFixas: 100,
+      liquido: 0,
+    });
+    expect(segments.reduce((acc, s) => acc + s.percent, 0)).toBe(100);
+  });
+
+  it('líquido negativo vira sobra zero e % sobre as fatias visíveis (mês no vermelho)', () => {
+    const net = {
       faturamento: 1000,
       comissoes: 800,
       taxas: 100,
       contasFixas: 500,
       liquido: -400,
-    });
+    };
+    const segments = buildMoneyAllocation(net);
     expect(segments.find((s) => s.key === 'liquido')!.value).toBe(0);
+    expect(isMonthInRed(net)).toBe(true);
+    // % sobre a soma das visíveis (800+100+500=1400), fechando 100%.
+    expect(segments.reduce((acc, s) => acc + s.percent, 0)).toBe(100);
   });
 
   it('faturamento zero retorna lista vazia (nada pra alocar)', () => {

@@ -345,8 +345,13 @@ interface FinanceReportData {
     comissoes: number;
     contasFixas: number;
     liquido: number;
+    /** Nº de meses do período (HIGH-1) — pró-rateio das contas fixas. */
+    mesesPeriodo?: number;
+    /** Mensalidade base das contas fixas (antes do pró-rateio). */
+    contasFixasMensal?: number;
     totalAtendimentos: number;
     porMes: Array<{ mes: string; faturamento: number }>;
+    /** Semanas já rotuladas por data ('25/05–31/05', LOW-9) e contínuas. */
     porSemana: Array<{ semana: string; faturamento: number; atendimentos: number }>;
 }
 
@@ -398,11 +403,13 @@ export const generateFinanceReportPDF = async (
     doc.line(margin, 38, pageWidth - margin, 38);
 
     // KPI cards — cascata do mockup (5 cards)
+    const meses = data.mesesPeriodo ?? 1;
+    const contasLabel = meses > 1 ? `Contas fixas (${meses}m)` : 'Contas fixas';
     const kpis = [
         { label: 'Recebido bruto', value: formatBRL(data.faturamento), accent: COLORS.blue },
         { label: 'Taxas de cartão', value: `- ${formatBRL(data.taxas)}`, accent: COLORS.red },
         { label: 'Comissões', value: `- ${formatBRL(data.comissoes)}`, accent: COLORS.purple },
-        { label: 'Contas fixas', value: `- ${formatBRL(data.contasFixas)}`, accent: COLORS.orange },
+        { label: contasLabel, value: `- ${formatBRL(data.contasFixas)}`, accent: COLORS.orange },
         { label: 'Líquido', value: formatBRL(data.liquido), accent: COLORS.emerald },
     ];
 
@@ -438,8 +445,12 @@ export const generateFinanceReportPDF = async (
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...COLORS.secondary);
+    const proRateNote =
+        meses > 1 && data.contasFixasMensal != null
+            ? ` · contas fixas pró-rateadas: ${formatBRL(data.contasFixasMensal)}/mês × ${meses} meses`
+            : '';
     doc.text(
-        `${data.totalAtendimentos} atendimentos pagos no período · só conta o que foi recebido`,
+        `${data.totalAtendimentos} atendimentos pagos no período · só conta o que foi recebido${proRateNote}`,
         margin,
         kpiY + cardHeight + 8
     );
@@ -457,7 +468,8 @@ export const generateFinanceReportPDF = async (
         data.porSemana.forEach((s, i) => {
             const y = weekY + 8 + i * 7;
             doc.setTextColor(...COLORS.secondary);
-            doc.text(`Semana de ${s.semana} · ${s.atendimentos} atendimentos`, margin, y);
+            // LOW-9: rótulo por data ('25/05–31/05') — mesma string da tela.
+            doc.text(`Semana ${s.semana} · ${s.atendimentos} atendimentos`, margin, y);
             doc.setTextColor(...COLORS.primary);
             doc.text(formatBRL(s.faturamento), pageWidth - margin, y, { align: 'right' });
         });

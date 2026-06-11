@@ -681,6 +681,11 @@ export interface NetResult {
   faturamento: number;
   comissoes: number;
   taxas: number;
+  /** Contas fixas PRÓ-RATEADAS pelo nº de meses do período (= mensal × meses). */
   contasFixas: number;
+  /** Mensalidade base das contas fixas ativas (antes do pró-rateio). */
+  contasFixasMensal: number;
+  /** Nº de meses-calendário cobertos pelo período (fuso SP, inclusivo). */
+  mesesPeriodo: number;
   liquido: number;
 }

@@ -37,10 +37,28 @@ export interface MoneyAllocationSegment {
   name: string;
   /** Valor em R$ da fatia (nunca negativo). */
   value: number;
-  /** Percentual (0–100, arredondado) sobre o faturamento. */
+  /** Percentual inteiro (0–100). A soma das fatias visíveis fecha 100% (MEDIUM-7). */
   percent: number;
   /** Cor hexadecimal da fatia (paleta brand/gold do mockup). */
   color: string;
+}
+
+/** Campos do NetResult que o donut consome (não exige o objeto inteiro). */
+type MoneyAllocationInput = Pick<
+  NetResult,
+  'faturamento' | 'liquido' | 'contasFixas' | 'comissoes' | 'taxas'
+>;
+
+/**
+ * Mês "no vermelho": líquido negativo. O donut não representa prejuízo como
+ * fatia; nesse caso os percentuais são sobre a soma das fatias VISÍVEIS e a UI
+ * mostra um aviso. (MEDIUM-7)
+ *
+ * @param net - Resultado líquido do período.
+ * @returns true se o líquido é negativo.
+ */
+export function isMonthInRed(net: Pick<NetResult, 'liquido'>): boolean {
+  return Number.isFinite(net.liquido) && net.liquido < 0;
 }
 
 /**
@@ -50,22 +68,66 @@ export interface MoneyAllocationSegment {
  * comissões = brand-300, taxas = rose-300. Sobra negativa vira fatia zero
  * (donut não representa prejuízo — o card Líquido mostra o negativo).
  *
+ * MEDIUM-7: os percentuais usam o método do maior resto (largest remainder)
+ * para somarem EXATAMENTE 100% (antes, arredondamento independente dava
+ * 99%/101%). A base é o faturamento quando o líquido ≥ 0; quando o mês está no
+ * vermelho (sem fatia "sobra"), a base é a soma das fatias visíveis.
+ *
  * @param net - Resultado líquido do período (RPC get_net_result).
  * @returns Fatias ordenadas (sobra → contas → comissões → taxas); vazio se faturamento = 0.
  */
-export function buildMoneyAllocation(net: NetResult): MoneyAllocationSegment[] {
+export function buildMoneyAllocation(net: MoneyAllocationInput): MoneyAllocationSegment[] {
   const faturamento = Number.isFinite(net.faturamento) ? net.faturamento : 0;
   if (faturamento <= 0) return [];
 
-  const pct = (value: number) => Math.round((value / faturamento) * 100);
   const safe = (value: number) => (Number.isFinite(value) && value > 0 ? value : 0);
 
-  return [
+  const base = [
     { key: 'liquido' as const, name: 'Sobra (líquido)', value: safe(net.liquido), color: '#b0883f' },
     { key: 'contas' as const, name: 'Contas fixas', value: safe(net.contasFixas), color: '#0e7d69' },
     { key: 'comissoes' as const, name: 'Comissões', value: safe(net.comissoes), color: '#5fd0b6' },
     { key: 'taxas' as const, name: 'Taxas de cartão', value: safe(net.taxas), color: '#fda4af' },
-  ].map((s) => ({ ...s, percent: pct(s.value) }));
+  ];
+
+  // Denominador dos percentuais: faturamento se há sobra; senão a soma das
+  // fatias visíveis (mês no vermelho não tem fatia "sobra" pra fechar 100%).
+  const visibleSum = base.reduce((acc, s) => acc + s.value, 0);
+  const denom = isMonthInRed(net) ? visibleSum : faturamento;
+
+  return withLargestRemainder(base, denom);
+}
+
+/**
+ * Atribui percentuais inteiros que somam 100% (maior resto). Fatias com valor
+ * zero ficam 0%; o resto é distribuído de forma que o total feche exatamente
+ * 100% — desde que haja ao menos uma fatia > 0 e o denominador > 0.
+ */
+function withLargestRemainder<T extends { value: number }>(
+  items: T[],
+  denom: number
+): (T & { percent: number })[] {
+  if (denom <= 0) return items.map((s) => ({ ...s, percent: 0 }));
+
+  const raw = items.map((s) => (s.value > 0 ? (s.value / denom) * 100 : 0));
+  const floors = raw.map((p) => Math.floor(p));
+  const totalFloor = floors.reduce((a, b) => a + b, 0);
+
+  // Quanto falta pra 100 (limitado ao nº de fatias com resto), distribuído
+  // pras fatias com maior parte fracionária.
+  let remaining = Math.min(Math.max(100 - totalFloor, 0), items.length);
+  const order = raw
+    .map((p, i) => ({ i, frac: p - Math.floor(p) }))
+    .filter((x) => x.frac > 0)
+    .sort((a, b) => b.frac - a.frac);
+
+  const percents = [...floors];
+  for (const { i } of order) {
+    if (remaining <= 0) break;
+    percents[i] += 1;
+    remaining -= 1;
+  }
+
+  return items.map((s, i) => ({ ...s, percent: percents[i] }));
 }
 
 /**

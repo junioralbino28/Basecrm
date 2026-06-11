@@ -41,6 +41,9 @@ interface DbNetResult {
   comissoes: number;
   taxas: number;
   contas_fixas: number;
+  // Campos do fix 20260624000000 (HIGH-1). Opcionais p/ tolerar resposta antiga.
+  contas_fixas_mensal?: number;
+  meses_periodo?: number;
   liquido: number;
 }
 
@@ -76,13 +79,19 @@ const transformCommission = (db: DbCommissionReport): CommissionReport => ({
   }),
 });
 
-const transformNetResult = (db: DbNetResult): NetResult => ({
-  faturamento: Number(db.faturamento || 0),
-  comissoes: Number(db.comissoes || 0),
-  taxas: Number(db.taxas || 0),
-  contasFixas: Number(db.contas_fixas || 0),
-  liquido: Number(db.liquido || 0),
-});
+const transformNetResult = (db: DbNetResult): NetResult => {
+  const contasFixas = Number(db.contas_fixas || 0);
+  return {
+    faturamento: Number(db.faturamento || 0),
+    comissoes: Number(db.comissoes || 0),
+    taxas: Number(db.taxas || 0),
+    contasFixas,
+    // Fallback p/ resposta antiga (pré-fix): mensal = total, 1 mês.
+    contasFixasMensal: Number(db.contas_fixas_mensal ?? contasFixas),
+    mesesPeriodo: Number(db.meses_periodo ?? 1),
+    liquido: Number(db.liquido || 0),
+  };
+};
 
 /** Parâmetros do RPC: org só entra quando informada (default = org do caller). */
 function rpcParams(pStart: string, pEnd: string, organizationId?: string | null) {

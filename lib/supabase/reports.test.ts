@@ -120,7 +120,38 @@ describe('reportsService', () => {
     });
   });
 
-  it('getNetResult mapeia o líquido para camelCase', async () => {
+  it('getNetResult mapeia o líquido para camelCase (com pró-rateio das contas)', async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        faturamento: 10000,
+        comissoes: 2000,
+        taxas: 300,
+        contas_fixas: 4500, // 1500/mês × 3 meses (pró-rateio HIGH-1)
+        contas_fixas_mensal: 1500,
+        meses_periodo: 3,
+        liquido: 3200,
+      },
+      error: null,
+    });
+
+    const { data, error } = await reportsService.getNetResult(
+      '2026-04-01T00:00:00Z',
+      '2026-06-30T23:59:59Z'
+    );
+
+    expect(error).toBeNull();
+    expect(data).toEqual({
+      faturamento: 10000,
+      comissoes: 2000,
+      taxas: 300,
+      contasFixas: 4500,
+      contasFixasMensal: 1500,
+      mesesPeriodo: 3,
+      liquido: 3200,
+    });
+  });
+
+  it('getNetResult tolera resposta antiga (sem pró-rateio): mensal = total, 1 mês', async () => {
     rpcMock.mockResolvedValue({
       data: {
         faturamento: 10000,
@@ -143,6 +174,8 @@ describe('reportsService', () => {
       comissoes: 2000,
       taxas: 300,
       contasFixas: 1500,
+      contasFixasMensal: 1500,
+      mesesPeriodo: 1,
       liquido: 6200,
     });
   });
