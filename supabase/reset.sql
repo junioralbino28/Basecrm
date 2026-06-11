@@ -17,7 +17,11 @@ BEGIN
     -- ==========================================================================
     
     RAISE NOTICE '📊 Deletando dados de aplicação...';
-    
+
+    -- Appointments (cache de agenda — dependem de contacts e professionals; deletar ANTES deles)
+    DELETE FROM appointments;
+    RAISE NOTICE '   ✓ appointments deletados';
+
     -- Deal items (dependem de deals e products)
     DELETE FROM deal_items;
     RAISE NOTICE '   ✓ deal_items deletados';
@@ -59,6 +63,10 @@ BEGIN
     -- Professionals (camada clínico-financeira)
     DELETE FROM professionals;
     RAISE NOTICE '   ✓ professionals deletados';
+
+    -- Clinicorp config (integração por tenant — token server-side)
+    DELETE FROM clinicorp_config;
+    RAISE NOTICE '   ✓ clinicorp_config deletados';
 
     -- Products
     DELETE FROM products;
