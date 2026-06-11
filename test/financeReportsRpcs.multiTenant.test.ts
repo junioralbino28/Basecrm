@@ -131,6 +131,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
   let orgBId = '';
   let professionalAId = '';
   let professionalBId = '';
+  let professionalCId = '';
 
   let adminUserId = '';
   let staffUserId = '';
@@ -147,6 +148,23 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       rpcMissing = true;
       console.warn(
         '[financeReportsRpcs.multiTenant] RPCs de relatório ainda não aplicados — rodar pós-migração 20260621000000_finance_reports_rpcs.sql',
+      );
+      return;
+    }
+
+    // Skip gracioso adicional: a migração de CORREÇÃO (20260624000000) traz
+    // campos novos (get_net_result.contas_fixas_mensal, get_commission_report.
+    // sem_profissional). Se ainda não aplicada, as asserções dos fixes não valem
+    // — pula a suíte com aviso (não falha o gate antes do orquestrador aplicar).
+    const netProbe = await admin.rpc('get_net_result', { p_start: P_START, p_end: P_END });
+    const fixApplied =
+      !netProbe.error &&
+      netProbe.data != null &&
+      Object.prototype.hasOwnProperty.call(netProbe.data, 'contas_fixas_mensal');
+    if (!fixApplied) {
+      rpcMissing = true;
+      console.warn(
+        '[financeReportsRpcs.multiTenant] migração de correção 20260624000000_finance_rpcs_fix.sql ainda não aplicada — pulando até o orquestrador aplicar via MCP',
       );
       return;
     }
@@ -171,23 +189,40 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       .single();
     professionalBId = requireSupabaseData(profB, 'insert professional B').id;
 
-    // Regras de comissão na org A: específica do profissional (30%) E por
-    // especialidade (50%). A específica DEVE vencer — sem dupla contagem (80%).
+    // Profissional C (org A): especialidade 'ortodontia' — alvo do desempate HIGH-3.
+    const profC = await admin
+      .from('professionals')
+      .insert({ organization_id: orgAId, name: `Dra. Carla ${runId}`, specialty: 'ortodontia', active: true })
+      .select('id')
+      .single();
+    professionalCId = requireSupabaseData(profC, 'insert professional C').id;
+
+    // Regras de comissão na org A:
+    // - profA: específica do profissional (30%) E por especialidade 'protese' (50%).
+    //   A específica DEVE vencer — sem dupla contagem (80%).
+    // - profC: DUAS específicas do profissional — uma casando a especialidade do
+    //   dentista ('ortodontia', 40%) e uma coringa sem especialidade (20%).
+    //   HIGH-3: a que casa a especialidade do dentista DEVE vencer (40%).
     assertNoSupabaseError(
       await admin.from('commission_rules').insert([
         { organization_id: orgAId, professional_id: professionalAId, percent: 30 },
         { organization_id: orgAId, specialty: 'protese', percent: 50 },
+        { organization_id: orgAId, professional_id: professionalCId, specialty: 'ortodontia', percent: 40 },
+        { organization_id: orgAId, professional_id: professionalCId, percent: 20 },
       ]),
       'insert commission_rules A',
     );
 
-    // Taxa de cartão: crédito visa à vista 3,15%.
+    // Taxa de cartão: crédito 'Visa' à vista 3,15%. A config grava a bandeira
+    // FREE-TEXT capitalizada ('Visa'), mas o atendimento (A1) grava 'visa'
+    // lowercase (select). HIGH-2: o RPC normaliza lower(trim) dos dois lados —
+    // sem o fix, este left join zerava a taxa em silêncio (regressão se voltar).
     assertNoSupabaseError(
       await admin.from('payment_method_fees').insert({
         organization_id: orgAId,
         label: `Crédito Visa ${runId}`,
         payment_type: 'credito',
-        card_brand: 'visa',
+        card_brand: 'Visa',
         installments: 1,
         fee_percent: 3.15,
       }),
@@ -218,6 +253,9 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     // A1 — recebido meio do mês, crédito visa à vista, valor 1000 − desconto 100 = 900.
     // A2 — NÃO recebido (não entra no faturamento).
     // A3 — FRONTEIRA: pago 30/06 23:30 em SP (= 01/07 02:30 UTC), pix, 500.
+    // A4 — recebido SEM dentista (professional_id null), pix, 300 — entra no
+    //      faturamento bruto mas NÃO na tabela por-profissional (INNER join);
+    //      MEDIUM-8: aparece em sem_profissional pra reconciliar o Financeiro.
     // B1 — org B, recebido, 9999 (nunca pode vazar pro relatório de A).
     assertNoSupabaseError(
       await admin.from('atendimentos').insert([
@@ -258,6 +296,31 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
           recebido: true,
           paid_at: '2026-06-30T23:30:00-03:00',
           performed_at: '2026-06-30T22:00:00-03:00',
+        },
+        {
+          organization_id: orgAId,
+          professional_id: null,
+          procedimento: `Sem dentista ${runId}`,
+          valor: 300,
+          desconto: 0,
+          payment_method: 'pix',
+          installments: 1,
+          recebido: true,
+          paid_at: '2026-06-12T10:00:00-03:00',
+          performed_at: '2026-06-12T09:00:00-03:00',
+        },
+        {
+          // profC em MAIO/2026 (isolado de junho) — alvo do desempate HIGH-3.
+          organization_id: orgAId,
+          professional_id: professionalCId,
+          procedimento: `Aparelho ${runId}`,
+          valor: 1000,
+          desconto: 0,
+          payment_method: 'pix',
+          installments: 1,
+          recebido: true,
+          paid_at: '2026-05-15T10:00:00-03:00',
+          performed_at: '2026-05-15T09:00:00-03:00',
         },
         {
           organization_id: orgBId,
@@ -348,9 +411,11 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       por_mes: Array<{ mes: string; faturamento: number }>;
     };
 
-    // 900 (A1, com desconto) + 500 (A3) — A2 não recebido fora; 9999 da org B fora.
-    expect(Number(report.faturamento)).toBe(1400);
-    expect(Number(report.total_atendimentos)).toBe(2);
+    // 900 (A1, com desconto) + 500 (A3) + 300 (A4, sem dentista) = 1700.
+    // A2 não recebido fora; 9999 da org B fora. Faturamento bruto conta TODO
+    // recebido (sem join de profissional) — inclui o atendimento sem dentista.
+    expect(Number(report.faturamento)).toBe(1700);
+    expect(Number(report.total_atendimentos)).toBe(3);
 
     await client.auth.signOut();
   });
@@ -367,7 +432,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     const report = res.data as { por_mes: Array<{ mes: string; faturamento: number }> };
     expect(report.por_mes).toHaveLength(1);
     expect(report.por_mes[0].mes).toBe('2026-06');
-    expect(Number(report.por_mes[0].faturamento)).toBe(1400);
+    expect(Number(report.por_mes[0].faturamento)).toBe(1700);
 
     await client.auth.signOut();
   });
@@ -390,6 +455,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
         atendimentos: number;
         pago: number;
       }>;
+      sem_profissional: { atendimentos: number; faturamento: number };
     };
 
     expect(report.por_profissional).toHaveLength(1);
@@ -397,9 +463,43 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     expect(linha.professional_id).toBe(professionalAId);
     // 30% de 1400 = 420 (se somasse as duas regras seria 1120 — dupla contagem)
     expect(Number(linha.comissao)).toBeCloseTo(420, 2);
+    // base SÓ dos atendimentos COM dentista (A1 900 + A3 500) — o A4 sem
+    // dentista NÃO entra aqui (INNER join), só em sem_profissional.
     expect(Number(linha.faturamento_base)).toBe(1400);
     expect(Number(linha.atendimentos)).toBe(2);
     expect(Number(linha.pago)).toBe(100);
+
+    // MEDIUM-8: o atendimento recebido sem dentista (A4, 300) é reportado à
+    // parte pra reconciliar com o "Recebido bruto" do Financeiro (1700).
+    expect(Number(report.sem_profissional.atendimentos)).toBe(1);
+    expect(Number(report.sem_profissional.faturamento)).toBe(300);
+
+    await client.auth.signOut();
+  });
+
+  it('HIGH-3: desempate — entre 2 regras específicas, a que casa a especialidade do dentista vence', async ctx => {
+    if (rpcMissing) return ctx.skip();
+    const client = createUserClient();
+    const signIn = await client.auth.signInWithPassword({ email: adminEmail, password });
+    expect(signIn.error).toBeNull();
+
+    // Maio/2026 isolado: só o atendimento da profC (ortodontia, 1000).
+    const res = await client.rpc('get_commission_report', {
+      p_start: '2026-05-01T00:00:00-03:00',
+      p_end: '2026-05-31T23:59:59.999-03:00',
+    });
+    expect(res.error).toBeNull();
+
+    const report = res.data as {
+      por_profissional: Array<{ professional_id: string; comissao: number; faturamento_base: number }>;
+    };
+    expect(report.por_profissional).toHaveLength(1);
+    const carla = report.por_profissional[0];
+    expect(carla.professional_id).toBe(professionalCId);
+    // 40% (regra que casa 'ortodontia' = especialidade da dentista) e NÃO 20%
+    // (coringa sem especialidade): 40% de 1000 = 400.
+    expect(Number(carla.comissao)).toBeCloseTo(400, 2);
+    expect(Number(carla.faturamento_base)).toBe(1000);
 
     await client.auth.signOut();
   });
@@ -418,16 +518,48 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       comissoes: number;
       taxas: number;
       contas_fixas: number;
+      contas_fixas_mensal: number;
+      meses_periodo: number;
       liquido: number;
     };
 
-    expect(Number(net.faturamento)).toBe(1400);
+    // 900 (A1) + 500 (A3) + 300 (A4 sem dentista) = 1700.
+    expect(Number(net.faturamento)).toBe(1700);
     expect(Number(net.comissoes)).toBeCloseTo(420, 2);
-    // taxa só no A1 (crédito visa 1x): 3,15% de 900 = 28,35; pix sem taxa.
+    // HIGH-2: taxa só no A1 (crédito 'Visa' config vs 'visa' atendimento — só
+    // aplica porque o RPC normaliza): 3,15% de 900 = 28,35; pix sem taxa.
     expect(Number(net.taxas)).toBeCloseTo(28.35, 2);
-    // conta inativa de 9999 NÃO entra.
+    // conta inativa de 9999 NÃO entra. HIGH-1: junho é 1 mês → 1× 250.
+    expect(Number(net.contas_fixas_mensal)).toBe(250);
+    expect(Number(net.meses_periodo)).toBe(1);
     expect(Number(net.contas_fixas)).toBe(250);
-    expect(Number(net.liquido)).toBeCloseTo(1400 - 420 - 28.35 - 250, 2);
+    expect(Number(net.liquido)).toBeCloseTo(1700 - 420 - 28.35 - 250, 2);
+
+    await client.auth.signOut();
+  });
+
+  it('HIGH-1: contas fixas pró-rateadas — range de 3 meses cobra 3× a mensalidade', async ctx => {
+    if (rpcMissing) return ctx.skip();
+    const client = createUserClient();
+    const signIn = await client.auth.signInWithPassword({ email: adminEmail, password });
+    expect(signIn.error).toBeNull();
+
+    // Abril→junho/2026 no fuso SP = 3 meses-calendário (inclusivo).
+    const res = await client.rpc('get_net_result', {
+      p_start: '2026-04-01T00:00:00-03:00',
+      p_end: '2026-06-30T23:59:59.999-03:00',
+    });
+    expect(res.error).toBeNull();
+
+    const net = res.data as {
+      contas_fixas: number;
+      contas_fixas_mensal: number;
+      meses_periodo: number;
+    };
+    expect(Number(net.meses_periodo)).toBe(3);
+    expect(Number(net.contas_fixas_mensal)).toBe(250);
+    // pró-rateio: 250 × 3 = 750 (antes do fix entrava 250 cravado em qualquer range).
+    expect(Number(net.contas_fixas)).toBe(750);
 
     await client.auth.signOut();
   });
