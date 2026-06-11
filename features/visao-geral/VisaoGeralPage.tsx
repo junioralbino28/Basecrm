@@ -39,6 +39,8 @@ import {
 const DIAS_PARADO = 3;
 /** Janela da série "Leads por dia". */
 const DIAS_SERIE = 14;
+/** Teto do lote "mandar pra fila" — evita disparar N tasks de uma vez (LOW-6). */
+const LOTE_MAX = 50;
 
 const formatBRL = (value: number): string =>
   value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -122,16 +124,34 @@ const VisaoGeralPage: React.FC = () => {
   const maxOrigem = Math.max(...origens.map((o) => o.leads), 1);
   const maxParados = Math.max(...paradosEtapas.map((p) => p.count), 1);
 
-  /** Cria tasks de ligação em lote pros alvos (CTA fila / resolver). */
+  /**
+   * Cria tasks de ligação em lote pros alvos (CTA fila / resolver).
+   *
+   * LOW-6: o lote é limitado a LOTE_MAX por disparo (Promise.allSettled sobre
+   * TODOS os parados podia abrir dezenas de mutações de uma vez) e confirmado
+   * antes de disparar. O feedback informa quantas foram criadas (e quantas
+   * ficaram de fora pelo teto).
+   */
   const criarTasksEmLote = useCallback(
     async (
       alvos: Array<{ contactId?: string; nome: string }>,
       tituloPrefixo: string,
       tipo: 'call' | 'message'
     ) => {
+      if (alvos.length === 0) return;
+
+      const lote = alvos.slice(0, LOTE_MAX);
+      const sobra = alvos.length - lote.length;
+
+      const confirmMsg =
+        sobra > 0
+          ? `Criar ${lote.length} tarefas agora? (${alvos.length} no total — as outras ${sobra} ficam pro próximo lote.)`
+          : `Criar ${lote.length} tarefa${lote.length > 1 ? 's' : ''} na fila de hoje?`;
+      if (!window.confirm(confirmMsg)) return;
+
       const hoje = isoDateLocal(new Date());
       const resultados = await Promise.allSettled(
-        alvos.map((alvo) =>
+        lote.map((alvo) =>
           createTask.mutateAsync({
             task: {
               type: tipo,
@@ -148,7 +168,9 @@ const VisaoGeralPage: React.FC = () => {
       const falhas = resultados.length - ok;
       if (ok > 0) {
         addToast(
-          `${ok} tarefa${ok > 1 ? 's' : ''} criada${ok > 1 ? 's' : ''} na fila de hoje.`,
+          `${ok} tarefa${ok > 1 ? 's' : ''} criada${ok > 1 ? 's' : ''} na fila de hoje${
+            sobra > 0 ? ` (${sobra} fora deste lote)` : ''
+          }.`,
           'success'
         );
       }

@@ -118,6 +118,10 @@ describe('VisaoGeralPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createTaskAsync.mockResolvedValue({ id: 't-1' });
+    // LOW-6: "mandar pra fila" agora confirma antes de disparar — confirma por padrão.
+    // happy-dom não implementa window.confirm (undefined), então atribuímos o mock
+    // direto em vez de vi.spyOn (que exige uma função existente pra espionar).
+    window.confirm = vi.fn(() => true);
     useRevenueReport.mockReturnValue({
       data: { faturamento: 18430, totalAtendimentos: 47, porMes: [], porSemana: [] },
       isLoading: false,
@@ -164,12 +168,27 @@ describe('VisaoGeralPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /mandar.*pra fila/i }));
 
+    // LOW-6: confirma antes de disparar o lote.
+    expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(createTaskAsync).toHaveBeenCalledTimes(1));
     const { task } = createTaskAsync.mock.calls[0][0];
     expect(task.type).toBe('call');
     expect(task.contactId).toBe('c-1');
     expect(task.status).toBe('open');
     await waitFor(() => expect(addToast).toHaveBeenCalled());
+  });
+
+  it('LOW-6: cancelar a confirmação NÃO cria nenhuma tarefa', async () => {
+    (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u2', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
+    } as any);
+
+    render(<VisaoGeralPage />);
+    fireEvent.click(screen.getByRole('button', { name: /mandar.*pra fila/i }));
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(createTaskAsync).not.toHaveBeenCalled();
   });
 
   it('notas de atenção determinísticas aparecem com botão resolver', () => {
