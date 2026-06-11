@@ -13,7 +13,6 @@ const creds = {
   apiUser: 'apiuser',
   apiToken: 'secret-token',
   subscriberId: 'sub-123',
-  codeLink: '4567',
   businessId: 111,
 };
 
@@ -30,21 +29,46 @@ afterEach(() => {
 });
 
 describe('clinicorp adapter', () => {
-  it('listAvailableTimes monta URL com subscriber_id+date+code_link e auth Basic', async () => {
-    const fetchMock = mockFetchOnce([{ From: '9:00', To: '10:00', DayWeek: 1, BusinessId: 111, ProfessionalId: 222 }]);
+  it('listAvailableTimes usa /business/list_available_times (sem code_link) e achata slots por dia', async () => {
+    const fetchMock = mockFetchOnce([
+      {
+        date: 20260612,
+        slots: [
+          { slotTime: 30, fromTime: '8:00', toTime: '8:30' },
+          { slotTime: 30, fromTime: '8:30', toTime: '9:00' },
+        ],
+      },
+    ]);
     vi.stubGlobal('fetch', fetchMock);
 
-    const res = await listAvailableTimes(creds, '2026-06-12');
+    const res = await listAvailableTimes(creds, 222, '2026-06-12');
 
-    expect(res).toHaveLength(1);
+    expect(res).toEqual([
+      { From: '8:00', To: '8:30', Date: '2026-06-12', ProfessionalId: 222 },
+      { From: '8:30', To: '9:00', Date: '2026-06-12', ProfessionalId: 222 },
+    ]);
+
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain('/appointment/get_avaliable_times_calendar');
-    expect(String(url)).toContain('subscriber_id=sub-123');
-    expect(String(url)).toContain('date=2026-06-12');
-    expect(String(url)).toContain('code_link=4567');
+    expect(String(url)).toContain('/business/list_available_times');
+    expect(String(url)).toContain('professionalId=222');
+    expect(String(url)).toContain('clinicId=111');
+    expect(String(url)).toContain('fromDate=20260612');
+    expect(String(url)).toContain('toDate=20260612');
+    // O caminho certo NÃO depende de code_link (a clínica piloto não usa agendamento online).
+    expect(String(url)).not.toContain('code_link');
     const expectedAuth = `Basic ${Buffer.from('apiuser:secret-token').toString('base64')}`;
     expect((init as RequestInit).headers).toMatchObject({ authorization: expectedAuth });
     expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('listAvailableTimes funciona com creds SEM codeLink (caminho da clínica piloto)', async () => {
+    const fetchMock = mockFetchOnce([{ date: 20260612, slots: [{ slotTime: 30, fromTime: '14:00', toTime: '14:30' }] }]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await listAvailableTimes(creds, 222, '2026-06-12');
+
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({ From: '14:00', To: '14:30', ProfessionalId: 222 });
   });
 
   it('listAppointments envia from/to/businessId', async () => {
@@ -111,6 +135,6 @@ describe('clinicorp adapter', () => {
   it('propaga erro HTTP do boundary', async () => {
     const fetchMock = mockFetchOnce('upstream down', false, 500);
     vi.stubGlobal('fetch', fetchMock);
-    await expect(listAvailableTimes(creds, '2026-06-12')).rejects.toThrow(/Clinicorp respondeu HTTP 500|upstream down/);
+    await expect(listAvailableTimes(creds, 222, '2026-06-12')).rejects.toThrow(/Clinicorp respondeu HTTP 500|upstream down/);
   });
 });

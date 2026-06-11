@@ -21,8 +21,7 @@ describe('clinicorp channel types', () => {
     const time: ClinicorpAvailableTime = {
       From: '9:00',
       To: '10:00',
-      DayWeek: 1,
-      BusinessId: 123,
+      Date: '2026-06-12',
       ProfessionalId: 456,
     };
     const appt: ClinicorpAppointment = {

@@ -20,6 +20,7 @@ function json<T>(body: T, status = 200): Response {
 const QuerySchema = z
   .object({
     tenantId: z.string().uuid(),
+    professionalId: z.string().uuid(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato YYYY-MM-DD.'),
   })
   .strict();
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({
     tenantId: url.searchParams.get('tenantId') ?? undefined,
+    professionalId: url.searchParams.get('professionalId') ?? undefined,
     date: url.searchParams.get('date') ?? undefined,
   });
   if (!parsed.success) {
@@ -45,8 +47,27 @@ export async function GET(req: Request) {
     return json({ error: 'Integração Clinicorp não configurada para esta clínica.' }, 409);
   }
 
+  // Resolve o external_id (Clinicorp) do dentista escolhido, escopado ao tenant.
+  const professional = await admin
+    .from('professionals')
+    .select('external_id')
+    .eq('id', parsed.data.professionalId)
+    .eq('organization_id', parsed.data.tenantId)
+    .maybeSingle();
+
+  if (professional.error) {
+    return json({ error: 'Falha ao resolver o profissional.' }, 502);
+  }
+  const externalId = Number(professional.data?.external_id);
+  if (!professional.data?.external_id || !Number.isFinite(externalId) || externalId <= 0) {
+    return json(
+      { error: 'Dentista não sincronizado com o Clinicorp — rode o sync da agenda.' },
+      409
+    );
+  }
+
   try {
-    const slots = await listAvailableTimes(creds, parsed.data.date);
+    const slots = await listAvailableTimes(creds, externalId, parsed.data.date);
     return json({ slots });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Falha ao consultar o Clinicorp.' }, 502);

@@ -15,6 +15,7 @@ export function useAgendaController() {
   const organizationId = tenant?.organizationId || null;
 
   const [date, setDate] = useState<string>(todayIso());
+  const [professionalId, setProfessionalId] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [availableSlots, setAvailableSlots] = useState<ClinicorpAvailableTime[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,28 +27,34 @@ export function useAgendaController() {
     setLoading(true);
     setError(null);
     try {
-      const timesRes = await fetch(
-        `/api/agenda/available-times?tenantId=${organizationId}&date=${date}`,
-        { cache: 'no-store' }
-      );
+      // Os agendamentos do dia carregam sempre; os horários livres só com dentista escolhido
+      // (o endpoint de horários é por profissional — professionals.external_id).
       const apptRes = await fetch(
         `/api/agenda/appointments?tenantId=${organizationId}&from=${date}&to=${date}`,
         { cache: 'no-store' }
       );
-
-      if (!timesRes.ok) {
-        const body = await timesRes.json().catch(() => ({}));
-        throw new Error(body.error || 'Falha ao buscar horários livres.');
-      }
       if (!apptRes.ok) {
         const body = await apptRes.json().catch(() => ({}));
         throw new Error(body.error || 'Falha ao buscar agendamentos.');
       }
-
-      const timesBody = await timesRes.json();
       const apptBody = await apptRes.json();
-      setAvailableSlots((timesBody.slots || []) as ClinicorpAvailableTime[]);
       setAppointments((apptBody.appointments || []) as Appointment[]);
+
+      if (!professionalId) {
+        setAvailableSlots([]);
+        return;
+      }
+
+      const timesRes = await fetch(
+        `/api/agenda/available-times?tenantId=${organizationId}&professionalId=${professionalId}&date=${date}`,
+        { cache: 'no-store' }
+      );
+      if (!timesRes.ok) {
+        const body = await timesRes.json().catch(() => ({}));
+        throw new Error(body.error || 'Falha ao buscar horários livres.');
+      }
+      const timesBody = await timesRes.json();
+      setAvailableSlots((timesBody.slots || []) as ClinicorpAvailableTime[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar a agenda.');
       setAvailableSlots([]);
@@ -55,13 +62,14 @@ export function useAgendaController() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, date]);
+  }, [organizationId, date, professionalId]);
 
   useEffect(() => {
     void fetchDay();
   }, [fetchDay]);
 
   const goToDate = useCallback((next: string) => setDate(next), []);
+  const selectProfessional = useCallback((next: string | null) => setProfessionalId(next), []);
   const openBookModal = useCallback((slot: ClinicorpAvailableTime) => setBookSlot(slot), []);
   const closeBookModal = useCallback(() => setBookSlot(null), []);
 
@@ -98,6 +106,8 @@ export function useAgendaController() {
   return {
     date,
     goToDate,
+    professionalId,
+    selectProfessional,
     appointments,
     availableSlots,
     loading,

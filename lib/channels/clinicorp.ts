@@ -7,7 +7,7 @@
 import type {
   ClinicorpCredentials,
   ClinicorpAvailableTime,
-  ClinicorpAvailableDay,
+  ClinicorpListAvailableTimesDay,
   ClinicorpAppointment,
   ClinicorpCreateAppointmentPayload,
   ClinicorpCreatedAppointment,
@@ -81,33 +81,52 @@ function asArray<T>(payload: unknown): T[] {
   return Array.isArray(payload) ? (payload as T[]) : [];
 }
 
-/** GET /appointment/get_avaliable_times_calendar (subscriber_id, date, code_link). */
-export async function listAvailableTimes(
-  creds: ClinicorpCredentials,
-  date: string
-): Promise<ClinicorpAvailableTime[]> {
-  const payload = await clinicorpGet(creds, '/appointment/get_avaliable_times_calendar', {
-    subscriber_id: creds.subscriberId,
-    date,
-    code_link: creds.codeLink,
-  });
-  return asArray<ClinicorpAvailableTime>(payload);
+/** Converte "YYYY-MM-DD" → "YYYYMMDD" (formato que o endpoint de horários exige). */
+function toCompactDate(date: string): string {
+  return date.replace(/-/g, '');
 }
 
-/** GET /appointment/get_avaliable_days (subscriber_id, code_link, from, to, showAvailableTimes). */
-export async function listAvailableDays(
+/**
+ * GET /business/list_available_times (professionalId, clinicId, fromDate, toDate).
+ * Horários livres REAIS por dentista — caminho SEM code_link (a clínica piloto não usa
+ * agendamento online). Achata a resposta crua (um item por dia) em slots prontos pra UI.
+ * @param professionalId external_id do dentista no Clinicorp (professionals.external_id).
+ * @param date dia alvo no formato "YYYY-MM-DD".
+ */
+export async function listAvailableTimes(
   creds: ClinicorpCredentials,
-  from: string,
-  to: string
-): Promise<ClinicorpAvailableDay[]> {
-  const payload = await clinicorpGet(creds, '/appointment/get_avaliable_days', {
-    subscriber_id: creds.subscriberId,
-    code_link: creds.codeLink,
-    from,
-    to,
-    showAvailableTimes: 'X',
+  professionalId: number,
+  date: string
+): Promise<ClinicorpAvailableTime[]> {
+  const compactDate = toCompactDate(date);
+  const payload = await clinicorpGet(creds, '/business/list_available_times', {
+    professionalId: String(professionalId),
+    clinicId: String(creds.businessId),
+    fromDate: compactDate,
+    toDate: compactDate,
   });
-  return asArray<ClinicorpAvailableDay>(payload);
+
+  const days = asArray<ClinicorpListAvailableTimesDay>(payload);
+  const slots: ClinicorpAvailableTime[] = [];
+  for (const day of days) {
+    const isoDate = formatCompactDate(day.date);
+    for (const slot of day.slots || []) {
+      slots.push({
+        From: slot.fromTime,
+        To: slot.toTime,
+        Date: isoDate,
+        ProfessionalId: professionalId,
+      });
+    }
+  }
+  return slots;
+}
+
+/** Converte o inteiro YYYYMMDD da resposta em "YYYY-MM-DD". */
+function formatCompactDate(value: number): string {
+  const text = String(value);
+  if (text.length !== 8) return text;
+  return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
 }
 
 /** GET /appointment/list (subscriber_id, from, to, businessId). ⚠️ resposta tem PII — server-side only. */

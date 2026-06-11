@@ -14,27 +14,34 @@ export type ClinicorpCredentials = {
   apiUser: string;
   apiToken: string;
   subscriberId: string;
-  codeLink: string;
+  /** OPCIONAL: só serve pro agendamento online (que a clínica piloto NÃO usa). */
+  codeLink?: string;
   businessId: number;
 };
 
-/** GET /appointment/get_avaliable_times_calendar → array de slots. */
+/**
+ * GET /business/list_available_times → resposta CRUA: um item por dia, slots por dia.
+ * Provado ao vivo: retorna slots reais sem code_link, por profissional+clínica.
+ * `date` vem como inteiro YYYYMMDD; `fromTime`/`toTime` como "H:MM".
+ */
+export type ClinicorpListAvailableTimesDay = {
+  date: number;
+  slots: Array<{
+    slotTime: number;
+    fromTime: string;
+    toTime: string;
+  }>;
+};
+
+/**
+ * Slot livre achatado que a UI consome (um por horário).
+ * `From`/`To` no formato "H:MM"; `ProfessionalId` = external_id do Clinicorp do dentista.
+ */
 export type ClinicorpAvailableTime = {
   From: string;
   To: string;
-  DayWeek: number;
-  BusinessId: number;
-  ProfessionalId: number;
-};
-
-/** GET /appointment/get_avaliable_days → array de dias. */
-export type ClinicorpAvailableDay = {
   Date: string;
-  Week: string;
-  DayWeek: number;
-  day: number;
-  month: number;
-  year: number;
+  ProfessionalId: number;
 };
 
 /** GET /appointment/list → array de agendamentos. */

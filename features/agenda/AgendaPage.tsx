@@ -29,6 +29,9 @@ export function AgendaPage() {
         date={controller.date}
         appointments={controller.appointments}
         availableSlots={controller.availableSlots}
+        professionals={professionals}
+        selectedProfessionalId={controller.professionalId}
+        onSelectProfessional={controller.selectProfessional}
         loading={controller.loading}
         error={controller.error}
         onBookSlot={controller.openBookModal}

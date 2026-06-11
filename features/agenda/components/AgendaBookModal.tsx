@@ -18,7 +18,10 @@ export interface AgendaBookModalProps {
 }
 
 export function AgendaBookModal({ slot, professionals, products, onClose, onConfirm }: AgendaBookModalProps) {
-  const [dentistExternalId, setDentistExternalId] = useState('');
+  // Pré-seleciona o dentista do slot (os horários já vêm filtrados por profissional).
+  const [dentistExternalId, setDentistExternalId] = useState(
+    slot?.ProfessionalId ? String(slot.ProfessionalId) : ''
+  );
   const [patientName, setPatientName] = useState('');
   const [patientPhone, setPatientPhone] = useState('');
   const [procedimento, setProcedimento] = useState('');

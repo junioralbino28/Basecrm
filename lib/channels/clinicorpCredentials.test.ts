@@ -36,6 +36,28 @@ describe('resolveClinicorpCredentials', () => {
     expect(admin.from).toHaveBeenCalledWith('clinicorp_config');
   });
 
+  it('resolve SEM code_link (clínica piloto não usa agendamento online)', async () => {
+    const admin = adminWithRow({
+      api_user: 'apiuser',
+      api_token: 'secret-token',
+      subscriber_id: 'sub-123',
+      code_link: '',
+      business_id: 111,
+    });
+
+    const resolved = await resolveClinicorpCredentials({ admin, tenantId: 'org-1' });
+
+    expect(resolved).toEqual({
+      apiUrl: 'https://api.clinicorp.com/rest/v1',
+      apiUser: 'apiuser',
+      apiToken: 'secret-token',
+      subscriberId: 'sub-123',
+      businessId: 111,
+    });
+    // codeLink ausente (não vazio) — nada de chave fantasma no objeto resolvido.
+    expect(resolved && 'codeLink' in resolved).toBe(false);
+  });
+
   it('retorna null quando a config está incompleta (sem subscriber_id)', async () => {
     const admin = adminWithRow({ api_user: 'u', api_token: 't', subscriber_id: '', code_link: '4567', business_id: 111 });
     const resolved = await resolveClinicorpCredentials({ admin, tenantId: 'org-1' });

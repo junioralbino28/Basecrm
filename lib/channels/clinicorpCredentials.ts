@@ -30,10 +30,11 @@ export async function resolveClinicorpCredentials(
   const apiUser = normalizeText(result.data.api_user);
   const apiToken = normalizeText(result.data.api_token);
   const subscriberId = normalizeText(result.data.subscriber_id);
+  // code_link é OPCIONAL: só serve pro agendamento online (que a clínica piloto não usa).
   const codeLink = normalizeText(result.data.code_link);
   const businessId = Number(result.data.business_id);
 
-  if (!apiUser || !apiToken || !subscriberId || !codeLink || !Number.isFinite(businessId) || businessId <= 0) {
+  if (!apiUser || !apiToken || !subscriberId || !Number.isFinite(businessId) || businessId <= 0) {
     return null;
   }
 
@@ -42,7 +43,7 @@ export async function resolveClinicorpCredentials(
     apiUser,
     apiToken,
     subscriberId,
-    codeLink,
+    ...(codeLink ? { codeLink } : {}),
     businessId,
   };
 }
