@@ -99,6 +99,12 @@ export {
 // Products (catálogo de procedimentos)
 export { useProducts } from './useProductsQuery';
 
+// Appointments (read-only — cache de resiliência da agenda)
+export {
+  useAppointments,
+  useAppointmentsByDateRange,
+} from './useAppointmentsQuery';
+
 // Atendimentos (registro clínico-financeiro)
 export {
   useAtendimentos,
