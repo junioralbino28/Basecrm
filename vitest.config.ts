@@ -26,6 +26,7 @@ export default defineConfig({
       ['test/evolutionMedia.test.ts', 'node'],
       ['test/conversationMediaDispatch.test.ts', 'node'],
       ['test/conversationMedia.multiTenant.test.ts', 'node'],
+      ['test/appointmentsTenantIsolation.test.ts', 'node'],
       ['lib/utils/csv.test.ts', 'node'],
       ['lib/query/__tests__/cache-integrity.test.ts', 'node'],
     ],
