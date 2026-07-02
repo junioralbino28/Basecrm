@@ -12,6 +12,7 @@ import { ProfessionalsManager } from './components/ProfessionalsManager';
 import { CardFeesManager } from './components/CardFeesManager';
 import { CommissionsManager } from './components/CommissionsManager';
 import { FixedCostsManager } from './components/FixedCostsManager';
+import { PlanilhasSection } from './components/PlanilhasSection';
 import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
@@ -177,13 +178,13 @@ const IntegrationsSettings: React.FC = () => {
 };
 
 const FinanceiroSettings: React.FC = () => {
-  type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas';
+  type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas' | 'planilhas';
   const [subTab, setSubTab] = useState<FinanceiroSubTab>('taxas');
 
   useEffect(() => {
     const syncFromHash = () => {
       const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-      if (h === 'taxas' || h === 'comissoes' || h === 'contas') setSubTab(h as FinanceiroSubTab);
+      if (h === 'taxas' || h === 'comissoes' || h === 'contas' || h === 'planilhas') setSubTab(h as FinanceiroSubTab);
     };
 
     syncFromHash();
@@ -210,6 +211,7 @@ const FinanceiroSettings: React.FC = () => {
           { id: 'taxas' as const, label: 'Taxas' },
           { id: 'comissoes' as const, label: 'Comissões' },
           { id: 'contas' as const, label: 'Contas' },
+          { id: 'planilhas' as const, label: 'Planilhas' },
         ] as const).map((t) => {
           const active = subTab === t.id;
           return (
@@ -232,6 +234,7 @@ const FinanceiroSettings: React.FC = () => {
       {subTab === 'taxas' && <CardFeesManager />}
       {subTab === 'comissoes' && <CommissionsManager />}
       {subTab === 'contas' && <FixedCostsManager />}
+      {subTab === 'planilhas' && <PlanilhasSection />}
     </div>
   );
 };
