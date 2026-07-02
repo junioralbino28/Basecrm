@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
@@ -27,10 +27,13 @@ const UpdateOrgAISettingsSchema = z
   .strict();
 
 export async function GET() {
-  const supabase = await createClient();
   const auth = await requireAdminTenantContext();
   if ('error' in auth) return auth.error;
 
+  // Secrets (ai_*_key) só são legíveis via service-role (M6: coluna revogada de
+  // authenticated). A rota já validou que o caller é admin do targetOrganizationId,
+  // então ler via admin é autorizado — e a redação por papel (canManageSecrets) segue abaixo.
+  const supabase = createStaticAdminClient();
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
     .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')

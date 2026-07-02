@@ -2,7 +2,7 @@ import 'server-only';
 
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { getModel, type AIProvider } from '@/lib/ai/config';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { resolveActiveTenantContext } from '@/lib/platform/activeTenantContext';
 
 export type AITaskContext = {
@@ -77,7 +77,10 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
   const { supabase, user, targetOrganizationId } = context;
   const organizationId = targetOrganizationId;
 
-  const { data: orgSettings, error: orgError } = await supabase
+  // Secrets (ai_*_key) só legíveis via service-role (M6: coluna revogada de authenticated).
+  // resolveActiveTenantContext já validou o acesso do user a organizationId → admin autorizado.
+  const admin = createStaticAdminClient();
+  const { data: orgSettings, error: orgError } = await admin
     .from('organization_settings')
     .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
     .eq('organization_id', organizationId)
