@@ -60,17 +60,40 @@ async function validateToken(token: string): Promise<PublicApiAuthResult> {
   };
 }
 
-/** Auth da API pública por header `x-api-key` (integrações que controlam os headers). */
+/** Auth da API pública por header `x-api-key` (integrações full-access: n8n, MCP, etc.). */
 export async function authPublicApi(request: Request): Promise<PublicApiAuthResult> {
   return validateToken(request.headers.get('x-api-key') || '');
 }
 
+export type ReportTokenAuthResult =
+  | { ok: true; organizationId: string }
+  | { ok: false; status: number; body: { error: string; code?: string } };
+
 /**
- * Auth da API pública por token na QUERY (`?token=`). Necessária pro Google Sheets
- * `=IMPORTDATA(url)` e Excel "Dados → Da Web", que fazem GET sem poder mandar header.
- * Só deve ser usada em endpoints READ-ONLY e SEM PII (ex.: totais agregados).
+ * Auth do LINK DE PLANILHA por token na QUERY (`?token=`), pro Google Sheets `=IMPORTDATA`
+ * e Excel "Dados → Da Web" (GET sem header).
+ *
+ * ⚠️ CRÍTICO (fix do review adversarial): valida contra `validate_report_token` (tabela
+ * `report_tokens`), um espaço de credencial ISOLADO de `api_keys`. Um report_token NÃO
+ * autentica em /api/public/v1/contacts, /api/mcp nem endpoints de escrita — ele só existe
+ * pra rota de totais agregados (sem PII). NUNCA reusar `validateToken`/api_keys aqui.
  */
-export async function authPublicApiFromQuery(request: Request): Promise<PublicApiAuthResult> {
+export async function authReportTokenFromQuery(request: Request): Promise<ReportTokenAuthResult> {
   const token = new URL(request.url).searchParams.get('token') || '';
-  return validateToken(token);
+  if (!token.trim()) {
+    return { ok: false, status: 401, body: { error: 'Missing report token', code: 'AUTH_MISSING' } };
+  }
+
+  const sb = getAnonSupabase();
+  if (!sb) {
+    return { ok: false, status: 500, body: { error: 'Supabase not configured', code: 'SERVER_NOT_CONFIGURED' } };
+  }
+
+  const { data, error } = await sb.rpc('validate_report_token', { p_token: token }).maybeSingle();
+  const row = (data ?? null) as { organization_id?: unknown } | null;
+  if (error || !row || typeof row.organization_id !== 'string' || !row.organization_id.trim()) {
+    return { ok: false, status: 401, body: { error: 'Invalid report token', code: 'AUTH_INVALID' } };
+  }
+
+  return { ok: true, organizationId: row.organization_id };
 }

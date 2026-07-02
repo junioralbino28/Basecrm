@@ -1,13 +1,14 @@
-import { authPublicApiFromQuery } from '@/lib/public-api/auth';
+import { authReportTokenFromQuery } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { buildSummaryCsv } from '@/lib/reports/summaryCsv';
 
 // Endpoint PÚBLICO read-only: totais agregados da org pra Google Sheets =IMPORTDATA /
-// Excel "Dados → Da Web". Token vai na QUERY (?token=). SÓ AGREGADOS — nunca PII.
+// Excel "Dados → Da Web". Token de PLANILHA na QUERY (?token=), validado contra o espaço
+// ISOLADO report_tokens (authReportTokenFromQuery) — nunca api_keys. SÓ AGREGADOS, nunca PII.
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const auth = await authPublicApiFromQuery(request);
+  const auth = await authReportTokenFromQuery(request);
   if (!auth.ok) {
     // resposta texto simples: =IMPORTDATA mostra o erro na célula
     return new Response('token invalido ou revogado', {
@@ -23,7 +24,8 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'cache-control': 'public, max-age=300',
+      // 'private': proíbe cache compartilhado (CDN/proxy) de guardar resposta com token
+      'cache-control': 'private, max-age=300',
     },
   });
 }
