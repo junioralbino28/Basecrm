@@ -1,5 +1,6 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
+import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,16 +47,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       enabled_modules: edition?.enabled_modules || [],
       metadata: edition?.metadata || {},
       domains: (data as any).organization_domains || [],
-      channel_connections: ((data as any).channel_connections || []).map((connection: any) => ({
-        ...connection,
-        config: auth.canManageChannelConfig
-          ? connection.config || {}
-          : {
-              ...(connection.config || {}),
-              apiKey: undefined,
-              webhookSecret: undefined,
-            },
-      })),
+      channel_connections: ((data as any).channel_connections || []).map((connection: any) =>
+        toPublicChannelConnection(connection, { canManageChannelConfig: auth.canManageChannelConfig })
+      ),
       provisioning_runs: (data as any).provisioning_runs || [],
     },
     access: {

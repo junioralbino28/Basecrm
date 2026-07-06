@@ -4,6 +4,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { ensureTenantAgencyBinding } from '@/lib/channels/evolutionCredentials';
+import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,7 +47,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
     .order('created_at', { ascending: false });
 
   if (error) return json({ error: error.message }, 500);
-  return json({ channels: data || [] });
+  return json({
+    channels: (data || []).map((c) =>
+      toPublicChannelConnection(c, { canManageChannelConfig: auth.canManageChannelConfig })
+    ),
+  });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ tenantId: string }> }) {
@@ -123,5 +128,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     .single();
 
   if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, channel: data }, 201);
+  return json(
+    { ok: true, channel: toPublicChannelConnection(data, { canManageChannelConfig: auth.canManageChannelConfig }) },
+    201
+  );
 }

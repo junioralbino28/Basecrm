@@ -173,6 +173,8 @@ interface CRMContextType {
   aiOrgEnabled: boolean;
   setAiOrgEnabled: (enabled: boolean) => Promise<void>;
   aiKeyConfigured: boolean;
+  /** Últimos 4 dígitos da key do provider atual (fix C1: nunca a key crua). */
+  aiKeyLast4: string;
   aiFeatureFlags: Record<string, boolean>;
   setAIFeatureFlag: (key: string, enabled: boolean) => Promise<void>;
   aiThinking: boolean;
@@ -282,6 +284,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     aiOrgEnabled,
     setAiOrgEnabled,
     aiKeyConfigured,
+    aiKeyLast4,
     aiFeatureFlags,
     setAIFeatureFlag,
     aiThinking,
@@ -879,6 +882,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       aiOrgEnabled,
       setAiOrgEnabled,
       aiKeyConfigured,
+      aiKeyLast4,
       aiFeatureFlags,
       setAIFeatureFlag,
       aiThinking,
@@ -954,6 +958,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       aiOrgEnabled,
       setAiOrgEnabled,
       aiKeyConfigured,
+      aiKeyLast4,
       aiFeatureFlags,
       setAIFeatureFlag,
       aiThinking,

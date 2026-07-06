@@ -87,3 +87,6 @@ scripts/
 
 # Test documentation (test code stays, docs are local)
 test/*.md
+
+# Session continuity / handoff artifacts (agent-generated, local only)
+_continuity/

@@ -62,7 +62,7 @@ import { prefetchRoute, RouteName } from '@/lib/prefetch';
 import { isDebugMode, enableDebugMode, disableDebugMode } from '@/lib/debug';
 import { SkipLink } from '@/lib/a11y';
 import { useResponsiveMode } from '@/hooks/useResponsiveMode';
-import { BottomNav, MoreMenuSheet, NavigationRail } from '@/components/navigation';
+import { BottomNav, MoreMenuSheet } from '@/components/navigation';
 import { usePlatformTenantWorkspaceNav } from '@/components/navigation/usePlatformTenantWorkspaceNav';
 import { useTenantScopedHrefBuilder } from '@/components/navigation/useTenantScopedHref';
 import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
@@ -162,8 +162,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const pathname = usePathname();
   const { mode } = useResponsiveMode();
   const isMobile = mode === 'mobile';
-  const isTablet = mode === 'tablet';
-  const isDesktop = mode === 'desktop';
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isClientMounted, setIsClientMounted] = useState(false);
@@ -202,12 +200,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // instead of covering the navigation sidebar (works even for portals).
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const width =
-      isDesktop ? (sidebarCollapsed ? '5rem' : '16rem')
-        : isTablet ? '5rem'
-          : '0px';
+    // Tablet e desktop compartilham a MESMA sidebar colapsável (o mobile usa a BottomNav).
+    // A largura segue o toggle sidebarCollapsed: 5rem recolhida, 16rem expandida.
+    const width = isMobile ? '0px' : (sidebarCollapsed ? '5rem' : '16rem');
     document.documentElement.style.setProperty('--app-sidebar-width', width);
-  }, [isDesktop, isTablet, sidebarCollapsed]);
+  }, [isMobile, sidebarCollapsed]);
 
   // Cleanup on unmount (e.g. leaving the app shell).
   useEffect(() => {
@@ -480,11 +477,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Skip Link for keyboard users */}
       <SkipLink targetId="main-content" />
 
-      {/* Tablet rail (shows full icon set; no "More" sheet needed) */}
-      {isTablet ? <NavigationRail /> : null}
-
-      {/* Sidebar - Collapsible */}
-      {isDesktop ? (
+      {/* Sidebar colapsável — tablet e desktop usam a MESMA (mobile usa BottomNav).
+          Garante paridade de funções (toggle expandir/recolher + menu de usuário)
+          em qualquer largura ≥768px, já que no PC não dá pra "arrastar" como no touch. */}
+      {!isMobile ? (
       <aside
         className={`hidden md:flex flex-col z-20 bg-card border-r border-line transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20 items-center' : 'w-64'
           }`}
@@ -523,7 +519,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           )}
         </div>
 
-        <nav className={`flex-1 p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
+        <nav className={`flex-1 min-h-0 overflow-y-auto p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
           {[
             {
               key: 'clinica',

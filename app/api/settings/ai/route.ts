@@ -15,6 +15,17 @@ function json<T>(body: T, status = 200): Response {
 
 type Provider = 'google' | 'openai' | 'anthropic';
 
+/**
+ * Últimos 4 dígitos de uma chave, para exibir "•••• 1234" na UI sem devolver o segredo.
+ * Fix do achado C1: o GET NUNCA mais devolve a chave crua ao browser — só last4 + o selo
+ * "configurada". Exige >= 8 chars pra nunca vazar uma chave curta inteira (chaves reais
+ * têm dezenas de chars; abaixo disso, não expõe nada).
+ */
+function keyLast4(value: string | null | undefined): string {
+  const s = (value ?? '').trim();
+  return s.length >= 8 ? s.slice(-4) : '';
+}
+
 const UpdateOrgAISettingsSchema = z
   .object({
     aiEnabled: z.boolean().optional(),
@@ -45,30 +56,30 @@ export async function GET() {
   const aiEnabled = typeof orgSettings?.ai_enabled === 'boolean' ? orgSettings.ai_enabled : true;
   const canManageSecrets = auth.isAgencyAdmin || auth.isClinicAdmin;
 
-  if (!canManageSecrets) {
-    return json({
-      aiEnabled,
-      aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
-      aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
-      aiGoogleKey: '',
-      aiOpenaiKey: '',
-      aiAnthropicKey: '',
-      aiHasGoogleKey: Boolean(orgSettings?.ai_google_key),
-      aiHasOpenaiKey: Boolean(orgSettings?.ai_openai_key),
-      aiHasAnthropicKey: Boolean(orgSettings?.ai_anthropic_key),
-    });
-  }
-
-  return json({
+  // Fix C1: a chave crua NUNCA vai pro browser (a IA agora infere no servidor via
+  // /api/ai/chat). Ambos os papéis recebem só os booleans "configurada"; o admin
+  // ganha também os últimos 4 dígitos pra reconhecer a chave na UI.
+  const base = {
     aiEnabled,
     aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
     aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
-    aiGoogleKey: orgSettings?.ai_google_key || '',
-    aiOpenaiKey: orgSettings?.ai_openai_key || '',
-    aiAnthropicKey: orgSettings?.ai_anthropic_key || '',
+    aiGoogleKey: '',
+    aiOpenaiKey: '',
+    aiAnthropicKey: '',
     aiHasGoogleKey: Boolean(orgSettings?.ai_google_key),
     aiHasOpenaiKey: Boolean(orgSettings?.ai_openai_key),
     aiHasAnthropicKey: Boolean(orgSettings?.ai_anthropic_key),
+  };
+
+  if (!canManageSecrets) {
+    return json(base);
+  }
+
+  return json({
+    ...base,
+    aiGoogleKeyLast4: keyLast4(orgSettings?.ai_google_key),
+    aiOpenaiKeyLast4: keyLast4(orgSettings?.ai_openai_key),
+    aiAnthropicKeyLast4: keyLast4(orgSettings?.ai_anthropic_key),
   });
 }
 

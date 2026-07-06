@@ -3,6 +3,7 @@
 
 import { createAgentUIStreamResponse, UIMessage } from 'ai';
 import { createCRMAgent } from '@/lib/ai/crmAgent';
+import { createStaticAdminClient } from '@/lib/supabase/server';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import type { CRMCallOptions } from '@/types/ai';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
@@ -92,8 +93,13 @@ export async function POST(req: Request) {
         );
     }
 
-    // 3. Get AI settings (org-wide: organization_settings é a fonte de verdade)
-    const { data: orgSettings } = await supabase
+    // 3. Get AI settings (org-wide: organization_settings é a fonte de verdade).
+    // As colunas ai_*_key são REVOGADAS de `authenticated` (M6) — só service-role lê.
+    // Como o org já foi validado pelo resolveActiveTenantContext, lemos via admin,
+    // escopado a este organization_id. A chave é usada só no servidor (createCRMAgent)
+    // e NUNCA volta pro browser — só a resposta em streaming da IA volta.
+    const adminDb = createStaticAdminClient();
+    const { data: orgSettings } = await adminDb
         .from('organization_settings')
         .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
         .eq('organization_id', organizationId)

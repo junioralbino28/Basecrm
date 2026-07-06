@@ -4,6 +4,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { ensureTenantAgencyBinding } from '@/lib/channels/evolutionCredentials';
+import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -125,5 +126,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
     .single();
 
   if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, channel: data });
+  return json({
+    ok: true,
+    channel: toPublicChannelConnection(data, { canManageChannelConfig: auth.canManageChannelConfig }),
+  });
 }

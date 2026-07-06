@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { assertInstallerAllowed } from '@/lib/installer/guard';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -26,6 +27,13 @@ const SetupSchema = z
 export async function POST(req: Request) {
   // Setup inicial tem efeito colateral; bloqueia cross-site.
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
+
+  // Fail-closed em produção: sem token (é o wizard humano), mas exige INSTALLER_ENABLED
+  // explícito pra fechar a corrida pelo primeiro admin na janela pré-inicialização.
+  const installerGuard = assertInstallerAllowed({ requireToken: false });
+  if (!installerGuard.ok) {
+    return json({ error: installerGuard.error }, installerGuard.status);
+  }
 
   const raw = await req.json().catch(() => null);
   const parsed = SetupSchema.safeParse(raw);

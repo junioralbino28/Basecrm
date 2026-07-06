@@ -139,6 +139,7 @@ export const AIConfigSection: React.FC = () => {
         aiApiKey, setAiApiKey,
         aiModel, setAiModel,
         aiKeyConfigured,
+        aiKeyLast4,
         aiThinking, setAiThinking,
         aiSearch, setAiSearch,
         aiAnthropicCaching, setAiAnthropicCaching
@@ -146,26 +147,28 @@ export const AIConfigSection: React.FC = () => {
 
     const { showToast } = useToast();
 
-    // Estado local para o input da key (não salva até validar)
+    // Estado local para o input da key (não salva até validar).
+    // Fix C1: a key crua não vem mais do servidor (aiApiKey='' no load), então os sinais
+    // de "já configurada" usam aiKeyConfigured (booleano) — não o valor da key.
     const [localApiKey, setLocalApiKey] = useState(aiApiKey);
     const [isValidating, setIsValidating] = useState(false);
     const [validationStatus, setValidationStatus] = useState<'idle' | 'valid' | 'invalid'>(
-        aiApiKey ? 'valid' : 'idle'
+        aiKeyConfigured ? 'valid' : 'idle'
     );
     const [validationError, setValidationError] = useState<string | null>(null);
     // UX: mostrar LGPD expandido apenas quando ainda NÃO há key salva (primeira configuração).
     // Depois que a key existe, manter colapsado por padrão para não “inflar” a tela.
-    const [lgpdExpanded, setLgpdExpanded] = useState(!aiApiKey);
+    const [lgpdExpanded, setLgpdExpanded] = useState(!aiKeyConfigured);
 
     // Sync local state when context changes (ex: carregamento inicial)
     useEffect(() => {
         setLocalApiKey(aiApiKey);
-        if (aiApiKey) {
+        if (aiKeyConfigured) {
             setValidationStatus('valid'); // Assume válida se já estava salva
         }
         // Se já existe key salva, manter LGPD colapsado por padrão.
-        setLgpdExpanded(!aiApiKey);
-    }, [aiApiKey]);
+        setLgpdExpanded(!aiKeyConfigured);
+    }, [aiApiKey, aiKeyConfigured]);
 
     // Reset validation apenas quando usuário EDITA a key (não no carregamento)
     const handleKeyChange = (newKey: string) => {
@@ -225,6 +228,12 @@ export const AIConfigSection: React.FC = () => {
     };
 
     const hasUnsavedChanges = localApiKey !== aiApiKey;
+
+    // Fix C1: "pronto para uso" quando o campo tem uma chave validada OU quando já existe
+    // uma chave salva (aiKeyConfigured) — o campo nasce vazio de propósito (a chave crua
+    // não vem mais do servidor), então não dá mais pra depender só de localApiKey.
+    const aiKeyReady =
+        validationStatus === 'valid' && (localApiKey.trim().length > 0 || aiKeyConfigured);
 
     // Preços exibidos: input / output (por 1M tokens), apenas como referência na UI.
     // Fontes oficiais (podem mudar):
@@ -577,7 +586,7 @@ export const AIConfigSection: React.FC = () => {
                                 </>
                             )}
                         </button>
-                        {aiApiKey && (
+                        {aiKeyConfigured && (
                             <button
                                 onClick={handleRemoveApiKey}
                                 disabled={isValidating}
@@ -588,6 +597,13 @@ export const AIConfigSection: React.FC = () => {
                             </button>
                         )}
                     </div>
+                    {/* Fix C1: selo "configurada" + últimos 4 dígitos (a key crua nunca vem do servidor). */}
+                    {aiKeyConfigured && !localApiKey.trim() && (
+                        <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <CheckCircle size={12} />
+                            Chave configurada{aiKeyLast4 ? <> · termina em <span className="font-mono">••••{aiKeyLast4}</span></> : null}
+                        </p>
+                    )}
                     {validationError && (
                         <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
                             <AlertCircle size={12} /> {validationError}
@@ -652,27 +668,27 @@ export const AIConfigSection: React.FC = () => {
                 </div>
 
                 {/* Status Banner - use localApiKey para refletir estado atual após salvar */}
-                <div className={`rounded-lg p-3 flex items-start gap-3 ${validationStatus === 'valid' && localApiKey
+                <div className={`rounded-lg p-3 flex items-start gap-3 ${aiKeyReady
                         ? 'bg-green-50 dark:bg-green-900/10 text-green-800 dark:text-green-200'
                         : validationStatus === 'invalid'
                             ? 'bg-red-50 dark:bg-red-900/10 text-red-800 dark:text-red-200'
                             : 'bg-amber-50 dark:bg-amber-900/10 text-amber-800 dark:text-amber-200'
                     }`}>
-                    {validationStatus === 'valid' && localApiKey ? (
+                    {aiKeyReady ? (
                         <CheckCircle className="shrink-0 mt-0.5" size={18} />
                     ) : (
                         <AlertCircle className="shrink-0 mt-0.5" size={18} />
                     )}
                     <div className="text-sm">
                         <p className="font-semibold">
-                            {validationStatus === 'valid' && localApiKey
+                            {aiKeyReady
                                 ? 'Pronto para uso'
                                 : validationStatus === 'invalid'
                                     ? 'Chave Inválida'
                                     : 'Configuração Pendente'}
                         </p>
                         <p className="opacity-90 mt-1">
-                            {validationStatus === 'valid' && localApiKey
+                            {aiKeyReady
                                 ? `O sistema está configurado para usar o ${AI_PROVIDERS.find(p => p.id === aiProvider)?.name} (${aiModel}).`
                                 : validationStatus === 'invalid'
                                     ? 'Verifique sua chave de API e tente novamente.'

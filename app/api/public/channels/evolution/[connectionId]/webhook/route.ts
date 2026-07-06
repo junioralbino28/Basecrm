@@ -9,6 +9,8 @@ import {
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
+import { evaluateWebhookAuth } from '@/lib/conversations/webhookAuth';
+import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -655,23 +657,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   const configuredInstanceName = String((connection.config as Record<string, unknown> | null)?.instanceName || '').trim();
   const payloadInstanceName = getPayloadInstanceName(payload);
 
-  const authorizedBySecret = Boolean(expectedSecret && requestSecret && requestSecret === expectedSecret);
-  const authorizedByInstanceFallback = Boolean(
-    !requestSecret &&
-      configuredInstanceName &&
-      payloadInstanceName &&
-      configuredInstanceName.toLowerCase() === payloadInstanceName.toLowerCase()
-  );
+  const { authorized, authMode } = evaluateWebhookAuth({
+    expectedSecret,
+    requestSecret,
+    configuredInstanceName,
+    payloadInstanceName,
+  });
 
-  if (expectedSecret && !authorizedBySecret && !authorizedByInstanceFallback) {
+  if (!authorized) {
     return json({ error: 'Secret invalido' }, 401);
   }
-
-  const authMode = authorizedBySecret
-    ? 'secret'
-    : authorizedByInstanceFallback
-      ? 'instance_fallback'
-      : 'no_secret_configured';
 
   const parsed = parseEvolutionWebhookPayload(payload);
   if (!parsed) {
@@ -853,12 +848,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       message_type: parsed.messageType,
       author_name: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
       content,
-      metadata: {
-        provider: 'evolution',
+      // Fix achado X: sem raw_payload (PII crua redundante — conteúdo já vai em `content`).
+      metadata: buildEvolutionMessageMetadata({
         event: parsed.event,
-        provider_message_id: parsed.providerMessageId,
-        raw_payload: parsed.raw,
-      },
+        providerMessageId: parsed.providerMessageId,
+      }),
       sent_at: parsed.sentAt,
       created_at: now,
     })

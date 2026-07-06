@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
+import { firstInvalidFk } from '@/lib/public-api/assertBelongsToOrg';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
 import { sanitizeUUID } from '@/lib/supabase/utils';
@@ -87,6 +88,23 @@ export async function POST(request: Request) {
   }
 
   const sb = createStaticAdminClient();
+
+  // Fix H4: valida pertencimento à org dos FKs do body (service-role bypassa RLS).
+  const dealId = sanitizeUUID(parsed.data.deal_id) || null;
+  const contactId = sanitizeUUID(parsed.data.contact_id) || null;
+  const clientCompanyId = sanitizeUUID(parsed.data.client_company_id) || null;
+  const invalidFk = await firstInvalidFk(sb, auth.organizationId, [
+    { table: 'deals', id: dealId, field: 'deal_id' },
+    { table: 'contacts', id: contactId, field: 'contact_id' },
+    { table: 'crm_companies', id: clientCompanyId, field: 'client_company_id' },
+  ]);
+  if (invalidFk) {
+    return NextResponse.json(
+      { error: `${invalidFk} does not belong to organization`, code: 'VALIDATION_ERROR' },
+      { status: 422 }
+    );
+  }
+
   const insertPayload: any = {
     organization_id: auth.organizationId,
     title: normalizeText(parsed.data.title) || parsed.data.title,
@@ -94,9 +112,9 @@ export async function POST(request: Request) {
     type: normalizeText(parsed.data.type) || parsed.data.type,
     date: date.toISOString(),
     completed: false,
-    deal_id: sanitizeUUID(parsed.data.deal_id) || null,
-    contact_id: sanitizeUUID(parsed.data.contact_id) || null,
-    client_company_id: sanitizeUUID(parsed.data.client_company_id) || null,
+    deal_id: dealId,
+    contact_id: contactId,
+    client_company_id: clientCompanyId,
     created_at: now.toISOString(),
   };
 

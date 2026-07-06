@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
+import { belongsToOrg } from '@/lib/public-api/assertBelongsToOrg';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
@@ -165,6 +166,14 @@ export async function POST(request: Request) {
     } catch (e: any) {
       return NextResponse.json({ error: e?.message || 'Invalid company', code: 'VALIDATION_ERROR' }, { status: 422 });
     }
+  }
+
+  // Fix H4: client_company_id vindo do body (não resolvido por nome) precisa pertencer à org.
+  if (clientCompanyId && !(await belongsToOrg(sb, 'crm_companies', clientCompanyId, auth.organizationId))) {
+    return NextResponse.json(
+      { error: 'client_company_id does not belong to organization', code: 'VALIDATION_ERROR' },
+      { status: 422 }
+    );
   }
 
   let lookup = sb

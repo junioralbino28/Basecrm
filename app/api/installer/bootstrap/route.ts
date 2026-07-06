@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { assertInstallerAllowed } from '@/lib/installer/guard';
 import {
   findProjectByDomain,
   getProject,
@@ -30,19 +31,18 @@ const BootstrapSchema = z
 export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
-  if (process.env.INSTALLER_ENABLED === 'false') {
-    return json({ error: 'Installer disabled' }, 403);
-  }
-
   const raw = await req.json().catch(() => null);
   const parsed = BootstrapSchema.safeParse(raw);
   if (!parsed.success) {
     return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
   }
 
-  const expectedToken = process.env.INSTALLER_TOKEN;
-  if (expectedToken && parsed.data.installerToken !== expectedToken) {
-    return json({ error: 'Invalid installer token' }, 403);
+  const installerGuard = assertInstallerAllowed({
+    requireToken: true,
+    providedToken: parsed.data.installerToken,
+  });
+  if (!installerGuard.ok) {
+    return json({ error: installerGuard.error }, installerGuard.status);
   }
 
   const tokenResult = await validateVercelToken(parsed.data.token);

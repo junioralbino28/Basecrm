@@ -74,6 +74,8 @@ interface SettingsContextType {
   setAiOrgEnabled: (enabled: boolean) => Promise<void>;
   /** True quando a organização tem uma key configurada para o provider atual (sem expor o segredo ao membro). */
   aiKeyConfigured: boolean;
+  /** Últimos 4 dígitos da key do provider atual (só admin; '' se não configurada / não-admin). Fix C1: nunca a key crua. */
+  aiKeyLast4: string;
   /** Feature flags (org-wide) para habilitar/desabilitar funções específicas de IA. */
   aiFeatureFlags: Record<string, boolean>;
   setAIFeatureFlag: (key: string, enabled: boolean) => Promise<void>;
@@ -143,6 +145,10 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [aiHasGoogleKey, setAiHasGoogleKey] = useState<boolean>(false);
   const [aiHasOpenaiKey, setAiHasOpenaiKey] = useState<boolean>(false);
   const [aiHasAnthropicKey, setAiHasAnthropicKey] = useState<boolean>(false);
+  // Fix C1: só os últimos 4 dígitos vêm do servidor (nunca a key crua).
+  const [aiGoogleKeyLast4, setAiGoogleKeyLast4] = useState<string>('');
+  const [aiOpenaiKeyLast4, setAiOpenaiKeyLast4] = useState<string>('');
+  const [aiAnthropicKeyLast4, setAiAnthropicKeyLast4] = useState<string>('');
   const [aiFeatureFlags, setAiFeatureFlags] = useState<Record<string, boolean>>({});
   const [aiThinking, setAiThinkingState] = useState<boolean>(true);
   const [aiSearch, setAiSearchState] = useState<boolean>(true);
@@ -166,6 +172,15 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       default: return false;
     }
   }, [aiProvider, aiHasGoogleKey, aiHasOpenaiKey, aiHasAnthropicKey, aiGoogleKey, aiOpenaiKey, aiAnthropicKey]);
+
+  const aiKeyLast4 = useMemo(() => {
+    switch (aiProvider) {
+      case 'google': return aiGoogleKeyLast4;
+      case 'openai': return aiOpenaiKeyLast4;
+      case 'anthropic': return aiAnthropicKeyLast4;
+      default: return '';
+    }
+  }, [aiProvider, aiGoogleKeyLast4, aiOpenaiKeyLast4, aiAnthropicKeyLast4]);
 
   // UI State
   const [isGlobalAIOpen, setIsGlobalAIOpen] = useState(false);
@@ -223,17 +238,24 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
               aiHasGoogleKey?: boolean;
               aiHasOpenaiKey?: boolean;
               aiHasAnthropicKey?: boolean;
+              aiGoogleKeyLast4?: string;
+              aiOpenaiKeyLast4?: string;
+              aiAnthropicKeyLast4?: string;
             };
 
             setAiOrgEnabledState(typeof aiData.aiEnabled === 'boolean' ? aiData.aiEnabled : true);
             setAiProviderState(aiData.aiProvider);
             setAiModelState(aiData.aiModel);
+            // Fix C1: aiGoogleKey etc. vêm '' do servidor; guardamos só o last4 pra UI.
             setAiGoogleKeyState(aiData.aiGoogleKey);
             setAiOpenaiKeyState(aiData.aiOpenaiKey);
             setAiAnthropicKeyState(aiData.aiAnthropicKey);
             setAiHasGoogleKey(Boolean(aiData.aiHasGoogleKey));
             setAiHasOpenaiKey(Boolean(aiData.aiHasOpenaiKey));
             setAiHasAnthropicKey(Boolean(aiData.aiHasAnthropicKey));
+            setAiGoogleKeyLast4(aiData.aiGoogleKeyLast4 ?? '');
+            setAiOpenaiKeyLast4(aiData.aiOpenaiKeyLast4 ?? '');
+            setAiAnthropicKeyLast4(aiData.aiAnthropicKeyLast4 ?? '');
           } else {
             const body = await aiRes.json().catch(() => null);
             const message = body?.error || `Falha ao carregar config de IA (HTTP ${aiRes.status})`;
@@ -564,6 +586,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       aiOrgEnabled,
       setAiOrgEnabled,
       aiKeyConfigured,
+      aiKeyLast4,
       aiFeatureFlags,
       setAIFeatureFlag,
       aiThinking,
@@ -610,6 +633,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       aiOrgEnabled,
       setAiOrgEnabled,
       aiKeyConfigured,
+      aiKeyLast4,
       aiFeatureFlags,
       setAIFeatureFlag,
       aiThinking,

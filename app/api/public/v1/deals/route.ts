@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
+import { firstInvalidFk } from '@/lib/public-api/assertBelongsToOrg';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
 import { resolveBoardIdFromKey, resolveFirstStageId } from '@/lib/public-api/resolve';
@@ -190,6 +191,21 @@ export async function POST(request: Request) {
   }
   if (!contactId) {
     return NextResponse.json({ error: 'Provide contact_id or contact', code: 'VALIDATION_ERROR' }, { status: 422 });
+  }
+
+  // Fix H4: FKs vindas do body só passavam por sanitizeUUID e o insert usa service-role
+  // (bypassa RLS) — permitia referenciar objeto de OUTRO tenant. Valida pertencimento à org.
+  const invalidFk = await firstInvalidFk(sb, auth.organizationId, [
+    { table: 'boards', id: boardId, field: 'board_id' },
+    { table: 'board_stages', id: stageId, field: 'stage_id' },
+    { table: 'contacts', id: contactId, field: 'contact_id' },
+    { table: 'crm_companies', id: sanitizeUUID(parsed.data.client_company_id), field: 'client_company_id' },
+  ]);
+  if (invalidFk) {
+    return NextResponse.json(
+      { error: `${invalidFk} does not belong to organization`, code: 'VALIDATION_ERROR' },
+      { status: 422 }
+    );
   }
 
   const now = new Date().toISOString();
