@@ -818,7 +818,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
           {/* Darken + blur the background to keep progress modal in focus */}
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
           <div
-            className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur p-5 shadow-2xl"
+            className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-card/95 backdrop-blur p-5 shadow-2xl"
             aria-label={installProgress && installProgress.total === 1 ? 'Criando board' : 'Instalando funil'}
           >
             <div className="flex items-start gap-3">
@@ -898,7 +898,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                     <div
                       className={`max-w-[90%] p-3 rounded-xl text-sm whitespace-pre-wrap ${msg.role === 'user'
                         ? 'bg-brand-600 text-white rounded-br-none'
-                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-none'
+                        : 'bg-white dark:bg-surface border border-slate-200 dark:border-line text-slate-800 dark:text-slate-100 rounded-bl-none'
                         }`}
                     >
                       {msg.content
@@ -919,7 +919,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                           onClick={() => handlePreviewToggle(msg.proposalData!)}
                           className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1 ${previewBoard === msg.proposalData
                             ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500/50 dark:text-blue-300'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            : 'bg-white dark:bg-surface border-slate-200 dark:border-line text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface'
                             }`}
                         >
                           {previewBoard === msg.proposalData
@@ -994,7 +994,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                       className="mt-4 w-full relative overflow-hidden p-1 rounded-2xl group transition-all hover:shadow-lg hover:shadow-brand-500/20"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-95 group-hover:opacity-100 transition-opacity" />
-                      <div className="relative bg-white dark:bg-slate-900 rounded-[14px] px-4 py-3 flex items-center justify-center gap-3 transition-colors group-hover:bg-opacity-90 dark:group-hover:bg-opacity-90">
+                      <div className="relative bg-white dark:bg-card rounded-[14px] px-4 py-3 flex items-center justify-center gap-3 transition-colors group-hover:bg-opacity-90 dark:group-hover:bg-opacity-90">
                         <Sparkles
                           size={18}
                           className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-pink-500"
@@ -1111,7 +1111,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                             setActiveTab('official');
                           }}
                           className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${selectBrowseFocus === 'playbooks'
-                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                            ? 'bg-white dark:bg-surface text-slate-900 dark:text-white shadow-sm'
                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                         >
@@ -1123,7 +1123,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                             setActiveTab('official');
                           }}
                           className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${selectBrowseFocus === 'templates'
-                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                            ? 'bg-white dark:bg-surface text-slate-900 dark:text-white shadow-sm'
                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                         >
@@ -1135,7 +1135,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                             setActiveTab('community');
                           }}
                           className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${selectBrowseFocus === 'community'
-                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                            ? 'bg-white dark:bg-surface text-slate-900 dark:text-white shadow-sm'
                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                         >
@@ -1385,7 +1385,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
                             <div className="space-y-3">
                               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-line" />
                                 Etapas do Funil
                               </div>
                               <div className="flex flex-wrap gap-2">

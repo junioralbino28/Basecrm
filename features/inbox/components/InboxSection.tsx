@@ -62,7 +62,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
   const colorStyles = {
     red: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20',
     green: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20',
-    slate: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+    slate: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-surface border-slate-100 dark:border-line'
   };
 
   const visibleActivities = activities.slice(0, MAX_ITEMS);

@@ -89,7 +89,7 @@ export const NotificationPopover = () => {
 
             {isOpen && (
                 <div
-                    className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                    className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-card rounded-xl shadow-xl border border-slate-200 dark:border-line overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
                     role="dialog"
                     aria-label="Central de Notificações"
                 >

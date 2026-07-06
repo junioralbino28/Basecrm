@@ -137,7 +137,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <input
               required
               type="text"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="Ex: Ana Souza"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -148,7 +148,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <input
               required
               type="email"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="ana@empresa.com"
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
@@ -161,7 +161,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               </label>
               <input
                 type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="+5511999999999"
                 value={formData.phone}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
@@ -171,7 +171,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label>
               <input
                 type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="Gerente"
                 value={formData.role}
                 onChange={e => setFormData({ ...formData, role: e.target.value })}
@@ -184,7 +184,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             </label>
             <input
               type="text"
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="Nome da Empresa"
               value={formData.companyName}
               onChange={e => setFormData({ ...formData, companyName: e.target.value })}
@@ -202,7 +202,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             {activeSources.length > 0 ? (
               <select
                 id={sourceFieldId}
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 value={formData.source}
                 onChange={e => setFormData({ ...formData, source: e.target.value })}
               >
@@ -220,7 +220,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               <input
                 id={sourceFieldId}
                 type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="Ex: Anúncio Meta, Indicação"
                 value={formData.source}
                 onChange={e => setFormData({ ...formData, source: e.target.value })}

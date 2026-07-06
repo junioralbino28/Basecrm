@@ -99,7 +99,7 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
           onClick={() => setIsEditing(true)}
           className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 hover:border-brand-500 dark:hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 transition-all group bg-slate-50/50 dark:bg-white/5"
         >
-          <div className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+          <div className="p-1.5 bg-white dark:bg-surface rounded-lg shadow-sm group-hover:scale-110 transition-transform">
             <Target size={16} className="text-brand-500" />
           </div>
           <span className="font-medium text-sm">
@@ -130,7 +130,7 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
       {/* Background Glow Effect (Subtle) */}
       <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-orange-500/5 rounded-xl blur-xl opacity-50 group-hover/header:opacity-100 transition-opacity duration-700"></div>
 
-      <div className="relative px-5 py-3 bg-white dark:bg-[#0B1120] rounded-lg border border-slate-100 dark:border-white/5 shadow-sm transition-all duration-300 hover:shadow-md">
+      <div className="relative px-5 py-3 bg-card rounded-lg border border-line shadow-sm transition-all duration-300 hover:shadow-md">
         {/* Edit Button - Only visible on hover */}
         {!isEditing && (
           <button
@@ -354,7 +354,7 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
                 </div>
 
                 {/* Sleek Progress Bar */}
-                <div className="relative h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-1">
+                <div className="relative h-1 w-full bg-slate-100 dark:bg-surface rounded-full overflow-hidden mb-1">
                   <div
                     className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)] transition-all duration-1000 ease-out"
                     style={{ width: `${progress}% ` }}

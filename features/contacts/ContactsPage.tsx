@@ -190,7 +190,7 @@ export const ContactsPage: React.FC = () => {
                 message={
                     <div className="space-y-3">
                         <p>Este contato possui {controller.deleteWithDeals?.dealCount || 0} negócio(s) vinculado(s):</p>
-                        <ul className="text-left bg-slate-100 dark:bg-slate-800/50 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
+                        <ul className="text-left bg-slate-100 dark:bg-surface/50 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
                             {controller.deleteWithDeals?.deals.map((deal) => (
                                 <li key={deal.id} className="text-sm">
                                     <button

@@ -28,7 +28,7 @@ import { canManageClinicSettings } from '@/lib/auth/scope';
 import { MessageBubble } from './conversations/MessageBubble';
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
-import { FileText, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
+import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -50,8 +50,19 @@ type MessagesResponse = {
 
 type InboxFilter = 'all' | 'ai_active' | 'human_queue' | 'human_active' | 'resolved' | 'closed';
 
+// Opções do filtro principal do inbox (viram um "box com switch" compacto, no lugar
+// das 6 pills escritas por extenso que ocupavam duas linhas do cabeçalho).
+const FILTER_OPTIONS: { id: InboxFilter; label: string }[] = [
+  { id: 'all', label: 'Tudo' },
+  { id: 'ai_active', label: 'Julia' },
+  { id: 'human_queue', label: 'Fila humana' },
+  { id: 'human_active', label: 'Humano' },
+  { id: 'resolved', label: 'Resolvidas' },
+  { id: 'closed', label: 'Fechadas' },
+];
+
 const FIELD_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white';
+  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
 
 function buildDisplayName(profile: {
   nickname?: string | null;
@@ -250,6 +261,11 @@ export const TenantConversationsPage: React.FC = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = React.useState(false);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = React.useState(false);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = React.useState(false);
+  // Cabeçalho estilo WhatsApp: faixa do contato sempre visível + controles pesados
+  // (atribuir/status/ações) colapsados atrás de "Ações ▾", fechados por padrão, pra
+  // a janela de mensagens ficar grande e confortável.
+  const [isThreadPanelOpen, setIsThreadPanelOpen] = React.useState(false);
   const [isScriptsOpen, setIsScriptsOpen] = React.useState(false);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -693,38 +709,64 @@ export const TenantConversationsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Pills do mockup (Tudo/Não lidas/Julia) + estados operacionais extras. */}
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'all', label: 'Tudo' },
-                  { id: 'ai_active', label: 'Julia' },
-                  { id: 'human_queue', label: 'Fila humana' },
-                  { id: 'human_active', label: 'Humano' },
-                  { id: 'resolved', label: 'Resolvidas' },
-                  { id: 'closed', label: 'Fechadas' },
-                ].map(option => (
+              {/* Filtro principal = um "box com switch" compacto (antes eram 6 pills
+                  escritas por extenso em 2 linhas). Os toggles booleanos ficam ao lado. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
                   <button
-                    key={option.id}
                     type="button"
-                    onClick={() => setFilter(option.id as InboxFilter)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                      filter === option.id
-                        ? 'bg-cyan-500 text-slate-950'
-                        : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
-                    }`}
+                    onClick={() => setIsFilterMenuOpen(current => !current)}
+                    aria-haspopup="listbox"
+                    aria-expanded={isFilterMenuOpen}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#202c33] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#2a3942]"
                   >
-                    {option.label}
+                    <Filter size={13} className="text-slate-400" aria-hidden="true" />
+                    {FILTER_OPTIONS.find(option => option.id === filter)?.label || 'Tudo'}
+                    <ChevronDown size={14} className="text-slate-400" aria-hidden="true" />
                   </button>
-                ))}
-              </div>
+                  {isFilterMenuOpen ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        className="fixed inset-0 z-30 cursor-default"
+                        onClick={() => setIsFilterMenuOpen(false)}
+                      />
+                      <div
+                        role="listbox"
+                        className="absolute left-0 top-full z-40 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-slate-700 bg-[#202c33] p-1 shadow-xl"
+                      >
+                        {FILTER_OPTIONS.map(option => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            role="option"
+                            aria-selected={filter === option.id}
+                            onClick={() => {
+                              setFilter(option.id);
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
+                              filter === option.id
+                                ? 'bg-cyan-500 text-slate-950'
+                                : 'text-slate-200 hover:bg-[#2a3942]'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
 
-              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setOnlyUnread(current => !current)}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     onlyUnread
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                      ? 'bg-cyan-500 text-slate-950'
                       : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                   }`}
                 >
@@ -735,11 +777,11 @@ export const TenantConversationsPage: React.FC = () => {
                   onClick={() => setOnlyUnassigned(current => !current)}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     onlyUnassigned
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                      ? 'bg-cyan-500 text-slate-950'
                       : 'bg-[#202c33] text-slate-300 hover:bg-[#2a3942]'
                   }`}
                 >
-                  So sem dono
+                  Sem dono
                 </button>
               </div>
             </div>
@@ -828,15 +870,15 @@ export const TenantConversationsPage: React.FC = () => {
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="shrink-0 border-b border-slate-800 bg-[#202c33] p-4">
+              <div className="shrink-0 border-b border-slate-800 bg-[#202c33] px-4 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
                       {getThreadAvatar(selectedThread)}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h2 className="truncate text-lg font-semibold text-white">
+                        <h2 className="truncate text-base font-semibold text-white">
                           {selectedThread.contact_name || selectedThread.title}
                         </h2>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
@@ -849,11 +891,30 @@ export const TenantConversationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsThreadPanelOpen(current => !current)}
+                      aria-expanded={isThreadPanelOpen}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                    >
+                      Ações
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform ${isThreadPanelOpen ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {isThreadPanelOpen ? (
+                <div className="mt-3 border-t border-slate-800 pt-3">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => void messagesQuery.refetch()}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
                     >
                       <RefreshCcw size={14} />
                       Atualizar
@@ -867,7 +928,7 @@ export const TenantConversationsPage: React.FC = () => {
                         })
                       }
                       disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <CheckCheck size={14} />
                       Marcar lida
@@ -879,7 +940,7 @@ export const TenantConversationsPage: React.FC = () => {
                           setWhatsAppFeedback(null);
                           setIsWhatsAppModalOpen(true);
                         }}
-                        className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:border-emerald-400"
+                        className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-400"
                       >
                         <QrCode size={14} />
                         Conectar WhatsApp
@@ -893,25 +954,17 @@ export const TenantConversationsPage: React.FC = () => {
                           setIsDeleteConfirmOpen(true);
                         }}
                         disabled={deleteLeadMutation.isPending}
-                        className="inline-flex items-center gap-2 rounded-full border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-300 transition hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center gap-2 rounded-full border border-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {deleteLeadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         Apagar lead
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 text-slate-200 transition hover:border-slate-500"
-                      aria-label="Mais opções da conversa"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                  </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-2">
-                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-1.5">
+                    <label className="mb-0.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <UserRound size={12} />
                       Responsável
                     </label>
@@ -937,8 +990,8 @@ export const TenantConversationsPage: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-2">
-                    <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-1.5">
+                    <label className="mb-0.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <AlertCircle size={12} />
                       Status
                     </label>
@@ -964,11 +1017,11 @@ export const TenantConversationsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-3 text-sm font-medium text-slate-200">
+                <div className="mt-2 text-sm font-medium text-slate-200">
                   {routingLabel(selectedThread)}
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -982,7 +1035,7 @@ export const TenantConversationsPage: React.FC = () => {
                       })
                     }
                     disabled={updateThreadMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:border-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 transition hover:border-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <AlertCircle size={16} />
                     Falar com humano
@@ -999,7 +1052,7 @@ export const TenantConversationsPage: React.FC = () => {
                       })
                     }
                     disabled={updateThreadMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-300 transition hover:border-violet-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 transition hover:border-violet-400/40 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCheck size={16} />
                     Marcar como resolvido
@@ -1014,7 +1067,7 @@ export const TenantConversationsPage: React.FC = () => {
                       })
                     }
                     disabled={updateThreadMutation.isPending || selectedThread.status === 'ai_active'}
-                    className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Bot size={16} />
                     Devolver pra Julia
@@ -1022,7 +1075,7 @@ export const TenantConversationsPage: React.FC = () => {
                   {selectedThread.contact_id ? (
                     <Link
                       href={`/platform/tenants/${tenantId}/contacts?contactId=${selectedThread.contact_id}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-500"
                     >
                       <UserRound size={16} />
                       Ficha do paciente
@@ -1034,6 +1087,8 @@ export const TenantConversationsPage: React.FC = () => {
                   <div className="mt-3 text-sm text-rose-600 dark:text-rose-300">
                     {updateThreadMutation.error.message}
                   </div>
+                ) : null}
+                </div>
                 ) : null}
               </div>
 
@@ -1178,6 +1233,16 @@ export const TenantConversationsPage: React.FC = () => {
                       className="min-h-8 w-full resize-none bg-transparent py-1 text-sm text-slate-100 outline-none placeholder:text-slate-400"
                       value={composer.content}
                       onChange={event => setComposer(current => ({ ...current, content: event.target.value }))}
+                      onKeyDown={event => {
+                        // Enter envia; Shift+Enter quebra linha. Ignora durante composição
+                        // de IME (acentuação) pra não cortar a digitação no meio.
+                        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                          event.preventDefault();
+                          if (sendMessageMutation.isPending || !composer.content.trim() || !canReply) return;
+                          setComposerFeedback(null);
+                          sendMessageMutation.mutate();
+                        }
+                      }}
                       placeholder={
                         composer.direction === 'internal'
                           ? 'Escreva uma nota interna...'
@@ -1311,7 +1376,7 @@ export const TenantConversationsPage: React.FC = () => {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
               <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Escaneie no WhatsApp do numero da clinica</div>
               <div className="grid gap-4 md:grid-cols-[260px_1fr]">
-                <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+                <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-card">
                   {activePairing.imageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

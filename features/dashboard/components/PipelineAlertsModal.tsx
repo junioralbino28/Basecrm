@@ -162,7 +162,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
                         ? alert.type === 'ready-to-close' 
                           ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                           : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                        : 'bg-slate-200 dark:bg-surface text-slate-600 dark:text-slate-400'
                     }`}>
                       {alert.deals.length}
                     </span>

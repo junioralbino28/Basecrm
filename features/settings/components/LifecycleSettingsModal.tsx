@@ -80,8 +80,8 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
             >
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-                <div className="relative z-10 w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="relative z-10 w-full max-w-md bg-white dark:bg-card rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-line">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-line">
                         <h3 id={headingId} className="font-bold text-slate-900 dark:text-white">Gerenciar Ciclos de Vida</h3>
                         <button
                             onClick={onClose}
@@ -99,7 +99,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                         </div>
 
                         {lifecycleStages.map((stage, index) => (
-                            <div key={stage.id} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div key={stage.id} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-surface/50 rounded-lg border border-slate-200 dark:border-line">
                                 {/* Color */}
                                 <div className="relative flex-shrink-0 group">
                                     <div className={`w-6 h-6 rounded-full ${stage.color} cursor-pointer ring-2 ring-transparent hover:ring-slate-300 dark:hover:ring-slate-600 transition-all`} />
@@ -124,7 +124,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
 
                                 {/* Count Badge */}
                                 <span
-                                    className="text-[10px] font-medium text-slate-500 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700"
+                                    className="text-[10px] font-medium text-slate-500 bg-white dark:bg-card px-2 py-0.5 rounded-full border border-slate-200 dark:border-line"
                                     title={`${stageCounts[stage.id] || 0} contatos neste estágio`}
                                 >
                                     {stageCounts[stage.id] || 0}
@@ -170,7 +170,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                         {/* Add New */}
                         {isAdding ? (
                             <div className="flex items-center gap-3 p-2 border border-brand-200 dark:border-brand-800 rounded-lg bg-brand-50 dark:bg-brand-900/10 animate-in fade-in slide-in-from-top-2">
-                                <div className={`w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-600`} />
+                                <div className={`w-6 h-6 rounded-full bg-slate-300 dark:bg-line`} />
                                 <input
                                     autoFocus
                                     type="text"
@@ -197,7 +197,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                         ) : (
                             <button
                                 onClick={() => setIsAdding(true)}
-                                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 transition-all"
+                                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg border border-dashed border-slate-300 dark:border-line transition-all"
                             >
                                 <Plus size={16} />
                                 Adicionar Estágio

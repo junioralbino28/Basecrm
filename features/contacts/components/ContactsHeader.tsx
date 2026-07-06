@@ -68,7 +68,7 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
               setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE' | 'CHURNED' | 'RISK')
             }
             aria-label="Filtrar por status"
-            className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+            className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-line bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
           >
             <option value="ALL">Todos os Status</option>
             <option value="ACTIVE">Ativos</option>
@@ -86,14 +86,14 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
             }
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm"
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-line bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm"
           />
         </div>
         <button
           onClick={() => setIsFilterOpen(!isFilterOpen)}
           aria-label={isFilterOpen ? 'Fechar filtros avançados' : 'Abrir filtros avançados'}
           aria-expanded={isFilterOpen}
-          className={`p-2 border rounded-lg transition-colors ${isFilterOpen ? 'bg-brand-50 border-brand-200 text-brand-600' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/10'}`}
+          className={`p-2 border rounded-lg transition-colors ${isFilterOpen ? 'bg-brand-50 border-brand-200 text-brand-600' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-line text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/10'}`}
         >
           <Filter size={20} aria-hidden="true" />
         </button>
@@ -102,7 +102,7 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
             type="button"
             onClick={openImportExportModal}
             aria-label="Importar/Exportar contatos"
-            className="p-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 transition-colors"
+            className="p-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-line rounded-lg hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 transition-colors"
           >
             <Download size={20} aria-hidden="true" />
           </button>

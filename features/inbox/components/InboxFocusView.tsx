@@ -505,7 +505,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
               aria-hidden="true"
               className={`w-2 h-2 rounded-full transition-all ${i === currentIndex
                 ? 'w-6 bg-brand-500'
-                : 'bg-slate-300 dark:bg-slate-600'
+                : 'bg-slate-300 dark:bg-line'
                 }`}
             />
           ))}
@@ -573,7 +573,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
               aria-modal="true"
               aria-label="Vincular contexto"
             >
-              <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/10 shadow-2xl p-5">
+              <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-card border border-slate-200 dark:border-white/10 shadow-2xl p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-900 dark:text-white">Vincular contexto</div>

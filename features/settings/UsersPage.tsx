@@ -586,7 +586,7 @@ export const UsersPage: React.FC = () => {
                                             value={normalizedRole}
                                             disabled={roleLoading === user.id}
                                             onChange={(event) => void handleRoleChange(user.id, event.target.value as AppUserRole)}
-                                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-card dark:text-slate-100"
                                         >
                                             {roleOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
@@ -682,7 +682,7 @@ export const UsersPage: React.FC = () => {
                     }}
                 >
                     <div
-                        className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        className="bg-white dark:bg-card rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
@@ -738,7 +738,7 @@ export const UsersPage: React.FC = () => {
                                             <select
                                                 value={selectedClinicId || ''}
                                                 onChange={(event) => setSelectedClinicId(event.target.value || null)}
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-line dark:bg-surface dark:text-slate-100"
                                                 disabled={tenantOptionsLoading}
                                             >
                                                 {!selectedClinicId ? <option value="">Selecione uma clinica</option> : null}
@@ -771,7 +771,7 @@ export const UsersPage: React.FC = () => {
                                         {activeInvites.map((invite) => {
                                             const inviteToken = typeof invite?.token === 'string' ? invite.token : '';
                                             return (
-                                            <div key={invite.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                                            <div key={invite.id} className="bg-slate-50 dark:bg-surface/50 rounded-xl p-3 border border-slate-200 dark:border-line flex items-center justify-between gap-3">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${normalizeAppUserRole(invite.role) === 'agency_admin' || normalizeAppUserRole(invite.role) === 'clinic_admin' || normalizeAppUserRole(invite.role) === 'admin'
@@ -812,7 +812,7 @@ export const UsersPage: React.FC = () => {
                                         )})}
                                     </div>
                                 ) : (
-                                    <div className="text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                                    <div className="text-center p-6 border-2 border-dashed border-slate-200 dark:border-line rounded-xl">
                                         <p className="text-sm text-slate-500 dark:text-slate-400">
                                             Nenhum link ativo
                                         </p>
@@ -839,7 +839,7 @@ export const UsersPage: React.FC = () => {
                                                         ? isAdminOption
                                                             ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                                                             : 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-                                                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                                        : 'border-slate-200 dark:border-line hover:border-slate-300 dark:hover:border-slate-600'
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-2 mb-1">
@@ -886,7 +886,7 @@ export const UsersPage: React.FC = () => {
                                                 onClick={() => setExpirationDays(opt.value)}
                                                 className={`py-2 px-3 rounded-lg text-sm font-medium border transition-all ${expirationDays === opt.value
                                                     ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white'
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 dark:bg-surface dark:text-slate-300 dark:border-line'
                                                     }`}
                                             >
                                                 {opt.label}

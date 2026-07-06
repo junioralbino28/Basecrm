@@ -226,7 +226,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 <span className="font-bold text-slate-700 dark:text-slate-200 font-display text-sm tracking-wide uppercase">
                   {stage.label}
                 </span>
-                <span className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                <span className="text-xs font-bold bg-white dark:bg-surface border border-slate-200 dark:border-line px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
                   {stageDeals.length}
                 </span>
               </div>

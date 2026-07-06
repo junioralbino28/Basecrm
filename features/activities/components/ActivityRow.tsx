@@ -108,7 +108,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
             <div className="group flex gap-4 px-4 py-2 items-center">
                 {/* Timeline Line/Dot */}
                 <div className="flex-shrink-0 w-6 flex justify-center">
-                    <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 ring-4 ring-white dark:ring-dark-card" />
+                    <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-line ring-4 ring-white dark:ring-dark-card" />
                 </div>
 
                 <div className="flex-1 flex items-center justify-between min-w-0">

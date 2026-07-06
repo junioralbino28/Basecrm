@@ -303,11 +303,11 @@ export const AIConfigSection: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm space-y-4">
+            <div className="bg-white dark:bg-card border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm space-y-4">
 
                 {/* Non-admin read-only summary */}
                 {!isAdmin && (
-                    <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-lg p-3">
+                    <div className="bg-white dark:bg-card border border-slate-200 dark:border-white/10 rounded-lg p-3">
                         <div className="text-sm text-slate-700 dark:text-slate-200">
                             <span className="font-semibold">Status:</span> Configurado pela organização
                         </div>
@@ -338,7 +338,7 @@ export const AIConfigSection: React.FC = () => {
                                 id="ai-provider-select"
                                 value={aiProvider}
                                 onChange={handleProviderChange}
-                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                                className="w-full appearance-none bg-slate-50 dark:bg-surface border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
                             >
                                 {AI_PROVIDERS.map(p => (
                                     <option key={p.id} value={p.id}>{p.name}</option>
@@ -377,7 +377,7 @@ export const AIConfigSection: React.FC = () => {
                                         showToast(err instanceof Error ? err.message : 'Falha ao atualizar modelo', 'error');
                                     }
                                 }}
-                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                                className="w-full appearance-none bg-slate-50 dark:bg-surface border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
                             >
                                 {currentProvider?.models.map(m => (
                                     <option key={m.id} value={m.id}>
@@ -401,7 +401,7 @@ export const AIConfigSection: React.FC = () => {
                                         setCustomModelDirty(true);
                                     }}
                                     placeholder="Digite o ID do modelo (ex: gemini-3-pro-preview)"
-                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                                    className="w-full bg-white dark:bg-card border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
                                 />
                                 <p className="text-xs text-slate-500 mt-1">
                                     Consulte a documentação do provedor para obter o ID correto.
@@ -547,7 +547,7 @@ export const AIConfigSection: React.FC = () => {
                                 value={localApiKey}
                                 onChange={(e) => handleKeyChange(e.target.value)}
                                 placeholder={`Cole sua chave ${aiProvider === 'google' ? 'AIza...' : 'sk-...'}`}
-                                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono ${validationStatus === 'invalid'
+                                className={`w-full bg-slate-50 dark:bg-surface border rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono ${validationStatus === 'invalid'
                                         ? 'border-red-300 dark:border-red-500/50'
                                         : validationStatus === 'valid'
                                             ? 'border-green-300 dark:border-green-500/50'
@@ -570,7 +570,7 @@ export const AIConfigSection: React.FC = () => {
                             onClick={handleSaveApiKey}
                             disabled={isValidating || !localApiKey.trim() || (!hasUnsavedChanges && validationStatus === 'valid')}
                             className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${isValidating || !localApiKey.trim() || (!hasUnsavedChanges && validationStatus === 'valid')
-                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                    ? 'bg-slate-100 dark:bg-surface text-slate-400 cursor-not-allowed'
                                     : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'
                                 }`}
                         >

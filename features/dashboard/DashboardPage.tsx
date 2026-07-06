@@ -118,7 +118,7 @@ const DashboardPage: React.FC = () => {
             value={selectedBoardId}
             onChange={(e) => setSelectedBoardId(e.target.value)}
             aria-label="Selecionar Pipeline de Vendas"
-            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="px-3 py-2 bg-white dark:bg-surface border border-slate-200 dark:border-line rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             {boards.map(board => (
               <option key={board.id} value={board.id}>{board.name}</option>
@@ -131,7 +131,7 @@ const DashboardPage: React.FC = () => {
             onClick={() => setShowPipelineAlerts(true)}
             className={`p-2 rounded-lg border transition-colors relative ${(riskyCount > 0 || stagnantDealsCount > 0)
               ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
-              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
+              : 'bg-white dark:bg-surface border-slate-200 dark:border-line text-slate-500 hover:text-slate-700'
               }`}
             title="Alertas de Pipeline"
           >
@@ -301,7 +301,7 @@ const DashboardPage: React.FC = () => {
 
         {/* Activity Feed - Expanded */}
         <div className="lg:col-span-2 glass flex flex-col rounded-xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden h-full">
-          <div className="p-5 border-b border-slate-100 dark:border-white/5 bg-white/50 dark:bg-slate-900/50 rounded-t-xl backdrop-blur-sm z-10 shrink-0">
+          <div className="p-5 border-b border-slate-100 dark:border-white/5 bg-white/50 dark:bg-card/50 rounded-t-xl backdrop-blur-sm z-10 shrink-0">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">
                 Atividades Recentes

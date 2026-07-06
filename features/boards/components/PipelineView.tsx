@@ -268,7 +268,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
       {boardCreateOverlay && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
-          <div className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur p-5 shadow-2xl">
+          <div className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-card/95 backdrop-blur p-5 shadow-2xl">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-brand-500/30 border-t-brand-500 animate-spin" />
               <div className="min-w-0 flex-1">

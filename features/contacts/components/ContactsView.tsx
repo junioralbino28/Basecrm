@@ -37,7 +37,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Contatos (Gold Standard)</h1>
         <button 
           onClick={onRefresh}
-          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+          className="p-2 hover:bg-slate-100 dark:hover:bg-surface rounded-full transition-colors"
           disabled={isLoading}
         >
           <RefreshCw size={20} className={isLoading ? 'animate-spin text-slate-500' : 'text-slate-500 dark:text-slate-400'} />
@@ -49,7 +49,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         <input 
           type="text"
           placeholder="Buscar por nome ou email..."
-          className="w-full pl-10 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
+          className="w-full pl-10 p-3 rounded-lg border border-slate-200 dark:border-line bg-white dark:bg-surface text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
           onChange={(e) => onSearch(e.target.value)}
         />
       </div>
@@ -59,7 +59,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {contacts.map(contact => (
-            <div key={contact.id} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+            <div key={contact.id} className="p-4 bg-white dark:bg-surface rounded-xl border border-slate-200 dark:border-line shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
                   {(contact.name || '?').charAt(0)}

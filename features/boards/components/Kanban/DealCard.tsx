@@ -107,8 +107,8 @@ const DealCardComponent: React.FC<DealCardProps> = ({
 
     // Default - open deal
     return `${baseClasses}
-      border-slate-200 dark:border-slate-700/50
-      ${localDragging || isDragging ? 'bg-green-100 dark:bg-green-900 opacity-50 rotate-2 scale-95' : 'bg-white dark:bg-slate-800 opacity-100'}
+      border-slate-200 dark:border-line/50
+      ${localDragging || isDragging ? 'bg-green-100 dark:bg-green-900 opacity-50 rotate-2 scale-95' : 'bg-white dark:bg-surface opacity-100'}
       ${isRotting ? 'opacity-80 saturate-50 border-dashed' : ''}
     `;
   };

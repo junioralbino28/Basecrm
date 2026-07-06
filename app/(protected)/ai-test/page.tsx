@@ -15,7 +15,7 @@ export default function AITestPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4">
+        <div className="min-h-screen bg-slate-50 dark:bg-card p-4">
             <div className="max-w-2xl mx-auto">
                 <header className="mb-6">
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">

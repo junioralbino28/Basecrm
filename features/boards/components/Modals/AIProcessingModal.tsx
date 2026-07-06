@@ -79,7 +79,7 @@ export const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ isOpen, cu
             {/* Glassmorphism Background */}
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl transition-opacity duration-500" />
 
-            <div className="relative z-10 w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] border border-white/40 dark:border-white/20 overflow-hidden transform transition-all duration-500 scale-100">
+            <div className="relative z-10 w-full max-w-md bg-white/90 dark:bg-card/90 backdrop-blur-xl rounded-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] border border-white/40 dark:border-white/20 overflow-hidden transform transition-all duration-500 scale-100">
                 {/* Header */}
                 <div className="p-8 bg-gradient-to-b from-white/50 to-transparent dark:from-white/5 border-b border-slate-100/50 dark:border-white/5 text-center">
                     <div className="w-16 h-16 bg-gradient-to-tr from-brand-100 to-blue-50 dark:from-brand-900/30 dark:to-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner ring-1 ring-white/50 dark:ring-white/10">

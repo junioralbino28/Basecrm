@@ -71,7 +71,7 @@ const KanbanListRow = React.memo(function KanbanListRow({
                   ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
                   : deal.isLost
                     ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
-                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-600 dark:bg-surface dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-surface'
               }`}
               aria-label="Mover estágio"
               title="Mover estágio"
@@ -85,7 +85,7 @@ const KanbanListRow = React.memo(function KanbanListRow({
                   ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
                   : deal.isLost
                     ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
-                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                    : 'bg-slate-100 text-slate-600 dark:bg-surface dark:text-slate-300'
               } `}
             >
               {stageLabel}

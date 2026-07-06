@@ -142,7 +142,7 @@ export const StageBadge: React.FC<{ stage: ContactStage | string }> = ({ stage }
 
   if (!config) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-slate-100 text-slate-600 dark:bg-surface dark:text-slate-400">
         {stage}
       </span>
     );

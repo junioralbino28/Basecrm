@@ -130,7 +130,7 @@ export const StageProgressBar: React.FC<StageProgressBarProps> = ({
                 // Determine colors based on stage type
                 let activeColor = 'bg-green-500 text-white';
                 let inactiveColor =
-                    'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600';
+                    'bg-slate-200 dark:bg-surface text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-line';
 
                 if (isWonStage) {
                     activeColor = 'bg-green-500 text-white';

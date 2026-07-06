@@ -109,7 +109,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                     </p>
                     <button
                         onClick={onClose}
-                        className="w-full mt-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition-all"
+                        className="w-full mt-4 bg-slate-200 dark:bg-surface hover:bg-slate-300 dark:hover:bg-line text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition-all"
                     >
                         Fechar
                     </button>
@@ -226,13 +226,13 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 Contato
                             </label>
                             {!selectedContact && (
-                                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 ml-auto">
+                                <div className="flex bg-slate-100 dark:bg-surface rounded-lg p-0.5 ml-auto">
                                     <button
                                         type="button"
                                         onClick={() => setIsCreatingNew(false)}
                                         className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                                             !isCreatingNew 
-                                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                                                ? 'bg-white dark:bg-surface text-slate-900 dark:text-white shadow-sm' 
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                         }`}
                                     >
@@ -243,7 +243,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                         onClick={() => setIsCreatingNew(true)}
                                         className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                                             isCreatingNew 
-                                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                                                ? 'bg-white dark:bg-surface text-slate-900 dark:text-white shadow-sm' 
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                         }`}
                                     >
@@ -292,7 +292,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 </div>
                                 
                                 {selectedCompany && (
-                                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg text-sm">
+                                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-surface/50 rounded-lg text-sm">
                                         <Building2 size={14} className="text-slate-400" />
                                         <span className="text-slate-600 dark:text-slate-300">{selectedCompany.name}</span>
                                     </div>
@@ -309,7 +309,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                             />
                         ) : (
                             /* Modo: Criar Novo */
-                            <div className="space-y-3 p-4 bg-slate-50 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div className="space-y-3 p-4 bg-slate-50 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-line">
                                 <div className="relative">
                                     <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input
@@ -318,7 +318,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                         required={isCreatingNew}
                                         value={newContactData.name}
                                         onChange={(e) => setNewContactData(prev => ({ ...prev, name: e.target.value }))}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                        className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-surface border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                     />
                                 </div>
                                 
@@ -330,7 +330,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                             placeholder="Email"
                                             value={newContactData.email}
                                             onChange={(e) => setNewContactData(prev => ({ ...prev, email: e.target.value }))}
-                                            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-surface border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                         />
                                     </div>
                                     
@@ -341,7 +341,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                             placeholder="Telefone"
                                             value={newContactData.phone}
                                             onChange={(e) => setNewContactData(prev => ({ ...prev, phone: e.target.value }))}
-                                            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-surface border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                         />
                                     </div>
                                 </div>
@@ -353,7 +353,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                         placeholder="Empresa"
                                         value={newContactData.companyName}
                                         onChange={(e) => setNewContactData(prev => ({ ...prev, companyName: e.target.value }))}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                        className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-surface border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                     />
                                 </div>
                             </div>
@@ -370,7 +370,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 <input
                                     required
                                     type="text"
-                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                     placeholder="Ex: Contrato Anual - Acme"
                                     value={dealData.title}
                                     onChange={e => setDealData(prev => ({ ...prev, title: e.target.value }))}
@@ -381,7 +381,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 <label className="block text-xs font-medium text-slate-500 mb-1">Valor Estimado (R$)</label>
                                 <input
                                     type="number"
-                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
+                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500"
                                     placeholder="0.00"
                                     value={dealData.value}
                                     onChange={e => setDealData(prev => ({ ...prev, value: e.target.value }))}

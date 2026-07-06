@@ -88,7 +88,7 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
                   onClick={() => { onSelectBoard(board.id); setIsOpen(false); }}
                 >
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    board.id === activeBoard.id ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'
+                    board.id === activeBoard.id ? 'bg-brand-500' : 'bg-slate-300 dark:bg-line'
                   }`} />
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${

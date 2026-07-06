@@ -119,13 +119,13 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, variant = 'received' }) 
         received: {
             btn: 'bg-blue-600 text-white hover:bg-blue-700',
             barActive: 'bg-blue-600',
-            barInactive: 'bg-slate-300 dark:bg-slate-700',
+            barInactive: 'bg-slate-300 dark:bg-surface',
             text: 'text-slate-500 dark:text-slate-400'
         },
         preview: {
             btn: 'bg-purple-600 text-white hover:bg-purple-700',
             barActive: 'bg-purple-600',
-            barInactive: 'bg-slate-300 dark:bg-slate-700',
+            barInactive: 'bg-slate-300 dark:bg-surface',
             text: 'text-slate-500 dark:text-slate-400'
         }
     };

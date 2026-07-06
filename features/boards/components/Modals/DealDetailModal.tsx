@@ -470,7 +470,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           updateDeal(deal.id, { isWon: false, isLost: false, closedAt: undefined });
                         }
                       }}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-bold text-sm flex items-center gap-2 transition-all"
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface text-slate-700 dark:text-slate-300 rounded-lg font-bold text-sm flex items-center gap-2 transition-all"
                     >
                       ↩ Reabrir
                     </button>
@@ -602,7 +602,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     <User size={14} /> Contato Principal
                   </h3>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-surface flex items-center justify-center text-xs font-bold">
                       {(deal.contactName || '?').charAt(0)}
                     </div>
                     <div>
@@ -821,7 +821,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       </div>
                     </div>
 
-                    <div className="space-y-3 pl-4 border-l border-slate-200 dark:border-slate-800">
+                    <div className="space-y-3 pl-4 border-l border-slate-200 dark:border-line">
                       {dealActivities.length === 0 && (
                         <p className="text-sm text-slate-500 italic pl-4">
                           Nenhuma atividade registrada.

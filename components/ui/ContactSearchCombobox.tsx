@@ -151,7 +151,7 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
           onFocus={() => searchTerm && setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-line rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
         />
       </div>
 
@@ -159,7 +159,7 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
       {isOpen && searchTerm.trim() && (
         <div
           ref={listRef}
-          className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+          className="absolute z-50 w-full mt-1 bg-white dark:bg-surface border border-slate-200 dark:border-line rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
         >
           {filteredContacts.length > 0 ? (
             <div className="max-h-64 overflow-y-auto">
@@ -173,10 +173,10 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
                     className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
                       index === highlightedIndex
                         ? 'bg-brand-50 dark:bg-brand-900/30'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        : 'hover:bg-slate-50 dark:hover:bg-surface/50'
                     }`}
                   >
-                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-slate-100 dark:bg-surface rounded-full flex items-center justify-center flex-shrink-0">
                       <User size={18} className="text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -209,10 +209,10 @@ export const ContactSearchCombobox: React.FC<ContactSearchComboboxProps> = ({
           <button
             type="button"
             onClick={handleCreateNew}
-            className={`w-full flex items-center gap-3 p-3 border-t border-slate-100 dark:border-slate-700 text-left transition-colors ${
+            className={`w-full flex items-center gap-3 p-3 border-t border-slate-100 dark:border-line text-left transition-colors ${
               highlightedIndex === filteredContacts.length
                 ? 'bg-brand-50 dark:bg-brand-900/30'
-                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                : 'hover:bg-slate-50 dark:hover:bg-surface/50'
             }`}
           >
             <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/50 rounded-full flex items-center justify-center flex-shrink-0">

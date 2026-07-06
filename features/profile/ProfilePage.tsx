@@ -421,7 +421,7 @@ export const ProfilePage: React.FC = () => {
                                     type="text"
                                     value={firstName}
                                     onChange={(e) => setFirstName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-line rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="Seu nome"
                                 />
                             </div>
@@ -433,7 +433,7 @@ export const ProfilePage: React.FC = () => {
                                     type="text"
                                     value={lastName}
                                     onChange={(e) => setLastName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-line rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="Seu sobrenome"
                                 />
                             </div>
@@ -448,7 +448,7 @@ export const ProfilePage: React.FC = () => {
                                 type="text"
                                 value={nickname}
                                 onChange={(e) => setNickname(e.target.value)}
-                                className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
+                                className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-line rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                 placeholder="Seu apelido"
                             />
                         </div>
@@ -463,7 +463,7 @@ export const ProfilePage: React.FC = () => {
                                     type="tel"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 dark:border-line rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all"
                                     placeholder="+5511999999999"
                                 />
                             </div>
@@ -521,7 +521,7 @@ export const ProfilePage: React.FC = () => {
 
                         {/* Alterar email form */}
                         {isChangingEmail && (
-                            <form onSubmit={handleChangeEmail} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl space-y-3">
+                            <form onSubmit={handleChangeEmail} className="bg-slate-50 dark:bg-surface/50 p-4 rounded-xl space-y-3">
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Novo E-mail
                                 </label>
@@ -529,7 +529,7 @@ export const ProfilePage: React.FC = () => {
                                     type="email"
                                     value={newEmail}
                                     onChange={(e) => setNewEmail(e.target.value)}
-                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-line rounded-lg bg-white dark:bg-card text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                                     placeholder="seu@novoemail.com"
                                     required
                                 />
@@ -604,7 +604,7 @@ export const ProfilePage: React.FC = () => {
                                     type={showPasswords ? 'text' : 'password'}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all pr-10"
+                                    className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-line rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500 transition-all pr-10"
                                     placeholder="Mínimo 6 caracteres"
                                     required
                                     minLength={6}
@@ -648,11 +648,11 @@ export const ProfilePage: React.FC = () => {
                                 type={showPasswords ? 'text' : 'password'}
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                className={`w-full px-4 py-2.5 border-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all ${confirmPassword.length > 0
+                                className={`w-full px-4 py-2.5 border-2 rounded-xl bg-slate-50 dark:bg-surface/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all ${confirmPassword.length > 0
                                     ? (newPassword === confirmPassword && confirmPassword.length > 0)
                                         ? 'border-green-500 focus:border-green-500'
                                         : 'border-red-500 focus:border-red-500'
-                                    : 'border-slate-200 dark:border-slate-700 focus:border-brand-500'
+                                    : 'border-slate-200 dark:border-line focus:border-brand-500'
                                     }`}
                                 placeholder="Digite novamente"
                                 required

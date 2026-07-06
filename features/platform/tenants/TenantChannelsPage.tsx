@@ -10,7 +10,7 @@ import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { Modal, ModalForm } from '@/components/ui/Modal';
 
 const FIELD_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white';
+  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
 
 type ChannelFormState = {
   name: string;
@@ -606,7 +606,7 @@ export const TenantChannelsPage: React.FC = () => {
         <button
           type="button"
           onClick={() => void reload()}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-card dark:text-slate-200"
         >
           <RefreshCcw size={16} />
           Atualizar
@@ -618,7 +618,7 @@ export const TenantChannelsPage: React.FC = () => {
 
       {tenant && canAccessWhatsApp ? (
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Wifi size={16} />
               Numeros e conexoes
@@ -658,7 +658,7 @@ export const TenantChannelsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => startEditing(connection)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                           >
                             Editar conexao
                           </button>
@@ -668,7 +668,7 @@ export const TenantChannelsPage: React.FC = () => {
                           type="button"
                           onClick={() => void runHealthcheck(connection.id)}
                           disabled={checkingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                         >
                           <Activity size={14} />
                           {checkingConnectionId === connection.id ? 'Atualizando...' : 'Atualizar status'}
@@ -678,7 +678,7 @@ export const TenantChannelsPage: React.FC = () => {
                           type="button"
                           onClick={() => void requestPairing(connection.id)}
                           disabled={pairingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                         >
                           {connection.status === 'connected' ? <PlugZap size={14} /> : <QrCode size={14} />}
                           {pairingConnectionId === connection.id
@@ -692,7 +692,7 @@ export const TenantChannelsPage: React.FC = () => {
                           type="button"
                           onClick={() => void sendTestMessage(connection.id)}
                           disabled={sendingTestConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-200"
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:bg-card dark:text-emerald-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-200"
                         >
                           <Send size={14} />
                           {sendingTestConnectionId === connection.id ? 'Enviando teste...' : 'Testar envio'}
@@ -702,7 +702,7 @@ export const TenantChannelsPage: React.FC = () => {
                           type="button"
                           onClick={() => void disconnectConnection(connection.id)}
                           disabled={disconnectingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-slate-950 dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
+                          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-card dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
                         >
                           <Plug2 size={14} />
                           {disconnectingConnectionId === connection.id ? 'Desconectando...' : 'Desconectar'}
@@ -782,7 +782,7 @@ export const TenantChannelsPage: React.FC = () => {
                       ) : null}
                     </div>
 
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">
                       <div className="text-sm font-semibold text-slate-900 dark:text-white">Teste de envio</div>
                       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
                         <input
@@ -815,7 +815,7 @@ export const TenantChannelsPage: React.FC = () => {
                     </div>
 
                     {pairingDisplay.imageSrc || pairingDisplay.pairingCode ? (
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-900 dark:text-white">Pareamento visual</div>
                           {pairingDisplay.pairingCode ? (
@@ -861,7 +861,7 @@ export const TenantChannelsPage: React.FC = () => {
                     ) : null}
 
                     {canManageInfrastructure && getCrmWebhookUrl(connection) ? (
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-900 dark:text-white">Webhook do CRM</div>
                           <button
@@ -892,7 +892,7 @@ export const TenantChannelsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Smartphone size={16} />
@@ -923,7 +923,7 @@ export const TenantChannelsPage: React.FC = () => {
             {isAgencyAdmin && !isTechnicalRoute ? (
               <Link
                 href={`/platform/tenants/${tenantId}/channels`}
-                className="mt-3 inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                className="mt-3 inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
               >
                 Abrir configuracao tecnica no Painel Agencia
               </Link>

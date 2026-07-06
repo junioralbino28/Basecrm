@@ -16,7 +16,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const baseInputStyles = cn(
   'w-full bg-slate-50 dark:bg-black/20',
-  'border border-slate-200 dark:border-slate-700',
+  'border border-slate-200 dark:border-line',
   'rounded-lg px-3 py-2 text-sm',
   'text-slate-900 dark:text-white',
   'outline-none focus:ring-2 focus:ring-brand-500',
@@ -448,7 +448,7 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = ({
           className={cn(
             'w-4 h-4 rounded border-slate-300 dark:border-slate-600',
             'text-brand-600 focus:ring-brand-500',
-            'dark:bg-slate-800',
+            'dark:bg-surface',
             error && 'border-red-500'
           )}
           aria-invalid={error ? 'true' : undefined}

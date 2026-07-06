@@ -323,7 +323,7 @@ export const AIFeaturesSection: React.FC = () => {
                 value={promptDraft}
                 onChange={(event) => setPromptDraft(event.target.value)}
                 placeholder="Cole ou edite o prompt aqui..."
-                className="min-h-[280px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                className="min-h-[280px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-card dark:text-white"
               />
             )}
 

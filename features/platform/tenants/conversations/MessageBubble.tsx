@@ -62,7 +62,7 @@ function DeliveryTicks({
   if (meta.delivery_status === 'sent') {
     return <CheckCheck className="h-3.5 w-3.5 text-brand-500" />;
   }
-  return <Check className="h-3.5 w-3.5 text-faint" />;
+  return <Check className="h-3.5 w-3.5 text-slate-400" />;
 }
 
 function useSignedUrl(filePath: string | null) {
@@ -212,11 +212,14 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
   const isOutbound = direction === 'outbound';
 
   const align = isInternal ? 'justify-center' : isOutbound ? 'justify-end' : 'justify-start';
+  // O chat é dark-fixo (estilo WhatsApp). Os balões usam cores FIXAS estilo "modo claro"
+  // pra ficarem legíveis nos dois temas — o inbound usava `bg-card`/`text-ink` (tokens do
+  // tema), que no dark viravam marrom-escuro sobre o fundo escuro e sumiam.
   const bubbleTone = isInternal
-    ? 'bg-gold-50 border border-gold-100 text-ink'
+    ? 'bg-gold-50 border border-gold-100 text-slate-800'
     : isOutbound
-      ? 'bg-brand-50 border border-brand-100 text-ink rounded-tr-md'
-      : 'bg-card border border-line text-ink rounded-tl-md';
+      ? 'bg-brand-50 border border-brand-100 text-slate-900 rounded-tr-md'
+      : 'bg-white border border-slate-200 text-slate-900 rounded-tl-md';
 
   const captionText = attachment
     ? message.content && message.content !== attachment.file_name && message.content !== `[${attachment.kind}]`
@@ -252,7 +255,7 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
           </p>
         ) : null}
 
-        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-faint">
+        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
           {time}
           <DeliveryTicks meta={meta} direction={direction} />
         </div>

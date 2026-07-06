@@ -75,7 +75,7 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
             break;
         default:
             content = (
-                <div className="w-5 h-5 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center text-white ring-1 ring-white dark:ring-dark-card" aria-hidden="true">
+                <div className="w-5 h-5 rounded-full bg-slate-300 dark:bg-line flex items-center justify-center text-white ring-1 ring-white dark:ring-dark-card" aria-hidden="true">
                     <Icon size={10} strokeWidth={3} />
                 </div>
             );
@@ -98,7 +98,7 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
                 <div
                     role="menu"
                     aria-label="Agendar atividade rápida"
-                    className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-white/10 z-50 overflow-hidden animate-in zoom-in-95 duration-100"
+                    className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-surface rounded-lg shadow-xl border border-slate-200 dark:border-white/10 z-50 overflow-hidden animate-in zoom-in-95 duration-100"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-2 border-b border-slate-100 dark:border-white/5">

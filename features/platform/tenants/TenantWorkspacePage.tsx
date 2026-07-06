@@ -37,7 +37,7 @@ export const TenantWorkspacePage: React.FC = () => {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <Link
               href={`/platform/tenants/${tenant.id}/branding`}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-card"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Palette size={16} />
@@ -50,7 +50,7 @@ export const TenantWorkspacePage: React.FC = () => {
 
             <Link
               href={`/platform/tenants/${tenant.id}/domains`}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-card"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Globe size={16} />
@@ -63,7 +63,7 @@ export const TenantWorkspacePage: React.FC = () => {
 
             <Link
               href={`/platform/tenants/${tenant.id}/whatsapp`}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-card"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <MessageCircle size={16} />
@@ -76,7 +76,7 @@ export const TenantWorkspacePage: React.FC = () => {
 
             <Link
               href={`/platform/tenants/${tenant.id}/conversations`}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-card"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <MessagesSquare size={16} />
@@ -87,7 +87,7 @@ export const TenantWorkspacePage: React.FC = () => {
               </div>
             </Link>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-card">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Sparkles size={16} />
                 Provisionamento
@@ -99,7 +99,7 @@ export const TenantWorkspacePage: React.FC = () => {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
               <div className="text-sm font-semibold text-slate-900 dark:text-white">Metadados da clinica</div>
               <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
                 <div>
@@ -118,7 +118,7 @@ export const TenantWorkspacePage: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
                 <div className="text-sm font-semibold text-slate-900 dark:text-white">Hosts cadastrados</div>
                 <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
                   {tenant.domains.length === 0 ? (
@@ -136,7 +136,7 @@ export const TenantWorkspacePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
                 <div className="text-sm font-semibold text-slate-900 dark:text-white">WhatsApp conectado</div>
                 <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
                   {tenant.channel_connections.length === 0 ? (

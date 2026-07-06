@@ -35,11 +35,14 @@
   /* WhatsApp */
   --color-wa: #1fa855;
 
-  /* Dark Theme Colors */
-  --color-dark-bg: #020617;
-  --color-dark-card: #0f172a;
-  --color-dark-border: #1e293b;
-  --color-dark-hover: #334155;
+  /* Dark Theme Colors — marrom quente do tema (mockup aprovado).
+   * Antes era navy (slate-950/900/800/700 = a "base azul" legada) e vazava em
+   * todo componente que usa bg-dark-card/bg-dark-bg/border-dark-border. Agora
+   * casa com os tokens --canvas/--card/--line/hover do bloco `.dark`. */
+  --color-dark-bg: #13110f;
+  --color-dark-card: #1e1b18;
+  --color-dark-border: #332e28;
+  --color-dark-hover: #3a342d;
 }
 
 /* ========================================
@@ -80,6 +83,20 @@
   --ink: 243 237 227;
   --muted: 179 168 153;
   --faint: 125 116 104;
+}
+
+/* ========================================
+ * Controles nativos (select/option, date pickers, scrollbars) seguem o tema.
+ * `color-scheme` faz o browser renderizar o POPUP do <select> escuro no dark
+ * (antes vinha branco = texto invisível). A regra de `option` casa o popup com
+ * a cor de card da marca. Fix GLOBAL — cobre todo <select> nativo do app.
+ * ======================================== */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+.dark select option,
+.dark select optgroup {
+  background-color: rgb(var(--card));
+  color: rgb(var(--ink));
 }
 
 /* ========================================
@@ -166,12 +183,13 @@ html, body {
 }
 
 .dark {
-  /* Dark Mode - Deep Slate (OKLCH) */
-  --color-bg: oklch(11% 0.025 260);
-  --color-surface: oklch(15% 0.02 260);
-  --color-muted: oklch(22% 0.015 260);
-  --color-border: oklch(26% 0.012 260);
-  --color-border-subtle: oklch(22% 0.01 260 / 0.6);
+  /* Dark Mode — marrom quente do tema (era "Deep Slate" navy hue 260 = base azul
+   * legada; agora hue 65 casa com --canvas/--card do mockup aprovado). */
+  --color-bg: oklch(11% 0.02 65);
+  --color-surface: oklch(15% 0.018 65);
+  --color-muted: oklch(22% 0.014 65);
+  --color-border: oklch(26% 0.012 65);
+  --color-border-subtle: oklch(22% 0.01 65 / 0.6);
 
   /* Status Colors - Dark Mode */
   --color-success: oklch(70% 0.17 145);
@@ -204,13 +222,14 @@ html, body {
   --color-text-muted: oklch(72% 0.02 260);
   --color-text-subtle: oklch(62% 0.025 260);
 
-  /* Glass effect - Dark */
-  --glass-bg: oklch(15% 0.02 260 / 0.75);
+  /* Glass effect - Dark (marrom quente do tema; hue 65 alinha ao canvas/card,
+   * antes era navy hue 260 = a "base azul" legada que vazava no Kanban/dashboard) */
+  --glass-bg: oklch(18% 0.014 65 / 0.72);
   --glass-border: oklch(100% 0 0 / 0.05);
   --glass-blur: 12px;
 
   /* Dots background */
-  --dots-color: oklch(22% 0.012 260);
+  --dots-color: oklch(22% 0.012 65);
 
   /* Chart Colors */
   --chart-text: #94a3b8;

@@ -190,7 +190,7 @@ export const TenantsPage: React.FC = () => {
             type="button"
             onClick={() => void handleCreateTenant('full')}
             disabled={isCreatingTestTenant}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-wait disabled:opacity-70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-teal-500/40 dark:hover:text-teal-200"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-wait disabled:opacity-70 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-teal-500/40 dark:hover:text-teal-200"
           >
             <Building2 size={16} />
             {isCreatingTestTenant ? 'Criando teste...' : 'Criar Clinica Teste'}
@@ -206,7 +206,7 @@ export const TenantsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-card">
         <div className="grid grid-cols-[1.8fr_0.8fr_1fr_1fr_0.8fr] gap-4 border-b border-slate-200 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:border-white/10 dark:text-slate-400">
           <div>Clinica</div>
           <div>Edicao</div>

@@ -122,10 +122,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         role={getToastRole(toast.type)}
                         aria-live={getAriaLive(toast.type)}
                         aria-atomic="true"
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border transition-all animate-in slide-in-from-right-full duration-300 ${toast.type === 'success' ? 'bg-white dark:bg-slate-800 border-green-500 text-green-600 dark:text-green-400' :
-                                toast.type === 'error' ? 'bg-white dark:bg-slate-800 border-red-500 text-red-600 dark:text-red-400' :
-                                    toast.type === 'warning' ? 'bg-white dark:bg-slate-800 border-yellow-500 text-yellow-600 dark:text-yellow-400' :
-                                        'bg-white dark:bg-slate-800 border-blue-500 text-blue-600 dark:text-blue-400'
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border transition-all animate-in slide-in-from-right-full duration-300 ${toast.type === 'success' ? 'bg-white dark:bg-surface border-green-500 text-green-600 dark:text-green-400' :
+                                toast.type === 'error' ? 'bg-white dark:bg-surface border-red-500 text-red-600 dark:text-red-400' :
+                                    toast.type === 'warning' ? 'bg-white dark:bg-surface border-yellow-500 text-yellow-600 dark:text-yellow-400' :
+                                        'bg-white dark:bg-surface border-blue-500 text-blue-600 dark:text-blue-400'
                             }`}
                     >
                         {toast.type === 'success' && <CheckCircle size={18} aria-hidden="true" />}

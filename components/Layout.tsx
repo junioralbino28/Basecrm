@@ -650,7 +650,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   aria-hidden="true"
                 />
                 <div
-                  className={`absolute bottom-full mb-2 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-150 ${sidebarCollapsed ? 'left-0 w-48' : 'left-0 right-0'}`}
+                  className={`absolute bottom-full mb-2 z-50 bg-white dark:bg-surface rounded-xl shadow-xl border border-slate-200 dark:border-line overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-150 ${sidebarCollapsed ? 'left-0 w-48' : 'left-0 right-0'}`}
                 >
                   <div className="p-1">
                     {isAdmin ? (
@@ -663,16 +663,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             setIsAgencyBrandingModalOpen(true);
                             setIsUserMenuOpen(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <Camera className="w-4 h-4 text-slate-400" />
                           Editar agencia
                         </button>
-                        <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
+                        <div className="my-1 h-px bg-slate-200 dark:bg-surface" />
                         <Link
                           href="/platform"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <Building2 className="w-4 h-4 text-slate-400" />
                           Plataforma
@@ -680,7 +680,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <Link
                           href="/platform/tenants/new"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <PlusSquare className="w-4 h-4 text-slate-400" />
                           Nova Clinica
@@ -688,18 +688,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <Link
                           href="/platform/team"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <Users className="w-4 h-4 text-slate-400" />
                           Equipe da Agencia
                         </Link>
-                        <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
+                        <div className="my-1 h-px bg-slate-200 dark:bg-surface" />
                       </>
                     ) : null}
                     <Link
                       href="/profile"
                       onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors focus-visible-ring"
+                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                     >
                       <User className="w-4 h-4 text-slate-400" />
                       Editar Perfil
@@ -820,7 +820,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {isAdmin && isAgencyBrandingModalOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-card">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Editar agencia</h3>
               <button
@@ -841,7 +841,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   onChange={(event) => setAgencyDisplayName(event.target.value)}
                   placeholder="Nome da agencia"
                   disabled={agencyBrandingLoading}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-400 transition placeholder:text-slate-400 focus:ring-2 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-400 transition placeholder:text-slate-400 focus:ring-2 dark:border-white/10 dark:bg-surface dark:text-white"
                 />
               </label>
 
@@ -856,7 +856,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div>
                 <span className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Logo (PNG)</span>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-800">
+                  <div className="h-12 w-12 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-surface">
                     {agencyLogoUrl ? (
                       <Image src={agencyLogoUrl} alt="" width={48} height={48} className="h-12 w-12 object-cover" unoptimized />
                     ) : (

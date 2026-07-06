@@ -366,7 +366,7 @@ export function MessageComposerModal({
                             <input
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
-                                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:outline-none focus-visible-ring"
+                                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-card/50 text-slate-900 dark:text-white text-sm focus:outline-none focus-visible-ring"
                                 placeholder="Ex: Próximos passos"
                             />
                             <button
@@ -393,7 +393,7 @@ export function MessageComposerModal({
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={12}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:outline-none focus-visible-ring resize-y min-h-80 max-h-[60vh]"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-card/50 text-slate-900 dark:text-white text-sm focus:outline-none focus-visible-ring resize-y min-h-80 max-h-[60vh]"
                         placeholder={
                             channel === 'WHATSAPP'
                                 ? 'Ex: Oi! Podemos falar rapidinho hoje?'

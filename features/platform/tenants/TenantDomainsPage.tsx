@@ -41,13 +41,13 @@ export const TenantDomainsPage: React.FC = () => {
         Voltar para clinica
       </Link>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Dominios e subdominios</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Gerencie os hosts que resolvem esta clinica.</p>
 
         <div className="mt-6 flex gap-3">
           <input
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-card dark:text-white"
             value={host}
             onChange={(e) => setHost(e.target.value)}
             placeholder="clinica-exemplo.seudominio.com"

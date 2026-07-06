@@ -31,7 +31,7 @@ export const PlatformPage: React.FC = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <Link
           href="/platform/tenants"
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-card"
         >
           <div className="text-sm font-semibold text-slate-900 dark:text-white">Clinicas</div>
           <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
@@ -41,7 +41,7 @@ export const PlatformPage: React.FC = () => {
 
         <Link
           href="/platform/tenants/new"
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-card"
         >
           <div className="text-sm font-semibold text-slate-900 dark:text-white">Preparar nova clinica</div>
           <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
