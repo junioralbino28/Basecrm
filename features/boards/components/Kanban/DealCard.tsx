@@ -178,7 +178,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {deal.isWon && (
         <div
           className="absolute -top-2 -right-2 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 p-1 rounded-full shadow-sm z-10 flex items-center gap-0.5"
-          aria-label="Negócio ganho"
+          aria-label="Paciente ganho"
         >
           <Trophy size={12} aria-hidden="true" />
         </div>
@@ -188,7 +188,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {deal.isLost && (
         <div
           className="absolute -top-2 -right-2 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-200 p-1 rounded-full shadow-sm z-10 flex items-center gap-0.5"
-          aria-label={deal.lossReason ? `Perdido: ${deal.lossReason}` : 'Negócio perdido'}
+          aria-label={deal.lossReason ? `Perdido: ${deal.lossReason}` : 'Paciente perdido'}
         >
           <XCircle size={12} aria-hidden="true" />
         </div>
@@ -198,7 +198,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {isRotting && !isClosed && (
         <div
           className="absolute -top-2 -right-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 p-1 rounded-full shadow-sm z-10"
-          aria-label="Negócio estagnado, mais de 10 dias sem atualização"
+          aria-label="Paciente estagnado, mais de 10 dias sem atualização"
         >
           <Hourglass size={12} aria-hidden="true" />
         </div>

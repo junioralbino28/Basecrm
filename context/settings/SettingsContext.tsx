@@ -16,9 +16,9 @@ import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from '@/lib/ai/defaults';
 
 const DEFAULT_LIFECYCLE_STAGES: LifecycleStage[] = [
   { id: 'LEAD', name: 'Lead', color: 'bg-blue-500', order: 0, isDefault: true },
-  { id: 'MQL', name: 'MQL', color: 'bg-yellow-500', order: 1, isDefault: true },
-  { id: 'PROSPECT', name: 'Oportunidade', color: 'bg-purple-500', order: 2, isDefault: true },
-  { id: 'CUSTOMER', name: 'Cliente', color: 'bg-green-500', order: 3, isDefault: true },
+  { id: 'MQL', name: 'Qualificado', color: 'bg-yellow-500', order: 1, isDefault: true },
+  { id: 'PROSPECT', name: 'Em proposta', color: 'bg-purple-500', order: 2, isDefault: true },
+  { id: 'CUSTOMER', name: 'Paciente', color: 'bg-green-500', order: 3, isDefault: true },
   { id: 'OTHER', name: 'Outros / Perdidos', color: 'bg-slate-500', order: 4, isDefault: true },
 ];
 

@@ -106,7 +106,7 @@ export const TenantProvisioningWizard: React.FC<TenantProvisioningWizardProps> =
           <li>Registra a edition `clinic` com branding base e modulos iniciais.</li>
           <li>Abre um `provisioning_run` auditavel.</li>
           <li>Gera o funil inicial usando a IA do operador atual, com fallback seguro.</li>
-          <li>Persiste o board e suas stages na nova conta.</li>
+          <li>Persiste o funil e suas stages na nova conta.</li>
         </ul>
       </div>
     </div>

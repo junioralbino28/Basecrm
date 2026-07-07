@@ -54,7 +54,7 @@ export async function generateProvisioningBoardDraft(params: {
         linkedLifecycleStage: 'PROSPECT',
       },
       {
-        name: 'Cliente',
+        name: 'Paciente',
         description: 'Paciente convertido e em atendimento ativo.',
         color: 'bg-indigo-500',
         linkedLifecycleStage: 'CUSTOMER',
@@ -121,9 +121,9 @@ export async function generateProvisioningBoardDraft(params: {
       description,
       lifecycleJson: JSON.stringify([
         { id: 'LEAD', name: 'Lead' },
-        { id: 'MQL', name: 'MQL' },
-        { id: 'PROSPECT', name: 'Oportunidade' },
-        { id: 'CUSTOMER', name: 'Cliente' },
+        { id: 'MQL', name: 'Qualificado' },
+        { id: 'PROSPECT', name: 'Em proposta' },
+        { id: 'CUSTOMER', name: 'Paciente' },
         { id: 'OTHER', name: 'Outros' },
       ]),
     });

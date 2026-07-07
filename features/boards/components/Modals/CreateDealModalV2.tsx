@@ -51,16 +51,16 @@ export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, on
 
   const handleFormSubmit = (data: DealFormData) => {
     if (!activeBoard || !activeBoardId || activeBoard.stages.length === 0) {
-      // Sem board ativo/estágios não dá para criar deal com status inicial.
+      // Sem board ativo/etapas não dá para criar deal com status inicial.
       // Mantemos um fallback silencioso para evitar crash em build/runtime.
-      console.warn('[CreateDealModalV2] activeBoard/activeBoardId ausentes ou sem estágios');
+      console.warn('[CreateDealModalV2] activeBoard/activeBoardId ausentes ou sem etapas');
       return;
     }
 
     const companyId = 'c-' + crypto.randomUUID().substring(0, 8);
     const contactId = 'p-' + crypto.randomUUID().substring(0, 8);
 
-    // Usa o primeiro estágio do board ativo
+    // Usa o primeiro etapa do funil ativo
     const firstStage = activeBoard.stages[0];
 
     const deal: Deal = {
@@ -97,11 +97,11 @@ export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, on
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Novo Negócio">
+    <Modal isOpen={isOpen} onClose={onClose} title="Novo Paciente">
       {/* @ts-expect-error - handleSubmit type variance with DealFormData, safe at runtime */}
       <ModalForm onSubmit={handleSubmit(handleFormSubmit)}>
         <InputField
-          label="Nome do Negócio"
+          label="Nome do Paciente"
           placeholder="Ex: Contrato Anual - Acme"
           error={errors.title}
           registration={register('title')}
@@ -142,7 +142,7 @@ export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, on
           </div>
         </div>
 
-        <SubmitButton isLoading={isSubmitting}>Criar Negócio</SubmitButton>
+        <SubmitButton isLoading={isSubmitting}>Criar Paciente</SubmitButton>
       </ModalForm>
     </Modal>
   );

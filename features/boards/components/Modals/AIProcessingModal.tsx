@@ -23,7 +23,7 @@ export const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ isOpen, cu
     const structureSteps = [
         {
             id: 'analyzing',
-            label: 'Analisando seu negócio...',
+            label: 'Analisando seu paciente...',
             icon: BrainCircuit,
             description: 'Entendendo o contexto e necessidades.'
         },

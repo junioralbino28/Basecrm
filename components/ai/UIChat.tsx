@@ -392,22 +392,22 @@ export function UIChat({
                     {
                         label: '🧾 Diagnóstico do Deal',
                         prompt:
-                            'Faça um diagnóstico completo deste deal usando o contexto do cockpit (notas, atividades e arquivos). Liste riscos, próximos passos e um plano de follow-up para 7 dias.',
+                            'Faça um diagnóstico completo deste paciente usando o contexto do cockpit (notas, atividades e arquivos). Liste riscos, próximos passos e um plano de follow-up para 7 dias.',
                     },
                     {
                         label: '👉 Próxima ação',
                         prompt:
-                            'Qual a próxima melhor ação para avançar este deal agora? Seja específico e use o histórico do cockpit para justificar.',
+                            'Qual a próxima melhor ação para avançar este paciente agora? Seja específico e use o histórico do cockpit para justificar.',
                     },
                     {
                         label: '✍️ Mensagem WhatsApp',
                         prompt:
-                            'Escreva uma mensagem curta de follow-up para WhatsApp para este contato, baseada no estágio atual e no histórico do cockpit. Traga 2 variações.',
+                            'Escreva uma mensagem curta de follow-up para WhatsApp para este contato, baseada no etapa atual e no histórico do cockpit. Traga 2 variações.',
                     },
                     {
                         label: '✅ Tarefas da semana',
                         prompt:
-                            'Crie 3 tarefas objetivas para avançar este deal nesta semana (com datas sugeridas) e descreva rapidamente o porquê de cada uma.',
+                            'Crie 3 tarefas objetivas para avançar este paciente nesta semana (com datas sugeridas) e descreva rapidamente o porquê de cada uma.',
                     },
                 ],
             };
@@ -418,8 +418,8 @@ export function UIChat({
                 subtitle: 'Pipeline • Deals • Contatos • Tarefas',
                 quickActions: [
                     { label: '📊 Analisar Pipeline', prompt: 'Analise meu pipeline de vendas' },
-                    { label: '⏰ Deals Parados', prompt: 'Quais deals estão parados há mais de 7 dias?' },
-                    { label: '🔍 Buscar', prompt: 'Buscar deals por: ' },
+                    { label: '⏰ Pacientes Parados', prompt: 'Quais pacientes estão parados há mais de 7 dias?' },
+                    { label: '🔍 Buscar', prompt: 'Buscar pacientes por: ' },
                 ],
             };
         }
@@ -427,7 +427,7 @@ export function UIChat({
         return {
             subtitle: 'Deals • Contatos • Tarefas',
             quickActions: [
-                { label: '🔍 Buscar deals', prompt: 'Buscar deals por: ' },
+                { label: '🔍 Buscar pacientes', prompt: 'Buscar pacientes por: ' },
                 { label: '👤 Buscar contatos', prompt: 'Buscar contatos por: ' },
                 { label: '✅ Próximas tarefas', prompt: 'Quais tarefas eu deveria priorizar hoje?' },
             ],
@@ -446,12 +446,12 @@ export function UIChat({
     }, [cockpitContactName, cockpitDealTitle, context.boardId, context.contactId, context.dealId]);
 
     const toolLabelMap: Record<string, string> = {
-        moveDeal: 'Mover estágio',
-        createDeal: 'Criar novo deal',
-        updateDeal: 'Atualizar deal',
-        markDealAsWon: 'Marcar deal como ganho',
-        markDealAsLost: 'Marcar deal como perdido',
-        assignDeal: 'Atribuir deal',
+        moveDeal: 'Mover etapa',
+        createDeal: 'Criar novo paciente',
+        updateDeal: 'Atualizar paciente',
+        markDealAsWon: 'Marcar paciente como ganho',
+        markDealAsLost: 'Marcar paciente como perdido',
+        assignDeal: 'Atribuir paciente',
         createTask: 'Criar tarefa',
     };
 
@@ -738,7 +738,7 @@ export function UIChat({
                                                         toolPart,
                                                         id: getApprovalId(toolPart),
                                                         toolInput,
-                                                        dealTitle: dealTitle || 'Sem deal',
+                                                        dealTitle: dealTitle || 'Sem paciente',
                                                         dueDate,
                                                         main,
                                                         extra: detailLines.slice(1),

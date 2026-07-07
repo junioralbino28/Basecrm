@@ -223,7 +223,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                                                                 {activity.description}
                                                             </p>
                                                             <p className="text-xs text-white/80 mt-1 font-medium">
-                                                                📎 {activity.dealId ? (dealTitleById.get(activity.dealId) ?? 'Sem deal vinculado') : 'Sem deal vinculado'}
+                                                                📎 {activity.dealId ? (dealTitleById.get(activity.dealId) ?? 'Sem paciente vinculado') : 'Sem paciente vinculado'}
                                                             </p>
                                                         </div>
                                                     </div>

@@ -54,7 +54,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
   // Deals ativos (não ganhos nem perdidos)
   const activeDeals = deals.filter(d => !d.isWon && !d.isLost);
 
-  // 1. Negócios Estagnados - sem mudança de estágio há mais de 10 dias
+  // 1. Pacientes Estagnados - sem mudança de etapa há mais de 10 dias
   const stagnantDeals = activeDeals.filter(deal => {
     const lastChangeTs = deal.lastStageChangeDate
       ? Date.parse(deal.lastStageChangeDate)
@@ -76,7 +76,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
   }
   const dealsWithoutActivity = activeDeals.filter(deal => !dealIdsWithFutureActivity.has(deal.id));
 
-  // 3. Deals prontos para fechar (alta probabilidade ou em estágios finais)
+  // 3. Deals prontos para fechar (alta probabilidade ou em etapas finais)
   const readyToCloseDeals = activeDeals.filter(deal => {
     // Performance: avoid creating multiple strings when status is nullish.
     return deal.probability >= 70 || (deal.status ? deal.status.toLowerCase().includes('proposta') : false);
@@ -85,8 +85,8 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
   const alerts: PipelineAlert[] = [
     {
       type: 'stagnant',
-      title: 'Negócios Estagnados',
-      description: 'Sem mudança de estágio há mais de 10 dias',
+      title: 'Pacientes Estagnados',
+      description: 'Sem mudança de etapa há mais de 10 dias',
       deals: stagnantDeals,
       color: 'text-red-500 bg-red-500/10',
       icon: AlertTriangle,

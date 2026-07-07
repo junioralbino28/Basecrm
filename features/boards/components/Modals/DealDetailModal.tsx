@@ -344,7 +344,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const confirmDeleteDeal = () => {
     if (deleteId) {
       deleteDeal(deleteId);
-      addToast('Negócio excluído com sucesso', 'success');
+      addToast('Paciente excluído com sucesso', 'success');
       setDeleteId(null);
       onClose();
     }
@@ -543,7 +543,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                 <button
                   onClick={() => setDeleteId(deal.id)}
                   className="ml-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                  title="Excluir Negócio"
+                  title="Excluir Paciente"
                 >
                   <Trash2 size={24} />
                 </button>
@@ -582,7 +582,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
               />
             ) : (
               <div className="mt-4 rounded-lg border border-slate-200/60 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                Board não encontrado para este negócio. Algumas ações (mover estágio) podem ficar indisponíveis.
+                Board não encontrado para este paciente. Algumas ações (mover etapa) podem ficar indisponíveis.
               </div>
             )}
           </div>
@@ -953,7 +953,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           {!deal.items || deal.items.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic">
-                                Nenhum produto adicionado. O valor do negócio é manual.
+                                Nenhum produto adicionado. O valor do paciente é manual.
                               </td>
                             </tr>
                           ) : (
@@ -1014,7 +1014,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                             Insights Gemini
                           </h3>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Inteligência Artificial aplicada ao negócio
+                            Inteligência Artificial aplicada ao paciente
                           </p>
                         </div>
                       </div>
@@ -1051,7 +1051,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           ) : (
                             <BrainCircuit size={16} />
                           )}
-                          Analisar Negócio
+                          Analisar Paciente
                         </button>
                         <button
                           onClick={handleDraftEmail}
@@ -1156,8 +1156,8 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
           isOpen={Boolean(deleteId)}
           onClose={() => setDeleteId(null)}
           onConfirm={confirmDeleteDeal}
-          title="Excluir Negócio"
-          message="Tem certeza que deseja excluir este negócio? Esta ação não pode ser desfeita."
+          title="Excluir Paciente"
+          message="Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita."
           confirmText="Excluir"
           variant="danger"
         />
@@ -1213,7 +1213,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
 
   if (isMobile) {
     return (
-      <DealSheet isOpen={isOpen} onClose={onClose} ariaLabel={`Negócio: ${deal.title}`}>
+      <DealSheet isOpen={isOpen} onClose={onClose} ariaLabel={`Paciente: ${deal.title}`}>
         <div onKeyDown={handleKeyDown}>{inner}</div>
       </DealSheet>
     );

@@ -67,7 +67,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
   return (
     <SettingsSection title="Campos Personalizados" icon={PenTool}>
       <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
-        Crie campos específicos para o seu negócio (ex: CNPJ, Data de Contrato, Origem). Eles aparecerão nos detalhes do negócio.
+        Crie campos específicos para o seu paciente (ex: CNPJ, Data de Contrato, Origem). Eles aparecerão nos detalhes do paciente.
       </p>
 
       <div className={`p-4 rounded-xl border transition-all mb-6 ${editingId ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-500/20' : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5'}`}>
@@ -133,7 +133,7 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
               placeholder="Ex: Google, Facebook, Instagram, Indicação"
               className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white"
             />
-            <p className="text-[10px] text-slate-400 mt-1">Essas opções aparecerão em um menu dropdown no detalhe do negócio.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Essas opções aparecerão em um menu dropdown no detalhe do paciente.</p>
           </div>
         )}
       </div>

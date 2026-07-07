@@ -36,7 +36,7 @@ const ReportsPage: React.FC = () => {
     }
   }, [defaultBoardId, selectedBoardId]);
 
-  // Pegar o board selecionado para acessar a meta
+  // Pegar o funil selecionado para acessar a meta
   const selectedBoard = useMemo(() => {
     return boards.find(b => b.id === selectedBoardId);
   }, [boards, selectedBoardId]);
@@ -59,7 +59,7 @@ const ReportsPage: React.FC = () => {
     funnelData,
   } = useDashboardMetrics(period, selectedBoardId);
 
-  // Extrair meta do board selecionado
+  // Extrair meta do funil selecionado
   const boardGoal = selectedBoard?.goal;
   const goalType = boardGoal?.type || 'currency';
   const goalTarget = parseFloat(boardGoal?.targetValue || '0') || 0;
@@ -266,7 +266,7 @@ const ReportsPage: React.FC = () => {
             <Settings className="text-amber-500" size={20} />
             <div className="flex-1">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">Meta não configurada</h3>
-              <p className="text-xs text-slate-500">Defina uma meta no board para acompanhar o forecast.</p>
+              <p className="text-xs text-slate-500">Defina uma meta no funil para acompanhar o forecast.</p>
             </div>
             <button
               onClick={() => router.push(getScopedHref('/boards'))}

@@ -112,7 +112,7 @@ export const LossReasonModal: React.FC<LossReasonModalProps> = ({
                   id={titleId}
                   className="font-bold text-slate-900 dark:text-white font-display"
                 >
-                  Negócio Perdido
+                  Paciente Perdido
                 </h3>
                 {dealTitle && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]">

@@ -50,7 +50,7 @@ const DashboardPage: React.FC = () => {
     }
   }, [boards, selectedBoardId]);
 
-  // Calcular contagem de contatos por estágio de ciclo de vida
+  // Calcular contagem de contatos por etapa de ciclo de vida
   const stageCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
     contacts.forEach(contact => {
@@ -109,7 +109,7 @@ const DashboardPage: React.FC = () => {
             Visão Geral
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            O pulso do seu negócio em tempo real.
+            O pulso do seu paciente em tempo real.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ const DashboardPage: React.FC = () => {
           comparisonLabel={COMPARISON_LABELS[period]}
         />
         <StatCard
-          title="Negócios Ativos"
+          title="Pacientes Ativos"
           value={`${deals.length - wonDeals.length}`}
           subtext={dealsChangeInfo.text}
           subtextPositive={dealsChangeInfo.isPositive}
@@ -248,7 +248,7 @@ const DashboardPage: React.FC = () => {
             onClick={() => setShowPipelineAlerts(true)}
           >
             <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
-              Negócios Parados
+              Pacientes Parados
             </h3>
             <div className="flex items-end gap-2">
               <span className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -259,7 +259,7 @@ const DashboardPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Sem mudança de estágio há +10 dias.
+              Sem mudança de etapa há +10 dias.
             </p>
             <p className="text-xs text-slate-400 mt-1">
               ${stagnantDealsValue.toLocaleString()} em risco

@@ -245,7 +245,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Filtrar negócios ou empresas..."
+                        placeholder="Filtrar pacientes ou empresas..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-line bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-brand-500 dark:text-white backdrop-blur-sm"
@@ -274,11 +274,11 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                 <FilterSelect
                     value={ownerFilter}
                     onChange={setOwnerFilter}
-                    ariaLabel="Filtrar negócios por proprietário"
+                    ariaLabel="Filtrar pacientes por proprietário"
                     leading={<User size={14} className="text-faint" aria-hidden="true" />}
                     options={[
                         { value: 'all', label: 'Todos os Donos' },
-                        { value: 'mine', label: 'Meus Negócios' },
+                        { value: 'mine', label: 'Meus Pacientes' },
                     ]}
                 />
             </div>
@@ -288,7 +288,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                     onClick={onNewDeal}
                     className="bg-brand-700 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-brand-700/20"
                 >
-                    <Plus size={18} aria-hidden="true" /> Novo Negócio
+                    <Plus size={18} aria-hidden="true" /> Novo Paciente
                 </button>
             </div>
         </div>

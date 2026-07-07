@@ -1525,7 +1525,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
                 <div className="truncate text-xs text-slate-400">{companyName}</div>
                 {crmLoading ? <div className="ml-2 text-[11px] text-slate-600">Sincronizando…</div> : null}
               </div>
-              <div className="mt-1 text-[11px] text-slate-600">{board.name ?? 'Pipeline'}</div>
+              <div className="mt-1 text-[11px] text-slate-600">{board.name ?? 'Funil'}</div>
             </div>
 
             <div className="shrink-0 text-right">

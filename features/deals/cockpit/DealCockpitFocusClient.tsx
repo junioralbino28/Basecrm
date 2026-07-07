@@ -66,7 +66,7 @@ export default function DealCockpitFocusClient({ dealId }: { dealId: string }) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-sm text-slate-500 dark:text-slate-400">
-          Negócio não encontrado. Volte e tente novamente.
+          Paciente não encontrado. Volte e tente novamente.
         </div>
       </div>
     );

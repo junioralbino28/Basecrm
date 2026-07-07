@@ -62,19 +62,19 @@ const FEATURES: FeatureItem[] = [
   {
     key: 'ai_board_generate_structure',
     title: 'Boards: gerar estrutura',
-    description: 'Cria estágios e automações sugeridas.',
+    description: 'Cria etapas e automações sugeridas.',
     promptKey: 'task_boards_generate_structure',
   },
   {
     key: 'ai_board_generate_strategy',
     title: 'Boards: gerar estratégia',
-    description: 'Define meta/KPI/persona do board.',
+    description: 'Define meta/KPI/persona do funil.',
     promptKey: 'task_boards_generate_strategy',
   },
   {
     key: 'ai_board_refine',
     title: 'Boards: refinar com IA',
-    description: 'Refina o board via chat/instruções.',
+    description: 'Refina o funil via chat/instruções.',
     promptKey: 'task_boards_refine',
   },
 ];

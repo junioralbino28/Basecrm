@@ -108,7 +108,7 @@ export const TenantsPage: React.FC = () => {
       specialty: 'Odontologia',
       primaryGoal:
         mode === 'empty'
-          ? 'Receber migracao segura do tenant legado sem board inicial'
+          ? 'Receber migracao segura do tenant legado sem funil inicial'
           : 'Validar o fluxo multi-clinica e o atendimento operacional no CRM',
       serviceModel:
         mode === 'empty'
@@ -117,7 +117,7 @@ export const TenantsPage: React.FC = () => {
       leadChannel: 'WhatsApp',
       notes:
         mode === 'empty'
-          ? 'Conta limpa criada para receber migracao do tenant legado sem provisioning de board inicial.'
+          ? 'Conta limpa criada para receber migracao do tenant legado sem provisioning de funil inicial.'
           : 'Conta de validacao criada para separar dados legados da agencia e testar o modelo novo.',
       provisioningMode: mode,
     };

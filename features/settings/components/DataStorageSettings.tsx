@@ -205,7 +205,7 @@ export const DataStorageSettings: React.FC = () => {
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.deals}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Negocios</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Pacientes</div>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activities}</div>
@@ -213,7 +213,7 @@ export const DataStorageSettings: React.FC = () => {
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.boards}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Boards</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Funis</div>
                     </div>
                 </div>
             </div>
@@ -240,11 +240,11 @@ export const DataStorageSettings: React.FC = () => {
                                     <strong>ATENCAO:</strong> Esta acao vai excluir permanentemente:
                                 </p>
                                 <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                                    <li>{stats.deals} negocios</li>
+                                    <li>{stats.deals} pacientes</li>
                                     <li>{stats.contacts} contatos</li>
                                     <li>{stats.companies} empresas de clientes</li>
                                     <li>{stats.activities} atividades</li>
-                                    <li>{stats.boards} boards (e seus stages)</li>
+                                    <li>{stats.boards} funis (e suas etapas)</li>
                                     <li>Todas as tags e produtos</li>
                                 </ul>
                                 <p className="text-sm text-red-700 dark:text-red-300 mt-3 font-medium">

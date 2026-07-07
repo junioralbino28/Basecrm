@@ -66,13 +66,13 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
             'CLOSED_WON': 'Ganho',
             'CLOSED_LOST': 'Perdido',
             'LEAD': 'Lead',
-            'MQL': 'Lead Qualificado',
-            'PROSPECT': 'Oportunidade',
-            'CUSTOMER': 'Cliente'
+            'MQL': 'Qualificado',
+            'PROSPECT': 'Em proposta',
+            'CUSTOMER': 'Paciente'
         };
         
         // Se ainda é UUID e não encontrou, mostra fallback amigável
-        return map[status] || 'Estágio não identificado';
+        return map[status] || 'Etapa não identificado';
     };
 
     const formatRelativeTime = (dateString: string) => {
@@ -96,7 +96,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                 </span>
             );
         }
-        if (title === 'Negócio Criado') return 'Negócio criado';
+        if (title === 'Paciente Criado') return 'Paciente criado';
         return title;
     };
 

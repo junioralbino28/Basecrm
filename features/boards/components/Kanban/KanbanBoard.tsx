@@ -258,7 +258,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             >
               {stageDeals.length === 0 && !draggingId && (
                 <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm py-8">
-                  Sem negócios
+                  Sem pacientes
                 </div>
               )}
               {isOver && stageDeals.length === 0 && (

@@ -327,9 +327,9 @@ Responda em português do Brasil.`,
             ? lifecycleStages.map((s: any) => ({ id: s?.id || '', name: s?.name || String(s) }))
             : [
                 { id: 'LEAD', name: 'Lead' },
-                { id: 'MQL', name: 'MQL' },
-                { id: 'PROSPECT', name: 'Oportunidade' },
-                { id: 'CUSTOMER', name: 'Cliente' },
+                { id: 'MQL', name: 'Qualificado' },
+                { id: 'PROSPECT', name: 'Em proposta' },
+                { id: 'CUSTOMER', name: 'Paciente' },
                 { id: 'OTHER', name: 'Outros' },
               ];
 

@@ -50,7 +50,7 @@ export const FunnelChart: React.FC<FunnelChartProps> = ({ data }) => {
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-          formatter={(value: number) => [`${value} negócios`, 'Quantidade']}
+          formatter={(value: number) => [`${value} pacientes`, 'Quantidade']}
           contentStyle={{
             backgroundColor: 'var(--chart-tooltip-bg)',
             border: '1px solid var(--chart-tooltip-border)',

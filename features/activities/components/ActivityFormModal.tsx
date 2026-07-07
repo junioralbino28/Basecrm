@@ -118,7 +118,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                Negócio Relacionado
+                Paciente Relacionado
               </label>
               <select
                 required={!editingActivity}

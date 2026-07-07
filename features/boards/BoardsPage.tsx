@@ -13,7 +13,7 @@ export const BoardsPage: React.FC = () => {
     const { isFirstVisit, completeOnboarding } = useFirstVisit();
     const [showOnboarding, setShowOnboarding] = React.useState(false);
 
-    // Show onboarding modal on first visit IF there are no boards
+    // Show onboarding modal on first visit IF there are no funils
     // Only decide after boards have been fetched at least once
     useEffect(() => {
         // Wait until boards query has completed at least once

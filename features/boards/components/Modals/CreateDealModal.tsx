@@ -10,14 +10,14 @@ import { ContactSearchCombobox } from '@/components/ui/ContactSearchCombobox';
 interface CreateDealModalProps {
     isOpen: boolean;
     onClose: () => void;
-    /** O board ativo - passado pelo controller do Kanban */
+    /** O funil ativo - passado pelo controller do Kanban */
     activeBoard?: Board | null;
-    /** O ID do board ativo - passado pelo controller do Kanban */
+    /** O ID do funil ativo - passado pelo controller do Kanban */
     activeBoardId?: string;
 }
 
 /**
- * Modal para criação de um novo negócio (Deal).
+ * Modal para criação de um novo paciente (Deal).
  * Permite buscar contatos existentes ou criar novos.
  */
 export const CreateDealModal: React.FC<CreateDealModalProps> = ({
@@ -29,7 +29,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
     const { addDeal, activeBoard: contextActiveBoard, activeBoardId: contextActiveBoardId } = useCRM();
     const { profile, user } = useAuth();
 
-    // Prioriza props sobre contexto (permite que o Kanban passe o board correto)
+    // Prioriza props sobre contexto (permite que o Kanban passe o funil correto)
     const activeBoard = propActiveBoard || contextActiveBoard;
     const activeBoardId = propActiveBoardId || contextActiveBoardId;
 
@@ -105,7 +105,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
             <div className="fixed inset-0 md:left-[var(--app-sidebar-width,0px)] z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                 <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-5">
                     <p className="text-slate-700 dark:text-slate-300 text-center">
-                        Nenhum board selecionado ou board sem estágios.
+                        Nenhum funil selecionado ou board sem etapas.
                     </p>
                     <button
                         onClick={onClose}
@@ -124,7 +124,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
         setIsSubmitting(true);
 
         try {
-            // Usa o primeiro estágio do board ativo
+            // Usa o primeiro etapa do funil ativo
             const firstStage = activeBoard.stages[0];
 
             const ownerName = profile?.nickname ||
@@ -182,14 +182,14 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
             
             // Se retornou null, houve erro (já logado no console)
             if (result === null) {
-                setError('Já existe um negócio com este título para este contato. Altere o título ou selecione outro contato.');
+                setError('Já existe um paciente com este título para este contato. Altere o título ou selecione outro contato.');
                 return;
             }
 
             onClose();
             resetForm();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao criar negócio. Tente novamente.');
+            setError(err instanceof Error ? err.message : 'Erro ao criar paciente. Tente novamente.');
         } finally {
             setIsSubmitting(false);
         }
@@ -210,7 +210,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
             >
                 <div className="p-5 border-b border-slate-200 dark:border-white/10 flex justify-between items-center sticky top-0 bg-white dark:bg-dark-card z-10">
                     <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Novo Negócio</h2>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Novo Paciente</h2>
                         <DebugFillButton onClick={fillWithFakeData} />
                     </div>
                     <button onClick={() => { onClose(); resetForm(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
@@ -360,13 +360,13 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                         )}
                     </div>
 
-                    {/* Dados do Negócio */}
+                    {/* Dados do Paciente */}
                     <div className="pt-3 border-t border-slate-100 dark:border-white/5">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Dados do Negócio</h3>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Dados do Paciente</h3>
                         
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Nome do Negócio *</label>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Nome do Paciente *</label>
                                 <input
                                     required
                                     type="text"
@@ -409,7 +409,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 Criando...
                             </>
                         ) : (
-                            'Criar Negócio'
+                            'Criar Paciente'
                         )}
                     </button>
                 </form>

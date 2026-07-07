@@ -167,7 +167,7 @@ export const WebhooksSection: React.FC = () => {
 
   React.useEffect(() => {
     if (!selectedStageId && stages.length > 0) {
-      // Heurística: preferir um estágio com label "Novo" se existir, senão o primeiro
+      // Heurística: preferir um etapa com label "Novo" se existir, senão o primeiro
       const preferred =
         stages.find(s => (s.label || '').toLowerCase().includes('novo')) || stages[0];
       setSelectedStageId(preferred.id);
@@ -491,7 +491,7 @@ export const WebhooksSection: React.FC = () => {
               <div>
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white">Entrada de Leads (Webhook)</h4>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                  Receba leads de Hotmart, formulários, n8n/Make e crie automaticamente um negócio no funil.
+                  Receba leads de Hotmart, formulários, n8n/Make e crie automaticamente um paciente no funil.
                 </p>
               </div>
               <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${hasInbound ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>

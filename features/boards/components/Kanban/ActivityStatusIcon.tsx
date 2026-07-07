@@ -117,7 +117,7 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
                                 }}
                                 className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 rounded flex items-center gap-2 focus-visible-ring"
                             >
-                                <ArrowRightLeft size={14} className="text-green-500" aria-hidden="true" /> Mover para estágio...
+                                <ArrowRightLeft size={14} className="text-green-500" aria-hidden="true" /> Mover para etapa...
                             </button>
                         </div>
                     )}

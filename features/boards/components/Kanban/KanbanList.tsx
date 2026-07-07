@@ -73,8 +73,8 @@ const KanbanListRow = React.memo(function KanbanListRow({
                     ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
                     : 'bg-slate-100 text-slate-600 dark:bg-surface dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-surface'
               }`}
-              aria-label="Mover estágio"
-              title="Mover estágio"
+              aria-label="Mover etapa"
+              title="Mover etapa"
             >
               {stageLabel}
             </button>
@@ -216,13 +216,13 @@ export const KanbanList: React.FC<KanbanListProps> = ({
             <tr>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider w-10"></th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Negócio
+                Paciente
               </th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Empresa
               </th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Estágio
+                Etapa
               </th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Valor

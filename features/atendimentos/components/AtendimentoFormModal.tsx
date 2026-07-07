@@ -136,7 +136,7 @@ export const AtendimentoFormModal: React.FC<AtendimentoFormModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="atd-deal" className={labelClass}>Paciente (Negócio)</label>
+            <label htmlFor="atd-deal" className={labelClass}>Paciente (Paciente)</label>
             <select
               id="atd-deal"
               className={inputClass}

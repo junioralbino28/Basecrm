@@ -51,7 +51,7 @@ type ChecklistItem = {
   hint?: string;
 };
 
-type LeftDataTab = 'contato' | 'negocio';
+type LeftDataTab = 'contato' | 'paciente';
 
 type QuickAction = {
   id: string;
@@ -593,13 +593,13 @@ export default function DealCockpitMockClient() {
                   <button
                     type="button"
                     className={
-                      leftDataTab === 'negocio'
+                      leftDataTab === 'paciente'
                         ? 'rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-slate-100 ring-1 ring-white/10'
                         : 'rounded-full bg-white/3 px-2.5 py-1 text-[11px] font-semibold text-slate-300 ring-1 ring-white/10 hover:bg-white/5'
                     }
-                    onClick={() => setLeftDataTab('negocio')}
+                    onClick={() => setLeftDataTab('paciente')}
                   >
-                    Negócio
+                    Paciente
                   </button>
                 </div>
               }

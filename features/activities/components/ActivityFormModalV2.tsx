@@ -132,7 +132,7 @@ export const ActivityFormModalV2: React.FC<ActivityFormModalV2Props> = ({
             registration={register('type')}
           />
           <SelectField
-            label="Negócio Relacionado"
+            label="Paciente Relacionado"
             options={dealOptions}
             placeholder="Selecione..."
             error={errors.dealId}

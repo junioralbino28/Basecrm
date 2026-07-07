@@ -45,7 +45,7 @@ export const PlatformPage: React.FC = () => {
         >
           <div className="text-sm font-semibold text-slate-900 dark:text-white">Preparar nova clinica</div>
           <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            Cria a conta, aplica a configuracao inicial e monta o board com suporte da IA.
+            Cria a conta, aplica a configuracao inicial e monta o funil com suporte da IA.
           </div>
         </Link>
       </div>

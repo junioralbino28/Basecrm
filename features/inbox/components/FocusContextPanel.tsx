@@ -455,8 +455,8 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
         };
     }, [aiAnalysis, activities]);
 
-    // Snapshot completo do cockpit para a IA (equivalente ao “board envia tudo do board”)
-    // Importante: esse snapshot é enviado via props-only para evitar herdar contexto global do board.
+    // Snapshot completo do cockpit para a IA (equivalente ao “board envia tudo do funil”)
+    // Importante: esse snapshot é enviado via props-only para evitar herdar contexto global do funil.
     const cockpitSnapshot = useMemo(() => {
         const stageInfo = currentStage
             ? { id: currentStage.id, label: currentStage.label, color: currentStage.color }
@@ -746,7 +746,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                         </div>
                         <div className="absolute left-1/2 -translate-x-1/2">
                             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                                {board?.name || 'Board'}
+                                {board?.name || 'Funil'}
                             </span>
                         </div>
                         <div className="text-right">
@@ -1094,7 +1094,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                         {/* Deal Info Card */}
                         <div className="p-4 border-b border-dark-border">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Negócio</span>
+                                <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Paciente</span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${deal.priority === 'high' ? 'bg-red-500/10 text-red-400' :
                                     deal.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-400' :
                                         'bg-slate-500/10 text-slate-400'
@@ -1630,7 +1630,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                                             const result = await generateSalesScript({
                                                                 deal: { title: deal.title },
                                                                 scriptType: type,
-                                                                context: `Estágio: ${currentStage?.label || deal.status}. Contato: ${contact?.name || 'Cliente'}.`,
+                                                                context: `Etapa: ${currentStage?.label || deal.status}. Contato: ${contact?.name || 'Cliente'}.`,
                                                             });
 
                                                             if (result?.script) {

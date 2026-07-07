@@ -62,7 +62,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
             <option value="/dashboard">Dashboard</option>
             <option value="/inbox-list">Inbox (Lista)</option>
             <option value="/inbox-focus">Inbox (Foco)</option>
-            <option value="/boards">Boards (Kanban)</option>
+            <option value="/boards">Funis (Kanban)</option>
             <option value="/contacts">Contatos</option>
             <option value="/activities">Atividades</option>
             <option value="/reports">Relatórios</option>

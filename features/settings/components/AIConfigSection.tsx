@@ -641,7 +641,7 @@ export const AIConfigSection: React.FC = () => {
                                         Ao salvar sua chave de API, você autoriza:
                                     </p>
                                     <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-200 ml-2">
-                                        <li>O processamento dos seus <strong>negócios</strong> (deals) pela IA</li>
+                                        <li>O processamento dos seus <strong>pacientes</strong> (deals) pela IA</li>
                                         <li>O processamento dos seus <strong>contatos</strong> pela IA</li>
                                         <li>O processamento das suas <strong>atividades</strong> pela IA</li>
                                         <li>Geração de sugestões e textos pelo provedor configurado</li>

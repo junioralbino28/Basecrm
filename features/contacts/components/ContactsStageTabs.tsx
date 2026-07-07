@@ -25,21 +25,21 @@ const STAGE_CONFIG = {
       'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-500/30',
   },
   MQL: {
-    label: 'MQL',
+    label: 'Qualificados',
     icon: UserCheck,
     color: 'bg-blue-500',
     activeColor:
       'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-500/30',
   },
   PROSPECT: {
-    label: 'Prospects',
+    label: 'Em proposta',
     icon: Handshake,
     color: 'bg-purple-500',
     activeColor:
       'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-500/30',
   },
   CUSTOMER: {
-    label: 'Clientes',
+    label: 'Pacientes',
     icon: Crown,
     color: 'bg-green-500',
     activeColor:
@@ -130,7 +130,7 @@ export const ContactsStageTabs: React.FC<ContactsStageTabs> = ({
   );
 };
 
-// Badge de estágio para usar nas rows
+// Badge de etapa para usar nas rows
 /**
  * Componente React `StageBadge`.
  *

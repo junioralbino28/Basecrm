@@ -36,7 +36,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
     const [newStageName, setNewStageName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
-    // Calcular contagem de contatos por estágio
+    // Calcular contagem de contatos por etapa
     const stageCounts = React.useMemo(() => {
         const counts: Record<string, number> = {};
         contacts.forEach(contact => {
@@ -94,7 +94,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
 
                     <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
                         <div className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                            Defina os estágios de maturidade dos seus contatos (ex: Lead, Cliente).
+                            Defina os etapas de maturidade dos seus contatos (ex: Lead, Cliente).
                             A ordem aqui define a progressão no funil.
                         </div>
 
@@ -125,7 +125,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                 {/* Count Badge */}
                                 <span
                                     className="text-[10px] font-medium text-slate-500 bg-white dark:bg-card px-2 py-0.5 rounded-full border border-slate-200 dark:border-line"
-                                    title={`${stageCounts[stage.id] || 0} contatos neste estágio`}
+                                    title={`${stageCounts[stage.id] || 0} contatos neste etapa`}
                                 >
                                     {stageCounts[stage.id] || 0}
                                 </span>
@@ -155,10 +155,10 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                         className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed ml-1"
                                         title={
                                             stage.isDefault
-                                                ? "Estágio padrão não pode ser removido"
+                                                ? "Etapa padrão não pode ser removido"
                                                 : (stageCounts[stage.id] || 0) > 0
-                                                    ? "Não é possível remover estágio com contatos vinculados"
-                                                    : "Remover estágio"
+                                                    ? "Não é possível remover etapa com contatos vinculados"
+                                                    : "Remover etapa"
                                         }
                                     >
                                         <Trash2 size={14} />
@@ -177,7 +177,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                     value={newStageName}
                                     onChange={(e) => setNewStageName(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-                                    placeholder="Nome do novo estágio..."
+                                    placeholder="Nome do novo etapa..."
                                     className="flex-1 bg-transparent text-sm outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
                                 />
                                 <button
@@ -200,7 +200,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                 className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg border border-dashed border-slate-300 dark:border-line transition-all"
                             >
                                 <Plus size={16} />
-                                Adicionar Estágio
+                                Adicionar Etapa
                             </button>
                         )}
                     </div>

@@ -578,7 +578,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
                   <div>
                     <div className="text-sm font-semibold text-slate-900 dark:text-white">Vincular contexto</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Esta atividade não tem deal/contato associado. Selecione um negócio para abrir o Cockpit.
+                      Esta atividade não tem deal/contato associado. Selecione um paciente para abrir o Cockpit.
                     </div>
                   </div>
                   <button
@@ -594,7 +594,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
                   <input
                     value={contextSearch}
                     onChange={e => setContextSearch(e.target.value)}
-                    placeholder="Buscar negócio pelo título…"
+                    placeholder="Buscar paciente pelo título…"
                     className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-brand-500/40"
                   />
                 </div>
@@ -612,7 +612,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
                   ))}
                   {suggestedDeals.length === 0 && (
                     <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center col-span-full">
-                      Nenhum negócio encontrado. Tente outro termo.
+                      Nenhum paciente encontrado. Tente outro termo.
                     </div>
                   )}
                 </div>
