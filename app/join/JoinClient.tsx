@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/utils/errorUtils'
-import { Loader2, Mail, Lock, User, ArrowRight, AlertCircle } from 'lucide-react'
+import { Loader2, Mail, Lock, User, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 /**
  * Componente React `JoinClient`.
@@ -23,6 +23,7 @@ export function JoinClient({ token: tokenProp }: { token?: string | null }) {
   const [validating, setValidating] = useState(true)
   const [inviteData, setInviteData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -210,15 +211,23 @@ export function JoinClient({ token: tokenProp }: { token?: string | null }) {
                 </div>
                 <input
                   id="join-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   aria-required="true"
                   minLength={6}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-line rounded-xl bg-slate-50 dark:bg-card/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all sm:text-sm"
+                  className="block w-full pl-10 pr-10 py-2.5 border border-slate-300 dark:border-line rounded-xl bg-slate-50 dark:bg-card/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all sm:text-sm"
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
