@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const createUser = vi.fn();
 const deleteUser = vi.fn();
 let inviteRow: Record<string, unknown> | null;
+let profilesError: { message: string } | null = null;
+let permError: { message: string } | null = null;
 const profilesUpserts: Array<Record<string, unknown>> = [];
 const permUpserts: Array<Record<string, unknown>> = [];
 
@@ -16,14 +18,14 @@ vi.mock('@/lib/supabase/server', () => ({
           select: () => ({
             eq: () => ({ is: () => ({ single: () => Promise.resolve({ data: inviteRow, error: inviteRow ? null : { message: 'not found' } }) }) }),
           }),
-          update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+          update: () => ({ eq: () => ({ is: () => Promise.resolve({ error: null }) }) }),
         };
       }
       if (table === 'profiles') {
-        return { upsert: (payload: Record<string, unknown>) => { profilesUpserts.push(payload); return Promise.resolve({ error: null }); } };
+        return { upsert: (payload: Record<string, unknown>) => { profilesUpserts.push(payload); return Promise.resolve({ error: profilesError }); } };
       }
       if (table === 'profile_permissions') {
-        return { upsert: (payload: Record<string, unknown>) => { permUpserts.push(payload); return Promise.resolve({ error: null }); } };
+        return { upsert: (payload: Record<string, unknown>) => { permUpserts.push(payload); return Promise.resolve({ error: permError }); } };
       }
       return {};
     },
@@ -46,6 +48,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   profilesUpserts.length = 0;
   permUpserts.length = 0;
+  profilesError = null;
+  permError = null;
   createUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
   inviteRow = {
     id: 'inv-1',
@@ -82,5 +86,33 @@ describe('POST /api/invites/accept — aplica cargo + permissões do convite', (
     const res = await accept({ token: 'tok-1', email: 'outro@x.com', password: '123456' });
     expect(res.status).toBe(400);
     expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejeita convite legado SEM email (evita takeover)', async () => {
+    inviteRow = { ...(inviteRow as object), email: null } as Record<string, unknown>;
+    const res = await accept({ token: 'tok-1', email: 'qualquer@x.com', password: '123456' });
+    expect(res.status).toBe(400);
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejeita convite expirado (400) sem criar usuário', async () => {
+    inviteRow = { ...(inviteRow as object), expires_at: '2020-01-01T00:00:00.000Z' } as Record<string, unknown>;
+    const res = await accept({ token: 'tok-1', email: 'vitoria@clinica.com', password: '123456' });
+    expect(res.status).toBe(400);
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it('rollback: falha ao gravar profile -> deleteUser + 400', async () => {
+    profilesError = { message: 'db down' };
+    const res = await accept({ token: 'tok-1', email: 'vitoria@clinica.com', password: '123456' });
+    expect(res.status).toBe(400);
+    expect(deleteUser).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rollback: falha ao gravar permissão -> deleteUser + 400', async () => {
+    permError = { message: 'db down' };
+    const res = await accept({ token: 'tok-1', email: 'vitoria@clinica.com', password: '123456' });
+    expect(res.status).toBe(400);
+    expect(deleteUser).toHaveBeenCalledWith('user-1');
   });
 });

@@ -3,7 +3,8 @@ import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 import { APP_USER_ROLES, getAssignableRoles, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
-import { APP_PERMISSIONS } from '@/lib/auth/permissions';
+import { APP_PERMISSIONS, resolvePermissionMap } from '@/lib/auth/permissions';
+import { loadPermissionOverrides } from '@/lib/auth/permissions.server';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -83,6 +84,18 @@ export async function POST(req: Request) {
 
   const expiresAt = parsed.data.expiresAt ?? null;
 
+  // Defesa em profundidade: o convite NÃO pode conceder permissão que o próprio ator não tem.
+  // Só "true" é limitado ao poder do ator; "false" é sempre permitido (restringir é ok).
+  const actorOverrides = await loadPermissionOverrides(auth.me.id);
+  const actorPermissions = resolvePermissionMap(auth.me.role, actorOverrides);
+  const requestedOverrides = parsed.data.permissionOverrides ?? {};
+  const clampedOverrides: Record<string, boolean> = {};
+  for (const permissionKey of APP_PERMISSIONS) {
+    const requested = requestedOverrides[permissionKey];
+    if (typeof requested !== 'boolean') continue;
+    clampedOverrides[permissionKey] = requested && actorPermissions[permissionKey] === true;
+  }
+
   const { data: invite, error } = await admin
     .from('organization_invites')
     .insert({
@@ -90,7 +103,7 @@ export async function POST(req: Request) {
       role: requestedRole as AppUserRole,
       email: parsed.data.email,
       cargo: parsed.data.cargo ?? null,
-      permission_overrides: parsed.data.permissionOverrides ?? {},
+      permission_overrides: clampedOverrides,
       expires_at: expiresAt,
       created_by: auth.me.id,
     })

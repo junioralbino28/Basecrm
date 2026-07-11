@@ -57,7 +57,12 @@ export async function POST(req: Request) {
     return json({ error: 'Convite expirado' }, 400);
   }
 
-  if (invite.email && invite.email.toLowerCase() !== email.toLowerCase()) {
+  // O convite DEVE ter email travado. Convites legados sem email não são aceitáveis
+  // (senão qualquer email poderia usá-los — brecha de takeover).
+  if (!invite.email) {
+    return json({ error: 'Convite inválido: sem email associado. Peça um novo convite.' }, 400);
+  }
+  if (invite.email.toLowerCase() !== email.toLowerCase()) {
     return json({ error: 'Este convite não é válido para este email' }, 400);
   }
 
@@ -124,10 +129,12 @@ export async function POST(req: Request) {
     }
   }
 
+  // Guard atômico: só marca como usado se ainda estava null (consistência do single-use).
   await admin
     .from('organization_invites')
     .update({ used_at: nowIso })
-    .eq('id', invite.id);
+    .eq('id', invite.id)
+    .is('used_at', null);
 
   return json({ ok: true, user: { id: userId, email } });
 }

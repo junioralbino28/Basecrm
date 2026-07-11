@@ -218,7 +218,11 @@ export const UsersPage: React.FC = () => {
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
         setError(null);
-        setNewUserRole(roleOptions[0]?.value || 'clinic_staff');
+        const nextRole = roleOptions[0]?.value || 'clinic_staff';
+        setNewUserRole(nextRole);
+        setNewUserEmail('');
+        setNewUserCargo('');
+        setInvitePermissions(getDefaultPermissionMap(nextRole));
         setExpirationDays(7);
     }, [roleOptions]);
 
@@ -391,6 +395,8 @@ export const UsersPage: React.FC = () => {
             await new Promise(resolve => setTimeout(resolve, 100));
             setNewUserEmail('');
             setNewUserCargo('');
+            // Reseta as permissões pro padrão do cargo — evita o próximo convidado herdar os toggles deste.
+            setInvitePermissions(getDefaultPermissionMap(newUserRole));
             addToast('Convite gerado! Copie o link e envie para a pessoa.', 'success');
         } catch (err: any) {
             setError(err.message || 'Erro ao gerar link');

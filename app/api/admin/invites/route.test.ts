@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const authMock = vi.fn();
-let insertPayload: Record<string, unknown> | null = null;
+const loadOverridesMock = vi.fn();
+let insertPayload: Record<string, any> | null = null;
 
 vi.mock('@/lib/security/sameOrigin', () => ({ isAllowedOrigin: () => true }));
 vi.mock('@/lib/platform/adminTenantContext', () => ({
   requireAdminTenantContext: (...a: unknown[]) => authMock(...a),
+}));
+vi.mock('@/lib/auth/permissions.server', () => ({
+  loadPermissionOverrides: (...a: unknown[]) => loadOverridesMock(...a),
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({}),
@@ -38,6 +42,7 @@ function post(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   insertPayload = null;
+  loadOverridesMock.mockResolvedValue({}); // ator sem override = usa defaults do cargo (clinic_admin = tudo)
   authMock.mockResolvedValue({
     me: { id: 'me-1', role: 'clinic_admin' },
     targetOrganizationId: 'org-A',
@@ -73,5 +78,20 @@ describe('POST /api/admin/invites — convite granular', () => {
       permissionOverrides: { 'chave.invalida': true },
     });
     expect(res.status).toBe(400);
+  });
+
+  it('clampa: ator sem a permissão NÃO consegue concedê-la (defesa em profundidade)', async () => {
+    // ator é clinic_admin, mas foi restringido: settings.finance = false
+    loadOverridesMock.mockResolvedValue({ 'settings.finance': false });
+    const res = await post({
+      role: 'clinic_staff',
+      email: 'x@y.com',
+      permissionOverrides: { 'settings.finance': true, 'atendimentos.manage': true },
+    });
+    expect(res.status).toBe(201);
+    // settings.finance concedido como true, mas o ator não tem -> vira false
+    expect(insertPayload?.permission_overrides['settings.finance']).toBe(false);
+    // atendimentos.manage o ator tem -> passa
+    expect(insertPayload?.permission_overrides['atendimentos.manage']).toBe(true);
   });
 });
