@@ -3,6 +3,7 @@ import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 import { APP_USER_ROLES, getAssignableRoles, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
+import { APP_PERMISSIONS } from '@/lib/auth/permissions';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -11,11 +12,19 @@ function json<T>(body: T, status = 200): Response {
   });
 }
 
+// Mesmo shape do PermissionSchema de users/[id]/permissions: .strict() rejeita chave inválida.
+const PermissionOverridesSchema = z
+  .object(Object.fromEntries(APP_PERMISSIONS.map((permission) => [permission, z.boolean().optional()])))
+  .strict();
+
 const CreateInviteSchema = z
   .object({
     role: z.enum(APP_USER_ROLES).default('clinic_staff'),
     expiresAt: z.union([z.string().datetime(), z.null()]).optional(),
-    email: z.string().email().optional(),
+    // Email OBRIGATÓRIO: garante que o lock do aceite (accept/route.ts) sempre trava.
+    email: z.string().email(),
+    cargo: z.string().trim().max(120).optional(),
+    permissionOverrides: PermissionOverridesSchema.optional(),
     tenantId: z.string().uuid().nullable().optional(),
     scope: z.enum(['agency', 'clinic']).optional(),
   })
@@ -35,7 +44,7 @@ export async function GET(req: Request) {
 
   const { data: invites, error } = await admin
     .from('organization_invites')
-    .select('id, token, role, email, created_at, expires_at, used_at, created_by')
+    .select('id, token, role, email, cargo, permission_overrides, created_at, expires_at, used_at, created_by')
     .eq('organization_id', auth.targetOrganizationId)
     .is('used_at', null)
     .limit(200)
@@ -79,11 +88,13 @@ export async function POST(req: Request) {
     .insert({
       organization_id: auth.targetOrganizationId,
       role: requestedRole as AppUserRole,
-      email: parsed.data.email ?? null,
+      email: parsed.data.email,
+      cargo: parsed.data.cargo ?? null,
+      permission_overrides: parsed.data.permissionOverrides ?? {},
       expires_at: expiresAt,
       created_by: auth.me.id,
     })
-    .select('id, token, role, email, created_at, expires_at, used_at, created_by')
+    .select('id, token, role, email, cargo, permission_overrides, created_at, expires_at, used_at, created_by')
     .single();
 
   if (error) return json({ error: error.message }, 500);

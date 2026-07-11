@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { APP_PERMISSIONS } from '@/lib/auth/permissions';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
   const { data: invite, error: inviteError } = await admin
     .from('organization_invites')
     // Performance: fetch only what we need (keeps payload small and avoids extra parsing).
-    .select('id, token, email, role, expires_at, used_at, organization_id')
+    .select('id, token, email, role, cargo, permission_overrides, expires_at, used_at, organization_id')
     .eq('token', token)
     .is('used_at', null)
     .single();
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
         email,
         name: displayName,
         first_name: displayName,
+        cargo: invite.cargo ?? null,
         organization_id: invite.organization_id,
         role: invite.role,
         updated_at: nowIso,
@@ -95,6 +97,31 @@ export async function POST(req: Request) {
   if (profileError) {
     await admin.auth.admin.deleteUser(userId);
     return json({ error: profileError.message }, 400);
+  }
+
+  // Aplica as permissões escolhidas NO CONVITE (snapshot) -> profile_permissions.
+  // Mesmo upsert de app/api/admin/users/[id]/permissions; whitelist por APP_PERMISSIONS;
+  // usa a org DO CONVITE (não a do ator) para não vazar cross-tenant.
+  const inviteOverrides = (invite.permission_overrides ?? {}) as Record<string, unknown>;
+  for (const permissionKey of APP_PERMISSIONS) {
+    const value = inviteOverrides[permissionKey];
+    if (typeof value !== 'boolean') continue;
+
+    const { error: permError } = await admin.from('profile_permissions').upsert(
+      {
+        user_id: userId,
+        organization_id: invite.organization_id,
+        permission_key: permissionKey,
+        enabled: value,
+        updated_at: nowIso,
+      },
+      { onConflict: 'user_id,permission_key' }
+    );
+
+    if (permError) {
+      await admin.auth.admin.deleteUser(userId);
+      return json({ error: permError.message }, 400);
+    }
   }
 
   await admin
