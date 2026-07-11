@@ -6,7 +6,7 @@ import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/context/ToastContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import { Loader2, UserPlus, Crown, Briefcase, KeyRound, Mail, Check, X, Sparkles, Clock, RefreshCw, Trash2, Link, Copy, CheckCircle2 } from 'lucide-react';
-import { PERMISSION_DEFINITIONS, type AppPermission } from '@/lib/auth/permissions';
+import { PERMISSION_DEFINITIONS, getDefaultPermissionMap, type AppPermission } from '@/lib/auth/permissions';
 import { getRoleLabel, getRoleOptions, isAgencyAdminRole, isClinicAdminRole, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
 
 interface Profile {
@@ -57,6 +57,28 @@ const getAvatarProps = (email: string) => {
 // Valida formato de email
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+// Switch reutilizável (mesmo markup usado no card do membro e no convite — espelhamento).
+const Toggle: React.FC<{ checked: boolean; disabled?: boolean; onChange: () => void }> = ({ checked, disabled, onChange }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={onChange}
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
+            checked
+                ? 'border-emerald-500 bg-emerald-500'
+                : 'border-slate-300 bg-slate-200 dark:border-white/15 dark:bg-white/10'
+        } ${disabled ? 'cursor-wait opacity-70' : ''}`}
+    >
+        <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                checked ? 'translate-x-6' : 'translate-x-1'
+            }`}
+        />
+    </button>
+);
+
 /**
  * Componente React `UsersPage`.
  * @returns {Element} Retorna um valor do tipo `Element`.
@@ -77,6 +99,11 @@ export const UsersPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newUserRole, setNewUserRole] = useState<AppUserRole>('clinic_staff');
+    const [newUserEmail, setNewUserEmail] = useState('');
+    const [newUserCargo, setNewUserCargo] = useState('');
+    const [invitePermissions, setInvitePermissions] = useState<Partial<Record<AppPermission, boolean>>>(
+        () => getDefaultPermissionMap('clinic_staff')
+    );
     const [sendingInvites, setSendingInvites] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null); // id do usuário em ação
@@ -87,6 +114,22 @@ export const UsersPage: React.FC = () => {
     const [roleLoading, setRoleLoading] = useState<string | null>(null);
 
     const sb = supabase;
+
+    // Os toggles do convite começam no padrão do cargo; re-sincronizam ao trocar o cargo.
+    useEffect(() => {
+        setInvitePermissions(getDefaultPermissionMap(newUserRole));
+    }, [newUserRole]);
+
+    // Permissões agrupadas por área (mesma estrutura no card do membro e no convite).
+    const permissionGroups = useMemo(() => {
+        const groups = new Map<string, typeof PERMISSION_DEFINITIONS>();
+        for (const def of PERMISSION_DEFINITIONS) {
+            const list = groups.get(def.group) ?? [];
+            list.push(def);
+            groups.set(def.group, list);
+        }
+        return Array.from(groups.entries());
+    }, []);
 
     const effectiveScope: TeamScope = isPlatformTeamPage ? activeScope : 'clinic';
     const selectedClinic = tenantOptions.find((option) => option.id === selectedClinicId) || null;
@@ -313,6 +356,10 @@ export const UsersPage: React.FC = () => {
     };
 
     const handleGenerateLink = async () => {
+        if (!isValidEmail(newUserEmail)) {
+            setError('Informe um email válido para o convite.');
+            return;
+        }
         setSendingInvites(true);
         setError(null);
         try {
@@ -326,6 +373,9 @@ export const UsersPage: React.FC = () => {
                 credentials: 'include',
                 body: JSON.stringify({
                     role: newUserRole,
+                    email: newUserEmail.trim(),
+                    cargo: newUserCargo.trim() || undefined,
+                    permissionOverrides: invitePermissions,
                     expiresAt,
                     scope: effectiveScope,
                     tenantId: effectiveScope === 'clinic' ? selectedClinicId : null,
@@ -337,13 +387,11 @@ export const UsersPage: React.FC = () => {
                 throw new Error(data?.error || `Erro ao gerar link (HTTP ${res.status})`);
             }
 
-            // Force refresh of active invites and ensure state updates
             await fetchActiveInvites();
-            
-            // Small delay to ensure state propagation
             await new Promise(resolve => setTimeout(resolve, 100));
-            
-            addToast('Novo link gerado!', 'success');
+            setNewUserEmail('');
+            setNewUserCargo('');
+            addToast('Convite gerado! Copie o link e envie para a pessoa.', 'success');
         } catch (err: any) {
             setError(err.message || 'Erro ao gerar link');
         } finally {
@@ -598,54 +646,49 @@ export const UsersPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-5 grid gap-3 md:grid-cols-2">
-                                {PERMISSION_DEFINITIONS.map((permission) => {
-                                    const checked = Boolean(user.permissions?.[permission.key]);
-                                    const isSwitchLoading = permissionLoading === `${user.id}:${permission.key}`;
-
-                                    return (
-                                        <div
-                                            key={permission.key}
-                                            className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]"
-                                        >
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="min-w-0">
-                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                                                        {permission.label}
-                                                    </div>
-                                                    <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                        {permission.description}
-                                                    </div>
-                                                </div>
-
-                                                {isCurrentUser ? (
-                                                    <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                                                        voce
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        role="switch"
-                                                        aria-checked={checked}
-                                                        disabled={isSwitchLoading}
-                                                        onClick={() => void handlePermissionToggle(user.id, permission.key, !checked)}
-                                                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
-                                                            checked
-                                                                ? 'border-emerald-500 bg-emerald-500'
-                                                                : 'border-slate-300 bg-slate-200 dark:border-white/15 dark:bg-white/10'
-                                                        } ${isSwitchLoading ? 'cursor-wait opacity-70' : ''}`}
-                                                    >
-                                                        <span
-                                                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                                                                checked ? 'translate-x-6' : 'translate-x-1'
-                                                            }`}
-                                                        />
-                                                    </button>
-                                                )}
-                                            </div>
+                            <div className="mt-5 space-y-4">
+                                {permissionGroups.map(([group, defs]) => (
+                                    <div key={group}>
+                                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                            {group}
                                         </div>
-                                    );
-                                })}
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            {defs.map((permission) => {
+                                                const checked = Boolean(user.permissions?.[permission.key]);
+                                                const isSwitchLoading = permissionLoading === `${user.id}:${permission.key}`;
+                                                return (
+                                                    <div
+                                                        key={permission.key}
+                                                        className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div className="min-w-0">
+                                                                <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                                    {permission.label}
+                                                                </div>
+                                                                <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                                    {permission.description}
+                                                                </div>
+                                                            </div>
+
+                                                            {isCurrentUser ? (
+                                                                <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                                                    voce
+                                                                </span>
+                                                            ) : (
+                                                                <Toggle
+                                                                    checked={checked}
+                                                                    disabled={isSwitchLoading}
+                                                                    onChange={() => void handlePermissionToggle(user.id, permission.key, !checked)}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     );
@@ -869,6 +912,83 @@ export const UsersPage: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Email (obrigatório + lock) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                        Email da pessoa
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={newUserEmail}
+                                        onChange={(event) => setNewUserEmail(event.target.value)}
+                                        placeholder="pessoa@email.com"
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-line dark:bg-surface dark:text-slate-100"
+                                    />
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        A pessoa só consegue se cadastrar com este email — com outro, dá erro.
+                                    </p>
+                                </div>
+
+                                {/* Cargo/Função (texto livre) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                        Função
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={newUserCargo}
+                                        onChange={(event) => setNewUserCargo(event.target.value)}
+                                        placeholder="Ex: Dentista, Secretária, Gerente…"
+                                        maxLength={120}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-line dark:bg-surface dark:text-slate-100"
+                                    />
+                                </div>
+
+                                {/* Permissões agrupadas por área */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        Permissões
+                                    </label>
+                                    <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                                        O cargo já marca um padrão. Ajuste o que a pessoa pode fazer, área por área.
+                                    </p>
+                                    <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                                        {permissionGroups.map(([group, defs]) => (
+                                            <div key={group}>
+                                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                                    {group}
+                                                </div>
+                                                <div className="grid gap-2 md:grid-cols-2">
+                                                    {defs.map((permission) => {
+                                                        const checked = Boolean(invitePermissions[permission.key]);
+                                                        return (
+                                                            <div
+                                                                key={permission.key}
+                                                                className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]"
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">
+                                                                        {permission.label}
+                                                                    </div>
+                                                                    <div className="mt-0.5 text-xs leading-4 text-slate-500 dark:text-slate-400">
+                                                                        {permission.description}
+                                                                    </div>
+                                                                </div>
+                                                                <Toggle
+                                                                    checked={checked}
+                                                                    onChange={() =>
+                                                                        setInvitePermissions((prev) => ({ ...prev, [permission.key]: !checked }))
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Expiration Selection */}
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
@@ -918,7 +1038,7 @@ export const UsersPage: React.FC = () => {
 
                                 <button
                                     onClick={handleGenerateLink}
-                                    disabled={sendingInvites || isClinicScopeUnavailable}
+                                    disabled={sendingInvites || isClinicScopeUnavailable || !isValidEmail(newUserEmail)}
                                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-600/25 transition-all"
                                 >
                                     {sendingInvites ? (
