@@ -731,11 +731,11 @@ export const UsersPage: React.FC = () => {
                     }}
                 >
                     <div
-                        className="bg-white dark:bg-card rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        className="bg-white dark:bg-card rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
-                        <div className="px-6 pt-6 pb-4">
+                        <div className="shrink-0 px-6 pt-6 pb-4">
                             <div className="flex items-center gap-3 mb-1">
                                 <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
                                     <Link className="h-5 w-5 text-white" />
@@ -751,7 +751,7 @@ export const UsersPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="px-6 pb-6">
+                        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
                             {isPlatformTeamPage ? (
                                 <div className="mb-6 space-y-3">
                                     <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
@@ -958,7 +958,7 @@ export const UsersPage: React.FC = () => {
                                     <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                                         O cargo já marca um padrão. Ajuste o que a pessoa pode fazer, área por área.
                                     </p>
-                                    <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                                    <div className="space-y-4">
                                         {permissionGroups.map(([group, defs]) => (
                                             <div key={group}>
                                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1031,9 +1031,10 @@ export const UsersPage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
 
-                            {/* Modal Footer */}
-                            <div className="flex gap-3 mt-8 pt-6 border-t border-slate-100 dark:border-white/5">
+                        {/* Modal Footer — fica fixo no rodapé, fora da área que rola */}
+                        <div className="shrink-0 flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-white/5">
                                 <button
                                     type="button"
                                     onClick={closeModal}
@@ -1059,7 +1060,6 @@ export const UsersPage: React.FC = () => {
                                         </>
                                     )}
                                 </button>
-                            </div>
                         </div>
                     </div>
                 </div>
