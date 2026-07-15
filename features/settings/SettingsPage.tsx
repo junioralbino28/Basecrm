@@ -18,6 +18,8 @@ import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 
 import { UsersPage } from './UsersPage';
+import { useAuth } from '@/context/AuthContext';
+import { isAgencyRole } from '@/lib/auth/scope';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign } from 'lucide-react';
 
@@ -262,6 +264,7 @@ const getSettingsTabFromPathname = (pathname: string | null): SettingsTab => {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
+  const { profile, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<SettingsTab>(
     () => initialTab || getSettingsTabFromPathname(pathname),
@@ -273,6 +276,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const canViewIntegrations = useHasPermission('settings.integrations');
   const canConfigureAi = useHasPermission('ai.configure');
   const canManageUsers = useHasPermission('settings.users.manage');
+  const canViewData = authLoading ? undefined : isAgencyRole(profile?.role);
 
   // Get hash from URL for scrolling
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
@@ -289,21 +293,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     ...(canViewFinance === true ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
     ...(canViewIntegrations === true ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     ...(canConfigureAi === true ? [{ id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles }] : []),
-    { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
+    ...(canViewData === true ? [{ id: 'data' as SettingsTab, name: 'Dados', icon: Database }] : []),
     ...(canManageUsers === true ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
   ];
 
-  const activePermission = activeTab === 'data'
-    ? true
-    : {
-        general: canViewGeneral,
-        products: canViewProducts,
-        professionals: canViewProfessionals,
-        financeiro: canViewFinance,
-        integrations: canViewIntegrations,
-        ai: canConfigureAi,
-        users: canManageUsers,
-      }[activeTab];
+  const activePermission = {
+    general: canViewGeneral,
+    products: canViewProducts,
+    professionals: canViewProfessionals,
+    financeiro: canViewFinance,
+    integrations: canViewIntegrations,
+    ai: canConfigureAi,
+    data: canViewData,
+    users: canManageUsers,
+  }[activeTab];
 
   const renderContent = () => {
     if (activePermission === undefined) return <PageLoader />;

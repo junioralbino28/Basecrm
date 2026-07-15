@@ -6,6 +6,7 @@ import type { AppPermission } from '@/lib/auth/permissions'
 const testState = vi.hoisted(() => ({
   pathname: '/settings',
   role: 'admin',
+  authLoading: false,
   permissions: {} as Partial<Record<AppPermission, boolean | undefined>>,
 }))
 
@@ -14,7 +15,10 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({ profile: { role: testState.role } }),
+  useAuth: () => ({
+    profile: { role: testState.role },
+    loading: testState.authLoading,
+  }),
 }))
 
 vi.mock('@/lib/auth/useHasPermission', () => ({
@@ -73,6 +77,10 @@ vi.mock('./components/PlanilhasSection', () => ({
   PlanilhasSection: () => <div>Planilhas</div>,
 }))
 
+vi.mock('./components/DataStorageSettings', () => ({
+  DataStorageSettings: () => <h3>Conteúdo Dados</h3>,
+}))
+
 vi.mock('./components/ApiKeysSection', () => ({
   ApiKeysSection: () => <h3>Conteúdo Integrações</h3>,
 }))
@@ -110,6 +118,7 @@ describe('SettingsPage permissions', () => {
     vi.clearAllMocks()
     testState.pathname = '/settings'
     testState.role = 'admin'
+    testState.authLoading = false
     testState.permissions = Object.fromEntries(
       allowedPermissions.map((permission) => [permission, true]),
     ) as Partial<Record<AppPermission, boolean | undefined>>
@@ -147,6 +156,50 @@ describe('SettingsPage permissions', () => {
     fireEvent.click(professionalsTab)
 
     expect(await screen.findByRole('heading', { name: 'Conteúdo Profissionais' })).toBeInTheDocument()
+  })
+
+  it.each(['clinic_admin', 'clinic_staff'])(
+    'oculta a aba Dados para o role de clínica %s',
+    (role) => {
+      testState.role = role
+
+      render(<SettingsPage />)
+
+      expect(screen.queryByRole('button', { name: /^Dados$/i })).not.toBeInTheDocument()
+    },
+  )
+
+  it('bloqueia a URL direta de Dados para usuário de clínica', async () => {
+    testState.pathname = '/settings/data'
+    testState.role = 'clinic_admin'
+
+    render(<SettingsPage />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Acesso restrito')
+    expect(screen.queryByRole('heading', { name: 'Conteúdo Dados' })).not.toBeInTheDocument()
+  })
+
+  it.each(['agency_admin', 'agency_staff', 'admin'])(
+    'exibe e abre a aba Dados para o role de agência %s',
+    async (role) => {
+      testState.role = role
+
+      render(<SettingsPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Dados$/i }))
+      expect(await screen.findByRole('heading', { name: 'Conteúdo Dados' })).toBeInTheDocument()
+    },
+  )
+
+  it('não monta Dados enquanto o perfil ainda está carregando', async () => {
+    testState.pathname = '/settings/data'
+    testState.role = 'agency_admin'
+    testState.authLoading = true
+
+    render(<SettingsPage />)
+
+    expect(await screen.findByText('Carregando permissões')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Conteúdo Dados' })).not.toBeInTheDocument()
   })
 
   it.each([
