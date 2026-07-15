@@ -5,9 +5,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/context/ToastContext';
 import ConfirmModal from '@/components/ConfirmModal';
-import { Loader2, UserPlus, Crown, Briefcase, KeyRound, Mail, Check, X, Sparkles, Clock, RefreshCw, Trash2, Link, Copy, CheckCircle2 } from 'lucide-react';
+import { AccessDenied } from '@/components/AccessDenied';
+import PageLoader from '@/components/PageLoader';
+import { Loader2, UserPlus, Crown, Briefcase, Mail, Check, X, Sparkles, Clock, RefreshCw, Trash2, Link, Copy, CheckCircle2 } from 'lucide-react';
 import { PERMISSION_DEFINITIONS, getDefaultPermissionMap, type AppPermission } from '@/lib/auth/permissions';
-import { getRoleLabel, getRoleOptions, isAgencyAdminRole, isClinicAdminRole, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
+import { getRoleLabel, getRoleOptions, isAgencyAdminRole, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
 
 interface Profile {
     id: string;
@@ -94,7 +97,7 @@ export const UsersPage: React.FC = () => {
     const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
     const [tenantOptionsLoading, setTenantOptionsLoading] = useState(false);
     const [selectedClinicId, setSelectedClinicId] = useState<string | null>(tenant?.organizationId || null);
-    const canManageUsers = isAgencyAdminRole(currentUserProfile?.role) || isClinicAdminRole(currentUserProfile?.role);
+    const canManageUsers = useHasPermission('settings.users.manage');
     const [users, setUsers] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -152,6 +155,7 @@ export const UsersPage: React.FC = () => {
     }, [effectiveScope, selectedClinicId]);
 
     const fetchUsers = useCallback(async () => {
+        if (canManageUsers !== true) return;
         if (effectiveScope === 'clinic' && !selectedClinicId) {
             setUsers([]);
             setLoading(false);
@@ -176,9 +180,10 @@ export const UsersPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [effectiveScope, scopeQueryString, selectedClinicId]);
+    }, [canManageUsers, effectiveScope, scopeQueryString, selectedClinicId]);
 
     const fetchActiveInvites = useCallback(async () => {
+        if (canManageUsers !== true) return;
         if (effectiveScope === 'clinic' && !selectedClinicId) {
             setActiveInvites([]);
             return;
@@ -213,7 +218,7 @@ export const UsersPage: React.FC = () => {
             // On error, still try to update state to empty array to clear stale data
             setActiveInvites([]);
         }
-    }, [effectiveScope, scopeQueryString, selectedClinicId]);
+    }, [canManageUsers, effectiveScope, scopeQueryString, selectedClinicId]);
 
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
@@ -227,7 +232,7 @@ export const UsersPage: React.FC = () => {
     }, [roleOptions]);
 
     const fetchTenantOptions = useCallback(async () => {
-        if (!isAgencyAdmin) return;
+        if (canManageUsers !== true || !isAgencyAdmin) return;
         setTenantOptionsLoading(true);
         try {
             const res = await fetch('/api/platform/tenants', {
@@ -243,7 +248,7 @@ export const UsersPage: React.FC = () => {
         } finally {
             setTenantOptionsLoading(false);
         }
-    }, [isAgencyAdmin]);
+    }, [canManageUsers, isAgencyAdmin]);
 
     useEffect(() => {
         if (tenant?.organizationId) {
@@ -278,6 +283,11 @@ export const UsersPage: React.FC = () => {
         if (roleOptions.some((option) => option.value === newUserRole)) return;
         setNewUserRole(roleOptions[0]?.value || 'clinic_staff');
     }, [roleOptions, newUserRole]);
+
+    if (canManageUsers === undefined) return <PageLoader />;
+    if (!canManageUsers) {
+        return <AccessDenied message="Você não tem permissão para gerenciar usuários da equipe." />;
+    }
 
     if (!sb) {
         return (
@@ -469,22 +479,6 @@ export const UsersPage: React.FC = () => {
                 <div className="flex flex-col items-center gap-3">
                     <Loader2 className="animate-spin h-8 w-8 text-brand-500" />
                     <span className="text-sm text-slate-500 dark:text-slate-400">Carregando equipe...</span>
-                </div>
-            </div>
-        );
-    }
-
-    if (!canManageUsers) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
-                        <KeyRound className="h-8 w-8 text-red-500" />
-                    </div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Acesso Restrito</h2>
-                    <p className="text-slate-500 dark:text-slate-400 max-w-sm">
-                        Apenas administradores podem gerenciar usuários da equipe.
-                    </p>
                 </div>
             </div>
         );
