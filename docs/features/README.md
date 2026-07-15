@@ -20,7 +20,7 @@ Uma pasta por feature em `docs/features/<slug>/` com:
 
 | Feature | Fase | Status | Pasta |
 |---|---|---|---|
-| E2 — Enforcement de permissões (toggles bloqueiam telas) | plano | ⚪ SPEC+PLAN prontos → handoff pro Codex (branch `feat/e2-enforcement`) | [`e2-enforcement/`](e2-enforcement/) |
+| E2 — Enforcement de permissões (toggles bloqueiam telas) | servidor | 🔵 lote client ✅ revisado/aprovado → fase servidor (RLS/B) liberada → Codex desenha em `DESIGN-SERVIDOR.md` | [`e2-enforcement/`](e2-enforcement/) |
 
 ### Legenda de status
 🟡 spec → ⚪ plano → 🔵 implementando (Codex) → 🟠 revisão (Claude) → 🟢 pronto/em prod
