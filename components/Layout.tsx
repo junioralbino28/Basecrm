@@ -66,7 +66,8 @@ import { BottomNav, MoreMenuSheet } from '@/components/navigation';
 import { usePlatformTenantWorkspaceNav } from '@/components/navigation/usePlatformTenantWorkspaceNav';
 import { useTenantScopedHrefBuilder } from '@/components/navigation/useTenantScopedHref';
 import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
-import { getRoleLabel, isAgencyAdminRole, canManageClinicSettings } from '@/lib/auth/scope';
+import { getRoleLabel, isAgencyAdminRole } from '@/lib/auth/scope';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { isTenantWorkspacePath } from '@/lib/tenancy/workspaceRoutes';
 
 // Lazy load AI Assistant (deprecated - using UIChat now)
@@ -158,6 +159,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { tenant, loading: tenantLoading } = useTenant();
   const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useCRM();
   const { user, loading, profile, signOut } = useAuth();
+  const canViewFinance = useHasPermission('reports.finance');
+  const canViewProfessionals = useHasPermission('reports.professionals');
   const router = useRouter();
   const pathname = usePathname();
   const { mode } = useResponsiveMode();
@@ -307,13 +310,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: getScopedHref('/tarefas'), icon: ListChecks, label: 'Tarefas', prefetch: 'tarefas' as const },
     { to: getScopedHref('/atendimentos'), icon: ClipboardPlus, label: 'Atendimentos', prefetch: 'atendimentos' as const },
     { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
-    // Financeiro/Profissionais (F8): SÓ admin — espelha o gate das abas F5 e o
-    // grupo "Clínica · Adel" do mockup. O RPC re-valida no banco (defense-in-depth).
-    ...(canManageClinicSettings(profile?.role)
-      ? [
-          { to: getScopedHref('/reports/financeiro'), icon: Wallet, label: 'Financeiro', prefetch: 'reports' as const },
-          { to: getScopedHref('/reports/profissionais'), icon: Stethoscope, label: 'Profissionais', prefetch: 'reports' as const },
-        ]
+    ...(canViewFinance
+      ? [{ to: getScopedHref('/reports/financeiro'), icon: Wallet, label: 'Financeiro', prefetch: 'reports' as const }]
+      : []),
+    ...(canViewProfessionals
+      ? [{ to: getScopedHref('/reports/profissionais'), icon: Stethoscope, label: 'Profissionais', prefetch: 'reports' as const }]
       : []),
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];

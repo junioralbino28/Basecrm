@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Stethoscope, Lock, Check } from 'lucide-react';
+import { Stethoscope, Check } from 'lucide-react';
+import { AccessDenied } from '@/components/AccessDenied';
+import PageLoader from '@/components/PageLoader';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { PeriodFilter } from '@/features/dashboard/hooks/useDashboardMetrics';
 import { getFinanceDateRange } from './utils/financeDateRange';
 import { periodFromISO, isSingleCompetenceMonth } from './utils/financeMath';
 import { useCommissionReport } from '@/lib/query/hooks/useFinanceReports';
 import { useCreateCommissionPayment } from '@/lib/query/hooks/useCommissionPaymentsQuery';
-import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { canManageClinicSettings } from '@/lib/auth/scope';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 
 /**
  * Formata um valor em reais (BRL).
@@ -206,19 +207,19 @@ const ProfessionalsReportContent: React.FC = () => {
  * No banco, RPC (can_configure) + RLS de commission_payments barram staff.
  */
 const ProfessionalsReportPage: React.FC = () => {
-  const { profile } = useAuth();
+  const canViewProfessionals = useHasPermission('reports.professionals');
 
-  if (!canManageClinicSettings(profile?.role)) {
+  if (canViewProfessionals === undefined) {
     return (
-      <div className="glass p-8 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm max-w-xl mx-auto mt-10 text-center">
-        <Lock size={32} className="mx-auto mb-3 text-slate-400" aria-hidden="true" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-          Acesso restrito
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          A tela de Profissionais é exclusiva do administrador da clínica.
-        </p>
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <PageLoader />
       </div>
+    );
+  }
+
+  if (!canViewProfessionals) {
+    return (
+      <AccessDenied message="Você não tem permissão para acessar o relatório por profissional." />
     );
   }
 

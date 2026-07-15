@@ -7,6 +7,11 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: vi.fn(),
 }));
 
+const useHasPermissionMock = vi.fn();
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: (...args: unknown[]) => useHasPermissionMock(...args),
+}));
+
 const useCommissionReport = vi.fn();
 vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
   useCommissionReport: (...a: unknown[]) => useCommissionReport(...a),
@@ -60,13 +65,14 @@ function mockReport() {
 describe('ProfessionalsReportPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useHasPermissionMock.mockReturnValue(true);
     mockReport();
     mutateAsync.mockResolvedValue({ id: 'cp-1' });
   });
 
-  it('clinic_admin vê a tabela com receita, comissão, paga e a pagar por dentista', () => {
+  it('usuário com reports.professionals vê a tabela por dentista', () => {
     useAuthMock.mockReturnValue({
-      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+      profile: { id: 'u1', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
     } as any);
 
     render(<ProfessionalsReportPage />);
@@ -110,9 +116,10 @@ describe('ProfessionalsReportPage', () => {
     await waitFor(() => expect(addToast).toHaveBeenCalledWith(expect.stringMatching(/erro|falha|não foi/i), 'error'));
   });
 
-  it('clinic_staff NÃO vê a tela (gate espelhado do F5) e não dispara a query', () => {
+  it('usuário sem reports.professionals vê acesso restrito e não dispara a query', () => {
+    useHasPermissionMock.mockReturnValue(false);
     useAuthMock.mockReturnValue({
-      profile: { id: 'u2', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
+      profile: { id: 'u2', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
 
     render(<ProfessionalsReportPage />);

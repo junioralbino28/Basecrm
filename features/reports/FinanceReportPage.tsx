@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { DollarSign, Users, TrendingUp, Download, CreditCard, Receipt, Lock } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, Download, CreditCard, Receipt } from 'lucide-react';
+import { AccessDenied } from '@/components/AccessDenied';
+import PageLoader from '@/components/PageLoader';
 import { StatCard } from '@/features/dashboard/components/StatCard';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import {
@@ -20,8 +22,7 @@ import {
   useNetResult,
 } from '@/lib/query/hooks/useFinanceReports';
 import { generateFinanceReportPDF } from './utils/generateReportPDF';
-import { useAuth } from '@/context/AuthContext';
-import { canManageClinicSettings } from '@/lib/auth/scope';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 
 /**
  * Formata um valor em reais (BRL).
@@ -326,25 +327,24 @@ const FinanceReportContent: React.FC = () => {
 /**
  * Página de relatório financeiro da clínica (F8).
  *
- * Tela EXCLUSIVA do admin (clinic_admin/agency_admin via canManageClinicSettings
- * — espelha o gate das abas financeiras do Settings/F5). clinic_staff (Vitória)
- * vê o aviso de acesso restrito e nenhuma query financeira é disparada; no
- * banco, o RPC ainda barra por can_configure_organization (defense-in-depth).
+ * O conteúdo só é montado com `reports.finance`, evitando disparar queries
+ * financeiras antes do gate de cliente. O enforcement de banco entra na fase
+ * de servidor aprovada separadamente.
  */
 const FinanceReportPage: React.FC = () => {
-  const { profile } = useAuth();
+  const canViewFinance = useHasPermission('reports.finance');
 
-  if (!canManageClinicSettings(profile?.role)) {
+  if (canViewFinance === undefined) {
     return (
-      <div className="glass p-8 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm max-w-xl mx-auto mt-10 text-center">
-        <Lock size={32} className="mx-auto mb-3 text-slate-400" aria-hidden="true" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-          Acesso restrito
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          O Financeiro é exclusivo do administrador da clínica.
-        </p>
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <PageLoader />
       </div>
+    );
+  }
+
+  if (!canViewFinance) {
+    return (
+      <AccessDenied message="Você não tem permissão para acessar o relatório financeiro." />
     );
   }
 

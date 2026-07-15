@@ -14,9 +14,12 @@ import { CommissionsManager } from './components/CommissionsManager';
 import { FixedCostsManager } from './components/FixedCostsManager';
 import { PlanilhasSection } from './components/PlanilhasSection';
 import { AICenterSettings } from './AICenterSettings';
+import { AccessDenied } from '@/components/AccessDenied';
+import PageLoader from '@/components/PageLoader';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign } from 'lucide-react';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 
@@ -254,6 +257,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
   const canManageSettings = canManageClinicSettings(profile?.role);
+  const canViewFinance = useHasPermission('settings.finance');
 
   // Get hash from URL for scrolling
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
@@ -283,7 +287,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
     ...(canManageSettings ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
     ...(canManageSettings ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
-    ...(canManageSettings ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
+    ...(canViewFinance ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
     ...(canManageSettings ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -297,7 +301,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       case 'professionals':
         return <ProfessionalsSettings />;
       case 'financeiro':
-        return <FinanceiroSettings />;
+        if (canViewFinance === undefined) return <PageLoader />;
+        return canViewFinance
+          ? <FinanceiroSettings />
+          : <AccessDenied message="Você não tem permissão para acessar as configurações financeiras." />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':

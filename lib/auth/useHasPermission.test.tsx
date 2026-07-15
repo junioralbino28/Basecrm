@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppPermission } from './permissions';
 
-let permissions: Partial<Record<AppPermission, boolean>> | null;
+let permissions: Partial<Record<AppPermission, boolean>> | null | undefined;
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ permissions }),
@@ -32,6 +32,14 @@ describe('useHasPermission', () => {
   });
 
   it('retorna undefined enquanto as permissões carregam', () => {
+    const { result } = renderHook(() => useHasPermission('reports.finance'));
+
+    expect(result.current).toBeUndefined();
+  });
+
+  it('trata contexto legado sem o campo permissions como carregando', () => {
+    permissions = undefined;
+
     const { result } = renderHook(() => useHasPermission('reports.finance'));
 
     expect(result.current).toBeUndefined();

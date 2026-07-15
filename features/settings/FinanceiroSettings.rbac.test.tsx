@@ -18,6 +18,11 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: vi.fn(),
 }))
 
+const useHasPermissionMock = vi.fn()
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: (...args: unknown[]) => useHasPermissionMock(...args),
+}))
+
 vi.mock('./hooks/useSettingsController', () => ({
   useSettingsController: () => ({
     defaultRoute: '/boards',
@@ -68,22 +73,18 @@ const useAuthMock = vi.mocked(useAuth)
 describe('SettingsPage RBAC — aba financeiro (gate do Adel)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useHasPermissionMock.mockReturnValue(true)
   })
 
-  it('clinic_staff NÃO vê a aba financeiro', () => {
-    useAuthMock.mockReturnValue({ profile: { role: 'clinic_staff' } } as any)
-    render(<SettingsPage />)
-    expect(screen.queryByRole('button', { name: /financeiro/i })).not.toBeInTheDocument()
-  })
-
-  it('vendedor NÃO vê a aba financeiro', () => {
-    useAuthMock.mockReturnValue({ profile: { role: 'vendedor' } } as any)
-    render(<SettingsPage />)
-    expect(screen.queryByRole('button', { name: /financeiro/i })).not.toBeInTheDocument()
-  })
-
-  it('clinic_admin vê a aba financeiro e navega nas sub-tabs', async () => {
+  it('usuário sem settings.finance NÃO vê a aba financeiro', () => {
+    useHasPermissionMock.mockReturnValue(false)
     useAuthMock.mockReturnValue({ profile: { role: 'clinic_admin' } } as any)
+    render(<SettingsPage />)
+    expect(screen.queryByRole('button', { name: /financeiro/i })).not.toBeInTheDocument()
+  })
+
+  it('usuário com settings.finance vê a aba e navega nas sub-tabs', async () => {
+    useAuthMock.mockReturnValue({ profile: { role: 'clinic_staff' } } as any)
     render(<SettingsPage />)
 
     const financeTab = screen.getByRole('button', { name: /financeiro/i })
@@ -100,9 +101,4 @@ describe('SettingsPage RBAC — aba financeiro (gate do Adel)', () => {
     expect(await screen.findByRole('heading', { name: /^Contas Fixas$/i })).toBeInTheDocument()
   })
 
-  it('admin vê a aba financeiro', () => {
-    useAuthMock.mockReturnValue({ profile: { role: 'admin' } } as any)
-    render(<SettingsPage />)
-    expect(screen.getByRole('button', { name: /financeiro/i })).toBeInTheDocument()
-  })
 })

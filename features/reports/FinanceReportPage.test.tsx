@@ -7,6 +7,11 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: vi.fn(),
 }));
 
+const useHasPermissionMock = vi.fn();
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: (...args: unknown[]) => useHasPermissionMock(...args),
+}));
+
 const useRevenueReport = vi.fn();
 const useCommissionReport = vi.fn();
 const useNetResult = vi.fn();
@@ -56,12 +61,13 @@ function mockReports() {
 describe('FinanceReportPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useHasPermissionMock.mockReturnValue(true);
     mockReports();
   });
 
-  it('clinic_admin (Adel) vê a cascata Recebido bruto → Taxas → Comissões → Contas fixas → Líquido', () => {
+  it('usuário com reports.finance vê a cascata financeira', () => {
     useAuthMock.mockReturnValue({
-      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+      profile: { id: 'u1', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
     } as any);
 
     render(<FinanceReportPage />);
@@ -77,9 +83,10 @@ describe('FinanceReportPage', () => {
     expect(screen.getByTestId('weekly-bars')).toBeInTheDocument();
   });
 
-  it('clinic_staff (Vitória) NÃO vê a tela — Financeiro é só do admin (gate F5 espelhado)', () => {
+  it('usuário sem reports.finance vê acesso restrito sem disparar queries', () => {
+    useHasPermissionMock.mockReturnValue(false);
     useAuthMock.mockReturnValue({
-      profile: { id: 'u2', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
+      profile: { id: 'u2', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
 
     render(<FinanceReportPage />);
