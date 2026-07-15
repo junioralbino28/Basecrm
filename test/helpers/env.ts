@@ -1,5 +1,13 @@
 import { readFileSync, existsSync } from 'node:fs';
 
+/**
+ * Impede que uma execução explicitamente travada no Supabase local recarregue
+ * `.env`/`.env.local` e troque silenciosamente o alvo para produção.
+ */
+export function shouldLoadTestEnvFiles(): boolean {
+  return process.env.SUPABASE_TEST_TARGET !== 'local';
+}
+
 function parseDotEnv(contents: string): Record<string, string> {
   const out: Record<string, string> = {};
 
@@ -35,6 +43,7 @@ function parseDotEnv(contents: string): Record<string, string> {
  * @returns {void} Não retorna valor.
  */
 export function loadEnvFile(filePath: string, opts?: { override?: boolean }) {
+  if (!shouldLoadTestEnvFiles()) return;
   if (!existsSync(filePath)) return;
   const parsed = parseDotEnv(readFileSync(filePath, 'utf8'));
   const override = opts?.override === true;
