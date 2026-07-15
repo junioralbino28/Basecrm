@@ -31,7 +31,15 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { OrganizationId } from '../types';
+import { APP_PERMISSIONS, type AppPermission } from '@/lib/auth/permissions';
 import { normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
+
+type PermissionMap = Record<AppPermission, boolean>;
+
+const DENY_ALL_PERMISSIONS = APP_PERMISSIONS.reduce<PermissionMap>((map, permission) => {
+    map[permission] = false;
+    return map;
+}, {} as PermissionMap);
 
 /**
  * Perfil do usuário no sistema
@@ -75,6 +83,8 @@ interface AuthContextType {
     profile: Profile | null;
     /** Getter de conveniência para profile.organization_id */
     organizationId: OrganizationId | null;
+    /** Mapa efetivo de permissões; null enquanto carrega */
+    permissions: PermissionMap | null;
     /** Se está carregando dados iniciais */
     loading: boolean;
     /** Se a instância foi inicializada (setup feito) */
@@ -133,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
+    const [permissions, setPermissions] = useState<PermissionMap | null>(null);
     const [loading, setLoading] = useState(true);
     const [isInitialized, setIsInitialized] = useState<boolean | null>(null);
 
@@ -156,13 +167,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const fetchProfile = async (authUser: User) => {
+    const fetchPermissions = async () => {
         try {
-            if (!sb) {
-                setProfile(null);
-                return;
+            const response = await fetch('/api/me/permissions', {
+                cache: 'no-store',
+                credentials: 'include',
+            });
+            const payload = await response.json().catch(() => null) as { permissions?: PermissionMap } | null;
+
+            if (!response.ok || !payload?.permissions) {
+                throw new Error(`Failed to load permissions (HTTP ${response.status})`);
             }
 
+            setPermissions(payload.permissions);
+        } catch (error) {
+            console.error('Error fetching permissions:', error);
+            setPermissions(DENY_ALL_PERMISSIONS);
+        }
+    };
+
+    const fetchProfile = async (authUser: User) => {
+        setPermissions(null);
+
+        if (!sb) {
+            setProfile(null);
+            setPermissions(DENY_ALL_PERMISSIONS);
+            setLoading(false);
+            return;
+        }
+
+        try {
             const { data, error } = await sb
                 .from('profiles')
                 .select('*')
@@ -176,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setProfile(buildProfileFromSources(authUser, data));
             }
         } finally {
+            await fetchPermissions();
             setLoading(false);
         }
     };
@@ -192,6 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(null);
             setUser(null);
             setProfile(null);
+            setPermissions(null);
             setIsInitialized(true);
             setLoading(false);
             return;
@@ -216,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 fetchProfile(session.user);
             } else {
                 setProfile(null);
+                setPermissions(null);
                 setLoading(false);
             }
         });
@@ -226,6 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const signOut = async () => {
         if (sb) await sb.auth.signOut();
         setProfile(null);
+        setPermissions(null);
         setUser(null);
         setSession(null);
     };
@@ -235,6 +273,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         profile,
         organizationId: profile?.organization_id ?? null,
+        permissions,
         loading,
         isInitialized,
         checkInitialization,
