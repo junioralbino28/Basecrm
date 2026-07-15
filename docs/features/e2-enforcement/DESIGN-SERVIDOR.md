@@ -78,10 +78,10 @@ Para a chave recebida, o helper:
 1. obtém `auth.uid()`; identidade nula resulta em `false`;
 2. carrega exatamente o próprio `profiles.id`; profile ausente resulta em `false`;
 3. normaliza o role com a semântica já existente de `normalize_profile_role`;
-4. lê o default da versão ativa para role normalizado + chave;
-5. lê no máximo um override de `profile_permissions` para o mesmo `user_id` + chave;
+4. lê o default da versão ativa para role normalizado + chave; versão ativa ou linha de default ausente encerra a resolução com `false`, antes de considerar override;
+5. somente após validar o default, lê no máximo um override de `profile_permissions` para o mesmo `user_id` + chave;
 6. valida que o `organization_id` do override é igual ao do profile; override malformado/cross-org torna a decisão `false`, em vez de cair no default;
-7. retorna `override.enabled` quando há override íntegro; caso contrário, retorna o default; ausência de ambos retorna `false`.
+7. retorna `override.enabled` quando há override íntegro; caso contrário, retorna o default validado.
 
 As constraints existentes garantem unicidade de override por usuário/chave. A tabela de defaults deve garantir unicidade por versão/role/chave. Qualquer exceção de leitura aborta o statement; não há captura que transforme erro em acesso concedido.
 
