@@ -18,10 +18,8 @@ import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 
 import { UsersPage } from './UsersPage';
-import { useAuth } from '@/context/AuthContext';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign } from 'lucide-react';
-import { canManageClinicSettings } from '@/lib/auth/scope';
 
 type SettingsTab = 'general' | 'products' | 'professionals' | 'financeiro' | 'integrations' | 'ai' | 'data' | 'users';
 
@@ -246,6 +244,17 @@ interface SettingsPageProps {
   tab?: SettingsTab;
 }
 
+const getSettingsTabFromPathname = (pathname: string | null): SettingsTab => {
+  if (pathname?.includes('/settings/ai')) return 'ai';
+  if (pathname?.includes('/settings/products')) return 'products';
+  if (pathname?.includes('/settings/profissionais')) return 'professionals';
+  if (pathname?.includes('/settings/financeiro')) return 'financeiro';
+  if (pathname?.includes('/settings/integracoes')) return 'integrations';
+  if (pathname?.includes('/settings/data')) return 'data';
+  if (pathname?.includes('/settings/users')) return 'users';
+  return 'general';
+};
+
 /**
  * Componente React `SettingsPage`.
  *
@@ -253,58 +262,62 @@ interface SettingsPageProps {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
-  const { profile } = useAuth();
   const pathname = usePathname();
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
-  const canManageSettings = canManageClinicSettings(profile?.role);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    () => initialTab || getSettingsTabFromPathname(pathname),
+  );
+  const canViewGeneral = useHasPermission('settings.general');
+  const canViewProducts = useHasPermission('settings.products');
+  const canViewProfessionals = useHasPermission('settings.professionals');
   const canViewFinance = useHasPermission('settings.finance');
+  const canViewIntegrations = useHasPermission('settings.integrations');
+  const canConfigureAi = useHasPermission('ai.configure');
+  const canManageUsers = useHasPermission('settings.users.manage');
 
   // Get hash from URL for scrolling
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
 
   // Determine tab from pathname if available
   useEffect(() => {
-    if (pathname?.includes('/settings/ai')) {
-      setActiveTab('ai');
-    } else if (pathname?.includes('/settings/products')) {
-      setActiveTab('products');
-    } else if (pathname?.includes('/settings/profissionais')) {
-      setActiveTab('professionals');
-    } else if (pathname?.includes('/settings/financeiro')) {
-      setActiveTab('financeiro');
-    } else if (pathname?.includes('/settings/integracoes')) {
-      setActiveTab('integrations');
-    } else if (pathname?.includes('/settings/data')) {
-      setActiveTab('data');
-    } else if (pathname?.includes('/settings/users')) {
-      setActiveTab('users');
-    } else {
-      setActiveTab('general');
-    }
-  }, [pathname]);
+    setActiveTab(initialTab || getSettingsTabFromPathname(pathname));
+  }, [initialTab, pathname]);
 
   const tabs = [
-    { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
-    ...(canManageSettings ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
-    ...(canManageSettings ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
-    ...(canViewFinance ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
-    ...(canManageSettings ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
-    { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
+    ...(canViewGeneral === true ? [{ id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon }] : []),
+    ...(canViewProducts === true ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    ...(canViewProfessionals === true ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
+    ...(canViewFinance === true ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
+    ...(canViewIntegrations === true ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
+    ...(canConfigureAi === true ? [{ id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles }] : []),
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
-    ...(canManageSettings ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
+    ...(canManageUsers === true ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
   ];
 
+  const activePermission = activeTab === 'data'
+    ? true
+    : {
+        general: canViewGeneral,
+        products: canViewProducts,
+        professionals: canViewProfessionals,
+        financeiro: canViewFinance,
+        integrations: canViewIntegrations,
+        ai: canConfigureAi,
+        users: canManageUsers,
+      }[activeTab];
+
   const renderContent = () => {
+    if (activePermission === undefined) return <PageLoader />;
+    if (!activePermission) {
+      return <AccessDenied message="Você não tem permissão para acessar esta seção de configurações." />;
+    }
+
     switch (activeTab) {
       case 'products':
         return <ProductsSettings />;
       case 'professionals':
         return <ProfessionalsSettings />;
       case 'financeiro':
-        if (canViewFinance === undefined) return <PageLoader />;
-        return canViewFinance
-          ? <FinanceiroSettings />
-          : <AccessDenied message="Você não tem permissão para acessar as configurações financeiras." />;
+        return <FinanceiroSettings />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':
@@ -314,7 +327,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       case 'users':
         return <UsersPage />;
       default:
-        return <GeneralSettings hash={hash} isAdmin={canManageSettings} />;
+        return <GeneralSettings hash={hash} isAdmin={canViewGeneral === true} />;
     }
   };
 

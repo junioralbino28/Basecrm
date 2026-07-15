@@ -1,28 +1,34 @@
 import React from 'react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AppPermission } from '@/lib/auth/permissions'
+
+const testState = vi.hoisted(() => ({
+  pathname: '/settings',
+  role: 'admin',
+  permissions: {} as Partial<Record<AppPermission, boolean | undefined>>,
+}))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/settings',
-  useSearchParams: () => ({
-    get: () => null,
-  }),
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-  }),
+  usePathname: () => testState.pathname,
 }))
 
 vi.mock('@/context/AuthContext', () => ({
-  useAuth: vi.fn(),
+  useAuth: () => ({ profile: { role: testState.role } }),
+}))
+
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: (permission: AppPermission) => testState.permissions[permission],
+}))
+
+vi.mock('@/components/PageLoader', () => ({
+  default: () => <div>Carregando permissões</div>,
 }))
 
 vi.mock('./hooks/useSettingsController', () => ({
   useSettingsController: () => ({
     defaultRoute: '/boards',
     setDefaultRoute: vi.fn(),
-
     customFieldDefinitions: [],
     newFieldLabel: '',
     setNewFieldLabel: vi.fn(),
@@ -35,7 +41,6 @@ vi.mock('./hooks/useSettingsController', () => ({
     cancelEditingField: vi.fn(),
     handleSaveField: vi.fn(),
     removeCustomField: vi.fn(),
-
     availableTags: ['VIP'],
     newTagName: '',
     setNewTagName: vi.fn(),
@@ -44,134 +49,135 @@ vi.mock('./hooks/useSettingsController', () => ({
   }),
 }))
 
-// Evita depender de providers (Toast/Boards/Supabase) ao renderizar a aba Integrações no teste.
-vi.mock('./components/ApiKeysSection', () => ({
-  ApiKeysSection: () => (
-    <div>
-      <h3>API (Integrações)</h3>
-    </div>
-  ),
-}))
-
-vi.mock('./components/WebhooksSection', () => ({
-  WebhooksSection: () => (
-    <div>
-      <h3>Webhooks</h3>
-    </div>
-  ),
-}))
-
-vi.mock('./components/McpSection', () => ({
-  McpSection: () => (
-    <div>
-      <h3>MCP</h3>
-    </div>
-  ),
+vi.mock('./components/ProductsCatalogManager', () => ({
+  ProductsCatalogManager: () => <h3>Conteúdo Produtos</h3>,
 }))
 
 vi.mock('./components/ProfessionalsManager', () => ({
-  ProfessionalsManager: () => (
-    <div>
-      <h3>Profissionais</h3>
-    </div>
-  ),
+  ProfessionalsManager: () => <h3>Conteúdo Profissionais</h3>,
+}))
+
+vi.mock('./components/CardFeesManager', () => ({
+  CardFeesManager: () => <h3>Conteúdo Financeiro</h3>,
+}))
+
+vi.mock('./components/CommissionsManager', () => ({
+  CommissionsManager: () => <div>Comissões</div>,
+}))
+
+vi.mock('./components/FixedCostsManager', () => ({
+  FixedCostsManager: () => <div>Custos fixos</div>,
+}))
+
+vi.mock('./components/PlanilhasSection', () => ({
+  PlanilhasSection: () => <div>Planilhas</div>,
+}))
+
+vi.mock('./components/ApiKeysSection', () => ({
+  ApiKeysSection: () => <h3>Conteúdo Integrações</h3>,
+}))
+
+vi.mock('./components/WebhooksSection', () => ({
+  WebhooksSection: () => <div>Webhooks</div>,
+}))
+
+vi.mock('./components/McpSection', () => ({
+  McpSection: () => <div>MCP</div>,
+}))
+
+vi.mock('./AICenterSettings', () => ({
+  AICenterSettings: () => <h3>Conteúdo IA</h3>,
+}))
+
+vi.mock('./UsersPage', () => ({
+  UsersPage: () => <h3>Conteúdo Equipe</h3>,
 }))
 
 import SettingsPage from './SettingsPage'
-import { useAuth } from '@/context/AuthContext'
 
-const useAuthMock = vi.mocked(useAuth)
+const allowedPermissions: AppPermission[] = [
+  'settings.general',
+  'settings.products',
+  'settings.professionals',
+  'settings.finance',
+  'settings.integrations',
+  'ai.configure',
+  'settings.users.manage',
+]
 
-describe('SettingsPage RBAC', () => {
+describe('SettingsPage permissions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    testState.pathname = '/settings'
+    testState.role = 'admin'
+    testState.permissions = Object.fromEntries(
+      allowedPermissions.map((permission) => [permission, true]),
+    ) as Partial<Record<AppPermission, boolean | undefined>>
   })
 
-  it('vendedor não vê seções de configuração do sistema', () => {
-    useAuthMock.mockReturnValue({
-      profile: { role: 'vendedor' },
-    } as any)
+  it('oculta as abas cujas permissões estão negadas', () => {
+    testState.permissions = {
+      ...testState.permissions,
+      'settings.general': false,
+      'settings.products': false,
+      'settings.professionals': false,
+      'settings.integrations': false,
+      'ai.configure': false,
+      'settings.users.manage': false,
+    }
 
     render(<SettingsPage />)
 
-    expect(
-      screen.queryByRole('heading', { name: /^Gerenciamento de Tags$/i })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: /^Campos Personalizados$/i })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: /^API \(Integrações\)$/i })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /^Webhooks$/i })).not.toBeInTheDocument()
-
-    // Preferências pessoais seguem visíveis
-    expect(screen.getByText(/página inicial/i)).toBeInTheDocument()
-    // Tabs pessoais seguem visíveis
-    expect(screen.getByRole('button', { name: /central de i\.a/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Geral$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Produtos\/Serviços/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Profissionais$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Integrações$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Central de I\.A/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Equipe$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Financeiro$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Dados$/i })).toBeInTheDocument()
   })
 
-  it('admin vê seções de configuração do sistema', async () => {
-    useAuthMock.mockReturnValue({
-      profile: { role: 'admin' },
-    } as any)
+  it('permite que clinic_staff com override abra Profissionais', async () => {
+    testState.role = 'clinic_staff'
 
     render(<SettingsPage />)
 
-    expect(
-      screen.getByRole('heading', { name: /^Gerenciamento de Tags$/i })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /^Campos Personalizados$/i })
-    ).toBeInTheDocument()
-    // Admin também vê as abas extras
-    const integrationsTab = screen.getByRole('button', { name: /integrações/i })
-    expect(integrationsTab).toBeInTheDocument()
-    fireEvent.click(integrationsTab)
+    const professionalsTab = screen.getByRole('button', { name: /^Profissionais$/i })
+    fireEvent.click(professionalsTab)
 
-    // Sub-tabs dentro de Integrações
-    const apiSubTab = await screen.findByRole('button', { name: /^API$/i })
-    const webhooksSubTab = await screen.findByRole('button', { name: /^Webhooks$/i })
-    const mcpSubTab = await screen.findByRole('button', { name: /^MCP$/i })
-    expect(apiSubTab).toBeInTheDocument()
-    expect(webhooksSubTab).toBeInTheDocument()
-    expect(mcpSubTab).toBeInTheDocument()
-
-    // Default é API
-    expect(await screen.findByRole('heading', { name: /^API \(Integrações\)$/i })).toBeInTheDocument()
-
-    fireEvent.click(webhooksSubTab)
-    expect(await screen.findByRole('heading', { name: /^Webhooks$/i })).toBeInTheDocument()
-
-    fireEvent.click(mcpSubTab)
-    expect(await screen.findByRole('heading', { name: /^MCP$/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Conteúdo Profissionais' })).toBeInTheDocument()
   })
 
-  it('clinic_staff não vê a aba Profissionais', () => {
-    useAuthMock.mockReturnValue({
-      profile: { role: 'clinic_staff' },
-    } as any)
+  it.each([
+    ['/settings', 'settings.general', 'Página Inicial'],
+    ['/settings/products', 'settings.products', 'Conteúdo Produtos'],
+    ['/settings/profissionais', 'settings.professionals', 'Conteúdo Profissionais'],
+    ['/settings/financeiro', 'settings.finance', 'Conteúdo Financeiro'],
+    ['/settings/integracoes', 'settings.integrations', 'Conteúdo Integrações'],
+    ['/settings/ai', 'ai.configure', 'Conteúdo IA'],
+    ['/settings/users', 'settings.users.manage', 'Conteúdo Equipe'],
+  ] as const)(
+    'fecha o bypass pela URL %s quando %s está negada',
+    async (pathname, permission, protectedContent) => {
+      testState.pathname = pathname
+      testState.permissions = { ...testState.permissions, [permission]: false }
+
+      render(<SettingsPage />)
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Acesso restrito')
+      expect(screen.queryByText(protectedContent)).not.toBeInTheDocument()
+    },
+  )
+
+  it('aguarda a resolução da permissão antes de renderizar uma rota direta', async () => {
+    testState.pathname = '/settings/products'
+    testState.permissions = { ...testState.permissions, 'settings.products': undefined }
 
     render(<SettingsPage />)
 
-    expect(
-      screen.queryByRole('button', { name: /profissionais/i })
-    ).not.toBeInTheDocument()
-  })
-
-  it('clinic_admin vê e abre a aba Profissionais', async () => {
-    useAuthMock.mockReturnValue({
-      profile: { role: 'clinic_admin' },
-    } as any)
-
-    render(<SettingsPage />)
-
-    const profTab = screen.getByRole('button', { name: /profissionais/i })
-    expect(profTab).toBeInTheDocument()
-    fireEvent.click(profTab)
-
-    expect(
-      await screen.findByRole('heading', { name: /^Profissionais$/i })
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Carregando permissões')).toBeInTheDocument()
+    expect(screen.queryByText('Conteúdo Produtos')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
