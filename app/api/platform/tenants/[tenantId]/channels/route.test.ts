@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const requireTenantAccessMock = vi.fn();
 let channelsData: unknown[] = [];
+let insertedChannel: Record<string, unknown> | null = null;
 
 vi.mock('@/lib/platform/tenantAccess', () => ({
   requireTenantAccess: (...a: unknown[]) => requireTenantAccessMock(...a),
@@ -21,11 +22,22 @@ vi.mock('@/lib/supabase/server', () => ({
           order: () => Promise.resolve({ data: channelsData, error: null }),
         }),
       }),
+      insert: (payload: Record<string, unknown>) => {
+        insertedChannel = payload;
+        return {
+          select: () => ({
+            single: () => Promise.resolve({
+              data: { id: 'channel-new', ...payload },
+              error: null,
+            }),
+          }),
+        };
+      },
     }),
   }),
 }));
 
-import { GET } from './route';
+import { GET, POST } from './route';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const makeCtx = () => ({ params: Promise.resolve({ tenantId: TENANT }) });
@@ -44,6 +56,7 @@ const channelWithSecret = {
 beforeEach(() => {
   vi.clearAllMocks();
   channelsData = [channelWithSecret];
+  insertedChannel = null;
 });
 
 describe('GET /api/platform/tenants/[tenantId]/channels', () => {
@@ -73,5 +86,47 @@ describe('GET /api/platform/tenants/[tenantId]/channels', () => {
     const res = await GET(makeReq(), makeCtx());
     const body = await res.json();
     expect(body.channels[0].config.apiKey).toBe('EVO-SECRET-1234');
+  });
+});
+
+describe('POST /api/platform/tenants/[tenantId]/channels', () => {
+  it('aceita cadastro simples e gera instanceName, segredo e aiEnabled=true', async () => {
+    requireTenantAccessMock.mockResolvedValue({
+      profile: { role: 'clinic_admin', organization_id: TENANT },
+      permissions: { 'whatsapp.manage_connection': true },
+      canManageChannelConfig: true,
+    });
+
+    const req = new Request(`http://localhost:3000/api/platform/tenants/${TENANT}/channels`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'evolution',
+        channel_type: 'whatsapp',
+        name: 'Comercial – Vitória',
+        metadata: { phoneNumber: '  +55 11 99999-0000  ' },
+      }),
+    });
+
+    const res = await POST(req, makeCtx());
+
+    expect(res.status).toBe(201);
+    expect(requireTenantAccessMock).toHaveBeenCalledWith(TENANT, {
+      requiredPermissions: ['whatsapp.manage_connection'],
+    });
+    expect(insertedChannel).toMatchObject({
+      organization_id: TENANT,
+      provider: 'evolution',
+      channel_type: 'whatsapp',
+      name: 'Comercial – Vitória',
+      status: 'pending',
+      metadata: { phoneNumber: '+55 11 99999-0000' },
+    });
+
+    const config = insertedChannel?.config as Record<string, unknown>;
+    expect(config.instanceName).toMatch(/^comercial-vitoria-[a-f0-9]{8}$/);
+    expect(config.webhookSecret).toMatch(/^[a-f0-9]{32}$/);
+    expect(config.sendMode).toBe('auto');
+    expect(config.aiEnabled).toBe(true);
   });
 });

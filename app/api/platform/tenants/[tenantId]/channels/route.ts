@@ -25,6 +25,7 @@ const ChannelSchema = z.object({
     webhookSecret: z.string().max(120).optional(),
     apiKey: z.string().max(300).optional(),
     sendMode: z.enum(['auto', 'number_text', 'number_textMessage', 'number_message', 'number_body']).optional(),
+    aiEnabled: z.boolean().optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -32,6 +33,19 @@ const ChannelSchema = z.object({
     notes: z.string().max(500).optional(),
   }).optional(),
 }).strict();
+
+function createInstanceName(name: string) {
+  const slug = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100)
+    .replace(/-+$/g, '') || 'whatsapp';
+  const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+  return `${slug}-${suffix}`;
+}
 
 export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: string }> }) {
   const { tenantId } = await ctx.params;
@@ -69,9 +83,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const now = new Date().toISOString();
   const config = {
     apiUrl: parsed.data.config?.apiUrl?.trim() || undefined,
-    instanceName: parsed.data.config?.instanceName?.trim() || undefined,
+    instanceName: parsed.data.config?.instanceName?.trim() || createInstanceName(parsed.data.name),
     webhookUrl: parsed.data.config?.webhookUrl?.trim() || undefined,
     sendMode: parsed.data.config?.sendMode || 'auto',
+    aiEnabled: parsed.data.config?.aiEnabled ?? true,
     webhookSecret:
       parsed.data.config?.webhookSecret?.trim() || crypto.randomUUID().replace(/-/g, ''),
     apiKey: parsed.data.config?.apiKey?.trim() || undefined,
