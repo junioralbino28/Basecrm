@@ -3,7 +3,11 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
-import { ensureTenantAgencyBinding } from '@/lib/channels/evolutionCredentials';
+import {
+  ensureTenantAgencyBinding,
+  resolveEvolutionCredentials,
+} from '@/lib/channels/evolutionCredentials';
+import { logoutEvolutionInstance } from '@/lib/channels/evolution';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 
 function json(body: unknown, status = 200) {
@@ -129,5 +133,71 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   return json({
     ok: true,
     channel: toPublicChannelConnection(data, { canManageChannelConfig: auth.canManageChannelConfig }),
+  });
+}
+
+export async function DELETE(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
+  if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
+
+  const { tenantId, connectionId } = await ctx.params;
+  const auth = await requireTenantAccess(tenantId, {
+    requiredPermissions: ['whatsapp.manage_connection'],
+  });
+  if ('error' in auth) return auth.error;
+
+  const admin = createStaticAdminClient();
+  const current = await admin
+    .from('channel_connections')
+    .select('id, provider, config, metadata')
+    .eq('id', connectionId)
+    .eq('organization_id', tenantId)
+    .maybeSingle();
+
+  if (current.error) return json({ error: current.error.message }, 500);
+  if (!current.data) return json({ error: 'Channel not found' }, 404);
+
+  let warning: string | null = null;
+  if (current.data.provider === 'evolution') {
+    try {
+      const instanceName = String((current.data.config as Record<string, unknown> | null)?.instanceName || '').trim();
+      const resolved = await resolveEvolutionCredentials({
+        admin,
+        tenantId,
+        connectionConfig: (current.data.config as Record<string, unknown> | null) || {},
+        profileRole: auth.profile.role,
+        requesterOrganizationId: auth.profile.organization_id,
+      });
+
+      if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
+        throw new Error('Credenciais ou instanceName ausentes para desconectar na Evolution.');
+      }
+
+      await logoutEvolutionInstance({
+        apiUrl: resolved.apiUrl,
+        instanceName,
+        apiKey: resolved.apiKey,
+      });
+    } catch (error) {
+      warning = error instanceof Error ? error.message : 'Falha ao desconectar instancia Evolution.';
+      console.warn('[Channel DELETE] Evolution logout failed; removing local connection', {
+        tenantId,
+        connectionId,
+        error: warning,
+      });
+    }
+  }
+
+  const deleted = await admin
+    .from('channel_connections')
+    .delete()
+    .eq('id', connectionId)
+    .eq('organization_id', tenantId);
+
+  if (deleted.error) return json({ error: deleted.error.message }, 500);
+
+  return json({
+    ok: true,
+    deleted: { id: connectionId },
+    warning,
   });
 }
