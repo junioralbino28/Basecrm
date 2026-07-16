@@ -247,6 +247,7 @@ export const TenantConversationsPage: React.FC = () => {
   const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<InboxFilter>('all');
+  const [selectedConnectionId, setSelectedConnectionId] = React.useState<string | 'all'>('all');
   const [onlyUnread, setOnlyUnread] = React.useState(false);
   const [onlyUnassigned, setOnlyUnassigned] = React.useState(false);
   const [composer, setComposer] = React.useState({
@@ -570,6 +571,7 @@ export const TenantConversationsPage: React.FC = () => {
 
     return threads.filter(thread => {
       if (filter !== 'all' && thread.status !== filter) return false;
+      if (selectedConnectionId !== 'all' && thread.channel_connection_id !== selectedConnectionId) return false;
       if (onlyUnread && thread.unread_count === 0) return false;
       if (onlyUnassigned && thread.assigned_user_id) return false;
 
@@ -588,9 +590,13 @@ export const TenantConversationsPage: React.FC = () => {
 
       return haystack.includes(normalizedSearch);
     });
-  }, [filter, onlyUnread, onlyUnassigned, search, threads]);
+  }, [filter, onlyUnread, onlyUnassigned, search, selectedConnectionId, threads]);
 
   const channelConnections = tenant?.channel_connections || [];
+  const channelConnectionNames = React.useMemo(
+    () => new Map(channelConnections.map(connection => [connection.id, connection.name])),
+    [channelConnections],
+  );
   const activeConnection = React.useMemo(
     () => channelConnections.find(connection => connection.id === activeConnectionId) || channelConnections[0] || null,
     [channelConnections, activeConnectionId]
@@ -609,6 +615,15 @@ export const TenantConversationsPage: React.FC = () => {
       setActiveConnectionId(channelConnections[0].id);
     }
   }, [activeConnectionId, channelConnections]);
+
+  React.useEffect(() => {
+    if (
+      selectedConnectionId !== 'all' &&
+      !channelConnections.some(connection => connection.id === selectedConnectionId)
+    ) {
+      setSelectedConnectionId('all');
+    }
+  }, [channelConnections, selectedConnectionId]);
 
   async function runConnectionHealthcheck(connectionId: string) {
     setHealthcheckConnectionId(connectionId);
@@ -708,6 +723,23 @@ export const TenantConversationsPage: React.FC = () => {
                   placeholder="Pesquisar ou começar nova conversa"
                 />
               </div>
+
+              <label className="block">
+                <span className="sr-only">Número do WhatsApp</span>
+                <select
+                  aria-label="Número do WhatsApp"
+                  value={selectedConnectionId}
+                  onChange={event => setSelectedConnectionId(event.target.value)}
+                  className="w-full rounded-full border border-transparent bg-[#2a3942] px-4 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                >
+                  <option value="all">Todos os números</option>
+                  {channelConnections.map(connection => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               {/* Filtro principal = um "box com switch" compacto (antes eram 6 pills
                   escritas por extenso em 2 linhas). Os toggles booleanos ficam ao lado. */}
@@ -833,6 +865,11 @@ export const TenantConversationsPage: React.FC = () => {
                         <div className="mt-1 flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(thread.status)}`}>
                             {statusLabel(thread.status)}
+                          </span>
+                          <span className="max-w-32 truncate rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-200">
+                            {thread.channel_connection_id
+                              ? channelConnectionNames.get(thread.channel_connection_id) || 'Número removido'
+                              : 'Número removido'}
                           </span>
                           {thread.assignee?.display_name ? (
                             <span className="truncate text-[11px] text-slate-400 dark:text-slate-400">
