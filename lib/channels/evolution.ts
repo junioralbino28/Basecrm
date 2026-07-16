@@ -6,6 +6,7 @@ export type EvolutionConnectionState = {
 
 export type EvolutionPairingCode = {
   raw: unknown;
+  qrBase64: string | null;
   pairingCode: string | null;
   code: string | null;
   count: number | null;
@@ -41,10 +42,21 @@ async function parseEvolutionResponse(response: Response) {
   }
 
   if (!response.ok) {
+    const objectPayload = payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+    const nestedResponse = objectPayload?.response && typeof objectPayload.response === 'object'
+      ? objectPayload.response as Record<string, unknown>
+      : null;
+    const providerMessage = [
+      objectPayload?.message,
+      typeof objectPayload?.error === 'string' ? objectPayload.error : null,
+      nestedResponse?.message,
+    ].find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
     throw new Error(
       typeof payload === 'string'
         ? payload || `Evolution respondeu HTTP ${response.status}`
-        : `Evolution respondeu HTTP ${response.status}`
+        : providerMessage?.trim() || `Evolution respondeu HTTP ${response.status}`
     );
   }
 
@@ -216,8 +228,21 @@ export async function fetchEvolutionPairingCode(params: {
 
   return {
     raw: payload,
-    pairingCode: typeof (payload as any)?.pairingCode === 'string' ? (payload as any).pairingCode : null,
-    code: typeof (payload as any)?.code === 'string' ? (payload as any).code : null,
+    qrBase64: readPayloadString(payload, [
+      ['qrcode', 'base64'],
+      ['qrcode', 'base64Image'],
+      ['qrcode', 'qrCode'],
+      ['base64'],
+      ['qrBase64'],
+    ]),
+    pairingCode: readPayloadString(payload, [
+      ['qrcode', 'pairingCode'],
+      ['pairingCode'],
+    ]),
+    code: readPayloadString(payload, [
+      ['qrcode', 'code'],
+      ['code'],
+    ]),
     count: typeof (payload as any)?.count === 'number' ? (payload as any).count : null,
   };
 }

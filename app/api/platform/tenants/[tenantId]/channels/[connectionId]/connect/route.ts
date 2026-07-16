@@ -1,6 +1,11 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { fetchEvolutionPairingCode, setEvolutionWebhook } from '@/lib/channels/evolution';
+import {
+  createEvolutionInstance,
+  fetchEvolutionPairingCode,
+  setEvolutionWebhook,
+  type EvolutionPairingCode,
+} from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -11,12 +16,17 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function isExistingEvolutionInstanceError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /(?:instance|instancia).*(?:already exists|already exist|already in use|ja existe|já existe)|already.*(?:instance|instancia)/i.test(message);
+}
+
 export async function POST(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
   if (!isAllowedOrigin(req)) return json({ error: 'Forbidden' }, 403);
 
   const { tenantId, connectionId } = await ctx.params;
   const auth = await requireTenantAccess(tenantId, {
-    requiredPermissions: ['whatsapp.access'],
+    requiredPermissions: ['whatsapp.manage_connection'],
   });
   if ('error' in auth) return auth.error;
 
@@ -69,11 +79,36 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const requestOrigin = new URL(req.url).origin;
 
   try {
-    const pairing = await fetchEvolutionPairingCode({
-      apiUrl: resolved.apiUrl,
-      instanceName,
-      apiKey: resolved.apiKey,
-    });
+    let pairing: EvolutionPairingCode;
+    try {
+      const created = await createEvolutionInstance({
+        apiUrl: resolved.apiUrl,
+        instanceName,
+        apiKey: resolved.apiKey,
+      });
+      pairing = {
+        raw: created.raw,
+        qrBase64: created.qrBase64,
+        pairingCode: created.pairingCode,
+        code: created.pairingCode,
+        count: null,
+      };
+
+      if (!pairing.qrBase64 && !pairing.pairingCode) {
+        pairing = await fetchEvolutionPairingCode({
+          apiUrl: resolved.apiUrl,
+          instanceName,
+          apiKey: resolved.apiKey,
+        });
+      }
+    } catch (createError) {
+      if (!isExistingEvolutionInstanceError(createError)) throw createError;
+      pairing = await fetchEvolutionPairingCode({
+        apiUrl: resolved.apiUrl,
+        instanceName,
+        apiKey: resolved.apiKey,
+      });
+    }
 
     const webhookSecret = String((connection.config as any)?.webhookSecret || '').trim();
     let webhookWarning: string | null = null;
@@ -100,7 +135,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
     const nextMetadata = {
       ...((connection.metadata as Record<string, unknown> | null) || {}),
-      lastPairingCode: pairing.pairingCode,
+      lastPairingCode: pairing.pairingCode || pairing.code,
+      lastPairingQrBase64: pairing.qrBase64,
       lastPairingPayload: pairing.raw,
       lastPairingRequestedAt: requestedAt,
       lastWebhookConfiguredAt: webhookConfigured ? requestedAt : (connection.metadata as any)?.lastWebhookConfiguredAt || null,
@@ -126,7 +162,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       ok: true,
       channel: updated,
       pairing: {
-        pairingCode: pairing.pairingCode,
+        qrBase64: pairing.qrBase64,
+        pairingCode: pairing.pairingCode || pairing.code,
         code: pairing.code,
         count: pairing.count,
         requestedAt,
