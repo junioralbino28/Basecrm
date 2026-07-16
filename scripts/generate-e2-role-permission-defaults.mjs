@@ -73,7 +73,9 @@ function replaceSnapshot(sql, snapshot) {
   if (start < 0 || end < start) {
     throw new Error(`Marcadores do snapshot não encontrados em ${MIGRATION_PATH}`);
   }
-  return `${sql.slice(0, start)}${snapshot}${sql.slice(end + END_MARKER.length)}`;
+  const lineEnding = sql.includes('\r\n') ? '\r\n' : '\n';
+  const snapshotWithMatchingLineEndings = snapshot.replace(/\n/g, lineEnding);
+  return `${sql.slice(0, start)}${snapshotWithMatchingLineEndings}${sql.slice(end + END_MARKER.length)}`;
 }
 
 async function loadPermissionsModule() {
