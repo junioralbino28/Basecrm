@@ -20,7 +20,8 @@ Uma pasta por feature em `docs/features/<slug>/` com:
 
 | Feature | Fase | Status | Pasta |
 |---|---|---|---|
-| E2 — Enforcement de permissões (toggles bloqueiam telas) | servidor | 🔵 lote client ✅ revisado/aprovado → fase servidor (RLS/B) liberada → Codex desenha em `DESIGN-SERVIDOR.md` | [`e2-enforcement/`](e2-enforcement/) |
+| E2 — Enforcement de permissões (toggles bloqueiam telas) | completo | 🟢 EM PROD (2026-07-15): migration aplicada+verificada + código deployado (`main` fd84dff) | [`e2-enforcement/`](e2-enforcement/) |
+| Multi-número / Caixa unificada (parear fácil + switch de número + IA por número) | handoff | ⚪ SPEC+PLAN escritos, Junior aprovou → Codex implementa na `feat/multi-numero-inbox` | [`multi-numero-inbox/`](multi-numero-inbox/) |
 
 ### Legenda de status
 🟡 spec → ⚪ plano → 🔵 implementando (Codex) → 🟠 revisão (Claude) → 🟢 pronto/em prod
