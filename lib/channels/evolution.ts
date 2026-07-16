@@ -11,6 +11,13 @@ export type EvolutionPairingCode = {
   count: number | null;
 };
 
+export type EvolutionCreateInstanceResult = {
+  raw: unknown;
+  qrBase64: string | null;
+  pairingCode: string | null;
+  instanceName: string;
+};
+
 export type EvolutionSendMessageResult = {
   raw: unknown;
   providerMessageId: string | null;
@@ -42,6 +49,72 @@ async function parseEvolutionResponse(response: Response) {
   }
 
   return payload;
+}
+
+function readPayloadString(payload: unknown, paths: string[][]): string | null {
+  for (const path of paths) {
+    let current: unknown = payload;
+    for (const segment of path) {
+      if (!current || typeof current !== 'object') {
+        current = null;
+        break;
+      }
+      current = (current as Record<string, unknown>)[segment];
+    }
+    if (typeof current === 'string' && current.trim()) return current.trim();
+  }
+  return null;
+}
+
+export async function createEvolutionInstance(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+}): Promise<EvolutionCreateInstanceResult> {
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/instance/create`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      instanceName: params.instanceName,
+      qrcode: true,
+      integration: 'WHATSAPP-BAILEYS',
+      groupsIgnore: true,
+      rejectCall: true,
+      alwaysOnline: true,
+    }),
+  });
+  const payload = await parseEvolutionResponse(response);
+
+  return {
+    raw: payload,
+    qrBase64: readPayloadString(payload, [
+      ['qrcode', 'base64'],
+      ['qrcode', 'base64Image'],
+      ['qrcode', 'qrCode'],
+      ['base64'],
+      ['qrBase64'],
+    ]),
+    pairingCode: readPayloadString(payload, [
+      ['qrcode', 'pairingCode'],
+      ['qrcode', 'code'],
+      ['pairingCode'],
+      ['code'],
+    ]),
+    instanceName: readPayloadString(payload, [
+      ['instance', 'instanceName'],
+      ['instance', 'instance_name'],
+      ['instanceName'],
+      ['instance_name'],
+    ]) ?? params.instanceName,
+  };
 }
 
 export async function logoutEvolutionInstance(params: {
