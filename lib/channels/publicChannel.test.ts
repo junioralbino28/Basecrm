@@ -4,9 +4,7 @@ import { toPublicChannelConnection } from './publicChannel';
 // Regressão do achado Critical 2 (auditoria Codex 2026-07-03):
 // channel_connections.config.apiKey/webhookSecret vazavam RAW pro browser de quem
 // só tinha whatsapp.access (agency_staff) via GET da listagem de canais.
-// Fix: redigir os secrets para quem NÃO gerencia a conexão; expor só hasApiKey/last4.
-// Managers (whatsapp.manage_connection) mantêm o config cru (precisam do webhookSecret
-// para montar a URL do webhook — feature existente).
+// Fix: redigir os secrets para todo browser; expor só indicadores como hasApiKey/last4.
 
 const connection = {
   id: 'c1',
@@ -39,10 +37,14 @@ describe('toPublicChannelConnection', () => {
     expect(dto.name).toBe('WhatsApp Clínica');
   });
 
-  it('mantém apiKey/webhookSecret crus para quem GERENCIA (manager precisa da URL do webhook)', () => {
+  it('também redige apiKey/webhookSecret para managers porque segredos nunca vão ao browser', () => {
     const dto = toPublicChannelConnection(connection, { canManageChannelConfig: true });
-    expect(dto.config.apiKey).toBe('EVO-SECRET-1234');
-    expect(dto.config.webhookSecret).toBe('whk-abc-secret');
+    expect(dto.config.apiKey).toBeUndefined();
+    expect(dto.config.webhookSecret).toBeUndefined();
+    expect(dto.config.hasApiKey).toBe(true);
+    expect(dto.config.hasWebhookSecret).toBe(true);
+    expect(dto.config.apiKeyLast4).toBe('1234');
+    expect(dto.config.instanceName).toBe('clinica-1');
   });
 
   it('não quebra quando config/metadata são nulos', () => {

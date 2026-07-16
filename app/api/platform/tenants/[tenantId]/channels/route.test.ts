@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Regressão do achado Critical 2: a LISTA de canais vazava config.apiKey/webhookSecret
 // para quem só tinha whatsapp.access (agency_staff). Após o DTO, secrets são redigidos
-// para não-managers e preservados para managers.
+// para qualquer resposta enviada ao browser, inclusive managers.
 
 const requireTenantAccessMock = vi.fn();
 let channelsData: unknown[] = [];
@@ -77,7 +77,7 @@ describe('GET /api/platform/tenants/[tenantId]/channels', () => {
     expect(body.channels[0].config.apiKeyLast4).toBe('1234');
   });
 
-  it('manager (canManageChannelConfig) recebe os secrets — fluxo de config preservado', async () => {
+  it('manager também recebe secrets redigidos', async () => {
     requireTenantAccessMock.mockResolvedValue({
       profile: { role: 'agency_admin', organization_id: 'org-1' },
       permissions: {},
@@ -85,7 +85,11 @@ describe('GET /api/platform/tenants/[tenantId]/channels', () => {
     });
     const res = await GET(makeReq(), makeCtx());
     const body = await res.json();
-    expect(body.channels[0].config.apiKey).toBe('EVO-SECRET-1234');
+    expect(body.channels[0].config.apiKey).toBeUndefined();
+    expect(body.channels[0].config.webhookSecret).toBeUndefined();
+    expect(body.channels[0].config.hasApiKey).toBe(true);
+    expect(body.channels[0].config.hasWebhookSecret).toBe(true);
+    expect(body.channels[0].config.apiKeyLast4).toBe('1234');
   });
 });
 

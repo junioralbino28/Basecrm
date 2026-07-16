@@ -6,10 +6,9 @@
  * incluindo `apiKey` (token Evolution) e `webhookSecret`. Quem só tinha `whatsapp.access`
  * (ex.: agency_staff) recebia esses secrets.
  *
- * Regra: quem NÃO gerencia a conexão recebe os secrets redigidos (só `hasApiKey`/last4).
- * Managers (`whatsapp.manage_connection`) mantêm o `config` cru — precisam do
- * `webhookSecret` para montar a URL do webhook (feature existente). Um único ponto de
- * redação (elimina a lógica duplicada que existia inline na rota de tenant).
+ * Regra: secrets nunca são enviados ao browser, inclusive para managers. A configuração
+ * técnica não sensível continua disponível e a presença do token/segredo é indicada por
+ * `hasApiKey`, `hasWebhookSecret` e `apiKeyLast4`.
  */
 export interface ChannelConnectionRow {
   id: string;
@@ -27,17 +26,9 @@ export interface ChannelConnectionRow {
 
 export function toPublicChannelConnection(
   connection: ChannelConnectionRow,
-  opts: { canManageChannelConfig: boolean }
+  _opts: { canManageChannelConfig: boolean }
 ): ChannelConnectionRow & { config: Record<string, unknown> } {
   const config = (connection.config as Record<string, unknown> | null) || {};
-
-  if (opts.canManageChannelConfig) {
-    // Paridade: managers precisam do config cru (webhookSecret monta a URL do webhook).
-    return {
-      ...connection,
-      config: { ...config, aiEnabled: config.aiEnabled !== false },
-    };
-  }
 
   const metadata = (connection.metadata as Record<string, unknown> | null) || {};
   const { apiKey, webhookSecret, ...safeConfig } = config;
