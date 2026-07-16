@@ -183,6 +183,8 @@ export const TenantChannelsPage: React.FC = () => {
     name: string;
   } | null>(null);
   const [deletingConnectionId, setDeletingConnectionId] = React.useState<string | null>(null);
+  const [savingAIConnectionId, setSavingAIConnectionId] = React.useState<string | null>(null);
+  const [aiOverrides, setAiOverrides] = React.useState<Record<string, boolean>>({});
   const [agencyDefaults, setAgencyDefaults] = React.useState<AgencyEvolutionDefaults>({
     apiUrl: '',
     hasApiKey: false,
@@ -617,6 +619,41 @@ export const TenantChannelsPage: React.FC = () => {
     }
   }
 
+  async function updateAIEnabled(connectionId: string, enabled: boolean) {
+    if (!tenantId) return;
+    setSavingAIConnectionId(connectionId);
+    setAiOverrides((current) => ({ ...current, [connectionId]: enabled }));
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({ config: { aiEnabled: enabled } }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao alterar IA (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage(enabled ? 'IA ativada para este numero.' : 'IA desativada; novos contatos vao para a fila humana.');
+      await reload();
+    } catch (updateError) {
+      setAiOverrides((current) => {
+        const next = { ...current };
+        delete next[connectionId];
+        return next;
+      });
+      setMessageKind('error');
+      setMessage(updateError instanceof Error ? updateError.message : 'Falha ao alterar IA deste numero.');
+    } finally {
+      setSavingAIConnectionId(null);
+    }
+  }
+
   async function disconnectConnection(connectionId: string) {
     setDisconnectingConnectionId(connectionId);
     setMessage(null);
@@ -917,6 +954,25 @@ export const TenantChannelsPage: React.FC = () => {
                       ) : null}
                       </>) : null}
                     </div>
+
+                    <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 dark:border-white/10 dark:bg-card dark:text-slate-100">
+                      <span>
+                        IA responde automático
+                        {savingAIConnectionId === connection.id ? (
+                          <span className="ml-2 text-xs font-normal text-slate-500">Salvando...</span>
+                        ) : null}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={
+                          aiOverrides[connection.id] ??
+                          (connection.config?.aiEnabled !== false)
+                        }
+                        disabled={!canManageChannelConfig || savingAIConnectionId === connection.id}
+                        onChange={(event) => void updateAIEnabled(connection.id, event.target.checked)}
+                        className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                    </label>
 
                     {canManageInfrastructure ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">

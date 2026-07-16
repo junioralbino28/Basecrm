@@ -27,6 +27,7 @@ const ChannelUpdateSchema = z.object({
     webhookSecret: z.string().max(120).optional(),
     apiKey: z.string().max(300).optional(),
     sendMode: z.enum(['auto', 'number_text', 'number_textMessage', 'number_message', 'number_body']).optional(),
+    aiEnabled: z.boolean().optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -84,18 +85,30 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   if (!current.data) return json({ error: 'Channel not found' }, 404);
 
   const nextConfig = parsed.data.config
-    ? {
-        ...(current.data.config || {}),
-        apiUrl: parsed.data.config.apiUrl?.trim() || undefined,
-        instanceName: parsed.data.config.instanceName?.trim() || undefined,
-        webhookUrl: parsed.data.config.webhookUrl?.trim() || undefined,
-        sendMode: parsed.data.config.sendMode || (current.data.config as any)?.sendMode || 'auto',
-        webhookSecret:
-          parsed.data.config.webhookSecret?.trim() ||
-          (current.data.config as any)?.webhookSecret ||
-          crypto.randomUUID().replace(/-/g, ''),
-        apiKey: parsed.data.config.apiKey?.trim() || (current.data.config as any)?.apiKey || undefined,
-      }
+    ? (() => {
+        const incoming = parsed.data.config;
+        const merged: Record<string, unknown> = { ...(current.data.config || {}) };
+
+        if (incoming.apiUrl !== undefined) merged.apiUrl = incoming.apiUrl.trim() || undefined;
+        if (incoming.instanceName !== undefined) merged.instanceName = incoming.instanceName.trim() || undefined;
+        if (incoming.webhookUrl !== undefined) merged.webhookUrl = incoming.webhookUrl.trim() || undefined;
+        if (incoming.sendMode !== undefined) merged.sendMode = incoming.sendMode;
+        if (incoming.aiEnabled !== undefined) merged.aiEnabled = incoming.aiEnabled;
+        if (incoming.webhookSecret !== undefined) {
+          merged.webhookSecret =
+            incoming.webhookSecret.trim() ||
+            merged.webhookSecret ||
+            crypto.randomUUID().replace(/-/g, '');
+        } else if (!merged.webhookSecret) {
+          merged.webhookSecret = crypto.randomUUID().replace(/-/g, '');
+        }
+        if (incoming.apiKey !== undefined) {
+          merged.apiKey = incoming.apiKey.trim() || merged.apiKey || undefined;
+        }
+        if (!merged.sendMode) merged.sendMode = 'auto';
+
+        return merged;
+      })()
     : current.data.config;
 
   const nextMetadata = parsed.data.metadata

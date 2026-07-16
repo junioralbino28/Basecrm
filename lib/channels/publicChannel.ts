@@ -33,7 +33,10 @@ export function toPublicChannelConnection(
 
   if (opts.canManageChannelConfig) {
     // Paridade: managers precisam do config cru (webhookSecret monta a URL do webhook).
-    return { ...connection, config };
+    return {
+      ...connection,
+      config: { ...config, aiEnabled: config.aiEnabled !== false },
+    };
   }
 
   const metadata = (connection.metadata as Record<string, unknown> | null) || {};
@@ -43,6 +46,7 @@ export function toPublicChannelConnection(
     ...connection,
     config: {
       ...safeConfig,
+      aiEnabled: config.aiEnabled !== false,
       hasApiKey: Boolean(apiKey),
       hasWebhookSecret: Boolean(webhookSecret),
       apiKeyLast4:

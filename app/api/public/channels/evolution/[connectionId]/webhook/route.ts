@@ -114,7 +114,7 @@ async function clearInactivityNudgeToken(params: {
   }
 }
 
-async function processDeferredAIReply(params: {
+export async function processDeferredAIReply(params: {
   connectionId: string;
   organizationId: string;
   connectionName: string;
@@ -154,6 +154,8 @@ async function processDeferredAIReply(params: {
     requestSecret,
     requestOrigin,
   } = params;
+
+  if (connectionConfig.aiEnabled === false) return;
 
   const admin = createStaticAdminClient();
 
@@ -651,10 +653,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
   if (!connectionResult.data) return json({ error: 'Conexao nao encontrada' }, 404);
   const connection = connectionResult.data;
+  const connectionConfig = (connection.config as Record<string, unknown> | null) || {};
+  const aiEnabled = connectionConfig.aiEnabled !== false;
 
   const requestSecret = getSecretFromRequest(req);
-  const expectedSecret = String((connection.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
-  const configuredInstanceName = String((connection.config as Record<string, unknown> | null)?.instanceName || '').trim();
+  const expectedSecret = String(connectionConfig.webhookSecret || '').trim();
+  const configuredInstanceName = String(connectionConfig.instanceName || '').trim();
   const payloadInstanceName = getPayloadInstanceName(payload);
 
   const { authorized, authMode } = evaluateWebhookAuth({
@@ -752,6 +756,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   if (threadResult.error) return json({ error: threadResult.error.message }, 500);
 
   let threadId = threadResult.data?.id ?? null;
+  const inboundThreadStatus = getConversationStatusAfterInbound(threadResult.data?.status, aiEnabled);
 
   if (!threadId) {
     const createdThread = await admin
@@ -763,12 +768,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         title: buildThreadTitle(resolvedContactName, canonicalPhone),
         contact_name: resolvedContactName,
         contact_phone: canonicalPhone,
-        status: parsed.direction === 'inbound' ? 'ai_active' : 'resolved',
+        status: parsed.direction === 'inbound' ? inboundThreadStatus : 'resolved',
         metadata: buildConversationThreadMetadataUpdate(
           {
             provider: 'evolution',
             autoCreated: true,
-            routingMode: 'ai',
+            routingMode: aiEnabled ? 'ai' : 'human',
           },
           {
             direction: parsed.direction,
@@ -779,8 +784,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
             authorName: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
             incrementUnread: parsed.direction === 'inbound',
             provider: 'evolution',
-            humanLocked: false,
-            aiLockedReason: null,
+            humanLocked: !aiEnabled,
+            aiLockedReason: aiEnabled ? null : 'connection_ai_disabled',
           }
         ),
         last_message_at: parsed.sentAt,
@@ -801,7 +806,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         contact_phone: canonicalPhone,
         status:
           parsed.direction === 'inbound'
-            ? getConversationStatusAfterInbound(threadResult.data?.status)
+            ? inboundThreadStatus
             : threadResult.data?.status ?? 'resolved',
         last_message_at: parsed.sentAt,
         updated_at: now,
@@ -817,11 +822,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
           unreadCount: parsed.direction === 'outbound' ? 0 : null,
           humanLocked:
             parsed.direction === 'inbound'
-              ? ['human_active', 'human_queue'].includes(threadResult.data?.status || '')
+              ? ['human_active', 'human_queue'].includes(inboundThreadStatus)
               : undefined,
           aiLockedReason:
-            parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
-              ? null
+            parsed.direction === 'inbound'
+              ? aiEnabled
+                ? threadResult.data?.status === 'resolved'
+                  ? null
+                  : undefined
+                : 'connection_ai_disabled'
               : undefined,
           resolvedAt:
             parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
@@ -900,14 +909,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   if (connectionUpdate.error) return json({ error: connectionUpdate.error.message }, 500);
 
-  const connectionConfig = (connection.config as Record<string, unknown> | null) || {};
   const automationWebhookUrl = String(connectionConfig.webhookUrl || '').trim();
   const threadStatus =
-    threadResult.data?.status && parsed.direction === 'inbound'
-      ? getConversationStatusAfterInbound(threadResult.data.status)
-      : parsed.direction === 'inbound'
-        ? 'ai_active'
-        : threadResult.data?.status ?? 'resolved';
+    parsed.direction === 'inbound'
+      ? inboundThreadStatus
+      : threadResult.data?.status ?? 'resolved';
 
   if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {
     const aiDebounceMs = 7000;

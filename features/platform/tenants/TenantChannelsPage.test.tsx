@@ -199,4 +199,26 @@ describe('TenantChannelsPage — multi-numero', () => {
     expect(within(dialog).getByLabelText(/Instance name/i)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Token/i)).toBeInTheDocument();
   });
+
+  it('liga e desliga a IA por número sem enviar a configuração técnica', async () => {
+    const fetchMock = vi.fn(() => jsonResponse({
+      ok: true,
+      channel: { id: CONNECTION, config: { aiEnabled: false } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TenantChannelsPage />);
+    const toggle = screen.getByRole('checkbox', { name: 'IA responde automático' });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/platform/tenants/${TENANT}/channels/${CONNECTION}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ config: { aiEnabled: false } }),
+      }),
+    ));
+    expect(state.reload).toHaveBeenCalled();
+  });
 });

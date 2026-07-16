@@ -7,9 +7,13 @@ type AssigneeCandidate = {
   role?: string | null;
 };
 
-export function getConversationStatusAfterInbound(currentStatus: ConversationThreadStatus | null | undefined) {
+export function getConversationStatusAfterInbound(
+  currentStatus: ConversationThreadStatus | null | undefined,
+  aiEnabled?: boolean,
+) {
   if (currentStatus === 'human_active' || currentStatus === 'human_queue') return currentStatus;
   if (currentStatus === 'closed') return 'closed' as const;
+  if (aiEnabled === false) return 'human_queue' as const;
   return 'ai_active' as const;
 }
 
