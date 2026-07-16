@@ -3,11 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, PlugZap, Plug2, Send, Plus } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCcw, Smartphone, Wifi, Activity, QrCode, Plug2, Send, Plus, Trash2 } from 'lucide-react';
 import { useTenantDetail } from './useTenantDetail';
 import { useAuth } from '@/context/AuthContext';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { Modal, ModalForm } from '@/components/ui/Modal';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const FIELD_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
@@ -142,6 +143,14 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
   };
 }
 
+function toPairingImageSrc(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('data:image')) return trimmed;
+  if (trimmed.startsWith('PHN2Zy')) return `data:image/svg+xml;base64,${trimmed}`;
+  return `data:image/png;base64,${trimmed}`;
+}
+
 export const TenantChannelsPage: React.FC = () => {
   const pathname = usePathname();
   const { profile } = useAuth();
@@ -164,6 +173,16 @@ export const TenantChannelsPage: React.FC = () => {
   const [testDrafts, setTestDrafts] = React.useState<Record<string, { phone: string; text: string }>>({});
   const [webhookUrlError, setWebhookUrlError] = React.useState<string | null>(null);
   const [isCreateInstanceModalOpen, setIsCreateInstanceModalOpen] = React.useState(false);
+  const [createdConnectionId, setCreatedConnectionId] = React.useState<string | null>(null);
+  const [modalPairing, setModalPairing] = React.useState<{
+    imageSrc: string | null;
+    pairingCode: string | null;
+  }>({ imageSrc: null, pairingCode: null });
+  const [deleteTarget, setDeleteTarget] = React.useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deletingConnectionId, setDeletingConnectionId] = React.useState<string | null>(null);
   const [agencyDefaults, setAgencyDefaults] = React.useState<AgencyEvolutionDefaults>({
     apiUrl: '',
     hasApiKey: false,
@@ -260,8 +279,10 @@ export const TenantChannelsPage: React.FC = () => {
       apiKeyLast4: String(connection.metadata?.apiKeyLast4 || ''),
       notes: String(connection.metadata?.notes || ''),
     });
+    setCreatedConnectionId(null);
+    setModalPairing({ imageSrc: null, pairingCode: null });
     setMessage(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsCreateInstanceModalOpen(true);
   }
 
   function cancelEditing() {
@@ -275,7 +296,18 @@ export const TenantChannelsPage: React.FC = () => {
     setForm(INITIAL_FORM);
     setMessage(null);
     setWebhookUrlError(null);
+    setCreatedConnectionId(null);
+    setModalPairing({ imageSrc: null, pairingCode: null });
     setIsCreateInstanceModalOpen(true);
+  }
+
+  function closeConnectionModal() {
+    setIsCreateInstanceModalOpen(false);
+    setEditingConnectionId(null);
+    setCreatedConnectionId(null);
+    setModalPairing({ imageSrc: null, pairingCode: null });
+    setForm(INITIAL_FORM);
+    setMessage(null);
   }
 
   async function copyText(label: string, value: string) {
@@ -378,23 +410,46 @@ export const TenantChannelsPage: React.FC = () => {
     setSaving(true);
     setMessage(null);
 
-    const payload = {
-      ...(isEditing ? {} : { provider: form.provider, channel_type: form.channel_type }),
-      name: form.name,
-      status: form.status,
-      config: {
-        apiUrl: normalizedApiUrl,
-        instanceName: form.instanceName,
-        webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
-        apiKey: form.apiKey,
-        sendMode: form.sendMode,
-      },
-      metadata: {
-        phoneNumber: form.phoneNumber,
-        apiKeyLast4: form.apiKeyLast4,
-        notes: form.notes,
-      },
-    };
+    const payload = isEditing
+      ? {
+          name: form.name,
+          metadata: { phoneNumber: form.phoneNumber },
+          ...(canManageInfrastructure
+            ? {
+                status: form.status,
+                config: {
+                  apiUrl: normalizedApiUrl,
+                  instanceName: form.instanceName,
+                  webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
+                  apiKey: form.apiKey,
+                  sendMode: form.sendMode,
+                },
+                metadata: {
+                  phoneNumber: form.phoneNumber,
+                  apiKeyLast4: form.apiKeyLast4,
+                  notes: form.notes,
+                },
+              }
+            : {}),
+        }
+      : {
+          provider: form.provider,
+          channel_type: form.channel_type,
+          name: form.name,
+          metadata: { phoneNumber: form.phoneNumber },
+          ...(canManageInfrastructure &&
+          (normalizedApiUrl || form.instanceName || form.apiKey || form.sendMode !== 'auto')
+            ? {
+                config: {
+                  apiUrl: normalizedApiUrl,
+                  instanceName: form.instanceName,
+                  webhookUrl: hasValidExternalWebhook ? normalizedWebhookUrl : '',
+                  apiKey: form.apiKey,
+                  sendMode: form.sendMode,
+                },
+              }
+            : {}),
+        };
 
     try {
       const res = await fetch(
@@ -415,19 +470,46 @@ export const TenantChannelsPage: React.FC = () => {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao salvar conexao (HTTP ${res.status})`);
 
-      if (externalWebhookWasIgnored) {
+      if (isEditing && externalWebhookWasIgnored) {
         setMessageKind('warning');
         setMessage(
           `${isEditing ? 'Conexao atualizada' : 'Conexao registrada'} com sucesso. O webhook externo foi ignorado por estar invalido; a URL do webhook CRM ja esta disponivel no card da conexao.`
         );
-      } else {
+      } else if (isEditing) {
         setMessageKind('success');
-        setMessage(isEditing ? 'Conexao atualizada na clinica.' : 'Conexao registrada na clinica.');
+        setMessage('Conexao atualizada na clinica.');
       }
-      setEditingConnectionId(null);
-      setForm(INITIAL_FORM);
-      if (!isEditing) {
-        setIsCreateInstanceModalOpen(false);
+
+      if (isEditing) {
+        closeConnectionModal();
+      } else {
+        const connectionId = String(data?.channel?.id || '');
+        if (!connectionId) throw new Error('A conexao foi criada sem identificador para gerar o QR code.');
+        setCreatedConnectionId(connectionId);
+
+        const connectRes = await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/connect`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { accept: 'application/json' },
+        });
+        const connectData = await connectRes.json().catch(() => null);
+        if (!connectRes.ok) {
+          throw new Error(connectData?.error || `Falha ao gerar pareamento (HTTP ${connectRes.status})`);
+        }
+
+        setModalPairing({
+          imageSrc: toPairingImageSrc(connectData?.pairing?.qrBase64),
+          pairingCode:
+            typeof connectData?.pairing?.pairingCode === 'string'
+              ? connectData.pairing.pairingCode
+              : null,
+        });
+        setMessageKind(connectData?.webhook?.warning ? 'warning' : 'success');
+        setMessage(
+          connectData?.webhook?.warning
+            ? `Numero criado. ${connectData.webhook.warning}`
+            : 'Numero criado. Escaneie o QR code para conectar o WhatsApp.',
+        );
       }
       await reload();
     } catch (submitError) {
@@ -488,6 +570,12 @@ export const TenantChannelsPage: React.FC = () => {
       if (!res.ok) throw new Error(data?.error || `Falha ao gerar pareamento (HTTP ${res.status})`);
       const webhookWarning = typeof data?.webhook?.warning === 'string' ? data.webhook.warning : null;
 
+      setModalPairing({
+        imageSrc: toPairingImageSrc(data?.pairing?.qrBase64),
+        pairingCode:
+          typeof data?.pairing?.pairingCode === 'string' ? data.pairing.pairingCode : null,
+      });
+
       setMessageKind(webhookWarning ? 'warning' : 'success');
       setMessage(
         `${data?.pairing?.pairingCode ? `Pareamento solicitado: ${data.pairing.pairingCode}.` : 'Pareamento solicitado.'}${webhookWarning ? ` ${webhookWarning}` : ''}`
@@ -499,6 +587,33 @@ export const TenantChannelsPage: React.FC = () => {
       await reload();
     } finally {
       setPairingConnectionId(null);
+    }
+  }
+
+  async function deleteConnection() {
+    if (!tenantId || !deleteTarget) return;
+    const target = deleteTarget;
+    setDeletingConnectionId(target.id);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/platform/tenants/${tenantId}/channels/${target.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { accept: 'application/json' },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Falha ao excluir numero (HTTP ${res.status})`);
+
+      setMessageKind('success');
+      setMessage(`Numero ${target.name} excluido. As conversas foram preservadas.`);
+      setDeleteTarget(null);
+      await reload();
+    } catch (deleteError) {
+      setMessageKind('error');
+      setMessage(deleteError instanceof Error ? deleteError.message : 'Falha ao excluir numero.');
+    } finally {
+      setDeletingConnectionId(null);
     }
   }
 
@@ -654,71 +769,92 @@ export const TenantChannelsPage: React.FC = () => {
 
                       <div className="mt-3">
                         <div className="flex flex-wrap gap-2">
-                        {canManageInfrastructure ? (
+                        {canManageChannelConfig ? (
                           <button
                             type="button"
                             onClick={() => startEditing(connection)}
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                           >
-                            Editar conexao
+                            Editar
                           </button>
                         ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => void runHealthcheck(connection.id)}
-                          disabled={checkingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
-                        >
-                          <Activity size={14} />
-                          {checkingConnectionId === connection.id ? 'Atualizando...' : 'Atualizar status'}
-                        </button>
+                        {canManageInfrastructure ? (
+                          <button
+                            type="button"
+                            onClick={() => void runHealthcheck(connection.id)}
+                            disabled={checkingConnectionId === connection.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          >
+                            <Activity size={14} />
+                            {checkingConnectionId === connection.id ? 'Atualizando...' : 'Atualizar status'}
+                          </button>
+                        ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => void requestPairing(connection.id)}
-                          disabled={pairingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
-                        >
-                          {connection.status === 'connected' ? <PlugZap size={14} /> : <QrCode size={14} />}
-                          {pairingConnectionId === connection.id
-                            ? 'Gerando...'
-                            : connection.status === 'connected'
-                              ? 'Reconectar'
-                              : 'Gerar QR code'}
-                        </button>
+                        {canManageChannelConfig ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              startEditing(connection);
+                              void requestPairing(connection.id);
+                            }}
+                            disabled={pairingConnectionId === connection.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
+                          >
+                            <QrCode size={14} />
+                            {pairingConnectionId === connection.id ? 'Gerando...' : 'Reparear'}
+                          </button>
+                        ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => void sendTestMessage(connection.id)}
-                          disabled={sendingTestConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:bg-card dark:text-emerald-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-200"
-                        >
-                          <Send size={14} />
-                          {sendingTestConnectionId === connection.id ? 'Enviando teste...' : 'Testar envio'}
-                        </button>
+                        {canManageInfrastructure ? (
+                          <button
+                            type="button"
+                            onClick={() => void sendTestMessage(connection.id)}
+                            disabled={sendingTestConnectionId === connection.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/30 dark:bg-card dark:text-emerald-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-200"
+                          >
+                            <Send size={14} />
+                            {sendingTestConnectionId === connection.id ? 'Enviando teste...' : 'Testar envio'}
+                          </button>
+                        ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => void disconnectConnection(connection.id)}
-                          disabled={disconnectingConnectionId === connection.id}
-                          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-card dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
-                        >
-                          <Plug2 size={14} />
-                          {disconnectingConnectionId === connection.id ? 'Desconectando...' : 'Desconectar'}
-                        </button>
+                        {canManageInfrastructure ? (
+                          <button
+                            type="button"
+                            onClick={() => void disconnectConnection(connection.id)}
+                            disabled={disconnectingConnectionId === connection.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-card dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
+                          >
+                            <Plug2 size={14} />
+                            {disconnectingConnectionId === connection.id ? 'Desconectando...' : 'Desconectar'}
+                          </button>
+                        ) : null}
+
+                        {canManageChannelConfig ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ id: connection.id, name: connection.name })}
+                            disabled={deletingConnectionId === connection.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-card dark:text-rose-300 dark:hover:border-rose-500/50 dark:hover:text-rose-200"
+                          >
+                            <Trash2 size={14} />
+                            Excluir
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
                       <div>
-                        <span className="font-medium text-slate-900 dark:text-white">Instance:</span>{' '}
-                        {String(connection.config?.instanceName || '-')}
-                      </div>
-                      <div>
                         <span className="font-medium text-slate-900 dark:text-white">Telefone:</span>{' '}
                         {String(connection.metadata?.phoneNumber || '-')}
                       </div>
+                      {canManageInfrastructure ? (
+                        <div>
+                          <span className="font-medium text-slate-900 dark:text-white">Instance:</span>{' '}
+                          {String(connection.config?.instanceName || '-')}
+                        </div>
+                      ) : null}
                       {canManageInfrastructure ? (<>
                         <div className="md:col-span-2">
                           <span className="font-medium text-slate-900 dark:text-white">API URL:</span>{' '}
@@ -738,13 +874,13 @@ export const TenantChannelsPage: React.FC = () => {
                           {getCrmWebhookUrl(connection) || '-'}
                         </div>
                       ) : null}
+                      {canManageInfrastructure ? (<>
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Ultimo healthcheck:</span>{' '}
                         {connection.last_healthcheck_at
                           ? new Date(connection.last_healthcheck_at).toLocaleString('pt-BR')
                           : 'nao executado'}
                       </div>
-                      {canManageInfrastructure ? (<>
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Chave:</span>{' '}
                         {connection.metadata?.apiKeyLast4 ? `••••${String(connection.metadata.apiKeyLast4)}` : '-'}
@@ -753,7 +889,6 @@ export const TenantChannelsPage: React.FC = () => {
                         <span className="font-medium text-slate-900 dark:text-white">Modo de envio:</span>{' '}
                         {String(connection.config?.sendMode || 'auto')}
                       </div>
-                      </>) : null}
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Estado retornado:</span>{' '}
                         {String(connection.metadata?.lastHealthcheckState || connection.metadata?.lastHealthcheckError || '-')}
@@ -780,8 +915,10 @@ export const TenantChannelsPage: React.FC = () => {
                           {String(connection.metadata?.lastSendTestAttempt || '-')}
                         </div>
                       ) : null}
+                      </>) : null}
                     </div>
 
+                    {canManageInfrastructure ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">
                       <div className="text-sm font-semibold text-slate-900 dark:text-white">Teste de envio</div>
                       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
@@ -813,8 +950,9 @@ export const TenantChannelsPage: React.FC = () => {
                         </div>
                       ) : null}
                     </div>
+                    ) : null}
 
-                    {pairingDisplay.imageSrc || pairingDisplay.pairingCode ? (
+                    {canManageInfrastructure && (pairingDisplay.imageSrc || pairingDisplay.pairingCode) ? (
                       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-900 dark:text-white">Pareamento visual</div>
@@ -902,14 +1040,14 @@ export const TenantChannelsPage: React.FC = () => {
                     : 'Conectar novo numero'
                   : 'Conectar WhatsApp'}
               </div>
-              {canManageInfrastructure ? (
+              {canManageChannelConfig ? (
                 <button
                   type="button"
                   onClick={openCreateInstanceModal}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
                 >
                   <Plus size={14} />
-                  Instancia +
+                  Adicionar número
                 </button>
               ) : null}
             </div>
@@ -1146,17 +1284,18 @@ export const TenantChannelsPage: React.FC = () => {
             )}
           </div>
           <Modal
-            isOpen={canManageInfrastructure && isCreateInstanceModalOpen}
-            onClose={() => setIsCreateInstanceModalOpen(false)}
-            title="Nova instancia"
+            isOpen={canManageChannelConfig && isCreateInstanceModalOpen}
+            onClose={closeConnectionModal}
+            title={editingConnectionId ? 'Editar número' : 'Adicionar número'}
             size="lg"
           >
             <ModalForm onSubmit={submit}>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome *
+                <label htmlFor="channel-name" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Nome de identificação
                 </label>
                 <input
+                  id="channel-name"
                   className={FIELD_CLASS}
                   value={form.name}
                   onChange={(e) => onChange('name', e.target.value)}
@@ -1166,69 +1305,90 @@ export const TenantChannelsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Canal
+                <label htmlFor="channel-phone" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Número
                 </label>
-                <input className={FIELD_CLASS} value="Evolution" readOnly />
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Modo assistido: com credencial global da agencia, preencha apenas instancia e numero.
-                </div>
+                <input
+                  id="channel-phone"
+                  className={FIELD_CLASS}
+                  value={form.phoneNumber}
+                  onChange={(e) => onChange('phoneNumber', e.target.value)}
+                  placeholder="+55 11 99999-9999"
+                  required
+                />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    API URL (opcional)
-                  </label>
-                  <input
-                    className={FIELD_CLASS}
-                    value={form.apiUrl}
-                    onChange={(e) => onChange('apiUrl', e.target.value)}
-                    onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
-                    placeholder="https://evolution.seudominio.com (usa global se vazio)"
-                    autoComplete="off"
-                    inputMode="url"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Instance name *
-                  </label>
-                  <input
-                    className={FIELD_CLASS}
-                    value={form.instanceName}
-                    onChange={(e) => onChange('instanceName', e.target.value)}
-                    placeholder="Clinica-Dra-Jessica"
-                    required
-                  />
-                </div>
-              </div>
+              {canManageInfrastructure ? (
+                <details className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-900 dark:text-white">
+                    Avançado
+                  </summary>
+                  <div className="mt-4 grid gap-4">
+                    <div>
+                      <label htmlFor="channel-api-url" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        API URL (opcional)
+                      </label>
+                      <input
+                        id="channel-api-url"
+                        className={FIELD_CLASS}
+                        value={form.apiUrl}
+                        onChange={(e) => onChange('apiUrl', e.target.value)}
+                        onBlur={(e) => onChange('apiUrl', normalizeHttpUrlInput(e.target.value))}
+                        placeholder="https://evolution.seudominio.com (usa global se vazio)"
+                        autoComplete="off"
+                        inputMode="url"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="channel-instance" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Instance name (opcional)
+                      </label>
+                      <input
+                        id="channel-instance"
+                        className={FIELD_CLASS}
+                        value={form.instanceName}
+                        onChange={(e) => onChange('instanceName', e.target.value)}
+                        placeholder="Gerado automaticamente se vazio"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="channel-token" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Token (opcional)
+                      </label>
+                      <input
+                        id="channel-token"
+                        type="password"
+                        className={FIELD_CLASS}
+                        value={form.apiKey}
+                        onChange={(e) => onChange('apiKey', e.target.value)}
+                        placeholder="Usa o token global se vazio"
+                      />
+                    </div>
+                  </div>
+                </details>
+              ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Token (opcional)
-                  </label>
-                  <input
-                    type="password"
-                    className={FIELD_CLASS}
-                    value={form.apiKey}
-                    onChange={(e) => onChange('apiKey', e.target.value)}
-                    placeholder="Cole apenas se quiser sobrescrever o token global"
-                  />
+              {modalPairing.imageSrc || modalPairing.pairingCode ? (
+                <div className="grid gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 md:grid-cols-[220px_1fr] dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                  {modalPairing.imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={modalPairing.imageSrc}
+                      alt="QR code do WhatsApp"
+                      className="h-52 w-52 rounded-xl bg-white object-contain p-2"
+                    />
+                  ) : null}
+                  <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                    <div className="font-semibold">Pareamento pronto</div>
+                    {modalPairing.pairingCode ? (
+                      <div className="break-all rounded-xl bg-white px-3 py-2 font-mono dark:bg-card">
+                        {modalPairing.pairingCode}
+                      </div>
+                    ) : null}
+                    <p>Abra o WhatsApp no celular e escaneie o QR code para conectar este número.</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Numero
-                  </label>
-                  <input
-                    className={FIELD_CLASS}
-                    value={form.phoneNumber}
-                    onChange={(e) => onChange('phoneNumber', e.target.value)}
-                    placeholder="+55 11 99999-9999"
-                  />
-                </div>
-              </div>
+              ) : null}
 
               {message ? (
                 <div
@@ -1247,21 +1407,42 @@ export const TenantChannelsPage: React.FC = () => {
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreateInstanceModalOpen(false)}
+                  onClick={closeConnectionModal}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20 dark:hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || Boolean(createdConnectionId)}
                   className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? 'Salvando...' : 'Salvar'}
+                  {saving
+                    ? editingConnectionId
+                      ? 'Salvando...'
+                      : 'Gerando...'
+                    : editingConnectionId
+                      ? 'Salvar'
+                      : createdConnectionId
+                        ? 'QR code gerado'
+                        : 'Gerar QR code'}
                 </button>
               </div>
             </ModalForm>
           </Modal>
+          <ConfirmModal
+            isOpen={Boolean(deleteTarget)}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={() => void deleteConnection()}
+            title="Excluir número"
+            message={
+              <>
+                O número <strong>{deleteTarget?.name}</strong> será removido. As conversas existentes serão preservadas.
+              </>
+            }
+            confirmText="Excluir número"
+            variant="danger"
+          />
         </div>
       ) : tenant ? (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-5 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
