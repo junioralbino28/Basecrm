@@ -84,6 +84,14 @@ describeLocal('F4 — scheduler durável no Supabase local', () => {
   it('FOR UPDATE SKIP LOCKED entrega o job a somente um worker', async () => {
     if (!admin || !fixture) throw new Error('fixture F4 ausente');
 
+    const targetJob = await admin
+      .from('automation_jobs')
+      .select('id')
+      .eq('enrollment_id', fixture.enrollmentId)
+      .eq('step_key', fixture.stepKeys[0])
+      .single();
+    expect(targetJob.error).toBeNull();
+
     const claims = await Promise.all([
       admin.rpc('claim_automation_jobs', {
         p_worker_id: 'worker-a',
@@ -99,32 +107,33 @@ describeLocal('F4 — scheduler durável no Supabase local', () => {
     expect(claims.every((claim) => claim.error === null)).toBe(true);
 
     const claimed = claims.flatMap((claim) => (claim.data ?? []) as ClaimedJob[]);
-    expect(claimed).toHaveLength(1);
-    expect(claimed[0]).toMatchObject({
+    const targetClaims = claimed.filter((job) => job.id === targetJob.data?.id);
+    expect(targetClaims).toHaveLength(1);
+    expect(targetClaims[0]).toMatchObject({
       status: 'leased',
       attempt_count: 1,
     });
 
     const dispatched = await dispatchAutomationSimulation({
       db: admin,
-      jobId: claimed[0].id,
-      leaseOwner: claimed[0].lease_owner,
-      attemptCount: claimed[0].attempt_count,
+      jobId: targetClaims[0].id,
+      leaseOwner: targetClaims[0].lease_owner,
+      attemptCount: targetClaims[0].attempt_count,
     });
     expect(dispatched.status).toBe('simulated');
 
     const repeated = await dispatchAutomationSimulation({
       db: admin,
-      jobId: claimed[0].id,
-      leaseOwner: claimed[0].lease_owner,
-      attemptCount: claimed[0].attempt_count,
+      jobId: targetClaims[0].id,
+      leaseOwner: targetClaims[0].lease_owner,
+      attemptCount: targetClaims[0].attempt_count,
     });
     expect(repeated.duplicate).toBe(true);
 
     const messages = await admin
       .from('conversation_messages')
       .select('id', { count: 'exact', head: true })
-      .eq('automation_job_id', claimed[0].id);
+      .eq('automation_job_id', targetClaims[0].id);
     expect(messages.count).toBe(1);
   });
 
