@@ -81,6 +81,13 @@ Baseada no modelo HubSpot/GHL (lista encadeada + cursor por lead), validada nas 
 9. **Fatiar F1–F9:** a ordem está boa? O que você entregaria antes/depois? Algum bloco grande demais pra um lote?
 10. **Algo no SPEC que você acha errado ou arriscado?** (não reabra as decisões travadas do §4 do SPEC sem argumento forte)
 
+11. **⭐ ONDE RODA A COMPRESSÃO DE VÍDEO?** (requisito novo do Junior — SPEC §3 Bloco 1). Restrições reais: rota Vercel tem limite de corpo (~4.5MB) e **sem ffmpeg no runtime serverless** → upload obrigatoriamente **direto do navegador pro Supabase Storage** via URL assinada. As opções:
+    - **(a) No navegador, antes de subir (`ffmpeg.wasm`)** — sem infra nova, sem custo recorrente; mas é lento e pesado pra arquivo de 200-300MB (usa CPU/RAM do usuário, pode derrubar a aba). Bom pra "um pouco acima do limite".
+    - **(b) Worker próprio com ffmpeg** (o Junior **tem VPS Hostinger**) — sobe pro Storage → dispara job → worker baixa, comprime, devolve a derivada. Robusto pra qualquer tamanho; custo = manter o worker.
+    - **(c) Serviço de mídia pago** (Cloudinary/Mux/Bunny) — zero manutenção; custo recorrente + **dado da clínica sai pra terceiro** (pesa na regra de segurança do projeto).
+    - **(d) v1 pragmático:** validar + avisar no upload, comprimir no navegador quando der, e **deixar o worker pra depois**.
+    Qual você recomenda pro v1 e por quê? Como modelar `media_assets` pra guardar **original + derivadas por canal** desde já (pra não migrar depois)?
+
 ## 7. Riscos conhecidos
 - **Idempotência do agendador** é o ponto mais perigoso: tick duplicado = mensagem duplicada pro paciente.
 - **Modo seguro** precisa ser à prova de erro — envio acidental pro número da agência com lead real queima o número.

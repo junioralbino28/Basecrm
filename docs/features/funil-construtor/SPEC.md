@@ -21,6 +21,8 @@ Um criador de sequências onde o usuário monta o fluxo numa **lista vertical si
 - **Tipos de passo v1:** enviar mensagem (texto/imagem/vídeo/áudio/link) · esperar tempo · **esperar resposta com prazo** · criar tarefa · mover etapa/funil · condição (se/então).
 - **Biblioteca de mensagens** — entidade própria; ao puxar pro passo cria **cópia local** + toggle *"sincronizar com a original?"* (padrão desligado). Mesma biblioteca serve o atendimento manual.
 - **Biblioteca de mídia** — sobe uma vez, usa em qualquer passo. Limites do WhatsApp validados **na hora do upload**.
+- **⭐ Compressão automática de vídeo (pedido do Junior, 2026-07-16):** quando o arquivo passar do limite do canal, **o CRM comprime sozinho** em vez de só recusar. O usuário sobe o vídeo do jeito que tem (celular grava em 4K) e o sistema entrega uma versão enviável, **guardando o original em alta**. Regra: **original preservado + derivada otimizada por canal**; o passo referencia a derivada.
+  > ⚠️ **Isto NÃO é um checkbox — é uma decisão de infraestrutura.** Rota de API da Vercel tem limite de corpo de requisição (~4.5MB) e o runtime serverless **não traz ffmpeg**: não dá pra subir 322MB por uma rota nem transcodificar lá dentro. O upload tem que ir **direto do navegador pro Storage** (URL assinada), e a compressão tem que rodar em algum lugar. Ver as 3 opções no `PLAN.md` §6 pergunta 11 — **decisão pendente**.
 - **Tela do fluxo:** gatilho + passos na **mesma tela**, lista vertical, botão "+" entre passos, **sem canvas de arrastar**.
 - **Roteamento por etiqueta (tag)** do lead — é o que faz os 3 serviços caberem sem multiplicar funil.
 - **Agendador** que faz os delays andarem.
