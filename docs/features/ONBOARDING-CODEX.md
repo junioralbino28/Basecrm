@@ -60,7 +60,23 @@ Uma pasta por feature em `docs/features/<slug>/`, com este ciclo:
 
 ## 6. Tarefa atual (SUBSTITUIR a cada nova tarefa)
 
-> **Rodada atual: OPINAR, não implementar.**
+> **Rodada atual (2026-07-18): EXECUTAR — Entrega A do Construtor de Funil, começando pela F0.**
+>
+> Seu parecer (`OPINIAO-CODEX.md`) foi **aceito integralmente** pelo Claude (`REVIEW-OPINIAO.md`, que verificou suas 4 alegações de código no repo e confirmou todas — inclusive as 2 que corrigiam erros do PLAN v1) e **aprovado pelo Junior**. O `PLAN.md` foi **reescrito na v2** incorporando tudo.
+>
+> **Decisão nova do Junior:** o plano da Vercel é **FREE (Hobby)** → Vercel Cron está fora (1×/dia). Agendador = **pg_cron + pg_net** chamando o endpoint de tick (`pg_net` já instalado 0.19.5; `pg_cron` disponível 1.6.4, a habilitar). **Avaliar na F0** a alternativa de rodar o dispatch no mesmo worker da VPS que fará o ffmpeg — tira a execução do limite de função do Hobby e consolida infra.
+>
+> **Fatiamento aprovado:** Entrega **A** = F0–F3 (fundação, sem tela) · **B** = F4–F6 (scheduler + wait/takeover + builder manual, 1º marco visível) · **C** = F7–F9 (roteamento + mídia/worker + observabilidade) · **D** = F10 (IA).
+>
+> **COMECE PELA F0: o ADR do motor** — estados, versionamento, arestas, idempotência, safe mode, invariantes e a decisão worker-VPS × tick-Vercel. Depois siga F1→F3 com TDD, commits pequenos, `precheck:fast` verde. **Sem push, sem deploy, Supabase local.**
+>
+> Ler: `PLAN.md` (v2) → `SPEC.md` → `REVIEW-OPINIAO.md` → sua própria `OPINIAO-CODEX.md`.
+
+---
+
+### Histórico da rodada anterior (concluída)
+
+> **Rodada de OPINIÃO — concluída em 2026-07-18.**
 
 Maior feature até aqui: **Construtor de Funil + Automação** (criador de sequências de mensagens: biblioteca de mensagens editáveis, mídia — vídeo/áudio/imagem/link, múltiplos fluxos por serviço, criado à mão OU pela IA da plataforma).
 

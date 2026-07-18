@@ -22,7 +22,7 @@ Uma pasta por feature em `docs/features/<slug>/` com:
 |---|---|---|---|
 | E2 — Enforcement de permissões (toggles bloqueiam telas) | completo | 🟢 EM PROD (2026-07-15): migration aplicada+verificada + código deployado (`main` fd84dff) | [`e2-enforcement/`](e2-enforcement/) |
 | Multi-número / Caixa unificada (parear fácil + switch de número + IA por número) | completo | 🟢 EM PROD (2026-07-16): Codex implementou, Claude revisou/aprovou, deploy `be7fe35` | [`multi-numero-inbox/`](multi-numero-inbox/) |
-| Construtor de Funil + Automação (mensagens editáveis + mídia + manual/IA) | opinião | ⚪ Pesquisa (Kommo+GHL) + VISAO-PRODUTO + SPEC + PLAN escritos → **Codex opina na estrutura antes de codar** (`OPINIAO-CODEX.md`) | [`funil-construtor/`](funil-construtor/) |
+| Construtor de Funil + Automação (mensagens editáveis + mídia + manual/IA) | execução | 🔵 Opinião do Codex ACEITA + Junior aprovou os 8 pontos e o fatiamento → **PLAN v2** → Codex executa **Entrega A (F0–F3)** | [`funil-construtor/`](funil-construtor/) |
 
 ### Legenda de status
 🟡 spec → ⚪ plano → 🔵 implementando (Codex) → 🟠 revisão (Claude) → 🟢 pronto/em prod
