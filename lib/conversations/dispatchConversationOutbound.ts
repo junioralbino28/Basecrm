@@ -239,8 +239,32 @@ export async function dispatchManualConversationOutbound(params: {
 export async function dispatchAutomationSimulation(params: {
   db: SupabaseClient;
   jobId: string;
+  leaseOwner?: string;
+  attemptCount?: number;
 }): Promise<CompletedOutbound & { duplicate?: boolean }> {
   let preparedJobId = params.jobId;
+  let leaseOwner = params.leaseOwner;
+  let attemptCount = params.attemptCount;
+
+  if (!leaseOwner || !attemptCount) {
+    const inlineWorker = `inline-simulation:${params.jobId}`;
+    const claimed = await params.db.rpc('claim_automation_jobs', {
+      p_worker_id: inlineWorker,
+      p_batch_limit: 1,
+      p_lease_seconds: 60,
+      p_job_id: params.jobId,
+    });
+    if (claimed.error) throw new Error(claimed.error.message);
+    const row = (claimed.data as Array<{
+      lease_owner: string;
+      attempt_count: number;
+    }> | null)?.[0];
+    if (row) {
+      leaseOwner = row.lease_owner;
+      attemptCount = row.attempt_count;
+    }
+  }
+
   return dispatchConversationOutbound(
     {
       mode: 'automation_simulation',
@@ -274,6 +298,8 @@ export async function dispatchAutomationSimulation(params: {
           .rpc('complete_automation_simulation', {
             p_job_id: preparedJobId,
             p_message_id: prepared.messageId,
+            p_lease_owner: leaseOwner ?? '',
+            p_attempt_count: attemptCount ?? 0,
           })
           .single();
         if (completed.error || !completed.data) {
