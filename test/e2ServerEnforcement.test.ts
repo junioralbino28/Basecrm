@@ -13,11 +13,20 @@ import { shouldLoadTestEnvFiles } from './helpers/env';
 
 const MIGRATION_NAME = '20260635000000_e2_server_permission_enforcement.sql';
 const migrationPath = resolve(process.cwd(), 'supabase/migrations', MIGRATION_NAME);
+const SNAPSHOT_MIGRATION_NAME = '20260718000000_funil_f1_authoring.sql';
+const snapshotMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations',
+  SNAPSHOT_MIGRATION_NAME,
+);
 const generatorPath = resolve(
   process.cwd(),
   'scripts/generate-e2-role-permission-defaults.mjs',
 );
 const sql = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : '';
+const snapshotSql = existsSync(snapshotMigrationPath)
+  ? readFileSync(snapshotMigrationPath, 'utf8')
+  : '';
 
 const ROLES = [
   'agency_admin',
@@ -69,6 +78,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
 
   it('possui migration e gerador determinístico em modo --check', () => {
     expect(existsSync(migrationPath), MIGRATION_NAME).toBe(true);
+    expect(existsSync(snapshotMigrationPath), SNAPSHOT_MIGRATION_NAME).toBe(true);
     expect(existsSync(generatorPath), 'gerador do snapshot').toBe(true);
 
     execFileSync(process.execPath, [generatorPath, '--check'], {
@@ -78,7 +88,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
   });
 
   it('materializa exatamente o produto cartesiano cargo × permissão no snapshot v1', () => {
-    const snapshotMatch = sql.match(
+    const snapshotMatch = snapshotSql.match(
       /-- E2_ROLE_PERMISSION_DEFAULTS:START\r?\n([\s\S]*?)\r?\n-- E2_ROLE_PERMISSION_DEFAULTS:END/,
     );
     expect(snapshotMatch, 'marcadores do snapshot gerado').not.toBeNull();
