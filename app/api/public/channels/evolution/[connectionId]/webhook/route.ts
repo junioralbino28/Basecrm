@@ -713,6 +713,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
     if (existingMessage.error) return json({ error: existingMessage.error.message }, 500);
     if (existingMessage.data) {
+      if (parsed.direction === 'inbound') {
+        const waitResolution = await admin.rpc('resolve_automation_wait_from_inbox', {
+          p_channel_connection_id: connectionId,
+          p_provider_message_id: parsed.providerMessageId,
+          p_thread_id: existingMessage.data.thread_id,
+          p_message_id: existingMessage.data.id,
+          p_quoted_provider_message_id: parsed.quotedProviderMessageId,
+          p_received_at: parsed.sentAt,
+        });
+        if (waitResolution.error) {
+          return json({ error: 'Falha ao correlacionar resposta da automação.' }, 500);
+        }
+      }
       return json({
         ok: true,
         duplicate: true,
@@ -889,6 +902,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       }
     }
     return json({ error: insertedMessage.error.message }, 500);
+  }
+
+  if (parsed.direction === 'inbound' && parsed.providerMessageId) {
+    const waitResolution = await admin.rpc('resolve_automation_wait_from_inbox', {
+      p_channel_connection_id: connectionId,
+      p_provider_message_id: parsed.providerMessageId,
+      p_thread_id: threadId,
+      p_message_id: insertedMessage.data.id,
+      p_quoted_provider_message_id: parsed.quotedProviderMessageId,
+      p_received_at: parsed.sentAt,
+    });
+    if (waitResolution.error) {
+      return json({ error: 'Falha ao correlacionar resposta da automação.' }, 500);
+    }
   }
 
   let dealId: string | null = threadResult.data?.deal_id ?? null;

@@ -1,6 +1,7 @@
 type ParsedEvolutionMessage = {
   event: string | null;
   providerMessageId: string | null;
+  quotedProviderMessageId: string | null;
   direction: 'inbound' | 'outbound';
   messageType: string;
   content: string | null;
@@ -145,6 +146,15 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
     candidate.envelope.id,
     root.id,
   ]);
+  const quotedProviderMessageId = getFirstString([
+    getNested(candidate.message, ['extendedTextMessage', 'contextInfo', 'stanzaId']),
+    getNested(candidate.message, ['imageMessage', 'contextInfo', 'stanzaId']),
+    getNested(candidate.message, ['videoMessage', 'contextInfo', 'stanzaId']),
+    getNested(candidate.message, ['audioMessage', 'contextInfo', 'stanzaId']),
+    getNested(candidate.message, ['documentMessage', 'contextInfo', 'stanzaId']),
+    getNested(candidate.message, ['contextInfo', 'stanzaId']),
+    getNested(candidate.envelope, ['contextInfo', 'stanzaId']),
+  ]);
 
   const remoteJid = getFirstString([
     candidate.key?.remoteJid,
@@ -165,6 +175,7 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
   return {
     event,
     providerMessageId,
+    quotedProviderMessageId,
     direction: fromMe ? 'outbound' : 'inbound',
     messageType,
     content,

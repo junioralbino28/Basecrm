@@ -22,4 +22,10 @@ describe('webhook Evolution — dedupe atômico por provider ID', () => {
     expect(source).toContain("insertedMessage.error.code === '23505'");
     expect(source).toContain('duplicate: true');
   });
+
+  it('entrega inbox inbound ao wait_for_event com quote e também no replay deduplicado', () => {
+    expect(source).toContain("rpc('resolve_automation_wait_from_inbox'");
+    expect(source).toContain('p_quoted_provider_message_id: parsed.quotedProviderMessageId');
+    expect(source.match(/resolve_automation_wait_from_inbox/g)).toHaveLength(2);
+  });
 });

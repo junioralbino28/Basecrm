@@ -87,8 +87,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
     });
   }
 
+  const nextStatus = parsed.data.status ?? existingThread.data.status;
   if (parsed.data.status !== undefined || parsed.data.assign_next_human || parsed.data.handoff_reason !== undefined) {
-    const nextStatus = parsed.data.status ?? existingThread.data.status;
     updates.metadata = buildConversationThreadMetadataUpdate((updates.metadata as Record<string, unknown> | undefined) ?? existingThread.data.metadata, {
       routingMode: nextStatus === 'ai_active' || nextStatus === 'resolved' ? 'ai' : 'human',
       humanLocked: nextStatus === 'human_queue' || nextStatus === 'human_active',
@@ -115,6 +115,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
           ? 0
           : undefined,
     });
+  }
+
+  if (nextStatus === 'human_queue' || nextStatus === 'human_active') {
+    const paused = await admin.rpc('pause_automation_enrollments_for_thread', {
+      p_thread_id: threadId,
+      p_actor_id: auth.profile.id,
+      p_reason: parsed.data.handoff_reason?.trim() || nextStatus,
+    });
+    if (paused.error) {
+      return json({ error: 'Falha ao pausar automações da conversa.' }, 500);
+    }
   }
 
   const updateResult = await admin

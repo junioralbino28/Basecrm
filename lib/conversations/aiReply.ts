@@ -376,6 +376,15 @@ export async function executeConversationAIReply(params: {
 
   if (threadUpdate.error) throw new Error(threadUpdate.error.message);
 
+  if (payload.shouldHandoff) {
+    const paused = await admin.rpc('pause_automation_enrollments_for_thread', {
+      p_thread_id: payload.threadId,
+      p_actor_id: null,
+      p_reason: 'ai_handoff',
+    });
+    if (paused.error) throw new Error(paused.error.message);
+  }
+
   if (payload.summary?.trim()) {
     const summaryInsert = await admin.from('conversation_messages').insert({
       thread_id: payload.threadId,

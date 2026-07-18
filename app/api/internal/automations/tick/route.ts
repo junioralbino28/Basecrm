@@ -11,6 +11,12 @@ export async function POST(request: Request) {
   }
 
   const admin = createStaticAdminClient();
+  const expired = await admin.rpc('expire_due_automation_waits', {
+    p_batch_limit: 50,
+  });
+  if (expired.error) {
+    return json({ error: 'Falha ao reconciliar esperas.' }, 500);
+  }
   const materialized = await admin.rpc('materialize_automation_jobs', {
     p_batch_limit: 50,
   });
@@ -20,6 +26,7 @@ export async function POST(request: Request) {
 
   return json({
     ok: true,
+    expired: expired.data?.length ?? 0,
     materialized: materialized.data?.length ?? 0,
   });
 }

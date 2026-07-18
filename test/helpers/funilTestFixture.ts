@@ -225,7 +225,32 @@ export async function createFunilTestFixture(params: {
     threadId,
     versionId,
     cleanup: async () => {
-      await admin.auth.admin.deleteUser(actorId);
+      const cleanupTables = [
+        'automation_inbox_events',
+        'automation_waits',
+        'automation_step_attempts',
+        'conversation_messages',
+        'automation_jobs',
+        'automation_enrollments',
+      ] as const;
+      for (const table of cleanupTables) {
+        const deleted = await admin
+          .from(table)
+          .delete()
+          .eq('organization_id', organizationId);
+        if (deleted.error) fail(`cleanup ${table}`, deleted.error);
+      }
+
+      const deletedOrganization = await admin
+        .from('organizations')
+        .delete()
+        .eq('id', organizationId);
+      if (deletedOrganization.error) {
+        fail('cleanup organization', deletedOrganization.error);
+      }
+
+      const deletedActor = await admin.auth.admin.deleteUser(actorId);
+      if (deletedActor.error) fail('cleanup actor', deletedActor.error);
     },
   };
 }

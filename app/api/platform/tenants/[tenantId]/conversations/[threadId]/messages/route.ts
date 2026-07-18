@@ -173,6 +173,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const storedContent =
     messageContent || (attachment ? attachment.file_name || `[${attachment.kind}]` : '');
 
+  if (parsed.data.direction === 'outbound' || parsed.data.direction === 'internal') {
+    const paused = await admin.rpc('pause_automation_enrollments_for_thread', {
+      p_thread_id: threadId,
+      p_actor_id: auth.profile.id,
+      p_reason: 'manual_message',
+    });
+    if (paused.error) {
+      return json({ error: 'Falha ao pausar automações da conversa.' }, 500);
+    }
+  }
+
   if (parsed.data.direction === 'outbound') {
     const idempotencyKey =
       parsed.data.idempotency_key
