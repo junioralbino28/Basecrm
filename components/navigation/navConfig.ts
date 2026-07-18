@@ -12,6 +12,7 @@ import {
   PlusSquare,
   MessageCircle,
   MessagesSquare,
+  Workflow,
 } from 'lucide-react';
 
 export type PrimaryNavId = 'boards' | 'contacts' | 'activities' | 'more';
@@ -40,7 +41,8 @@ export type SecondaryNavId =
   | 'platform_new_tenant'
   | 'tenant_whatsapp_connect'
   | 'tenant_whatsapp'
-  | 'tenant_conversations';
+  | 'tenant_conversations'
+  | 'tenant_automations';
 
 export interface SecondaryNavItem {
   id: SecondaryNavId;
@@ -93,17 +95,22 @@ export function getTenantWorkspaceNav(options: {
   hasConnectedWhatsapp?: boolean;
   canAccessWhatsapp?: boolean;
   canAccessConversations?: boolean;
+  canAccessAutomations?: boolean;
 }): SecondaryNavItem[] {
   const {
     tenantId,
     hasConnectedWhatsapp = false,
     canAccessWhatsapp = false,
     canAccessConversations = false,
+    canAccessAutomations = false,
   } = options;
   if (!tenantId) return [];
-  if (!canAccessWhatsapp && !canAccessConversations) return [];
+  if (!canAccessWhatsapp && !canAccessConversations && !canAccessAutomations) return [];
 
   return [
+    ...(canAccessAutomations
+      ? [{ id: 'tenant_automations', label: 'Automações', href: `/platform/tenants/${tenantId}/automations`, icon: Workflow } satisfies SecondaryNavItem]
+      : []),
     ...(canAccessConversations
       ? [{ id: 'tenant_conversations', label: 'Conversas', href: `/platform/tenants/${tenantId}/conversations`, icon: MessagesSquare } satisfies SecondaryNavItem]
       : []),

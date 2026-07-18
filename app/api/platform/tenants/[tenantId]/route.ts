@@ -57,6 +57,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       canAccessWhatsApp: auth.permissions['whatsapp.access'],
       canAccessConversations: auth.permissions['conversations.access'],
       canReplyConversations: auth.permissions['conversations.reply'],
+      canAccessAutomations:
+        auth.permissions['automation.operate'] || auth.permissions['automation.edit'],
+      canEditAutomations: auth.permissions['automation.edit'],
     },
   });
 }

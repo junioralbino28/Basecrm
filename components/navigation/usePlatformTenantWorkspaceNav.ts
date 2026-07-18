@@ -18,6 +18,7 @@ type TenantNavApiResponse = {
   access?: {
     canAccessWhatsApp?: boolean;
     canAccessConversations?: boolean;
+    canAccessAutomations?: boolean;
   };
   tenant?: {
     id: string;
@@ -73,6 +74,7 @@ export function usePlatformTenantWorkspaceNav(): {
 
   const canAccessWhatsapp = Boolean(tenantQuery.data?.access?.canAccessWhatsApp) || (Boolean(tenantId) && isAgencyAdmin);
   const canAccessConversations = Boolean(tenantQuery.data?.access?.canAccessConversations) || (Boolean(tenantId) && isAgencyAdmin);
+  const canAccessAutomations = Boolean(tenantQuery.data?.access?.canAccessAutomations) || (Boolean(tenantId) && isAgencyAdmin);
 
   return {
     items: getTenantWorkspaceNav({
@@ -80,6 +82,7 @@ export function usePlatformTenantWorkspaceNav(): {
       hasConnectedWhatsapp,
       canAccessWhatsapp,
       canAccessConversations,
+      canAccessAutomations,
     }),
     tenantId,
     hasConnectedWhatsapp,

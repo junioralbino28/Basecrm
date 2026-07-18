@@ -51,11 +51,15 @@ export function useTenantDetail() {
     canAccessWhatsApp: boolean;
     canAccessConversations: boolean;
     canReplyConversations: boolean;
+    canAccessAutomations: boolean;
+    canEditAutomations: boolean;
   }>({
     canManageChannelConfig: false,
     canAccessWhatsApp: false,
     canAccessConversations: false,
     canReplyConversations: false,
+    canAccessAutomations: false,
+    canEditAutomations: false,
   });
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -78,6 +82,8 @@ export function useTenantDetail() {
         canAccessWhatsApp: Boolean(data?.access?.canAccessWhatsApp),
         canAccessConversations: Boolean(data?.access?.canAccessConversations),
         canReplyConversations: Boolean(data?.access?.canReplyConversations),
+        canAccessAutomations: Boolean(data?.access?.canAccessAutomations),
+        canEditAutomations: Boolean(data?.access?.canEditAutomations),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar clinica.');
