@@ -706,8 +706,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     const existingMessage = await admin
       .from('conversation_messages')
       .select('id, thread_id')
-      .eq('organization_id', connectionResult.data.organization_id)
-      .eq('metadata->>provider_message_id', parsed.providerMessageId)
+      .eq('channel_connection_id', connectionId)
+      .eq('provider_message_id', parsed.providerMessageId)
       .limit(1)
       .maybeSingle();
 
@@ -853,10 +853,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .insert({
       thread_id: threadId,
       organization_id: connectionResult.data.organization_id,
+      channel_connection_id: connectionId,
       direction: parsed.direction,
       message_type: parsed.messageType,
       author_name: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
       content,
+      provider_message_id: parsed.providerMessageId,
+      delivery_status: 'sent',
       // Fix achado X: sem raw_payload (PII crua redundante — conteúdo já vai em `content`).
       metadata: buildEvolutionMessageMetadata({
         event: parsed.event,
@@ -868,7 +871,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .select('id')
     .single();
 
-  if (insertedMessage.error) return json({ error: insertedMessage.error.message }, 500);
+  if (insertedMessage.error) {
+    if (insertedMessage.error.code === '23505' && parsed.providerMessageId) {
+      const duplicate = await admin
+        .from('conversation_messages')
+        .select('id, thread_id')
+        .eq('channel_connection_id', connectionId)
+        .eq('provider_message_id', parsed.providerMessageId)
+        .single();
+      if (!duplicate.error && duplicate.data) {
+        return json({
+          ok: true,
+          duplicate: true,
+          thread_id: duplicate.data.thread_id,
+          message_id: duplicate.data.id,
+        });
+      }
+    }
+    return json({ error: insertedMessage.error.message }, 500);
+  }
 
   let dealId: string | null = threadResult.data?.deal_id ?? null;
   if (parsed.direction === 'inbound') {

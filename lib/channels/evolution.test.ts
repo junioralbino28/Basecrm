@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createEvolutionInstance } from './evolution';
+import {
+  EvolutionDeliveryUnknownError,
+  createEvolutionInstance,
+  sendEvolutionTextMessage,
+} from './evolution';
 
 describe('createEvolutionInstance', () => {
   afterEach(() => {
@@ -74,5 +78,27 @@ describe('createEvolutionInstance', () => {
       pairingCode: '887766',
       instanceName: 'ia-julia-123abc',
     });
+  });
+});
+
+describe('sendEvolutionTextMessage — resultado ambíguo', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('não tenta outro payload após erro de transporte depois do POST', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(sendEvolutionTextMessage({
+      apiUrl: 'https://evolution.example.com',
+      apiKey: 'KEY',
+      instanceName: 'instance',
+      phone: '5511999999999',
+      text: 'Olá',
+    })).rejects.toBeInstanceOf(EvolutionDeliveryUnknownError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

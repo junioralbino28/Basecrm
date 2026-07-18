@@ -1,6 +1,7 @@
 import {
   sendEvolutionMediaMessage,
   sendEvolutionAudioMessage,
+  isEvolutionDeliveryUnknown,
   type EvolutionMediaType,
 } from '@/lib/channels/evolution';
 
@@ -31,7 +32,7 @@ export type DispatchConversationMediaParams = {
 export type ConversationMediaDeliveryMetadata = {
   provider: 'evolution';
   provider_message_id?: string | null;
-  delivery_status: 'sent' | 'failed';
+  delivery_status: 'sent' | 'failed' | 'unknown';
   delivery_provider: 'evolution';
   delivery_attempt?: string;
   delivery_error?: string;
@@ -103,7 +104,7 @@ export async function dispatchConversationMedia(
   } catch (error) {
     return {
       provider: 'evolution',
-      delivery_status: 'failed',
+      delivery_status: isEvolutionDeliveryUnknown(error) ? 'unknown' : 'failed',
       delivery_provider: 'evolution',
       delivery_attempt: 'all-failed',
       delivery_error: error instanceof Error ? error.message : 'Falha ao enviar mídia pela Evolution.',

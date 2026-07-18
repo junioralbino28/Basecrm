@@ -31,6 +31,34 @@ export type EvolutionWebhookSetResult = {
 
 export type EvolutionSendMode = 'auto' | 'number_text' | 'number_textMessage' | 'number_message' | 'number_body';
 
+export class EvolutionDeliveryUnknownError extends Error {
+  readonly deliveryUnknown = true;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'EvolutionDeliveryUnknownError';
+  }
+}
+
+class EvolutionHttpError extends Error {
+  readonly deliveryUnknown: boolean;
+
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'EvolutionHttpError';
+    this.deliveryUnknown = status >= 500;
+  }
+}
+
+export function isEvolutionDeliveryUnknown(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && 'deliveryUnknown' in error
+    && (error as { deliveryUnknown?: unknown }).deliveryUnknown === true
+  );
+}
+
 async function parseEvolutionResponse(response: Response) {
   const rawText = await response.text();
   let payload: unknown = rawText;
@@ -53,14 +81,28 @@ async function parseEvolutionResponse(response: Response) {
       typeof objectPayload?.error === 'string' ? objectPayload.error : null,
       nestedResponse?.message,
     ].find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
-    throw new Error(
+    throw new EvolutionHttpError(
       typeof payload === 'string'
         ? payload || `Evolution respondeu HTTP ${response.status}`
-        : providerMessage?.trim() || `Evolution respondeu HTTP ${response.status}`
+        : providerMessage?.trim() || `Evolution respondeu HTTP ${response.status}`,
+      response.status,
     );
   }
 
   return payload;
+}
+
+async function fetchEvolutionDelivery(input: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw new EvolutionDeliveryUnknownError(
+      error instanceof Error
+        ? `resultado de entrega desconhecido: ${error.message}`
+        : 'resultado de entrega desconhecido após o POST',
+      { cause: error },
+    );
+  }
 }
 
 function readPayloadString(payload: unknown, paths: string[][]): string | null {
@@ -368,7 +410,7 @@ export async function sendEvolutionTextMessage(params: {
 
   for (const attempt of orderedAttempts) {
     try {
-      const response = await fetch(attempt.endpoint, {
+      const response = await fetchEvolutionDelivery(attempt.endpoint, {
         method: 'POST',
         headers: {
           apikey: params.apiKey,
@@ -386,6 +428,7 @@ export async function sendEvolutionTextMessage(params: {
         attemptLabel: attempt.label,
       };
     } catch (error) {
+      if (isEvolutionDeliveryUnknown(error)) throw error;
       lastError = error instanceof Error ? error : new Error('Evolution send failed.');
     }
   }
@@ -425,7 +468,7 @@ export async function sendEvolutionMediaMessage(params: {
   if (params.fileName) body.fileName = params.fileName;
   if (params.mimetype) body.mimetype = params.mimetype;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchEvolutionDelivery(endpoint, {
     method: 'POST',
     headers: {
       apikey: params.apiKey,
@@ -460,7 +503,7 @@ export async function sendEvolutionAudioMessage(params: {
   const baseUrl = params.apiUrl.replace(/\/+$/, '');
   const endpoint = `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(params.instanceName)}`;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchEvolutionDelivery(endpoint, {
     method: 'POST',
     headers: {
       apikey: params.apiKey,

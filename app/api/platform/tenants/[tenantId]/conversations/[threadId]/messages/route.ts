@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
@@ -6,6 +7,10 @@ import { getConversationAssigneeDisplayName, loadConversationThreadInboxItem } f
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { dispatchConversationMedia, type ConversationAttachmentKind } from '@/lib/conversations/conversationMedia';
+import {
+  dispatchManualConversationOutbound,
+  type OutboundDeliveryOutcome,
+} from '@/lib/conversations/dispatchConversationOutbound';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -38,6 +43,7 @@ const MessageSchema = z.object({
   content: z.string().max(4000).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   send_external: z.boolean().optional(),
+  idempotency_key: z.string().trim().min(1).max(200).optional(),
   attachment: AttachmentSchema.optional(),
 }).strict().refine(
   (value) => Boolean(value.content?.trim()) || Boolean(value.attachment),
@@ -98,6 +104,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   if (thread.error) return json({ error: thread.error.message }, 500);
   if (!thread.data) return json({ error: 'Thread not found' }, 404);
+  const threadData = thread.data;
 
   const attachment = parsed.data.attachment ?? null;
   const messageContent = parsed.data.content?.trim() ?? '';
@@ -147,116 +154,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   let deliveryMetadata: Record<string, unknown> = parsed.data.metadata ?? {};
   let deliveryWarning: string | null = null;
-
-  if (parsed.data.direction === 'outbound' && parsed.data.send_external !== false && thread.data.channel_connection_id) {
-    const connection = await admin
-      .from('channel_connections')
-      .select('id, provider, channel_type, name, config')
-      .eq('id', thread.data.channel_connection_id)
-      .eq('organization_id', tenantId)
-      .maybeSingle();
-
-    if (connection.error) return json({ error: connection.error.message }, 500);
-    if (!connection.data) {
-      return json({ error: 'Channel connection not found for this conversation.' }, 404);
-    }
-
-    const instanceName = (connection.data.config as any)?.instanceName;
-    let resolved: Awaited<ReturnType<typeof resolveEvolutionCredentials>> = null;
-    try {
-      resolved = await resolveEvolutionCredentials({
-        admin,
-        tenantId,
-        connectionConfig: (connection.data.config as Record<string, unknown> | null) || {},
-        profileRole: auth.profile.role,
-        requesterOrganizationId: auth.profile.organization_id,
-      });
-    } catch (resolveError) {
-      return json(
-        {
-          error:
-            resolveError instanceof Error
-              ? resolveError.message
-              : 'Failed to resolve Evolution credentials for outbound message.',
-        },
-        500
-      );
-    }
-    const phone = toWhatsAppPhone(thread.data.contact_phone);
-
-    if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
-      return json(
-        {
-          error:
-            'WhatsApp connection requires instanceName and Evolution credentials (connection config or agency defaults) before sending.',
-        },
-        400
-      );
-    }
-
-    if (!phone) {
-      return json({ error: 'Conversation requires a valid contact phone before sending.' }, 400);
-    }
-
-    if (attachment && attachmentMediaUrl) {
-      // Mídia/áudio: dispatcher server-side roteia sendMedia/sendWhatsAppAudio e
-      // nunca lança — falha vira delivery_status: 'failed' (mensagem fica gravada).
-      const delivery = await dispatchConversationMedia({
-        apiUrl: resolved.apiUrl,
-        instanceName,
-        apiKey: resolved.apiKey,
-        phone,
-        attachment: {
-          kind: attachment.kind as ConversationAttachmentKind,
-          mediaUrl: attachmentMediaUrl,
-          fileName: attachment.file_name,
-          caption: messageContent || undefined,
-          mimetype: attachment.mime_type,
-        },
-      });
-
-      if (delivery.delivery_status === 'failed') {
-        deliveryWarning = delivery.delivery_error || 'Falha ao enviar mídia pela Evolution.';
-      }
-      deliveryMetadata = {
-        ...deliveryMetadata,
-        ...delivery,
-        credential_source: resolved.source,
-      };
-    } else {
-      try {
-        const sendResult = await sendEvolutionTextMessage({
-          apiUrl: resolved.apiUrl,
-          instanceName,
-          apiKey: resolved.apiKey,
-          phone,
-          text: messageContent,
-        });
-
-        deliveryMetadata = {
-          ...deliveryMetadata,
-          provider: 'evolution',
-          provider_message_id: sendResult.providerMessageId,
-          delivery_status: 'sent',
-          delivery_provider: 'evolution',
-          delivery_attempt: sendResult.attemptLabel,
-          delivery_raw: sendResult.raw,
-          credential_source: resolved.source,
-        };
-      } catch (sendError) {
-        deliveryWarning = sendError instanceof Error ? sendError.message : 'Falha ao enviar pela Evolution.';
-        deliveryMetadata = {
-          ...deliveryMetadata,
-          provider: 'evolution',
-          delivery_status: 'failed',
-          delivery_provider: 'evolution',
-          delivery_attempt: 'all-failed',
-          delivery_error: deliveryWarning,
-          credential_source: resolved.source,
-        };
-      }
-    }
-  }
+  let persistedOutboundMessageId: string | null = null;
 
   // Metadata de mídia pra UI renderizar a bolha (doc/áudio/imagem) sem refetch.
   if (attachment) {
@@ -272,22 +170,144 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     };
   }
 
-  const { data, error } = await admin
-    .from('conversation_messages')
-    .insert({
-      thread_id: threadId,
-      organization_id: tenantId,
-      direction: parsed.data.direction,
-      message_type: resolvedMessageType,
-      author_name: authorName,
-      // content é NOT NULL; mídia sem caption guarda um rótulo legível.
-      content: messageContent || (attachment ? attachment.file_name || `[${attachment.kind}]` : ''),
-      metadata: deliveryMetadata,
-      sent_at: now,
-      created_at: now,
-    })
-    .select('id, thread_id, organization_id, direction, message_type, author_name, content, metadata, sent_at, created_at')
-    .single();
+  const storedContent =
+    messageContent || (attachment ? attachment.file_name || `[${attachment.kind}]` : '');
+
+  if (parsed.data.direction === 'outbound') {
+    const idempotencyKey =
+      parsed.data.idempotency_key
+      || req.headers.get('idempotency-key')?.trim()
+      || `manual:${threadId}:${randomUUID()}`;
+
+    const deliver = async (): Promise<OutboundDeliveryOutcome> => {
+      if (parsed.data.send_external === false || !threadData.channel_connection_id) {
+        return {
+          status: 'sent',
+          providerMessageId: null,
+          attemptLabel: 'local-only',
+          error: null,
+          metadata: { external_effect: false },
+        };
+      }
+
+      const connection = await admin
+        .from('channel_connections')
+        .select('id, provider, channel_type, name, config')
+        .eq('id', threadData.channel_connection_id)
+        .eq('organization_id', tenantId)
+        .maybeSingle();
+      if (connection.error) throw new Error(connection.error.message);
+      if (!connection.data) throw new Error('Channel connection not found for this conversation.');
+
+      const instanceName = (connection.data.config as any)?.instanceName;
+      const resolved = await resolveEvolutionCredentials({
+        admin,
+        tenantId,
+        connectionConfig: (connection.data.config as Record<string, unknown> | null) || {},
+        profileRole: auth.profile.role,
+        requesterOrganizationId: auth.profile.organization_id,
+      });
+      const phone = toWhatsAppPhone(threadData.contact_phone);
+      if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
+        throw new Error(
+          'WhatsApp connection requires instanceName and Evolution credentials before sending.'
+        );
+      }
+      if (!phone) throw new Error('Conversation requires a valid contact phone before sending.');
+
+      if (attachment && attachmentMediaUrl) {
+        const result = await dispatchConversationMedia({
+          apiUrl: resolved.apiUrl,
+          instanceName,
+          apiKey: resolved.apiKey,
+          phone,
+          attachment: {
+            kind: attachment.kind as ConversationAttachmentKind,
+            mediaUrl: attachmentMediaUrl,
+            fileName: attachment.file_name,
+            caption: messageContent || undefined,
+            mimetype: attachment.mime_type,
+          },
+        });
+        return {
+          status: result.delivery_status,
+          providerMessageId: result.provider_message_id ?? null,
+          attemptLabel: result.delivery_attempt ?? null,
+          error: result.delivery_error ?? null,
+          metadata: {
+            ...result,
+            credential_source: resolved.source,
+          },
+        };
+      }
+
+      const result = await sendEvolutionTextMessage({
+        apiUrl: resolved.apiUrl,
+        instanceName,
+        apiKey: resolved.apiKey,
+        phone,
+        text: messageContent,
+      });
+      return {
+        status: 'sent',
+        providerMessageId: result.providerMessageId,
+        attemptLabel: result.attemptLabel,
+        error: null,
+        metadata: {
+          provider: 'evolution',
+          delivery_provider: 'evolution',
+          delivery_raw: result.raw,
+          credential_source: resolved.source,
+        },
+      };
+    };
+
+    const dispatched = await dispatchManualConversationOutbound({
+      db: admin,
+      message: {
+        threadId,
+        organizationId: tenantId,
+        channelConnectionId: thread.data.channel_connection_id,
+        idempotencyKey,
+        messageType: resolvedMessageType,
+        authorName,
+        content: storedContent,
+        metadata: deliveryMetadata,
+        sentAt: now,
+      },
+      deliver,
+    });
+    persistedOutboundMessageId = dispatched.messageId;
+    deliveryWarning =
+      dispatched.status === 'failed' || dispatched.status === 'unknown'
+        ? dispatched.error || 'Entrega não confirmada pela Evolution.'
+        : null;
+  }
+
+  const persisted = persistedOutboundMessageId
+    ? await admin
+      .from('conversation_messages')
+      .select('id, thread_id, organization_id, direction, message_type, author_name, content, metadata, sent_at, created_at')
+      .eq('id', persistedOutboundMessageId)
+      .eq('organization_id', tenantId)
+      .single()
+    : await admin
+      .from('conversation_messages')
+      .insert({
+        thread_id: threadId,
+        organization_id: tenantId,
+        channel_connection_id: thread.data.channel_connection_id,
+        direction: parsed.data.direction,
+        message_type: resolvedMessageType,
+        author_name: authorName,
+        content: storedContent,
+        metadata: deliveryMetadata,
+        sent_at: now,
+        created_at: now,
+      })
+      .select('id, thread_id, organization_id, direction, message_type, author_name, content, metadata, sent_at, created_at')
+      .single();
+  const { data, error } = persisted;
 
   if (error) return json({ error: error.message }, 500);
 
