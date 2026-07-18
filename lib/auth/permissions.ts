@@ -36,6 +36,9 @@ export const APP_PERMISSIONS = [
   // IA
   'ai.use',
   'ai.configure',
+  // Automações
+  'automation.edit',
+  'automation.operate',
   // Configurações
   'settings.general',
   'settings.products',
@@ -94,6 +97,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   // IA
   { key: 'ai.use', label: 'Usar a IA', description: 'Usar o assistente de IA no dia a dia.', group: 'IA' },
   { key: 'ai.configure', label: 'Configurar a IA', description: 'Editar persona, comportamento e chave da IA.', group: 'IA' },
+  // Automações
+  { key: 'automation.edit', label: 'Editar automações', description: 'Criar e alterar fluxos, passos, arestas e templates de automação.', group: 'Automações' },
+  { key: 'automation.operate', label: 'Operar automações', description: 'Acompanhar e operar automações publicadas sem alterar o grafo.', group: 'Automações' },
   // Configurações
   { key: 'settings.general', label: 'Configurações gerais', description: 'Abrir e editar as configurações gerais da clínica.', group: 'Configurações' },
   { key: 'settings.products', label: 'Produtos e procedimentos', description: 'Gerenciar o catálogo de produtos/procedimentos.', group: 'Configurações' },
@@ -132,6 +138,7 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'reports.finance',
   'reports.professionals',
   'ai.configure',
+  'automation.edit',
   'settings.general',
   'settings.products',
   'settings.professionals',

@@ -16,7 +16,7 @@ const START_MARKER = '-- E2_ROLE_PERMISSION_DEFAULTS:START';
 const END_MARKER = '-- E2_ROLE_PERMISSION_DEFAULTS:END';
 const MIGRATION_PATH = resolve(
   process.cwd(),
-  'supabase/migrations/20260635000000_e2_server_permission_enforcement.sql',
+  'supabase/migrations/20260718000000_funil_f1_authoring.sql',
 );
 
 function sqlString(value) {

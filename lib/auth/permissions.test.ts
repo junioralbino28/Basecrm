@@ -43,6 +43,11 @@ describe('taxonomia de permissões', () => {
       expect(APP_PERMISSIONS as readonly string[]).toContain(key);
     }
   });
+
+  it('separa edição de automações da operação diária', () => {
+    expect(APP_PERMISSIONS).toContain('automation.edit');
+    expect(APP_PERMISSIONS).toContain('automation.operate');
+  });
 });
 
 describe('ROLE_PERMISSION_DEFAULTS — completude e defaults', () => {
@@ -87,6 +92,7 @@ describe('clinic_staff (secretária) — operacional sim, sensível não', () =>
       'atendimentos.manage',
       'agenda.manage',
       'ai.use',
+      'automation.operate',
     ] as const) {
       expect(staff[key], `staff deveria ter ${key}`).toBe(true);
     }
@@ -109,6 +115,7 @@ describe('clinic_staff (secretária) — operacional sim, sensível não', () =>
       'settings.integrations',
       'settings.audit',
       'settings.users.manage',
+      'automation.edit',
     ] as const) {
       expect(staff[key], `staff NÃO deveria ter ${key}`).toBe(false);
     }
