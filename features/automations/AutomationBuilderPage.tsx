@@ -29,6 +29,7 @@ import type {
 } from '@/lib/automations/builder';
 import type { AutomationStepType } from '@/lib/automations/compiler';
 import { useTenantDetail } from '@/features/platform/tenants/useTenantDetail';
+import { AutomationFlowMap } from './AutomationFlowMap';
 
 type MessageTemplate = {
   id: string;
@@ -234,7 +235,7 @@ function insertAction(
   };
 }
 
-function StepEditor(props: {
+export function StepEditor(props: {
   step: AutomationBuilderStep;
   index: number;
   canEdit: boolean;
@@ -874,44 +875,19 @@ export function AutomationBuilderPage(props: {
                 </CardContent>
               </Card>
 
-              <div className="mx-auto h-5 w-px bg-slate-200 dark:bg-white/10" />
-
-              {draft.steps.map((step, index) => (
-                <React.Fragment key={step.stepKey}>
-                  <StepEditor
-                    step={step}
-                    index={index}
-                    canEdit={canEdit}
-                    onConfig={(config) => patchDraft((current) => ({
-                      ...current,
-                      steps: current.steps.map((item) => item.stepKey === step.stepKey
-                        ? { ...item, config }
-                        : item),
-                    }))}
-                    onOpenLibrary={() => {
-                      setLibraryStepKey(step.stepKey);
-                      setLibraryOpen(true);
-                    }}
-                  />
-                  {index < draft.steps.length - 1 ? (
-                    <div className="mx-auto h-3 w-px bg-slate-200 dark:bg-white/10" />
-                  ) : null}
-                  <div className="flex justify-center py-1">
-                    <button
-                      type="button"
-                      aria-label={`Adicionar passo após ${index + 1}`}
-                      className="grid h-9 w-9 place-items-center rounded-full border border-dashed border-slate-300 bg-white text-slate-500 transition hover:border-cyan-400 hover:text-cyan-700 disabled:opacity-40 dark:border-white/20 dark:bg-card dark:text-slate-300"
-                      disabled={!canEdit}
-                      onClick={() => {
-                        setInsertAfter(index);
-                        setActionOpen(true);
-                      }}
-                    >
-                      <Plus size={17} />
-                    </button>
-                  </div>
-                </React.Fragment>
-              ))}
+              <AutomationFlowMap
+                steps={draft.steps}
+                edges={draft.edges}
+                canEdit={canEdit}
+                selectedStepKey={null}
+                onStepActivate={() => undefined}
+                onAddAfter={(stepKey) => {
+                  const index = draft.steps.findIndex((step) => step.stepKey === stepKey);
+                  if (index < 0) return;
+                  setInsertAfter(index);
+                  setActionOpen(true);
+                }}
+              />
             </div>
           )}
         </main>

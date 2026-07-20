@@ -76,11 +76,14 @@ describe('AutomationBuilderPage — percurso manual', () => {
 
     expect(await screen.findByRole('heading', { name: 'Boas-vindas' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Gatilho' })).toBeInTheDocument();
-    expect(screen.getByText('Passo 1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Mensagem do passo 1')).toBeInTheDocument();
-    expect(screen.getByText(/Se o envio falhar/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Mapa da automação' })).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: /Envia · WhatsApp: Mensagem sem conteúdo/i,
+    })).toHaveAttribute('data-depth', '0');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar passo após 1' }));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Adicionar passo após Mensagem sem conteúdo',
+    }));
     const actionDialog = screen.getByRole('dialog', { name: 'Adicionar ação' });
     fireEvent.change(within(actionDialog).getByLabelText('Buscar ação'), {
       target: { value: 'resposta' },
@@ -88,9 +91,9 @@ describe('AutomationBuilderPage — percurso manual', () => {
     fireEvent.click(within(actionDialog).getByRole('button', { name: /Aguardar resposta/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Passo 2')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Espera resposta/i })).toBeInTheDocument();
     });
-    expect(screen.getByText(/Se respondeu/)).toBeInTheDocument();
-    expect(screen.getByText(/Se não respondeu/)).toBeInTheDocument();
+    expect(screen.getByText('respondeu')).toBeInTheDocument();
+    expect(screen.getByText('não respondeu')).toBeInTheDocument();
   });
 });
