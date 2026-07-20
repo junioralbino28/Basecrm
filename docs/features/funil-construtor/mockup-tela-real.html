@@ -210,12 +210,31 @@
   #z-level { font-size: 11.5px; color: var(--ink-mute); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
 
   /* ---------------- doca ---------------- */
+  /* doca: escondida até você clicar num passo */
   .dock {
-    flex: none; height: 262px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    flex: none; position: relative; display: none;
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
     border-top: 1px solid var(--line); background: rgba(0,0,0,.25);
+    animation: dock-in .16s ease-out;
   }
+  .dock.open { display: grid; }
+  .dock.solo { grid-template-columns: minmax(0,1fr); }
+  .dock.tall { height: 262px; }
+  @keyframes dock-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .dock { animation: none; } }
+
+  .dock-close {
+    position: absolute; top: 10px; right: 14px; z-index: 2;
+    width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+    background: transparent; border: 1px solid transparent; color: var(--ink-mute);
+    font: inherit; font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  .dock-close:hover { color: var(--ink); background: rgba(255,255,255,.06); border-color: var(--line); }
+  .dock-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
   .dock-col { padding: 14px 22px 16px; overflow: auto; }
   .dock-col + .dock-col { border-left: 1px solid var(--line); }
+  .dock-col[hidden] { display: none; }
   .dock-title { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
 
   .panel-kind { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
@@ -350,7 +369,7 @@
       <div class="stage-inner" id="stageInner">
         <div class="track">
 
-          <button class="hstep is-action" data-step="msg" type="button" aria-current="true">
+          <button class="hstep is-action" data-step="msg" type="button">
             <span class="hkind">Envia · WhatsApp</span>
             <span class="hname">Mensagem de abertura</span>
             <span class="hfail">falha encerra</span>
@@ -400,13 +419,15 @@
     </div>
 
     <!-- doca -->
-    <div class="dock">
+    <div class="dock" id="dock">
+      <button class="dock-close" id="dockClose" type="button" aria-label="Fechar edição">×</button>
+
       <section class="dock-col">
         <div class="dock-title">Passo selecionado</div>
         <div id="panel"></div>
       </section>
 
-      <section class="dock-col">
+      <section class="dock-col" id="dockLib">
         <div class="dock-title">Biblioteca de mensagens</div>
         <div class="lib-list">
           <button class="lib-item" type="button">
@@ -485,15 +506,33 @@
 
   const panelEl = document.getElementById('panel');
   const steps = document.querySelectorAll('.hstep');
+  const dock = document.getElementById('dock');
+  const dockLib = document.getElementById('dockLib');
+
+  /* a biblioteca só faz sentido em passo de mensagem */
+  const USA_BIBLIOTECA = new Set(['msg']);
 
   function select(key) {
     const d = CONTENT[key];
     if (!d) return;
     steps.forEach(s => s.setAttribute('aria-current', String(s.dataset.step === key)));
     panelEl.innerHTML = `<div class="panel-kind">${d.kind}</div><div class="panel-name">${d.name}</div>${d.html}`;
+
+    const comLib = USA_BIBLIOTECA.has(key);
+    dockLib.hidden = !comLib;
+    dock.classList.toggle('solo', !comLib);
+    dock.classList.toggle('tall', comLib);
+    dock.classList.add('open');
   }
+
+  function fecharDoca() {
+    dock.classList.remove('open');
+    steps.forEach(s => s.setAttribute('aria-current', 'false'));
+  }
+
   steps.forEach(s => s.addEventListener('click', () => select(s.dataset.step)));
-  select('msg');
+  document.getElementById('dockClose').addEventListener('click', fecharDoca);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharDoca(); });
 
   /* palco: arrastar em todas as direções + zoom na roda */
   const stage = document.getElementById('stage');
@@ -550,7 +589,11 @@
     stage.classList.remove('is-panning');
     try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
   }
-  stage.addEventListener('pointerup', endPan);
+  stage.addEventListener('pointerup', (e) => {
+    endPan(e);
+    /* clicar no vazio do mapa fecha a edição */
+    if (!moved && !e.target.closest('.hstep, .addstep, .zoomer')) fecharDoca();
+  });
   stage.addEventListener('pointercancel', endPan);
   steps.forEach(s => s.addEventListener('click', (e) => { if (moved) e.stopPropagation(); }, true));
 
