@@ -2,7 +2,14 @@
 
 > Levantada em 2026-07-20 a pedido do Junior, antes de fechar o desenho do N1.1 (etiquetas controladas por categoria).
 > Confiança marcada por afirmação. O que não foi verificado está declarado como tal.
-> **GHL: pesquisa em andamento — esta seção será preenchida quando voltar.**
+
+## Conclusão que vale mais que a pesquisa inteira
+
+**Os dois CRMs cometeram o MESMO erro fundacional: tag virou texto livre em vez de entidade.** Falta de categoria, duplicata por digitação, relatório que não agrupa e permissão tudo-ou-nada são todos consequência dessa única decisão.
+
+**E nenhum dos dois consegue voltar atrás.** No GHL o pedido de categorias de tag está aberto **desde fev/2019 com 731 votos** — sete anos, status "in progress". Não é funcionalidade faltando: é remodelar dado com base instalada gigante. No Kommo, a tag é **impossível de renomear** e a própria doc manda migrar lead a lead.
+
+**A proposta do Junior (categorias + seleção, sem digitação) é exatamente o que 731 pessoas pedem ao GHL há sete anos.** Estamos antes da decisão que os dois não conseguem desfazer.
 
 ## Por que esta pesquisa existe
 
@@ -76,9 +83,62 @@ Limite: 25.000 ações de tag por hora; ao estourar, **todos os gatilhos de tag 
 
 ---
 
+---
+
+## GoHighLevel
+
+### 1. Tags: lista plana, e eles admitem `[Alta confiança]`
+
+Sem grupo, categoria, pasta ou aninhamento. **A própria GHL confirma no changelog**, listando em *"What's next?"*: **"Tag categories for better organization"**.
+
+**A assimetria que denuncia o problema:** campos personalizados **têm pasta**, automações **têm pasta**, e-mails **têm pasta**. Tags não. Comentário de usuário no board: *"Automations? folders / Emails? folders / Custom Fields? folders / Tags? only chaos"*.
+
+| Pedido no board oficial | Votos | Aberto em | Status |
+|---|---|---|---|
+| **Categorias de tag** | **731** | **fev/2019** | "In progress" há 7 anos |
+| Tags coloridas | 358 | nov/2019 | "In progress" |
+| Contador de contatos por tag | 116 | jan/2024 | "Planned" |
+| Permissão separada criar × usar | 71 | set/2022 | aberto |
+
+Workaround da comunidade: **prefixo no nome** (`source-`, `proc-`) `[média]` — funciona porque o dropdown busca por substring. É convenção social, não regra de sistema: nada impede alguém criar `Origem Facebook` do lado.
+
+> ⚠️ **Armadilha de pesquisa registrada:** o artigo "How to manage categories, types and tags" aparece em toda busca e **não é sobre contatos** — é da Template Library. Não vale como evidência.
+
+### 2. Dropdown com criação embutida `[Alta confiança]`
+
+O mesmo campo permite *"escolher uma ou várias tags existentes"* **ou** *"digitar o nome da nova tag"* e clicar **"Add New Tag"**. É lista fechada e campo livre ao mesmo tempo — a raiz de todas as dores.
+
+**Restringir quem cria: não dá hoje** `[média-alta]`. A permissão é binária: acesso total (inclui criar) ou nada.
+
+### 3. Atribuição: objeto dedicado, e é o acerto deles `[Alta confiança]`
+
+- **Dois campos sempre gravados:** `attributionSource` (primeira) e `lastAttributionSource` (última), com subcampos tipados (`utmSource`, `utmMedium`, `campaign`, `referrer`, `fbclid`, `gclid`…).
+- **9 tipos de origem**; os 3 últimos (CRM UI, Third-Party, Others) foram acrescentados justamente porque contato criado à mão/CSV/API sujava o relatório.
+- Relatórios nativos: **Source Report** e **Conversion Report**.
+
+**3 limitações verificadas:** só captura em eventos nativos do GHL (*"Non-HighLevel events will not capture attribution data"*) · UTM com valores mágicos e **case-sensitive** (`utm_source=fb_ad`) · atribuição **não vem no endpoint de busca**, só no GET individual — puxar em massa exige N requisições.
+
+### 4. Campo select existe e é o recomendado para categórico `[média]`
+
+Existe **Dropdown (Single Select)** e múltiplo, sem limite prático de opções. A regra de decisão da comunidade: *evento discreto ou estado binário → tag; valor que pode ser um entre muitos, muda com o tempo ou precisa de relatório → campo*. O anti-pattern nomeado é exatamente o nosso caso: criar uma tag para cada valor possível gera *"uma lista de centenas de entradas, sem lógica de nome, e busca em que ninguém confia"*.
+
+### 5. ⚠️ Case-sensitive, confirmado em FAQ oficial `[Alta confiança]`
+
+Pergunta oficial: *"'Facebook' e 'facebook' seriam tratadas como tags separadas?"* — **"Yes."** Sem normalização, sem dedupe por caixa. **Uma letra maiúscula quebra o workflow em silêncio.**
+Caracteres especiais também quebram o filtro: o sistema deixa criar `This & That`, mas depois *"não puxa a lista de contatos corretamente"*.
+
+### 6. 💡 O GHL já fez a versão CERTA — em outro lugar
+
+Nos pipelines de oportunidade existem **Smart Tags**: chips coloridos **derivados de regra**, avaliados em tempo real, com **dedupe automático** (*"tags duplicadas no mesmo pipeline são bloqueadas automaticamente"*) e teto explícito de 60.
+
+**É rótulo computado, não digitado.** Eles sabem qual é o desenho bom — só não aplicaram em contatos por peso de legado.
+
+---
+
 ## O que copiar
 
-1. **Origem como entidade própria, nunca como tag.** Já era nossa decisão; agora tem precedente forte.
+0. **Primeira + última origem, sempre gravadas** (do GHL). Barato, e resolve "de onde veio esse paciente" sem modelo de atribuição sofisticado.
+1. **Origem como entidade própria, nunca como tag.** Já era nossa decisão; agora tem precedente **nos dois**.
 2. **UTM como campo nativo provisionado automaticamente** — conversa direto com o plano de conversão pro pixel.
 3. **Criar tag repetida devolve a existente** em vez de duplicar.
 4. **Código simbólico estável além do ID numérico** — reduz acoplamento frágil na automação.
@@ -92,6 +152,16 @@ Limite: 25.000 ações de tag por hora; ao estourar, **todos os gatilhos de tag 
 4. **Gatilho que ignora escrita por API/automação.**
 5. **Dado categórico que só serve de filtro e nunca de agrupamento** — parece capturado e é inútil na hora de decidir.
 6. **Escopo fragmentado** (por entidade, por pipeline) que simula organização sem entregar taxonomia.
+
+7. **Normalizar na escrita** (minúscula, sem espaço nas pontas, slug) e guardar o rótulo de exibição **separado**. Custa dez linhas e elimina uma classe inteira de dor que os dois carregam.
+8. **Contador de uso + "quem depende disto" desde o dia 1.** A dor mais repetida do fórum do GHL é não saber quantos contatos têm cada etiqueta nem qual automação usa qual — então **ninguém apaga nada, com medo de quebrar**. Barato agora, impossível de retrofitar (o GHL não conseguiu em 7 anos).
+9. **Permissão separada: usar × criar.** Pedido aberto no GHL com 71 votos. É exatamente o nosso caso: secretária **usa**, admin **cria**.
+
+## O que evitar (acrescentado pelo GHL)
+
+7. **Prefixo como substituto de estrutura** (`src_facebook`, `proc_implante`). É o workaround da comunidade e é frágil: depende de disciplina humana, não sobrevive a troca de equipe, e o sistema não valida nada. **Prefixo é o sintoma de uma tabela que faltou.** Se já sabemos que existem duas dimensões, modelamos duas dimensões.
+8. **Permissão binária em taxonomia** — ou tudo, ou nada.
+9. **Comparação sensível a maiúscula sem normalização** — é bug de produto vendido como comportamento.
 
 ## Como isso ajusta o nosso desenho
 
