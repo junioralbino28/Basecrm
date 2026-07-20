@@ -791,7 +791,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={toggleDarkMode}
                 className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-all active:scale-95 focus-visible-ring"
               >
-                {darkMode ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
+                {isClientMounted && darkMode
+                  ? <Sun size={20} aria-hidden="true" />
+                  : <Moon size={20} aria-hidden="true" />}
               </button>
             </div>
           </header>

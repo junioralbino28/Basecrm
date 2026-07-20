@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let role = 'clinic_admin';
 let permissions: Record<string, boolean> = {};
+let darkMode = false;
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
@@ -26,7 +28,7 @@ vi.mock('@/lib/auth/useHasPermission', () => ({
   useHasPermission: (permission: string) => permissions[permission] ?? false,
 }));
 vi.mock('../context/ThemeContext', () => ({
-  useTheme: () => ({ darkMode: false, toggleDarkMode: vi.fn() }),
+  useTheme: () => ({ darkMode, toggleDarkMode: vi.fn() }),
 }));
 vi.mock('../context/CRMContext', () => ({
   useCRM: () => ({
@@ -70,6 +72,7 @@ import Layout from './Layout';
 
 beforeEach(() => {
   role = 'clinic_admin';
+  darkMode = false;
   permissions = {
     'reports.finance': true,
     'reports.professionals': true,
@@ -96,5 +99,14 @@ describe('Layout permissions', () => {
 
     expect(screen.getByRole('link', { name: 'Financeiro' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Profissionais' })).toBeInTheDocument();
+  });
+
+  it('mantém o ícone do tema determinístico durante a renderização do servidor', () => {
+    darkMode = true;
+
+    const html = renderToString(<Layout><div>Conteúdo</div></Layout>);
+
+    expect(html).toContain('lucide-moon');
+    expect(html).not.toContain('lucide-sun');
   });
 });
