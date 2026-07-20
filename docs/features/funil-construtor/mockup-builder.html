@@ -290,11 +290,63 @@
     margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
     border-radius: 0; border-left: 0; border-right: 0;
   }
-  .hor-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; }
-  @media (max-width: 900px) { .hor-layout { grid-template-columns: 1fr; } }
+  /* palco navegável: arrasta em qualquer direção, roda dá zoom */
+  .stage {
+    position: relative; overflow: hidden; height: 56vh; min-height: 340px;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,.055) 1px, transparent 0) 0 0 / 26px 26px;
+    cursor: grab; touch-action: none;
+  }
+  .stage.is-panning { cursor: grabbing; }
+  .stage-inner { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: 30px; }
+  .track { display: flex; align-items: flex-start; gap: 0; width: max-content; }
 
-  .hor-scroll { overflow-x: auto; padding: 32px 28px 36px; min-height: 380px; }
-  .track { display: flex; align-items: flex-start; gap: 0; min-width: max-content; }
+  .stage-hint {
+    position: absolute; left: 16px; bottom: 12px; z-index: 3;
+    font-size: 11.5px; color: var(--ink-mute); pointer-events: none;
+    background: rgba(0,0,0,.45); padding: 5px 10px; border-radius: 999px;
+  }
+  .zoomer {
+    position: absolute; right: 16px; bottom: 12px; z-index: 3;
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(0,0,0,.5); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px;
+  }
+  .zoomer button {
+    font: inherit; font-size: 14px; line-height: 1; color: var(--ink-soft);
+    background: none; border: 0; cursor: pointer; padding: 6px 10px; border-radius: 999px;
+  }
+  .zoomer button.wide { font-size: 12px; font-weight: 600; }
+  .zoomer button:hover { color: var(--ink); background: rgba(255,255,255,.07); }
+  .zoomer button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #z-level { font-size: 11.5px; color: var(--ink-mute); min-width: 40px; text-align: center;
+             font-variant-numeric: tabular-nums; }
+
+  /* doca inferior: editar o passo + biblioteca, lado a lado */
+  .dock {
+    display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    border-top: 1px solid var(--line); background: rgba(0,0,0,.22);
+  }
+  @media (max-width: 900px) { .dock { grid-template-columns: 1fr; } }
+  .dock-col { padding: 20px 24px 24px; }
+  .dock-col + .dock-col { border-left: 1px solid var(--line); }
+  @media (max-width: 900px) { .dock-col + .dock-col { border-left: 0; border-top: 1px solid var(--line); } }
+  .dock-title {
+    font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute); margin-bottom: 14px;
+  }
+
+  .lib-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .lib-item {
+    display: flex; flex-direction: column; gap: 3px; text-align: left; width: 100%;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 10px 12px; color: var(--ink); font: inherit; cursor: pointer; transition: border-color .16s;
+  }
+  .lib-item:hover { border-color: var(--accent); }
+  .lib-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .lib-name { font-size: 13.5px; font-weight: 620; }
+  .lib-prev { font-size: 12.5px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-new { border-top: 1px dashed var(--line); padding-top: 16px; }
 
   .hstep {
     flex: none; width: 178px; min-height: 92px;
@@ -344,11 +396,6 @@
   .hend { flex: none; margin-left: 14px; font-size: 11.5px; color: var(--ink-mute); }
 
   /* painel de edição */
-  .panel {
-    border-left: 1px solid var(--line); padding: 24px 20px;
-    background: rgba(0,0,0,.18); min-height: 340px;
-  }
-  @media (max-width: 900px) { .panel { border-left: 0; border-top: 1px solid var(--line); } }
   .panel-kind { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
   .panel-name { font-family: var(--serif); font-size: 19px; margin: 4px 0 16px; font-weight: 600; }
   .field { margin-bottom: 14px; }
@@ -408,8 +455,15 @@
       <span class="chip-safe">Envio real desligado</span>
     </div>
 
-    <div class="hor-layout">
-      <div class="hor-scroll">
+    <div class="stage" id="stage">
+      <div class="stage-hint">Arraste para mover · role para aproximar</div>
+      <div class="zoomer">
+        <button type="button" id="z-out" aria-label="Afastar">−</button>
+        <span id="z-level">100%</span>
+        <button type="button" id="z-in" aria-label="Aproximar">+</button>
+        <button type="button" id="z-fit" class="wide">Ajustar</button>
+      </div>
+      <div class="stage-inner" id="stageInner">
         <div class="track">
 
           <button class="hstep is-trigger" data-step="trigger" type="button">
@@ -465,10 +519,35 @@
 
         </div>
       </div>
+    </div>
 
-      <aside class="panel" id="panel">
-        <!-- preenchido por JS -->
-      </aside>
+    <div class="dock">
+      <section class="dock-col" aria-label="Edição do passo">
+        <div class="dock-title">Passo selecionado</div>
+        <div id="panel"><!-- preenchido por JS --></div>
+      </section>
+
+      <section class="dock-col" aria-label="Biblioteca de mensagens">
+        <div class="dock-title">Biblioteca de mensagens</div>
+        <div class="lib-list">
+          <button class="lib-item" type="button">
+            <span class="lib-name">Abertura — anúncio Meta</span>
+            <span class="lib-prev">ola teste salvo 1</span>
+          </button>
+          <button class="lib-item" type="button">
+            <span class="lib-name">Lembrete 24h</span>
+            <span class="lib-prev">Passando pra saber se ficou alguma dúvida…</span>
+          </button>
+        </div>
+        <div class="lib-new">
+          <div class="field"><label for="lib-n">Nome para encontrar depois</label>
+            <input id="lib-n" placeholder="Ex.: Facetas — abertura" /></div>
+          <div class="field"><label for="lib-b">Mensagem</label>
+            <textarea id="lib-b" placeholder="Escreva a mensagem…"></textarea></div>
+          <button class="btn-off" type="button" disabled>Salvar na biblioteca</button>
+          <div class="why"><span aria-hidden="true">↑</span><span>Falta dar um nome e escrever a mensagem.</span></div>
+        </div>
+      </section>
     </div>
   </section>
 
@@ -758,4 +837,82 @@
   }
   steps.forEach(s => s.addEventListener('click', () => select(s.dataset.step)));
   select('msg');
+
+  /* ---------- palco navegável: arrastar em todas as direções + zoom ---------- */
+  const stage = document.getElementById('stage');
+  const inner = document.getElementById('stageInner');
+  const level = document.getElementById('z-level');
+
+  const MIN = 0.4, MAX = 2;
+  let scale = 1, tx = 0, ty = 0;
+  let dragging = false, moved = false, startX = 0, startY = 0, originX = 0, originY = 0;
+
+  function apply() {
+    inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    level.textContent = Math.round(scale * 100) + '%';
+  }
+
+  function zoomAt(clientX, clientY, factor) {
+    const next = Math.min(MAX, Math.max(MIN, scale * factor));
+    if (next === scale) return;
+    const r = stage.getBoundingClientRect();
+    const cx = clientX - r.left, cy = clientY - r.top;
+    tx = cx - (cx - tx) * (next / scale);
+    ty = cy - (cy - ty) * (next / scale);
+    scale = next;
+    apply();
+  }
+
+  stage.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    originX = tx; originY = ty;
+    stage.classList.add('is-panning');
+    stage.setPointerCapture(e.pointerId);
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    tx = originX + dx; ty = originY + dy;
+    apply();
+  });
+
+  function endPan(e) {
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove('is-panning');
+    try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+  }
+  stage.addEventListener('pointerup', endPan);
+  stage.addEventListener('pointercancel', endPan);
+
+  /* arrastar não deve disparar o clique do passo */
+  steps.forEach(s => s.addEventListener('click', (e) => { if (moved) e.stopPropagation(); }, true));
+
+  document.getElementById('z-in').addEventListener('click', () => {
+    const r = stage.getBoundingClientRect();
+    zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
+  });
+  document.getElementById('z-out').addEventListener('click', () => {
+    const r = stage.getBoundingClientRect();
+    zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
+  });
+  document.getElementById('z-fit').addEventListener('click', () => {
+    const r = stage.getBoundingClientRect();
+    const w = inner.scrollWidth, h = inner.scrollHeight;
+    scale = Math.min(1, Math.max(MIN, Math.min(r.width / w, r.height / h)));
+    tx = Math.max(0, (r.width - w * scale) / 2);
+    ty = Math.max(0, (r.height - h * scale) / 2);
+    apply();
+  });
+
+  apply();
 </script>
