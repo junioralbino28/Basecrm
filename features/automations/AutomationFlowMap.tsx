@@ -196,7 +196,7 @@ export function AutomationFlowMap({
     <section
       ref={stageRef}
       aria-label="Mapa da automação"
-      className={`relative min-h-[560px] touch-none overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 ${
+      className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-[#0F1614] text-slate-100 ${
         isPanning ? 'cursor-grabbing' : 'cursor-grab'
       }`}
       style={{

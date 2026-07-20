@@ -74,11 +74,11 @@ export function AutomationStepDock({
       aria-label="Edição do passo"
       data-dock-size={isMessage ? 'tall' : 'compact'}
       className={[
-        'relative overflow-hidden rounded-b-2xl border border-t-0 border-slate-800',
+        'relative flex-none overflow-hidden border-t border-slate-800',
         'bg-slate-950/95 text-slate-100 shadow-2xl backdrop-blur',
         isMessage
-          ? 'grid min-h-[262px] md:grid-cols-2'
-          : 'min-h-[156px]',
+          ? 'grid h-[262px] md:grid-cols-2'
+          : 'h-[156px]',
       ].join(' ')}
     >
       <button
