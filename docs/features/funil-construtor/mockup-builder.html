@@ -280,6 +280,82 @@
   .legend li { margin-bottom: 8px; }
   .legend b { color: var(--ink); font-weight: 600; }
 
+  /* =========================================================
+     HORIZONTAL — ver de relance, editar no painel
+     ========================================================= */
+  .hor-layout { display: grid; grid-template-columns: minmax(0,1fr) 340px; }
+  @media (max-width: 900px) { .hor-layout { grid-template-columns: 1fr; } }
+
+  .hor-scroll { overflow-x: auto; padding: 28px 24px 32px; }
+  .track { display: flex; align-items: flex-start; gap: 0; min-width: max-content; }
+
+  .hstep {
+    flex: none; width: 178px; min-height: 92px;
+    display: flex; flex-direction: column; gap: 5px; text-align: left;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 13px 14px;
+    color: var(--ink); font: inherit; cursor: pointer;
+    transition: border-color .16s, transform .16s;
+  }
+  .hstep:hover { border-color: var(--line-strong); transform: translateY(-2px); }
+  .hstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hstep[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+  .hstep.is-action { box-shadow: inset 0 3px 0 var(--accent); }
+  .hstep.is-action[aria-current="true"] { box-shadow: inset 0 3px 0 var(--accent), 0 0 0 1px var(--accent); }
+  .hstep.is-wait { background: transparent; border-style: dashed; }
+  .hstep.is-trigger { box-shadow: inset 0 3px 0 var(--ink-mute); }
+
+  .hkind { font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-mute); }
+  .hname { font-weight: 620; font-size: 14px; line-height: 1.3; }
+  .hstep.is-wait .hname { color: var(--ink-soft); font-weight: 600; }
+  .hfail { margin-top: auto; font-size: 11px; color: var(--fail); opacity: .85; }
+
+  /* conector horizontal */
+  .link { flex: none; align-self: center; width: 26px; height: 2px; background: var(--line-strong); }
+  .link.short { width: 16px; }
+
+  .split {
+    flex: none; align-self: stretch; width: 26px; margin-left: 0;
+    background:
+      linear-gradient(var(--line-strong), var(--line-strong)) left 46px / 13px 2px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 2px 84px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 13px 2px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 128px / 13px 2px no-repeat;
+  }
+
+  .branches { display: flex; flex-direction: column; gap: 26px; }
+  .branch { display: flex; align-items: center; gap: 0; position: relative; }
+  .btag {
+    flex: none; font-size: 11px; font-weight: 650; letter-spacing: .04em;
+    padding: 4px 10px; border-radius: 999px; margin-right: 4px; white-space: nowrap;
+  }
+  .branch.yes .btag { color: var(--yes); background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.3); }
+  .branch.no  .btag { color: var(--no);  background: rgba(224,163,60,.12); border: 1px solid rgba(224,163,60,.3); }
+  .branch.yes .hstep { border-color: rgba(52,192,138,.28); }
+  .branch.no  .hstep { border-color: rgba(224,163,60,.28); }
+  .hend { flex: none; margin-left: 14px; font-size: 11.5px; color: var(--ink-mute); }
+
+  /* painel de edição */
+  .panel {
+    border-left: 1px solid var(--line); padding: 24px 20px;
+    background: rgba(0,0,0,.18); min-height: 340px;
+  }
+  @media (max-width: 900px) { .panel { border-left: 0; border-top: 1px solid var(--line); } }
+  .panel-kind { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
+  .panel-name { font-family: var(--serif); font-size: 19px; margin: 4px 0 16px; font-weight: 600; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+  .field textarea, .field input, .field select {
+    width: 100%; font: inherit; font-size: 14px; color: var(--ink);
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    border-radius: 9px; padding: 10px 12px;
+  }
+  .field textarea { min-height: 118px; resize: vertical; }
+  .field:focus-within label { color: var(--accent); }
+  .panel-hint { font-size: 12.5px; color: var(--ink-mute); }
+  .panel-empty { color: var(--ink-mute); font-size: 14px; }
+
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -296,11 +372,18 @@
   </div>
 
   <div class="switch" role="tablist" aria-label="Comparar versões">
-    <button role="tab" id="tab-new" aria-selected="true"  aria-controls="v-new">Proposta</button>
+    <button role="tab" id="tab-hor" aria-selected="true"  aria-controls="v-hor">Horizontal</button>
+    <button role="tab" id="tab-new" aria-selected="false" aria-controls="v-new">Vertical</button>
     <button role="tab" id="tab-old" aria-selected="false" aria-controls="v-old">Como está hoje</button>
   </div>
 
-  <p class="note" id="note-new">
+  <p class="note" id="note-hor">
+    O fluxo inteiro de relance, da esquerda pra direita, com as bifurcações abertas em duas trilhas.
+    <strong>Clique num passo</strong> para editar no painel ao lado — é ali que a mensagem ganha
+    espaço de verdade, sem espremer o cartão.
+  </p>
+
+  <p class="note" id="note-new" hidden>
     Um trilho contínuo conduz o olho. Passo que <strong>age</strong> tem cor e peso; passo que
     <strong>espera</strong> fica recuado e pontilhado. E onde o fluxo se divide, o trilho
     <strong>se divide junto</strong> — cada caminho na sua faixa, com o gatilho escrito no topo.
@@ -311,8 +394,79 @@
     depois do outro. A numeração afirma uma sequência que não existe.
   </p>
 
-  <!-- ============================ PROPOSTA ============================ -->
-  <section class="screen" id="v-new" role="tabpanel" aria-labelledby="tab-new">
+  <!-- ============================ HORIZONTAL ============================ -->
+  <section class="screen" id="v-hor" role="tabpanel" aria-labelledby="tab-hor">
+    <div class="screen-bar">
+      <div class="screen-title">teste · rascunho</div>
+      <span class="chip-safe">Envio real desligado</span>
+    </div>
+
+    <div class="hor-layout">
+      <div class="hor-scroll">
+        <div class="track">
+
+          <button class="hstep is-trigger" data-step="trigger" type="button">
+            <span class="hkind">Começa quando</span>
+            <span class="hname">tag <em>anuncio meta</em></span>
+          </button>
+
+          <span class="link"></span>
+
+          <button class="hstep is-action" data-step="msg" type="button">
+            <span class="hkind">Envia · WhatsApp</span>
+            <span class="hname">Mensagem de abertura</span>
+            <span class="hfail">falha encerra</span>
+          </button>
+
+          <span class="link"></span>
+
+          <button class="hstep is-wait" data-step="wait1" type="button">
+            <span class="hkind">Espera</span>
+            <span class="hname">1 hora</span>
+          </button>
+
+          <span class="link"></span>
+
+          <button class="hstep is-wait" data-step="wait2" type="button">
+            <span class="hkind">Espera resposta</span>
+            <span class="hname">até 1 dia</span>
+          </button>
+
+          <!-- a divisão: duas trilhas empilhadas seguindo pra direita -->
+          <span class="split" aria-hidden="true"></span>
+
+          <div class="branches">
+            <div class="branch yes">
+              <span class="btag">Se respondeu</span>
+              <span class="link short"></span>
+              <button class="hstep is-task" data-step="t1" type="button">
+                <span class="hkind">Cria tarefa</span>
+                <span class="hname">Retomar conversa</span>
+              </button>
+              <span class="hend">fim</span>
+            </div>
+            <div class="branch no">
+              <span class="btag">Se não respondeu</span>
+              <span class="link short"></span>
+              <button class="hstep is-task" data-step="t2" type="button">
+                <span class="hkind">Cria tarefa</span>
+                <span class="hname">Contato sem resposta</span>
+              </button>
+              <span class="hend">fim</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <aside class="panel" id="panel">
+        <!-- preenchido por JS -->
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================ PROPOSTA VERTICAL ============================ -->
+  <section class="screen" id="v-new" role="tabpanel" aria-labelledby="tab-new" hidden>
     <div class="screen-bar">
       <div class="screen-title">teste · rascunho</div>
       <span class="chip-safe">Envio real desligado</span>
@@ -520,18 +674,81 @@
 </div>
 
 <script>
-  const tabs = { new: document.getElementById('tab-new'), old: document.getElementById('tab-old') };
-  const panels = { new: document.getElementById('v-new'), old: document.getElementById('v-old') };
-  const notes = { new: document.getElementById('note-new'), old: document.getElementById('note-old') };
+  const KEYS = ['hor', 'new', 'old'];
+  const tabs   = Object.fromEntries(KEYS.map(k => [k, document.getElementById('tab-' + k)]));
+  const views  = { hor: 'v-hor', new: 'v-new', old: 'v-old' };
+  const panels = Object.fromEntries(KEYS.map(k => [k, document.getElementById(views[k])]));
+  const notes  = Object.fromEntries(KEYS.map(k => [k, document.getElementById('note-' + k)]));
 
   function show(which) {
-    for (const key of ['new', 'old']) {
+    for (const key of KEYS) {
       const on = key === which;
       tabs[key].setAttribute('aria-selected', String(on));
       panels[key].hidden = !on;
       notes[key].hidden = !on;
     }
   }
-  tabs.new.addEventListener('click', () => show('new'));
-  tabs.old.addEventListener('click', () => show('old'));
+  for (const key of KEYS) tabs[key].addEventListener('click', () => show(key));
+
+  /* ---------- painel de edição da versão horizontal ---------- */
+  const CONTENT = {
+    trigger: {
+      kind: 'Começa quando',
+      name: 'A tag é adicionada ao paciente',
+      html: `<div class="field"><label for="f-tag">Nome da tag</label>
+             <input id="f-tag" value="anuncio meta" /></div>
+             <p class="panel-hint">Cada serviço tem sua tag: facetas, ortodontia, estética. É a tag que escolhe o fluxo.</p>`,
+    },
+    msg: {
+      kind: 'Envia · WhatsApp',
+      name: 'Mensagem de abertura',
+      html: `<div class="field"><label for="f-msg">Mensagem</label>
+             <textarea id="f-msg">ola teste salvo 1</textarea></div>
+             <p class="panel-hint">Vinculada à biblioteca. Aqui cabe texto longo, imagem, vídeo e áudio — é por isso que a edição fica no painel, não no cartão.</p>`,
+    },
+    wait1: {
+      kind: 'Espera',
+      name: 'Uma pausa antes do próximo passo',
+      html: `<div class="field"><label for="f-q">Quantidade</label><input id="f-q" value="1" /></div>
+             <div class="field"><label for="f-u">Unidade</label>
+             <select id="f-u"><option>Horas</option><option>Dias</option></select></div>`,
+    },
+    wait2: {
+      kind: 'Espera resposta',
+      name: 'Aguarda o paciente responder',
+      html: `<div class="field"><label for="f-l">Tempo limite</label><input id="f-l" value="1" /></div>
+             <div class="field"><label for="f-lu">Unidade</label>
+             <select id="f-lu"><option>Dias</option><option>Horas</option></select></div>
+             <p class="panel-hint">Daqui saem os dois caminhos. Se o paciente responder antes do prazo, segue pelo “respondeu”; se o prazo estourar, segue pelo outro.</p>`,
+    },
+    t1: {
+      kind: 'Cria tarefa · caminho “respondeu”',
+      name: 'Retomar conversa após resposta',
+      html: `<div class="field"><label for="f-t1">Título da tarefa</label>
+             <input id="f-t1" value="Retomar conversa após resposta" /></div>
+             <p class="panel-hint">Só acontece se o paciente responder.</p>`,
+    },
+    t2: {
+      kind: 'Cria tarefa · caminho “não respondeu”',
+      name: 'Tratar contato sem resposta',
+      html: `<div class="field"><label for="f-t2">Título da tarefa</label>
+             <input id="f-t2" value="Tratar contato sem resposta" /></div>
+             <p class="panel-hint">Só acontece se o prazo estourar sem resposta.</p>`,
+    },
+  };
+
+  const panelEl = document.getElementById('panel');
+  const steps = document.querySelectorAll('.hstep');
+
+  function select(key) {
+    const data = CONTENT[key];
+    if (!data) return;
+    steps.forEach(s => s.setAttribute('aria-current', String(s.dataset.step === key)));
+    panelEl.innerHTML =
+      `<div class="panel-kind">${data.kind}</div>
+       <div class="panel-name">${data.name}</div>
+       ${data.html}`;
+  }
+  steps.forEach(s => s.addEventListener('click', () => select(s.dataset.step)));
+  select('msg');
 </script>
