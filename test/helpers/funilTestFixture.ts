@@ -1,16 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { publishAutomationDraft } from '@/lib/automations/publication';
+import type {
+  AutomationEdgeOutcome,
+  AutomationStepType,
+} from '@/lib/automations/compiler';
 
 type FixtureStep = {
-  type: 'send_message' | 'delay' | 'wait_for_event' | 'create_task';
+  type: AutomationStepType;
   config: Record<string, unknown>;
 };
 
 type FixtureEdge = {
   from: number;
   to: number;
-  outcome: 'success' | 'answered' | 'timeout' | 'failed';
+  outcome: AutomationEdgeOutcome;
+  order?: number;
 };
 
 export type FunilTestFixture = {
@@ -36,6 +41,7 @@ export async function createFunilTestFixture(params: {
   label: string;
   steps: FixtureStep[];
   edges?: FixtureEdge[];
+  dealTags?: string[];
 }): Promise<FunilTestFixture> {
   const { admin } = params;
   const runId = randomUUID();
@@ -117,6 +123,7 @@ export async function createFunilTestFixture(params: {
       title: `Oportunidade ${params.label}`,
       value: 100,
       status: 'open',
+      tags: params.dealTags ?? [],
     })
     .select('id')
     .single();
@@ -192,7 +199,7 @@ export async function createFunilTestFixture(params: {
       from_step_id: insertedSteps[edge.from].id,
       outcome: edge.outcome,
       to_step_id: insertedSteps[edge.to].id,
-      order: index,
+      order: edge.order ?? index,
     });
     if (inserted.error) fail(`edge fixture ${index}`, inserted.error);
   }

@@ -189,7 +189,7 @@ const ConditionConfigSchema = z.object({
 
 const SwitchConfigSchema = z.object({
   field: z.enum([
-    'contact.tags',
+    'deal.tags',
     'contact.phone',
     'deal.stage_id',
     'deal.board_id',
@@ -211,7 +211,7 @@ const SwitchConfigSchema = z.object({
 }).strict().superRefine((config, context) => {
   for (const [index, switchCase] of config.cases.entries()) {
     const path = ['cases', index] as (string | number)[];
-    const allowedOperators = config.field === 'contact.tags'
+    const allowedOperators = config.field === 'deal.tags'
       ? new Set(['contains', 'not_contains'])
       : config.field === 'contact.phone'
         ? new Set(['equals', 'not_equals', 'contains', 'not_contains', 'exists'])

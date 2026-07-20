@@ -131,7 +131,7 @@ function validSwitchInput(): AutomationCompileInput {
       stepType: 'switch',
       sortKey: 0,
       config: {
-        field: 'contact.tags',
+        field: 'deal.tags',
         cases: caseIds.map((caseId, order) => ({
           case_id: caseId,
           label: `Serviço ${order + 1}`,
