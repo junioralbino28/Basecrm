@@ -1,7 +1,25 @@
-# AGENTS.md — NossoCRM
+# AGENTS.md — Basecrm
+
+## ⛔ REGRAS INEGOCIÁVEIS (leia antes de qualquer comando)
+
+Este repositório atende uma **clínica real em produção** (consultório da Dra. Jéssica Barros). Há pacientes, agendamentos e dados de saúde no banco. Estas regras valem mesmo quando nenhuma aprovação for pedida — **a ausência de prompt não é permissão**.
+
+1. **NUNCA rodar teste, migration, script ou query contra o banco de produção.** O ref de produção é `eqidsihasmwwamkaqfka`. Usar **sempre** o Supabase local (`npx supabase start`). Existe guard no repo que recusa ativamente esse ref (`test/helpers/e2Supabase.ts`) — se ele disparar, **pare e avise**, não contorne.
+2. **⚠️ O `.env.local` aponta para PRODUÇÃO.** `npm run dev` puro conecta no banco real da clínica. Para desenvolver e testar use **`npm run dev:local`** (força o Supabase local e aborta se ele não estiver no ar). `npm run dev:prod` só sob pedido explícito do Junior.
+3. **Sem `git push` e sem deploy.** Commit local apenas. O Claude revisa o diff e o Junior aprova antes de qualquer coisa subir.
+4. **Nenhuma migration é aplicada em produção por agente.** Escrever o arquivo é permitido; aplicar, não.
+5. **Segredos não vão para o chat, para o navegador nem para logs.** Ficam em `WorkSync/.secrets`.
+6. **Envio real de mensagem fica desligado.** `automation_live_enabled = false` e `delivery_mode = 'simulation'` até o Junior mandar ligar. Nunca chamar provider (Evolution/WhatsApp) a partir de teste.
+7. **Se discordar do plano, escreva antes de implementar.** Parecer vale mais que código refeito.
+8. **PT-BR** na comunicação e nos documentos.
+
+> Contexto completo do projeto, histórico e modelo de trabalho: `docs/features/ONBOARDING-CODEX.md`.
+> Ciclo de cada feature (SPEC → PLAN → OPINIÃO → IMPL-LOG → REVIEW): `docs/features/README.md`.
 
 ## Commands
-- **Dev**: `npm run dev`
+- **Dev (banco local — use este)**: `npm run dev:local`
+- **Dev (banco de PRODUÇÃO — só sob pedido)**: `npm run dev:prod`
+- **Dev (legado, usa `.env.local` = produção)**: `npm run dev`
 - **Build**: `npm run build`
 - **Lint**: `npm run lint` (zero warnings enforced)
 - **Typecheck**: `npm run typecheck`
