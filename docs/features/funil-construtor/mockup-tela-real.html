@@ -97,12 +97,25 @@
   .stage.is-panning { cursor:grabbing; }
   .stage.is-sorting { cursor:grabbing; }
   .stage-inner { position:absolute; top:0; left:0; transform-origin:0 0; padding:34px; }
-  .track { display:flex; align-items:flex-start; width:max-content; }
+  .track { width:max-content; }
+
+  /* árvore: cartões posicionados por coordenada, fios desenhados atrás */
+  .tree { position:relative; }
+  .wires { position:absolute; inset:0; pointer-events:none; overflow:visible; }
+  .wires path { fill:none; stroke:var(--line-strong); stroke-width:2; }
+  .edge-tag { display:inline-block; font-family:var(--sans); font-size:10.5px; font-weight:650;
+              color:var(--ink-soft); background:var(--panel); border:1px solid var(--line-strong);
+              border-radius:999px; padding:2px 9px; white-space:nowrap; }
+  .tree .hstep { position:absolute; }
+  .tree .addstep { position:absolute; }
+  .hstep.is-decision { border-color:rgba(23,185,163,.45); background:rgba(23,185,163,.07);
+                       box-shadow:inset 0 3px 0 var(--accent); }
+  .hstep.is-end { border-style:dashed; opacity:.85; }
 
   .hstep { flex:none; width:186px; min-height:96px; position:relative;
            display:flex; flex-direction:column; gap:5px; text-align:left;
            background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius);
-           padding:13px 14px 13px 26px; color:var(--ink); font:inherit; cursor:pointer;
+           padding:13px 14px; color:var(--ink); font:inherit; cursor:pointer;
            transition:border-color .16s, transform .16s, opacity .16s; }
   .hstep:hover { border-color:var(--line-strong); }
   .hstep:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -318,115 +331,153 @@
 </div>
 
 <script>
-/* ============ dados dos fluxos ============ */
+/* ============ dados dos fluxos (árvore) ============ */
+const KIND = {
+  send:'Envia · WhatsApp', wait:'Espera', reply:'Espera resposta',
+  decision:'Divide caminho', task:'Cria tarefa', move:'Move de funil', end:'Encerra',
+};
+
+/* cada filho é { outcome, node } — o outcome vira o rótulo escrito na linha */
+const no = (id, type, name, extra = {}) => ({ id, type, name, ...extra });
+
+function cadeia(...nos) {            /* liga uma sequência reta */
+  for (let i = 0; i < nos.length - 1; i++) nos[i].children = [{ outcome: '', node: nos[i + 1] }];
+  return nos[0];
+}
+
 const FLOWS = {
+  triagem: {
+    tag: 'lead-novo',
+    raiz: (() => {
+      const dec = no('d1', 'decision', 'Qual serviço o lead pediu?');
+      dec.children = [
+        { outcome: 'lentes', node: cadeia(
+            no('a1','send','Abertura · Lentes',{ body:'Que bom que você se interessou por lentes! Posso te explicar como funciona a avaliação?' }),
+            no('a2','wait','1 dia',{ qty:'1', unit:'Dias' }),
+            no('a3','send','Vídeo da Dra. · lentes',{ body:'Olha o que a Dra. fala sobre sorriso natural:', media:'F3 - Video 2 (medo artificial).mp4' })) },
+        { outcome: 'ortodontia', node: cadeia(
+            no('b1','send','Abertura · Ortodontia',{ body:'Aparelho não é só coisa de adolescente. Quer entender as opções pro seu caso?' }),
+            no('b2','wait','1 dia',{ qty:'1', unit:'Dias' }),
+            no('b3','send','Vídeo · aparelho adulto',{ body:'A Dra. explica melhor aqui:', media:'F3 - Aparelho não é só para adolescente.mp4' })) },
+        { outcome: 'estética', node: cadeia(
+            no('c1','send','Abertura · Estética facial',{ body:'Vi que você buscou sobre pele. Posso te explicar o protocolo da Dra.?' }),
+            no('c2','wait','1 dia',{ qty:'1', unit:'Dias' }),
+            no('c3','send','Vídeo · protocolo',{ body:'Protocolo de botox e ativos:', media:'F6 - Protocolo (botox + ativos).mp4' })) },
+        { outcome: 'não identificou', node: no('z1','task','Secretária qualifica na mão') },
+      ];
+      return cadeia(
+        no('t0','send','Boas-vindas',{ body:'Oi! Aqui é da clínica da Dra. Jéssica. Sobre qual tratamento você quer saber?' }),
+        dec,
+      );
+    })(),
+  },
+
   facetas: {
     tag: 'lentes',
-    /* sequência real do funil de follow-up da Dra. Jéssica (D+0 a D+25) */
-    steps: [
-      { id:'f1',  type:'send', name:'F1 · Reabrir conversa', body:'Oi {{ contato.nome }}, aqui é da clínica da Dra. Jéssica. Vi que você chegou até a gente pelo anúncio de lentes e não conseguimos conversar direito. Posso te explicar como funciona?' },
-      { id:'w1',  type:'wait', name:'1 dia', qty:'1', unit:'Dias' },
-      { id:'f2',  type:'send', name:'F2 · Convite para avaliação', body:'A avaliação é onde a gente vê se lente é mesmo o melhor caminho pro seu caso — tem gente que resolve com bem menos. Quer que eu veja um horário?' },
-      { id:'w2',  type:'wait', name:'1 dia', qty:'1', unit:'Dias' },
-      { id:'f3',  type:'send', name:'F3 · Quebrar "artificial"', body:'Sei que o medo número um é ficar com aquele sorriso de novela. Olha esse vídeo da Dra. explicando por que isso acontece:', media:'F3 - Video 2 (medo artificial).mp4' },
-      { id:'w3',  type:'wait', name:'2 dias', qty:'2', unit:'Dias' },
-      { id:'f4',  type:'send', name:'F4 · Prova', body:'Essa é uma transformação real feita aqui na clínica:', media:'F4 - Transformação de um sorriso.mp4' },
-      { id:'w4',  type:'wait', name:'2 dias', qty:'2', unit:'Dias' },
-      { id:'f5',  type:'send', name:'F5 · Medo', body:'As pessoas não têm medo de lente. Têm medo de ficar diferente de si mesmas. A Dra. fala sobre isso:', media:'F5 - As pessoas não têm medo de lentes.mp4' },
-      { id:'w5',  type:'wait', name:'3 dias', qty:'3', unit:'Dias' },
-      { id:'f6',  type:'send', name:'F6 · Decisão e valor', body:'Sobre investimento: a gente monta o plano na avaliação, com parcelamento. Ninguém fecha nada sem saber o valor antes.' },
-      { id:'w6',  type:'wait', name:'4 dias', qty:'4', unit:'Dias' },
-      { id:'f7',  type:'send', name:'F7 · Autoestima', body:'A primeira impressão que você causa começa no sorriso:', media:'F7 - Video 8 (primeira impressão).mp4' },
-      { id:'w7',  type:'wait', name:'5 dias', qty:'5', unit:'Dias' },
-      { id:'f8',  type:'send', name:'F8 · Escassez', body:'Estamos fechando a agenda de avaliação desta semana. Quer que eu segure um horário no seu nome?' },
-      { id:'w8',  type:'wait', name:'7 dias', qty:'7', unit:'Dias' },
-      { id:'f9',  type:'send', name:'F9 · Fechar ciclo', body:'Vou parar de te escrever pra não incomodar. Se um dia quiser retomar, é só chamar aqui. 🙂' },
-      { id:'wr',  type:'reply', name:'até 3 dias', qty:'3', unit:'Dias' },
-    ],
-    branches: {
-      yes: { name:'Mover para Triagem e Qualificação IA', kind:'Move de funil' },
-      no:  { name:'Encerrar e marcar como esfriado',      kind:'Encerra' },
-    },
+    raiz: (() => {
+      const espera = no('wr','reply','até 3 dias',{ qty:'3', unit:'Dias' });
+      espera.children = [
+        { outcome: 'respondeu',     node: no('__yes','move','Triagem e Qualificação IA') },
+        { outcome: 'não respondeu', node: no('__no','end','Encerrar · esfriou') },
+      ];
+      return cadeia(
+        no('f1','send','F1 · Reabrir conversa',{ body:'Oi {{ contato.nome }}, aqui é da clínica da Dra. Jéssica. Vi que você chegou pelo anúncio de lentes e não conseguimos conversar. Posso te explicar como funciona?' }),
+        no('w1','wait','1 dia',{ qty:'1', unit:'Dias' }),
+        no('f2','send','F2 · Convite para avaliação',{ body:'A avaliação é onde a gente vê se lente é mesmo o melhor caminho pro seu caso. Quer que eu veja um horário?' }),
+        no('w2','wait','1 dia',{ qty:'1', unit:'Dias' }),
+        no('f3','send','F3 · Quebrar "artificial"',{ body:'Sei que o medo número um é ficar com sorriso de novela. Olha esse vídeo da Dra.:', media:'F3 - Video 2 (medo artificial).mp4' }),
+        no('w3','wait','2 dias',{ qty:'2', unit:'Dias' }),
+        no('f4','send','F4 · Prova',{ body:'Essa é uma transformação real feita aqui na clínica:', media:'F4 - Transformação de um sorriso.mp4' }),
+        no('w4','wait','2 dias',{ qty:'2', unit:'Dias' }),
+        no('f5','send','F5 · Medo',{ body:'As pessoas não têm medo de lente. Têm medo de ficar diferentes de si mesmas:', media:'F5 - As pessoas não têm medo de lentes.mp4' }),
+        no('w5','wait','3 dias',{ qty:'3', unit:'Dias' }),
+        no('f6','send','F6 · Decisão e valor',{ body:'Sobre investimento: o plano sai na avaliação, com parcelamento. Ninguém fecha nada sem saber o valor antes.' }),
+        no('w6','wait','4 dias',{ qty:'4', unit:'Dias' }),
+        no('f7','send','F7 · Autoestima',{ body:'A primeira impressão começa no sorriso:', media:'F7 - Video 8 (primeira impressão).mp4' }),
+        no('w7','wait','5 dias',{ qty:'5', unit:'Dias' }),
+        no('f8','send','F8 · Escassez',{ body:'Estamos fechando a agenda de avaliação desta semana. Quer que eu segure um horário?' }),
+        no('w8','wait','7 dias',{ qty:'7', unit:'Dias' }),
+        no('f9','send','F9 · Fechar ciclo',{ body:'Vou parar de te escrever pra não incomodar. Se quiser retomar, é só chamar. 🙂' }),
+        espera,
+      );
+    })(),
   },
+
   teste: {
     tag: 'anuncio meta',
-    steps: [
-      { id:'m1', type:'send', name:'Mensagem de abertura', body:'ola teste salvo 1' },
-      { id:'t1', type:'wait', name:'1 hora', qty:'1', unit:'Horas' },
-      { id:'r1', type:'reply', name:'até 1 dia', qty:'1', unit:'Dias' },
-    ],
-    branches: {
-      yes: { name:'Retomar conversa', kind:'Cria tarefa' },
-      no:  { name:'Contato sem resposta', kind:'Cria tarefa' },
-    },
+    raiz: (() => {
+      const r = no('r1','reply','até 1 dia',{ qty:'1', unit:'Dias' });
+      r.children = [
+        { outcome: 'respondeu',     node: no('__yes','task','Retomar conversa') },
+        { outcome: 'não respondeu', node: no('__no','task','Contato sem resposta') },
+      ];
+      return cadeia(
+        no('m1','send','Mensagem de abertura',{ body:'ola teste salvo 1' }),
+        no('t1','wait','1 hora',{ qty:'1', unit:'Horas' }),
+        r,
+      );
+    })(),
   },
 };
 
-const KIND = { send:'Envia · WhatsApp', wait:'Espera', reply:'Espera resposta' };
-let current = 'facetas';
-let steps = FLOWS[current].steps.map(s => ({ ...s }));
+let current = 'triagem';
+let raiz = FLOWS[current].raiz;
 
-/* ============ desenho do mapa ============ */
+/* ============ layout de árvore + desenho ============ */
 const track = document.getElementById('track');
-const GRIP = '<span class="grip" data-grip="1" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg></span>';
+const LARG = 186, ALT = 96, GAP_X = 82, GAP_Y = 20;
+
+/* posiciona: coluna = profundidade; pai centralizado entre o primeiro e o último filho */
+function medir(n, prof, cursor) {
+  n._x = prof * (LARG + GAP_X);
+  const filhos = n.children || [];
+  if (!filhos.length) { n._y = cursor.y; cursor.y += ALT + GAP_Y; return; }
+  filhos.forEach(f => medir(f.node, prof + 1, cursor));
+  const pri = filhos[0].node._y;
+  const ult = filhos[filhos.length - 1].node._y;
+  n._y = (pri + ult) / 2;
+}
+
+function coletar(n, acc = []) {
+  acc.push(n);
+  (n.children || []).forEach(f => coletar(f.node, acc));
+  return acc;
+}
 
 function cardHTML(s) {
   const extra = s.media
-    ? `<span class="hmedia"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M4 4h16v16H4z" opacity=".2"/><path d="M10 8l6 4-6 4z"/></svg>vídeo</span>`
+    ? '<span class="hmedia">▶ vídeo</span>'
     : (s.type === 'send' ? '<span class="hfail">falha encerra</span>' : '');
-  return `${GRIP}<span class="hkind">${KIND[s.type]}</span><span class="hname">${s.name}</span>${extra}`;
+  return `<span class="hkind">${KIND[s.type] || ''}</span><span class="hname">${s.name}</span>${extra}`;
 }
 
 function render() {
-  const f = FLOWS[current];
-  track.innerHTML = '';
+  medir(raiz, 0, { y: 0 });
+  const nos = coletar(raiz);
+  const larg = Math.max(...nos.map(n => n._x)) + LARG + 40;
+  const alt = Math.max(...nos.map(n => n._y)) + ALT + 40;
 
-  steps.forEach((s, i) => {
-    const drop = document.createElement('span');
-    drop.className = 'drop'; drop.dataset.drop = String(i);
-    track.appendChild(drop);
-
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `hstep is-${s.type}`;
-    b.dataset.step = s.id;
-    b.innerHTML = cardHTML(s);
-    track.appendChild(b);
-
-    if (i < steps.length - 1) {
-      const add = document.createElement('button');
-      add.type = 'button'; add.className = 'addstep';
-      add.setAttribute('aria-label', 'Inserir passo'); add.textContent = '+';
-      track.appendChild(add);
+  const fios = [];
+  nos.forEach(n => (n.children || []).forEach(f => {
+    const x1 = n._x + LARG, y1 = n._y + ALT / 2;
+    const x2 = f.node._x,   y2 = f.node._y + ALT / 2;
+    const cx = (x1 + x2) / 2;
+    fios.push(`<path d="M${x1} ${y1} C${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}" />`);
+    if (f.outcome) {
+      fios.push(`<foreignObject x="${x1 + 8}" y="${(y1 + y2) / 2 - 26}" width="${Math.max(70, x2 - x1 - 16)}" height="26">
+        <span xmlns="http://www.w3.org/1999/xhtml" class="edge-tag">${f.outcome}</span></foreignObject>`);
     }
-  });
+  }));
 
-  const lastDrop = document.createElement('span');
-  lastDrop.className = 'drop'; lastDrop.dataset.drop = String(steps.length);
-  track.appendChild(lastDrop);
-
-  const split = document.createElement('span');
-  split.className = 'split'; split.setAttribute('aria-hidden', 'true');
-  track.appendChild(split);
-
-  const wrap = document.createElement('div');
-  wrap.className = 'branches';
-  wrap.innerHTML = `
-    <div class="branch yes">
-      <span class="btag">Se respondeu</span><span class="link short"></span>
-      <button class="hstep is-task" data-step="__yes" type="button">
-        <span class="hkind">${f.branches.yes.kind}</span><span class="hname">${f.branches.yes.name}</span>
-      </button>
-      <span class="hend">fim</span>
-    </div>
-    <div class="branch no">
-      <span class="btag">Se não respondeu</span><span class="link short"></span>
-      <button class="hstep is-task" data-step="__no" type="button">
-        <span class="hkind">${f.branches.no.kind}</span><span class="hname">${f.branches.no.name}</span>
-      </button>
-      <span class="hend">fim</span>
-    </div>`;
-  track.appendChild(wrap);
+  track.innerHTML =
+    `<div class="tree" style="width:${larg}px;height:${alt}px">
+       <svg class="wires" width="${larg}" height="${alt}">${fios.join('')}</svg>
+       ${nos.map(n => `
+         <button type="button" class="hstep is-${n.type}" data-step="${n.id}"
+                 style="left:${n._x}px;top:${n._y}px">${cardHTML(n)}</button>
+         ${(n.children && n.children.length) || n.type === 'end' ? '' :
+           `<button type="button" class="addstep" style="left:${n._x + LARG + 18}px;top:${n._y + ALT / 2 - 12}px" aria-label="Adicionar passo">+</button>`}`).join('')}
+     </div>`;
 }
 
 /* ============ doca ============ */
@@ -435,6 +486,30 @@ const dock = document.getElementById('dock');
 const dockLib = document.getElementById('dockLib');
 
 function painel(s) {
+  if (s.type === 'decision') {
+    const linhas = (s.children || []).map((f, i) => `
+      <div class="row" style="margin-bottom:8px">
+        <div class="field"><label>Caminho ${i + 1}</label><input value="${f.outcome}" /></div>
+        <button class="btn-save" type="button" style="cursor:pointer">Editar</button>
+      </div>`).join('');
+    return { kind: KIND.decision, name: s.name, lib: false,
+      html: linhas + `<div class="attach-note">Cada caminho segue sozinho. Quem não se encaixar em nenhum vai pelo último.</div>` };
+  }
+  if (s.type === 'task') {
+    return { kind: KIND.task, name: s.name, lib: false,
+      html: `<div class="field"><label>Título da tarefa</label><input value="${s.name}" /></div>
+             <div class="field"><label>Responsável</label><select><option>Secretária</option><option>Dra. Jéssica</option></select></div>` };
+  }
+  if (s.type === 'move') {
+    return { kind: KIND.move, name: s.name, lib: false,
+      html: `<div class="field"><label>Funil de destino</label><select><option>Funil de Vendas</option></select></div>
+             <div class="field"><label>Etapa</label><select><option>${s.name}</option></select></div>` };
+  }
+  if (s.type === 'end') {
+    return { kind: KIND.end, name: s.name, lib: false,
+      html: `<div class="field"><label>Motivo registrado</label><input value="esfriou" /></div>
+             <div class="attach-note">O paciente sai da automação e fica disponível para reentrada.</div>` };
+  }
   if (s.type === 'send') {
     return {
       kind: KIND.send, name: s.name, lib: true,
@@ -458,17 +533,9 @@ function painel(s) {
 }
 
 function abrir(id) {
-  const f = FLOWS[current];
-  let d;
-  if (id === '__yes') d = { kind: f.branches.yes.kind, name: f.branches.yes.name, lib: false,
-    html: `<div class="field"><label>Destino</label><input value="${f.branches.yes.name}" /></div>` };
-  else if (id === '__no') d = { kind: f.branches.no.kind, name: f.branches.no.name, lib: false,
-    html: `<div class="field"><label>Ação</label><input value="${f.branches.no.name}" /></div>` };
-  else {
-    const s = steps.find(x => x.id === id);
-    if (!s) return;
-    d = painel(s);
-  }
+  const n = coletar(raiz).find(x => x.id === id);
+  if (!n) return;
+  const d = painel(n);
   document.querySelectorAll('.hstep').forEach(el => el.setAttribute('aria-current', String(el.dataset.step === id)));
   panelEl.innerHTML = `<div class="panel-kind">${d.kind}</div><div class="panel-name">${d.name}</div>${d.html}`;
   dockLib.hidden = !d.lib;
@@ -490,7 +557,6 @@ const level = document.getElementById('z-level');
 const MIN = .35, MAX = 2, PISO = .7;      /* piso: abre de perto, não espremido */
 let scale = 1, tx = 0, ty = 0;
 let panning = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0, pressStep = null;
-let sorting = null, fromIndex = -1, dropIndex = -1;
 
 function apply() {
   inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
@@ -522,80 +588,26 @@ stage.addEventListener('wheel', e => {
   zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
 }, { passive: false });
 
-/* cartão da linha principal = reordenar · fundo = mover o mapa */
+/* No layout de árvore quem posiciona é o sistema: arrastar move o mapa, clicar abre o passo.
+   Reordenar por arrasto precisa de um gesto novo (soltar sobre uma linha) — decisão pendente. */
 stage.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
-  const card = e.target.closest('.hstep');
-  const reordenavel = card && card.dataset.step && !card.dataset.step.startsWith('__');
-
-  sx = e.clientX; sy = e.clientY; moved = false; pressStep = card;
+  pressStep = e.target.closest('.hstep');
+  sx = e.clientX; sy = e.clientY; moved = false;
   stage.setPointerCapture(e.pointerId);
-
-  if (reordenavel) {
-    sorting = card;                      /* ainda não é arrasto: vira ao mover */
-    fromIndex = steps.findIndex(s => s.id === card.dataset.step);
-    dropIndex = fromIndex;
-    return;
-  }
   panning = true; ox = tx; oy = ty;
   stage.classList.add('is-panning');
 });
 
 stage.addEventListener('pointermove', e => {
-  const dx = e.clientX - sx, dy = e.clientY - sy;
-
-  if (sorting) {
-    if (!moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;   /* ainda pode ser clique */
-    if (!moved) {
-      moved = true;
-      sorting.classList.add('is-dragging');
-      stage.classList.add('is-sorting');
-    }
-    /* o cartão acompanha o cursor (compensando o zoom) */
-    sorting.style.transform = `translate(${dx / scale}px, ${dy / scale}px)`;
-
-    let best = -1, bestD = Infinity;
-    track.querySelectorAll('.drop').forEach(d => {
-      const r = d.getBoundingClientRect();
-      const dist = Math.abs(e.clientX - (r.left + r.width / 2));
-      if (dist < bestD) { bestD = dist; best = Number(d.dataset.drop); }
-    });
-    if (best !== dropIndex) {
-      dropIndex = best;
-      track.querySelectorAll('.drop').forEach(d =>
-        d.classList.toggle('on', Number(d.dataset.drop) === dropIndex));
-    }
-    return;
-  }
-
   if (!panning) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
   tx = ox + dx; ty = oy + dy; apply();
 });
 
 function soltar(e) {
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
-
-  if (sorting) {
-    const el = sorting, arrastou = moved;
-    sorting = null;
-    stage.classList.remove('is-sorting');
-    el.classList.remove('is-dragging');
-    el.style.transform = '';
-
-    if (!arrastou) {                       /* não arrastou: foi clique */
-      abrir(el.dataset.step);
-    } else if (dropIndex > -1 && dropIndex !== fromIndex && dropIndex !== fromIndex + 1) {
-      const [mov] = steps.splice(fromIndex, 1);
-      steps.splice(dropIndex > fromIndex ? dropIndex - 1 : dropIndex, 0, mov);
-      render();
-    } else {
-      track.querySelectorAll('.drop').forEach(d => d.classList.remove('on'));
-    }
-    fromIndex = dropIndex = -1; pressStep = null;
-    return;
-  }
-
   if (!panning) return;
   panning = false;
   stage.classList.remove('is-panning');
@@ -619,7 +631,7 @@ window.addEventListener('resize', fit);
 /* troca de automação */
 document.getElementById('flowSel').addEventListener('change', e => {
   current = e.target.value;
-  steps = FLOWS[current].steps.map(s => ({ ...s }));
+  raiz = FLOWS[current].raiz;
   document.getElementById('trigTag').textContent = FLOWS[current].tag;
   fechar(); render(); requestAnimationFrame(fit);
 });
