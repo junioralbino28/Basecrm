@@ -171,10 +171,17 @@ quebrou. A constraint é certa; a mensagem é parte da entrega.
 
 ---
 
-## 7. Correção de registro
+## 7. Nota de medição (erro meu, corrigido)
 
-O estado canônico no cérebro diz "prod = 28 migrations". São **34** em `main`.
-Corrigir no próximo checkpoint.
+Escrevi na primeira versão desta adjudicação que o cérebro estava errado ao
+registrar "prod = 28 migrations", porque `main` tem 34 arquivos. **Estava
+confundindo duas medidas diferentes:** 28 é o número de migrations *aplicadas no
+banco de produção*, verificado por MCP na revisão da Entrega B; 34 é o número de
+*arquivos* na branch `main`. Não são a mesma coisa e o cérebro não está errado.
+
+Isso não muda a conclusão de §1.2. `20260617000000_lead_sources.sql` é a
+**14ª** migration na ordem de `main` — está confortavelmente dentro das 28
+aplicadas. A tabela e sua policy estão em produção pelas duas contagens.
 
 ---
 
