@@ -8,12 +8,12 @@
  * subir com variáveis vazias, que o app interpreta como "Supabase não configurado".
  */
 import { execFileSync, spawn } from 'node:child_process';
-
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+import { resolveNpxInvocation } from './npx-invocation.mjs';
 
 function lerStatusDoSupabase() {
   try {
-    return execFileSync(npx, ['supabase', 'status', '-o', 'env'], {
+    const command = resolveNpxInvocation(['supabase', 'status', '-o', 'env']);
+    return execFileSync(command.file, command.args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
@@ -49,5 +49,6 @@ const env = {
 
 console.log('\n  Banco: Supabase LOCAL (127.0.0.1:54321) — dados de teste.\n');
 
-const filho = spawn(npx, ['next', 'dev'], { env, stdio: 'inherit', shell: false });
+const command = resolveNpxInvocation(['next', 'dev']);
+const filho = spawn(command.file, command.args, { env, stdio: 'inherit', shell: false });
 filho.on('exit', (code) => process.exit(code ?? 0));
