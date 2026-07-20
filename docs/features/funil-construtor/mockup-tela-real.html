@@ -4,284 +4,220 @@
 
 <style>
   :root {
-    --ground:      #070B0A;
-    --panel:       #0B100F;
-    --surface:     #0F1614;
-    --surface-2:   #141D1A;
-    --line:        rgba(255,255,255,.08);
-    --line-strong: rgba(255,255,255,.16);
-    --ink:         #E9EFEC;
-    --ink-soft:    #A7B5B0;
-    --ink-mute:    #6C7B76;
-    --accent:      #17B9A3;
-    --accent-deep: #0E7A6C;
-    --yes:         #34C08A;
-    --no:          #E0A33C;
-    --fail:        #E4685D;
-    --radius: 12px;
-    --sans: ui-sans-serif, "Segoe UI", "Noto Sans", -apple-system, sans-serif;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --ground:#070B0A; --panel:#0B100F; --surface:#0F1614; --surface-2:#141D1A;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+    --ink:#E9EFEC; --ink-soft:#A7B5B0; --ink-mute:#6C7B76;
+    --accent:#17B9A3; --accent-deep:#0E7A6C;
+    --yes:#34C08A; --no:#E0A33C; --fail:#E4685D;
+    --radius:12px;
+    --sans: ui-sans-serif,"Segoe UI","Noto Sans",-apple-system,sans-serif;
+    --serif: "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0; background: var(--ground); color: var(--ink);
-    font-family: var(--sans); font-size: 14px; line-height: 1.5;
-    overflow: hidden; -webkit-font-smoothing: antialiased;
-  }
-  svg { display: block; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans);
+         font-size:14px; line-height:1.5; overflow:hidden; -webkit-font-smoothing:antialiased; }
+  svg { display:block; }
+  .app { display:grid; grid-template-columns:236px minmax(0,1fr); height:100dvh; }
 
-  .app { display: grid; grid-template-columns: 236px minmax(0,1fr); height: 100dvh; }
+  /* menu lateral */
+  .side { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  .brand { display:flex; align-items:center; gap:10px; padding:16px 16px 18px; }
+  .logo { width:30px; height:30px; border-radius:9px; flex:none;
+          background:linear-gradient(140deg,var(--accent),var(--accent-deep));
+          display:grid; place-items:center; font-size:10px; font-weight:800; color:#04201C; }
+  .brand-name { font-family:var(--serif); font-size:17px; }
+  .side-group { padding:0 10px; }
+  .side-label { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-mute); padding:4px 8px 8px; }
+  .nav { display:flex; flex-direction:column; gap:1px; }
+  .nav a { display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:9px;
+           color:var(--ink-soft); text-decoration:none; font-size:13.5px; }
+  .nav a:hover { background:rgba(255,255,255,.04); color:var(--ink); }
+  .nav a.on { background:rgba(23,185,163,.12); color:var(--ink); box-shadow:inset 0 0 0 1px rgba(23,185,163,.28); }
+  .nav svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.7; opacity:.9; }
+  .side-foot { margin-top:auto; padding:12px; }
+  .user { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--line);
+          border-radius:11px; background:var(--surface); }
+  .avatar { width:30px; height:30px; border-radius:50%; flex:none; background:#10201C;
+            border:1px solid rgba(23,185,163,.35); display:grid; place-items:center;
+            font-size:12px; color:var(--accent); font-weight:700; }
+  .user-name { font-size:13px; font-weight:600; }
+  .user-role { font-size:11px; color:var(--ink-mute); }
 
-  /* ---------------- menu lateral ---------------- */
-  .side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 18px; }
-  .logo {
-    width: 30px; height: 30px; border-radius: 9px; flex: none;
-    background: linear-gradient(140deg, var(--accent), var(--accent-deep));
-    display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #04201C;
-  }
-  .brand-name { font-family: var(--serif); font-size: 17px; letter-spacing: .01em; }
-  .side-group { padding: 0 10px; }
-  .side-label {
-    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
-    color: var(--ink-mute); padding: 4px 8px 8px;
-  }
-  .nav { display: flex; flex-direction: column; gap: 1px; }
-  .nav a {
-    display: flex; align-items: center; gap: 11px; padding: 9px 10px;
-    border-radius: 9px; color: var(--ink-soft); text-decoration: none; font-size: 13.5px;
-  }
-  .nav a:hover { background: rgba(255,255,255,.04); color: var(--ink); }
-  .nav a.on { background: rgba(23,185,163,.12); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(23,185,163,.28); }
-  .nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; opacity: .9; }
-  .side-foot { margin-top: auto; padding: 12px; }
-  .user {
-    display: flex; align-items: center; gap: 10px; padding: 10px;
-    border: 1px solid var(--line); border-radius: 11px; background: var(--surface);
-  }
-  .avatar {
-    width: 30px; height: 30px; border-radius: 50%; flex: none;
-    background: #10201C; border: 1px solid rgba(23,185,163,.35);
-    display: grid; place-items: center; font-size: 12px; color: var(--accent); font-weight: 700;
-  }
-  .user-name { font-size: 13px; font-weight: 600; }
-  .user-role { font-size: 11px; color: var(--ink-mute); }
+  /* principal */
+  .main { display:flex; flex-direction:column; min-width:0; }
+  .topbar { flex:none; display:flex; align-items:center; gap:12px; padding:10px 20px;
+            border-bottom:1px solid var(--line); background:var(--panel); }
+  .pill { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft);
+          border:1px solid var(--line-strong); border-radius:999px; padding:6px 12px; }
+  .tenant { display:flex; align-items:center; gap:10px; padding:6px 12px; border:1px solid var(--line);
+            border-radius:10px; background:var(--surface); }
+  .tenant-name { font-size:13px; font-weight:600; }
+  .tenant-sub { font-size:11px; color:var(--ink-mute); }
+  .top-icons { margin-left:auto; display:flex; gap:6px; color:var(--ink-mute); }
+  .top-icons span { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; }
+  .top-icons span:hover { background:rgba(255,255,255,.05); color:var(--ink); }
+  .top-icons svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.7; }
 
-  /* ---------------- área principal ---------------- */
-  .main { display: flex; flex-direction: column; min-width: 0; }
+  .pagehead { flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px;
+              border-bottom:1px solid var(--line); }
+  .crumb { font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); }
+  .ptitle { font-family:var(--serif); font-size:21px; font-weight:600; }
+  .head-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .chip-safe { font-size:11.5px; font-weight:600; color:var(--yes); background:rgba(52,192,138,.12);
+               border:1px solid rgba(52,192,138,.28); padding:6px 12px; border-radius:999px; white-space:nowrap; }
+  .btn { font:inherit; font-size:13px; font-weight:600; cursor:pointer; border-radius:9px; padding:8px 14px;
+         display:inline-flex; align-items:center; gap:7px; background:var(--surface-2);
+         border:1px solid var(--line-strong); color:var(--ink); }
+  .btn:hover { border-color:var(--accent); }
+  .btn.primary { background:var(--accent-deep); border-color:var(--accent-deep); color:#fff; }
+  .btn.primary:hover { background:var(--accent); border-color:var(--accent); color:#04201C; }
+  .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .btn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; }
 
-  .topbar {
-    flex: none; display: flex; align-items: center; gap: 12px;
-    padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
-  }
-  .pill {
-    font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
-    border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 12px;
-  }
-  .tenant {
-    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
-    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
-  }
-  .tenant-name { font-size: 13px; font-weight: 600; }
-  .tenant-sub { font-size: 11px; color: var(--ink-mute); }
-  .top-icons { margin-left: auto; display: flex; gap: 6px; color: var(--ink-mute); }
-  .top-icons span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; }
-  .top-icons span:hover { background: rgba(255,255,255,.05); color: var(--ink); }
-  .top-icons svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .flowbar { flex:none; display:flex; align-items:center; gap:12px; padding:11px 24px;
+             border-bottom:1px solid var(--line); background:rgba(255,255,255,.015); }
+  .flowpick { display:flex; align-items:center; gap:9px; cursor:pointer; background:var(--surface);
+              border:1px solid var(--line-strong); border-radius:10px; padding:6px 10px 6px 12px;
+              color:var(--ink); font:inherit; }
+  .flowpick:hover { border-color:var(--accent); }
+  .flowpick select { font:inherit; font-size:14px; font-weight:650; color:var(--ink);
+                     background:transparent; border:0; outline:none; cursor:pointer; }
+  .flowpick select option { background:var(--surface); color:var(--ink); }
+  .tag-draft { font-size:11px; font-weight:600; color:var(--no); background:rgba(224,163,60,.12);
+               border:1px solid rgba(224,163,60,.3); padding:3px 9px; border-radius:999px; }
+  .trigger-inline { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-mute); }
+  .trigger-inline b { color:var(--ink-soft); font-weight:600; }
+  .flow-actions { margin-left:auto; display:flex; gap:8px; }
 
-  .pagehead {
-    flex: none; display: flex; align-items: center; gap: 16px;
-    padding: 14px 24px; border-bottom: 1px solid var(--line);
-  }
-  .crumb { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
-  .ptitle { font-family: var(--serif); font-size: 21px; font-weight: 600; }
-  .head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-  .chip-safe {
-    font-size: 11.5px; font-weight: 600; color: var(--yes);
-    background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.28);
-    padding: 6px 12px; border-radius: 999px; white-space: nowrap;
-  }
-  .btn {
-    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-    border-radius: 9px; padding: 8px 14px; display: inline-flex; align-items: center; gap: 7px;
-    background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink);
-  }
-  .btn:hover { border-color: var(--accent); }
-  .btn.primary { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
-  .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #04201C; }
-  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  /* palco */
+  .stage { position:relative; flex:1 1 auto; min-height:0; overflow:hidden;
+           background:radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0/26px 26px;
+           cursor:grab; touch-action:none; }
+  .stage.is-panning { cursor:grabbing; }
+  .stage.is-sorting { cursor:grabbing; }
+  .stage-inner { position:absolute; top:0; left:0; transform-origin:0 0; padding:34px; }
+  .track { display:flex; align-items:flex-start; width:max-content; }
 
-  /* barra da automação */
-  .flowbar {
-    flex: none; display: flex; align-items: center; gap: 12px;
-    padding: 11px 24px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015);
-  }
-  .flowpick {
-    display: flex; align-items: center; gap: 9px; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 10px; padding: 7px 12px; color: var(--ink); font: inherit;
-  }
-  .flowpick:hover { border-color: var(--accent); }
-  .flowpick .fname { font-size: 14px; font-weight: 650; }
-  .tag-draft {
-    font-size: 11px; font-weight: 600; color: var(--no);
-    background: rgba(224,163,60,.12); border: 1px solid rgba(224,163,60,.3);
-    padding: 3px 9px; border-radius: 999px;
-  }
-  .trigger-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-mute); }
-  .trigger-inline b { color: var(--ink-soft); font-weight: 600; }
-  .flow-actions { margin-left: auto; display: flex; gap: 8px; }
+  .hstep { flex:none; width:186px; min-height:96px; position:relative;
+           display:flex; flex-direction:column; gap:5px; text-align:left;
+           background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius);
+           padding:13px 14px 13px 26px; color:var(--ink); font:inherit; cursor:pointer;
+           transition:border-color .16s, transform .16s, opacity .16s; }
+  .hstep:hover { border-color:var(--line-strong); }
+  .hstep:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .hstep[aria-current="true"] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .hstep.is-send { box-shadow:inset 3px 0 0 var(--accent); }
+  .hstep.is-send[aria-current="true"] { box-shadow:inset 3px 0 0 var(--accent), 0 0 0 1px var(--accent); }
+  .hstep.is-wait, .hstep.is-reply { background:transparent; border-style:dashed; }
+  .hstep.is-dragging { opacity:.35; }
+  .hkind { font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-mute); }
+  .hname { font-weight:620; font-size:13.5px; line-height:1.3; }
+  .hstep.is-wait .hname, .hstep.is-reply .hname { color:var(--ink-soft); font-weight:600; }
+  .hmedia { margin-top:auto; font-size:10.5px; color:var(--accent); display:flex; align-items:center; gap:5px; }
+  .hfail { margin-top:auto; font-size:10.5px; color:var(--fail); opacity:.85; }
 
-  /* ---------------- palco ---------------- */
-  .stage {
-    position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
-    background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0 / 26px 26px;
-    cursor: grab; touch-action: none;
-  }
-  .stage.is-panning { cursor: grabbing; }
-  .stage-inner { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: 34px; }
-  .track { display: flex; align-items: flex-start; width: max-content; }
+  /* pegador de arrastar */
+  .grip { position:absolute; left:0; top:0; bottom:0; width:20px; border-radius:var(--radius) 0 0 var(--radius);
+          display:grid; place-items:center; cursor:grab; color:var(--ink-mute);
+          background:rgba(255,255,255,.02); border-right:1px solid var(--line); }
+  .grip:hover { color:var(--accent); background:rgba(23,185,163,.08); }
+  .grip:active { cursor:grabbing; }
+  .grip svg { width:11px; height:11px; fill:currentColor; }
 
-  .hstep {
-    flex: none; width: 178px; min-height: 92px;
-    display: flex; flex-direction: column; gap: 5px; text-align: left;
-    background: var(--surface-2); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 13px 14px;
-    color: var(--ink); font: inherit; cursor: pointer; transition: border-color .16s, transform .16s;
-  }
-  .hstep:hover { border-color: var(--line-strong); transform: translateY(-2px); }
-  .hstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .hstep[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .hstep.is-action { box-shadow: inset 0 3px 0 var(--accent); }
-  .hstep.is-action[aria-current="true"] { box-shadow: inset 0 3px 0 var(--accent), 0 0 0 1px var(--accent); }
-  .hstep.is-wait { background: transparent; border-style: dashed; }
-  .hstep.is-trigger { box-shadow: inset 0 3px 0 var(--ink-mute); }
-  .hkind { font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-mute); }
-  .hname { font-weight: 620; font-size: 14px; line-height: 1.3; }
-  .hstep.is-wait .hname { color: var(--ink-soft); font-weight: 600; }
-  .hfail { margin-top: auto; font-size: 11px; color: var(--fail); opacity: .85; }
+  .link { flex:none; align-self:center; width:24px; height:2px; background:var(--line-strong); }
+  .link.short { width:14px; }
+  .drop { flex:none; align-self:stretch; width:0; margin:0; border-radius:3px; transition:width .12s, margin .12s; }
+  .drop.on { width:6px; margin:0 8px; background:var(--accent); box-shadow:0 0 0 3px rgba(23,185,163,.22); }
+  .hstep.is-dragging { opacity:.9; z-index:5; cursor:grabbing;
+                       box-shadow:0 12px 28px rgba(0,0,0,.55), 0 0 0 1px var(--accent); }
+  .hstep { cursor:grab; }
+  .hstep:active { cursor:grabbing; }
 
-  .link { flex: none; align-self: center; width: 26px; height: 2px; background: var(--line-strong); }
-  .link.short { width: 16px; }
-  .split {
-    flex: none; align-self: stretch; width: 26px;
+  .split { flex:none; align-self:stretch; width:26px;
     background:
-      linear-gradient(var(--line-strong), var(--line-strong)) left 46px / 13px 2px no-repeat,
-      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 2px 84px no-repeat,
-      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 13px 2px no-repeat,
-      linear-gradient(var(--line-strong), var(--line-strong)) 13px 128px / 13px 2px no-repeat;
-  }
-  .branches { display: flex; flex-direction: column; gap: 26px; }
-  .branch { display: flex; align-items: center; }
-  .btag {
-    flex: none; font-size: 11px; font-weight: 650; padding: 4px 10px;
-    border-radius: 999px; margin-right: 4px; white-space: nowrap;
-  }
-  .branch.yes .btag { color: var(--yes); background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.3); }
-  .branch.no  .btag { color: var(--no);  background: rgba(224,163,60,.12); border: 1px solid rgba(224,163,60,.3); }
-  .branch.yes .hstep { border-color: rgba(52,192,138,.28); }
-  .branch.no  .hstep { border-color: rgba(224,163,60,.28); }
-  .hend { flex: none; margin-left: 14px; font-size: 11.5px; color: var(--ink-mute); }
+      linear-gradient(var(--line-strong),var(--line-strong)) left 48px/13px 2px no-repeat,
+      linear-gradient(var(--line-strong),var(--line-strong)) 13px 48px/2px 84px no-repeat,
+      linear-gradient(var(--line-strong),var(--line-strong)) 13px 48px/13px 2px no-repeat,
+      linear-gradient(var(--line-strong),var(--line-strong)) 13px 130px/13px 2px no-repeat; }
+  .branches { display:flex; flex-direction:column; gap:26px; }
+  .branch { display:flex; align-items:center; }
+  .btag { flex:none; font-size:11px; font-weight:650; padding:4px 10px; border-radius:999px;
+          margin-right:4px; white-space:nowrap; }
+  .branch.yes .btag { color:var(--yes); background:rgba(52,192,138,.12); border:1px solid rgba(52,192,138,.3); }
+  .branch.no .btag { color:var(--no); background:rgba(224,163,60,.12); border:1px solid rgba(224,163,60,.3); }
+  .branch.yes .hstep { border-color:rgba(52,192,138,.28); }
+  .branch.no .hstep { border-color:rgba(224,163,60,.28); }
+  .hend { flex:none; margin-left:14px; font-size:11.5px; color:var(--ink-mute); }
 
-  .addstep {
-    flex: none; align-self: center; width: 24px; height: 24px; margin: 0 4px;
-    border-radius: 50%; display: grid; place-items: center;
-    background: var(--panel); color: var(--ink-mute);
-    border: 1px dashed var(--line-strong); cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
-  }
-  .addstep:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
-  .addstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .addstep { flex:none; align-self:center; width:24px; height:24px; margin:0 3px; border-radius:50%;
+             display:grid; place-items:center; background:var(--panel); color:var(--ink-mute);
+             border:1px dashed var(--line-strong); cursor:pointer; font-size:14px; line-height:1; padding:0; }
+  .addstep:hover { color:var(--accent); border-color:var(--accent); border-style:solid; }
+  .addstep:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
-  .zoomer {
-    position: absolute; right: 18px; bottom: 14px; z-index: 3;
-    display: flex; align-items: center; gap: 4px;
-    background: rgba(0,0,0,.55); border: 1px solid var(--line);
-    border-radius: 999px; padding: 4px;
-  }
-  .zoomer button {
-    font: inherit; font-size: 14px; line-height: 1; color: var(--ink-soft);
-    background: none; border: 0; cursor: pointer; padding: 6px 10px; border-radius: 999px;
-  }
-  .zoomer button.wide { font-size: 12px; font-weight: 600; }
-  .zoomer button:hover { color: var(--ink); background: rgba(255,255,255,.07); }
-  .zoomer button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  #z-level { font-size: 11.5px; color: var(--ink-mute); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+  .zoomer { position:absolute; right:18px; bottom:14px; z-index:3; display:flex; align-items:center; gap:4px;
+            background:rgba(0,0,0,.55); border:1px solid var(--line); border-radius:999px; padding:4px; }
+  .zoomer button { font:inherit; font-size:14px; line-height:1; color:var(--ink-soft); background:none;
+                   border:0; cursor:pointer; padding:6px 10px; border-radius:999px; }
+  .zoomer button.wide { font-size:12px; font-weight:600; }
+  .zoomer button:hover { color:var(--ink); background:rgba(255,255,255,.07); }
+  .zoomer button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  #z-level { font-size:11.5px; color:var(--ink-mute); min-width:42px; text-align:center; font-variant-numeric:tabular-nums; }
 
-  /* ---------------- doca ---------------- */
-  /* doca: escondida até você clicar num passo */
-  .dock {
-    flex: none; position: relative; display: none;
-    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
-    border-top: 1px solid var(--line); background: rgba(0,0,0,.25);
-    animation: dock-in .16s ease-out;
-  }
-  .dock.open { display: grid; }
-  .dock.solo { grid-template-columns: minmax(0,1fr); }
-  .dock.tall { height: 262px; }
-  @keyframes dock-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .dock { animation: none; } }
+  .hint { position:absolute; left:18px; bottom:14px; z-index:3; font-size:11.5px; color:var(--ink-mute);
+          background:rgba(0,0,0,.45); padding:5px 11px; border-radius:999px; pointer-events:none; }
 
-  .dock-close {
-    position: absolute; top: 10px; right: 14px; z-index: 2;
-    width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
-    background: transparent; border: 1px solid transparent; color: var(--ink-mute);
-    font: inherit; font-size: 17px; line-height: 1; cursor: pointer;
-  }
-  .dock-close:hover { color: var(--ink); background: rgba(255,255,255,.06); border-color: var(--line); }
-  .dock-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .dock-col { padding: 14px 22px 16px; overflow: auto; }
-  .dock-col + .dock-col { border-left: 1px solid var(--line); }
-  .dock-col[hidden] { display: none; }
-  .dock-title { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
-
-  .panel-kind { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
-  .panel-name { font-family: var(--serif); font-size: 17px; margin: 3px 0 11px; font-weight: 600; }
-  .field { margin-bottom: 9px; }
-  .field label { display: block; font-size: 11.5px; color: var(--ink-soft); margin-bottom: 4px; }
-  .field input, .field select, .field textarea {
-    width: 100%; font: inherit; font-size: 13.5px; color: var(--ink);
-    background: rgba(0,0,0,.4); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
-  }
-  .field textarea { min-height: 76px; resize: vertical; }
-  .field:focus-within label { color: var(--accent); }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .attach-note { font-size: 11.5px; color: var(--ink-mute); border-left: 2px solid rgba(228,104,93,.5); padding-left: 10px; }
-
-  .lib-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .lib-item {
-    display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%;
-    background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
-    padding: 7px 10px; color: var(--ink); font: inherit; cursor: pointer;
-  }
-  .lib-item:hover { border-color: var(--accent); }
-  .lib-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .lib-name { font-size: 12.5px; font-weight: 620; }
-  .lib-prev { font-size: 11.5px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lib-new { border-top: 1px dashed var(--line); padding-top: 12px; }
-  .row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: end; }
-  .row .field { margin-bottom: 0; }
-  .btn-save {
-    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
-    background: rgba(255,255,255,.04); color: var(--ink-mute); border: 1px solid var(--line);
-    cursor: not-allowed; white-space: nowrap;
-  }
-  .why { margin-top: 6px; font-size: 11.5px; color: var(--no); display: flex; gap: 6px; }
-
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* doca */
+  .dock { flex:none; position:relative; display:none; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+          border-top:1px solid var(--line); background:rgba(0,0,0,.25); animation:dock-in .16s ease-out; }
+  .dock.open { display:grid; }
+  .dock.solo { grid-template-columns:minmax(0,1fr); }
+  .dock.tall { height:262px; }
+  @keyframes dock-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce) { .dock { animation:none; } * { transition:none !important; } }
+  .dock-close { position:absolute; top:10px; right:14px; z-index:2; width:28px; height:28px; border-radius:8px;
+                display:grid; place-items:center; background:transparent; border:1px solid transparent;
+                color:var(--ink-mute); font:inherit; font-size:17px; line-height:1; cursor:pointer; }
+  .dock-close:hover { color:var(--ink); background:rgba(255,255,255,.06); border-color:var(--line); }
+  .dock-close:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .dock-col { padding:14px 22px 16px; overflow:auto; }
+  .dock-col + .dock-col { border-left:1px solid var(--line); }
+  .dock-col[hidden] { display:none; }
+  .dock-title { font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-mute); margin-bottom:10px; }
+  .panel-kind { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-mute); }
+  .panel-name { font-family:var(--serif); font-size:17px; margin:3px 0 11px; font-weight:600; }
+  .field { margin-bottom:9px; }
+  .field label { display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .field input, .field select, .field textarea { width:100%; font:inherit; font-size:13.5px; color:var(--ink);
+    background:rgba(0,0,0,.4); border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+  .field textarea { min-height:76px; resize:vertical; }
+  .field:focus-within label { color:var(--accent); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .attach-note { font-size:11.5px; color:var(--ink-mute); border-left:2px solid rgba(228,104,93,.5); padding-left:10px; }
+  .media-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--accent);
+               background:rgba(23,185,163,.08); border:1px solid rgba(23,185,163,.22);
+               border-radius:8px; padding:7px 10px; margin-bottom:9px; }
+  .lib-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+  .lib-item { display:flex; flex-direction:column; gap:2px; text-align:left; width:100%;
+              background:var(--surface-2); border:1px solid var(--line); border-radius:9px;
+              padding:7px 10px; color:var(--ink); font:inherit; cursor:pointer; }
+  .lib-item:hover { border-color:var(--accent); }
+  .lib-item:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .lib-name { font-size:12.5px; font-weight:620; }
+  .lib-prev { font-size:11.5px; color:var(--ink-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-new { border-top:1px dashed var(--line); padding-top:12px; }
+  .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; }
+  .row .field { margin-bottom:0; }
+  .btn-save { font:inherit; font-size:13px; font-weight:600; padding:8px 16px; border-radius:8px;
+              background:rgba(255,255,255,.04); color:var(--ink-mute); border:1px solid var(--line);
+              cursor:not-allowed; white-space:nowrap; }
+  .why { margin-top:6px; font-size:11.5px; color:var(--no); display:flex; gap:6px; }
 </style>
 
 <div class="app">
-
-  <!-- ---------------- menu lateral ---------------- -->
   <aside class="side">
-    <div class="brand">
-      <div class="logo">BA²</div>
-      <div class="brand-name">Base A²</div>
-    </div>
-
+    <div class="brand"><div class="logo">BA²</div><div class="brand-name">Base A²</div></div>
     <div class="side-group">
       <div class="side-label">Área da clínica</div>
       <nav class="nav">
@@ -291,34 +227,24 @@
         <a href="#"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Relatórios</a>
         <a href="#"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/></svg>Financeiro</a>
         <a href="#"><svg viewBox="0 0 24 24"><path d="M12 11a4 4 0 100-8 4 4 0 000 8z"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>Profissionais</a>
-        <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.7 1.7 0 006.9 19a1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H1a2 2 0 110-4h.1A1.7 1.7 0 002.6 8a1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H7a1.7 1.7 0 001-1.5V2a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V8a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Configurações</a>
+        <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M20 13v-2h-1.6a6.6 6.6 0 00-.8-1.9l1.1-1.1-1.4-1.4-1.1 1.1a6.6 6.6 0 00-1.9-.8V5h-2v1.9a6.6 6.6 0 00-1.9.8L9.3 6.6 7.9 8l1.1 1.1a6.6 6.6 0 00-.8 1.9H6.6v2h1.6a6.6 6.6 0 00.8 1.9L7.9 16l1.4 1.4 1.1-1.1a6.6 6.6 0 001.9.8V19h2v-1.9a6.6 6.6 0 001.9-.8l1.1 1.1 1.4-1.4-1.1-1.1a6.6 6.6 0 00.8-1.9z"/></svg>Configurações</a>
         <a href="#" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4a3 3 0 013 3v4"/></svg>Automações</a>
         <a href="#"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1121 11.5z"/></svg>Conversas</a>
         <a href="#"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg>Conexões</a>
       </nav>
     </div>
-
     <div class="side-foot">
-      <div class="user">
-        <div class="avatar">J</div>
-        <div>
-          <div class="user-name">junior</div>
-          <div class="user-role">Admin da Agência</div>
-        </div>
+      <div class="user"><div class="avatar">J</div>
+        <div><div class="user-name">junior</div><div class="user-role">Admin da Agência</div></div>
       </div>
     </div>
   </aside>
 
-  <!-- ---------------- principal ---------------- -->
   <div class="main">
-
     <div class="topbar">
       <span class="pill">Área da clínica</span>
       <div class="tenant">
-        <div>
-          <div class="tenant-name">Clinica Demo (local)</div>
-          <div class="tenant-sub">Clínica ativa</div>
-        </div>
+        <div><div class="tenant-name">Clinica Demo (local)</div><div class="tenant-sub">Clínica ativa</div></div>
         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" style="color:var(--ink-mute)"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></svg>
       </div>
       <div class="top-icons">
@@ -330,10 +256,7 @@
     </div>
 
     <div class="pagehead">
-      <div>
-        <div class="crumb">Clinica Demo (local)</div>
-        <div class="ptitle">Automações</div>
-      </div>
+      <div><div class="crumb">Clinica Demo (local)</div><div class="ptitle">Automações</div></div>
       <div class="head-right">
         <span class="chip-safe">Envio real desligado</span>
         <button class="btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova automação</button>
@@ -341,14 +264,17 @@
     </div>
 
     <div class="flowbar">
-      <button class="flowpick" type="button">
-        <span class="fname">teste</span>
+      <div class="flowpick">
+        <select id="flowSel" aria-label="Automação">
+          <option value="facetas">Facetas — follow-up</option>
+          <option value="teste">teste</option>
+        </select>
         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" style="color:var(--ink-mute)"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
+      </div>
       <span class="tag-draft">Rascunho</span>
       <div class="trigger-inline">
         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2a2 2 0 01-.6-1.4V4a1 1 0 011-1h8a2 2 0 011.4.6l7.4 7.4a2 2 0 010 2.4z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>
-        começa com a tag <b>anuncio meta</b>
+        começa com a tag <b id="trigTag">lentes</b>
       </div>
       <div class="flow-actions">
         <button class="btn"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Salvar</button>
@@ -357,264 +283,348 @@
       </div>
     </div>
 
-    <!-- palco -->
     <div class="stage" id="stage">
+      <div class="hint">Arraste um passo para reordenar · arraste o fundo para mover · role para o zoom</div>
       <div class="zoomer">
         <button type="button" id="z-out" aria-label="Afastar">−</button>
         <span id="z-level">100%</span>
         <button type="button" id="z-in" aria-label="Aproximar">+</button>
         <button type="button" id="z-fit" class="wide">Ajustar</button>
       </div>
-
-      <div class="stage-inner" id="stageInner">
-        <div class="track">
-
-          <button class="hstep is-action" data-step="msg" type="button">
-            <span class="hkind">Envia · WhatsApp</span>
-            <span class="hname">Mensagem de abertura</span>
-            <span class="hfail">falha encerra</span>
-          </button>
-
-          <button class="addstep" type="button" aria-label="Inserir passo">+</button>
-
-          <button class="hstep is-wait" data-step="wait1" type="button">
-            <span class="hkind">Espera</span>
-            <span class="hname">1 hora</span>
-          </button>
-
-          <button class="addstep" type="button" aria-label="Inserir passo">+</button>
-
-          <button class="hstep is-wait" data-step="wait2" type="button">
-            <span class="hkind">Espera resposta</span>
-            <span class="hname">até 1 dia</span>
-          </button>
-
-          <span class="split" aria-hidden="true"></span>
-
-          <div class="branches">
-            <div class="branch yes">
-              <span class="btag">Se respondeu</span>
-              <span class="link short"></span>
-              <button class="hstep is-task" data-step="t1" type="button">
-                <span class="hkind">Cria tarefa</span>
-                <span class="hname">Retomar conversa</span>
-              </button>
-              <button class="addstep" type="button" aria-label="Inserir passo">+</button>
-              <span class="hend">fim</span>
-            </div>
-            <div class="branch no">
-              <span class="btag">Se não respondeu</span>
-              <span class="link short"></span>
-              <button class="hstep is-task" data-step="t2" type="button">
-                <span class="hkind">Cria tarefa</span>
-                <span class="hname">Contato sem resposta</span>
-              </button>
-              <button class="addstep" type="button" aria-label="Inserir passo">+</button>
-              <span class="hend">fim</span>
-            </div>
-          </div>
-
-        </div>
-      </div>
+      <div class="stage-inner" id="stageInner"><div class="track" id="track"></div></div>
     </div>
 
-    <!-- doca -->
     <div class="dock" id="dock">
       <button class="dock-close" id="dockClose" type="button" aria-label="Fechar edição">×</button>
-
-      <section class="dock-col">
-        <div class="dock-title">Passo selecionado</div>
-        <div id="panel"></div>
-      </section>
-
+      <section class="dock-col"><div class="dock-title">Passo selecionado</div><div id="panel"></div></section>
       <section class="dock-col" id="dockLib">
         <div class="dock-title">Biblioteca de mensagens</div>
         <div class="lib-list">
-          <button class="lib-item" type="button">
-            <span class="lib-name">Abertura — anúncio Meta</span>
-            <span class="lib-prev">ola teste salvo 1</span>
-          </button>
-          <button class="lib-item" type="button">
-            <span class="lib-name">Lembrete 24h</span>
-            <span class="lib-prev">Passando pra saber se ficou alguma dúvida…</span>
-          </button>
+          <button class="lib-item" type="button"><span class="lib-name">F1 · Reabrir conversa</span><span class="lib-prev">Oi {{nome}}, aqui é da clínica da Dra. Jéssica…</span></button>
+          <button class="lib-item" type="button"><span class="lib-name">F3 · Quebrar "artificial"</span><span class="lib-prev">Muita gente tem medo de ficar com sorriso artificial…</span></button>
+          <button class="lib-item" type="button"><span class="lib-name">F8 · Escassez</span><span class="lib-prev">Fechamos a agenda de avaliação desta semana…</span></button>
         </div>
         <div class="lib-new">
-          <div class="field">
-            <label for="lib-b">Salvar nova mensagem</label>
-            <textarea id="lib-b" placeholder="Escreva a mensagem…"></textarea>
-          </div>
+          <div class="field"><label for="lib-b">Salvar nova mensagem</label><textarea id="lib-b" placeholder="Escreva a mensagem…"></textarea></div>
           <div class="row">
-            <div class="field">
-              <label for="lib-n">Nome para encontrar depois</label>
-              <input id="lib-n" placeholder="Ex.: Facetas — abertura" />
-            </div>
+            <div class="field"><label for="lib-n">Nome para encontrar depois</label><input id="lib-n" placeholder="Ex.: Facetas — abertura" /></div>
             <button class="btn-save" type="button" disabled>Salvar</button>
           </div>
           <div class="why"><span aria-hidden="true">↑</span><span>Falta dar um nome e escrever a mensagem.</span></div>
         </div>
       </section>
     </div>
-
   </div>
 </div>
 
 <script>
-  const CONTENT = {
-    msg: {
-      kind: 'Envia · WhatsApp',
-      name: 'Mensagem de abertura',
-      html: `<div class="field"><label for="f-msg">Mensagem</label>
-             <textarea id="f-msg">ola teste salvo 1</textarea></div>
-             <div class="attach-note">Se o envio falhar, encerra este caminho e registra para a operação.</div>`,
+/* ============ dados dos fluxos ============ */
+const FLOWS = {
+  facetas: {
+    tag: 'lentes',
+    /* sequência real do funil de follow-up da Dra. Jéssica (D+0 a D+25) */
+    steps: [
+      { id:'f1',  type:'send', name:'F1 · Reabrir conversa', body:'Oi {{ contato.nome }}, aqui é da clínica da Dra. Jéssica. Vi que você chegou até a gente pelo anúncio de lentes e não conseguimos conversar direito. Posso te explicar como funciona?' },
+      { id:'w1',  type:'wait', name:'1 dia', qty:'1', unit:'Dias' },
+      { id:'f2',  type:'send', name:'F2 · Convite para avaliação', body:'A avaliação é onde a gente vê se lente é mesmo o melhor caminho pro seu caso — tem gente que resolve com bem menos. Quer que eu veja um horário?' },
+      { id:'w2',  type:'wait', name:'1 dia', qty:'1', unit:'Dias' },
+      { id:'f3',  type:'send', name:'F3 · Quebrar "artificial"', body:'Sei que o medo número um é ficar com aquele sorriso de novela. Olha esse vídeo da Dra. explicando por que isso acontece:', media:'F3 - Video 2 (medo artificial).mp4' },
+      { id:'w3',  type:'wait', name:'2 dias', qty:'2', unit:'Dias' },
+      { id:'f4',  type:'send', name:'F4 · Prova', body:'Essa é uma transformação real feita aqui na clínica:', media:'F4 - Transformação de um sorriso.mp4' },
+      { id:'w4',  type:'wait', name:'2 dias', qty:'2', unit:'Dias' },
+      { id:'f5',  type:'send', name:'F5 · Medo', body:'As pessoas não têm medo de lente. Têm medo de ficar diferente de si mesmas. A Dra. fala sobre isso:', media:'F5 - As pessoas não têm medo de lentes.mp4' },
+      { id:'w5',  type:'wait', name:'3 dias', qty:'3', unit:'Dias' },
+      { id:'f6',  type:'send', name:'F6 · Decisão e valor', body:'Sobre investimento: a gente monta o plano na avaliação, com parcelamento. Ninguém fecha nada sem saber o valor antes.' },
+      { id:'w6',  type:'wait', name:'4 dias', qty:'4', unit:'Dias' },
+      { id:'f7',  type:'send', name:'F7 · Autoestima', body:'A primeira impressão que você causa começa no sorriso:', media:'F7 - Video 8 (primeira impressão).mp4' },
+      { id:'w7',  type:'wait', name:'5 dias', qty:'5', unit:'Dias' },
+      { id:'f8',  type:'send', name:'F8 · Escassez', body:'Estamos fechando a agenda de avaliação desta semana. Quer que eu segure um horário no seu nome?' },
+      { id:'w8',  type:'wait', name:'7 dias', qty:'7', unit:'Dias' },
+      { id:'f9',  type:'send', name:'F9 · Fechar ciclo', body:'Vou parar de te escrever pra não incomodar. Se um dia quiser retomar, é só chamar aqui. 🙂' },
+      { id:'wr',  type:'reply', name:'até 3 dias', qty:'3', unit:'Dias' },
+    ],
+    branches: {
+      yes: { name:'Mover para Triagem e Qualificação IA', kind:'Move de funil' },
+      no:  { name:'Encerrar e marcar como esfriado',      kind:'Encerra' },
     },
-    wait1: {
-      kind: 'Espera',
-      name: 'Pausa antes do próximo passo',
-      html: `<div class="two">
-               <div class="field"><label for="f-q">Quantidade</label><input id="f-q" value="1" /></div>
-               <div class="field"><label for="f-u">Unidade</label>
-                 <select id="f-u"><option>Horas</option><option>Dias</option></select></div>
-             </div>`,
+  },
+  teste: {
+    tag: 'anuncio meta',
+    steps: [
+      { id:'m1', type:'send', name:'Mensagem de abertura', body:'ola teste salvo 1' },
+      { id:'t1', type:'wait', name:'1 hora', qty:'1', unit:'Horas' },
+      { id:'r1', type:'reply', name:'até 1 dia', qty:'1', unit:'Dias' },
+    ],
+    branches: {
+      yes: { name:'Retomar conversa', kind:'Cria tarefa' },
+      no:  { name:'Contato sem resposta', kind:'Cria tarefa' },
     },
-    wait2: {
-      kind: 'Espera resposta',
-      name: 'Aguarda o paciente responder',
-      html: `<div class="two">
-               <div class="field"><label for="f-l">Tempo limite</label><input id="f-l" value="1" /></div>
-               <div class="field"><label for="f-lu">Unidade</label>
-                 <select id="f-lu"><option>Dias</option><option>Horas</option></select></div>
-             </div>`,
-    },
-    t1: {
-      kind: 'Cria tarefa · caminho “respondeu”',
-      name: 'Retomar conversa após resposta',
-      html: `<div class="field"><label for="f-t1">Título da tarefa</label>
-             <input id="f-t1" value="Retomar conversa após resposta" /></div>
-             <div class="field"><label for="f-r1">Responsável</label>
-             <select id="f-r1"><option>Secretária</option><option>Dra. Jéssica</option></select></div>`,
-    },
-    t2: {
-      kind: 'Cria tarefa · caminho “não respondeu”',
-      name: 'Tratar contato sem resposta',
-      html: `<div class="field"><label for="f-t2">Título da tarefa</label>
-             <input id="f-t2" value="Tratar contato sem resposta" /></div>
-             <div class="field"><label for="f-r2">Responsável</label>
-             <select id="f-r2"><option>Secretária</option><option>Dra. Jéssica</option></select></div>`,
-    },
-  };
+  },
+};
 
-  const panelEl = document.getElementById('panel');
-  const steps = document.querySelectorAll('.hstep');
-  const dock = document.getElementById('dock');
-  const dockLib = document.getElementById('dockLib');
+const KIND = { send:'Envia · WhatsApp', wait:'Espera', reply:'Espera resposta' };
+let current = 'facetas';
+let steps = FLOWS[current].steps.map(s => ({ ...s }));
 
-  /* a biblioteca só faz sentido em passo de mensagem */
-  const USA_BIBLIOTECA = new Set(['msg']);
+/* ============ desenho do mapa ============ */
+const track = document.getElementById('track');
+const GRIP = '<span class="grip" data-grip="1" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg></span>';
 
-  function select(key) {
-    const d = CONTENT[key];
-    if (!d) return;
-    steps.forEach(s => s.setAttribute('aria-current', String(s.dataset.step === key)));
-    panelEl.innerHTML = `<div class="panel-kind">${d.kind}</div><div class="panel-name">${d.name}</div>${d.html}`;
+function cardHTML(s) {
+  const extra = s.media
+    ? `<span class="hmedia"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M4 4h16v16H4z" opacity=".2"/><path d="M10 8l6 4-6 4z"/></svg>vídeo</span>`
+    : (s.type === 'send' ? '<span class="hfail">falha encerra</span>' : '');
+  return `${GRIP}<span class="hkind">${KIND[s.type]}</span><span class="hname">${s.name}</span>${extra}`;
+}
 
-    const comLib = USA_BIBLIOTECA.has(key);
-    dockLib.hidden = !comLib;
-    dock.classList.toggle('solo', !comLib);
-    dock.classList.toggle('tall', comLib);
-    dock.classList.add('open');
-  }
+function render() {
+  const f = FLOWS[current];
+  track.innerHTML = '';
 
-  function fecharDoca() {
-    dock.classList.remove('open');
-    steps.forEach(s => s.setAttribute('aria-current', 'false'));
-  }
+  steps.forEach((s, i) => {
+    const drop = document.createElement('span');
+    drop.className = 'drop'; drop.dataset.drop = String(i);
+    track.appendChild(drop);
 
-  /* teclado (Enter/Espaço) continua pelo clique; o mouse é tratado no pointerup do palco,
-     porque a captura de ponteiro do arrasto impede o clique de chegar ao cartão */
-  steps.forEach(s => s.addEventListener('click', (e) => {
-    if (e.detail === 0) select(s.dataset.step);
-  }));
-  document.getElementById('dockClose').addEventListener('click', fecharDoca);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharDoca(); });
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `hstep is-${s.type}`;
+    b.dataset.step = s.id;
+    b.innerHTML = cardHTML(s);
+    track.appendChild(b);
 
-  /* palco: arrastar em todas as direções + zoom na roda */
-  const stage = document.getElementById('stage');
-  const inner = document.getElementById('stageInner');
-  const level = document.getElementById('z-level');
-  const MIN = 0.4, MAX = 2;
-  let scale = 1, tx = 0, ty = 0;
-  let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
-  let pressStep = null;   /* cartão sob o cursor no momento em que o botão desceu */
-
-  function apply() {
-    inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    level.textContent = Math.round(scale * 100) + '%';
-  }
-  function zoomAt(cx0, cy0, f) {
-    const next = Math.min(MAX, Math.max(MIN, scale * f));
-    if (next === scale) return;
-    const r = stage.getBoundingClientRect();
-    const cx = cx0 - r.left, cy = cy0 - r.top;
-    tx = cx - (cx - tx) * (next / scale);
-    ty = cy - (cy - ty) * (next / scale);
-    scale = next; apply();
-  }
-  function fit() {
-    const r = stage.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    const w = inner.scrollWidth, h = inner.scrollHeight;
-    scale = Math.min(1, Math.max(MIN, Math.min(r.width / w, r.height / h)));
-    tx = Math.max(0, (r.width - w * scale) / 2);
-    ty = Math.max(0, (r.height - h * scale) / 2);
-    apply();
-  }
-
-  stage.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
-  }, { passive: false });
-
-  stage.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    dragging = true; moved = false;
-    pressStep = e.target.closest('.hstep');
-    sx = e.clientX; sy = e.clientY; ox = tx; oy = ty;
-    stage.classList.add('is-panning');
-    stage.setPointerCapture(e.pointerId);
-  });
-  stage.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-    tx = ox + dx; ty = oy + dy; apply();
-  });
-  function endPan(e) {
-    if (!dragging) return;
-    dragging = false;
-    stage.classList.remove('is-panning');
-    try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
-  }
-  stage.addEventListener('pointerup', (e) => {
-    endPan(e);
-    if (moved) { pressStep = null; return; }          /* foi arrasto, não clique */
-    if (pressStep) {
-      select(pressStep.dataset.step);                  /* clicou num passo */
-    } else if (!e.target.closest('.addstep, .zoomer')) {
-      fecharDoca();                                    /* clicou no vazio do mapa */
+    if (i < steps.length - 1) {
+      const add = document.createElement('button');
+      add.type = 'button'; add.className = 'addstep';
+      add.setAttribute('aria-label', 'Inserir passo'); add.textContent = '+';
+      track.appendChild(add);
     }
-    pressStep = null;
   });
-  stage.addEventListener('pointercancel', endPan);
 
-  document.getElementById('z-in').addEventListener('click', () => {
-    const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
-  });
-  document.getElementById('z-out').addEventListener('click', () => {
-    const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
-  });
-  document.getElementById('z-fit').addEventListener('click', fit);
-  window.addEventListener('resize', fit);
+  const lastDrop = document.createElement('span');
+  lastDrop.className = 'drop'; lastDrop.dataset.drop = String(steps.length);
+  track.appendChild(lastDrop);
+
+  const split = document.createElement('span');
+  split.className = 'split'; split.setAttribute('aria-hidden', 'true');
+  track.appendChild(split);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'branches';
+  wrap.innerHTML = `
+    <div class="branch yes">
+      <span class="btag">Se respondeu</span><span class="link short"></span>
+      <button class="hstep is-task" data-step="__yes" type="button">
+        <span class="hkind">${f.branches.yes.kind}</span><span class="hname">${f.branches.yes.name}</span>
+      </button>
+      <span class="hend">fim</span>
+    </div>
+    <div class="branch no">
+      <span class="btag">Se não respondeu</span><span class="link short"></span>
+      <button class="hstep is-task" data-step="__no" type="button">
+        <span class="hkind">${f.branches.no.kind}</span><span class="hname">${f.branches.no.name}</span>
+      </button>
+      <span class="hend">fim</span>
+    </div>`;
+  track.appendChild(wrap);
+}
+
+/* ============ doca ============ */
+const panelEl = document.getElementById('panel');
+const dock = document.getElementById('dock');
+const dockLib = document.getElementById('dockLib');
+
+function painel(s) {
+  if (s.type === 'send') {
+    return {
+      kind: KIND.send, name: s.name, lib: true,
+      html: (s.media ? `<div class="media-row">🎬 ${s.media} · 13 MB · pronto para WhatsApp</div>` : '') +
+        `<div class="field"><label for="f-msg">Mensagem</label><textarea id="f-msg">${s.body || ''}</textarea></div>
+         <div class="attach-note">Se o envio falhar, encerra este caminho e registra para a operação.</div>`,
+    };
+  }
+  if (s.type === 'wait') {
+    return { kind: KIND.wait, name: 'Pausa antes do próximo passo', lib: false,
+      html: `<div class="two">
+               <div class="field"><label>Quantidade</label><input value="${s.qty}" /></div>
+               <div class="field"><label>Unidade</label><select><option>${s.unit}</option></select></div>
+             </div>` };
+  }
+  return { kind: KIND.reply, name: 'Aguarda o paciente responder', lib: false,
+    html: `<div class="two">
+             <div class="field"><label>Tempo limite</label><input value="${s.qty}" /></div>
+             <div class="field"><label>Unidade</label><select><option>${s.unit}</option></select></div>
+           </div>` };
+}
+
+function abrir(id) {
+  const f = FLOWS[current];
+  let d;
+  if (id === '__yes') d = { kind: f.branches.yes.kind, name: f.branches.yes.name, lib: false,
+    html: `<div class="field"><label>Destino</label><input value="${f.branches.yes.name}" /></div>` };
+  else if (id === '__no') d = { kind: f.branches.no.kind, name: f.branches.no.name, lib: false,
+    html: `<div class="field"><label>Ação</label><input value="${f.branches.no.name}" /></div>` };
+  else {
+    const s = steps.find(x => x.id === id);
+    if (!s) return;
+    d = painel(s);
+  }
+  document.querySelectorAll('.hstep').forEach(el => el.setAttribute('aria-current', String(el.dataset.step === id)));
+  panelEl.innerHTML = `<div class="panel-kind">${d.kind}</div><div class="panel-name">${d.name}</div>${d.html}`;
+  dockLib.hidden = !d.lib;
+  dock.classList.toggle('solo', !d.lib);
+  dock.classList.toggle('tall', d.lib);
+  dock.classList.add('open');
+}
+function fechar() {
+  dock.classList.remove('open');
+  document.querySelectorAll('.hstep').forEach(el => el.setAttribute('aria-current', 'false'));
+}
+document.getElementById('dockClose').addEventListener('click', fechar);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+
+/* ============ palco: mover, zoom, clicar, reordenar ============ */
+const stage = document.getElementById('stage');
+const inner = document.getElementById('stageInner');
+const level = document.getElementById('z-level');
+const MIN = .35, MAX = 2, PISO = .7;      /* piso: abre de perto, não espremido */
+let scale = 1, tx = 0, ty = 0;
+let panning = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0, pressStep = null;
+let sorting = null, fromIndex = -1, dropIndex = -1;
+
+function apply() {
+  inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  level.textContent = Math.round(scale * 100) + '%';
+}
+function zoomAt(cx0, cy0, f) {
+  const next = Math.min(MAX, Math.max(MIN, scale * f));
+  if (next === scale) return;
+  const r = stage.getBoundingClientRect();
+  const cx = cx0 - r.left, cy = cy0 - r.top;
+  tx = cx - (cx - tx) * (next / scale);
+  ty = cy - (cy - ty) * (next / scale);
+  scale = next; apply();
+}
+/* enquadra, mas nunca abaixo do piso: fluxo grande abre legível e você navega */
+function fit() {
+  const r = stage.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const w = inner.scrollWidth, h = inner.scrollHeight;
+  const ideal = Math.min(r.width / w, r.height / h);
+  scale = Math.min(1, Math.max(PISO, ideal));
+  tx = ideal >= PISO ? Math.max(0, (r.width - w * scale) / 2) : 24;
+  ty = Math.max(0, Math.min(24, (r.height - h * scale) / 2));
   apply();
-  requestAnimationFrame(fit);
+}
+
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+
+/* cartão da linha principal = reordenar · fundo = mover o mapa */
+stage.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const card = e.target.closest('.hstep');
+  const reordenavel = card && card.dataset.step && !card.dataset.step.startsWith('__');
+
+  sx = e.clientX; sy = e.clientY; moved = false; pressStep = card;
+  stage.setPointerCapture(e.pointerId);
+
+  if (reordenavel) {
+    sorting = card;                      /* ainda não é arrasto: vira ao mover */
+    fromIndex = steps.findIndex(s => s.id === card.dataset.step);
+    dropIndex = fromIndex;
+    return;
+  }
+  panning = true; ox = tx; oy = ty;
+  stage.classList.add('is-panning');
+});
+
+stage.addEventListener('pointermove', e => {
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+
+  if (sorting) {
+    if (!moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;   /* ainda pode ser clique */
+    if (!moved) {
+      moved = true;
+      sorting.classList.add('is-dragging');
+      stage.classList.add('is-sorting');
+    }
+    /* o cartão acompanha o cursor (compensando o zoom) */
+    sorting.style.transform = `translate(${dx / scale}px, ${dy / scale}px)`;
+
+    let best = -1, bestD = Infinity;
+    track.querySelectorAll('.drop').forEach(d => {
+      const r = d.getBoundingClientRect();
+      const dist = Math.abs(e.clientX - (r.left + r.width / 2));
+      if (dist < bestD) { bestD = dist; best = Number(d.dataset.drop); }
+    });
+    if (best !== dropIndex) {
+      dropIndex = best;
+      track.querySelectorAll('.drop').forEach(d =>
+        d.classList.toggle('on', Number(d.dataset.drop) === dropIndex));
+    }
+    return;
+  }
+
+  if (!panning) return;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+  tx = ox + dx; ty = oy + dy; apply();
+});
+
+function soltar(e) {
+  try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+
+  if (sorting) {
+    const el = sorting, arrastou = moved;
+    sorting = null;
+    stage.classList.remove('is-sorting');
+    el.classList.remove('is-dragging');
+    el.style.transform = '';
+
+    if (!arrastou) {                       /* não arrastou: foi clique */
+      abrir(el.dataset.step);
+    } else if (dropIndex > -1 && dropIndex !== fromIndex && dropIndex !== fromIndex + 1) {
+      const [mov] = steps.splice(fromIndex, 1);
+      steps.splice(dropIndex > fromIndex ? dropIndex - 1 : dropIndex, 0, mov);
+      render();
+    } else {
+      track.querySelectorAll('.drop').forEach(d => d.classList.remove('on'));
+    }
+    fromIndex = dropIndex = -1; pressStep = null;
+    return;
+  }
+
+  if (!panning) return;
+  panning = false;
+  stage.classList.remove('is-panning');
+  if (moved) { pressStep = null; return; }
+  if (pressStep) abrir(pressStep.dataset.step);
+  else if (!e.target.closest('.addstep, .zoomer')) fechar();
+  pressStep = null;
+}
+stage.addEventListener('pointerup', soltar);
+stage.addEventListener('pointercancel', soltar);
+
+document.getElementById('z-in').addEventListener('click', () => {
+  const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
+});
+document.getElementById('z-out').addEventListener('click', () => {
+  const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
+});
+document.getElementById('z-fit').addEventListener('click', fit);
+window.addEventListener('resize', fit);
+
+/* troca de automação */
+document.getElementById('flowSel').addEventListener('change', e => {
+  current = e.target.value;
+  steps = FLOWS[current].steps.map(s => ({ ...s }));
+  document.getElementById('trigTag').textContent = FLOWS[current].tag;
+  fechar(); render(); requestAnimationFrame(fit);
+});
+
+render();
+apply();
+requestAnimationFrame(fit);
 </script>

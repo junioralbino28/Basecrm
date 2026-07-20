@@ -20,7 +20,9 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:auth": "playwright test test/e2e/auth.setup.ts",
-    "smoke:integrations": "node scripts/smoke-integrations.mjs"
+    "smoke:integrations": "node scripts/smoke-integrations.mjs",
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev:prod": "next dev"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.37",
