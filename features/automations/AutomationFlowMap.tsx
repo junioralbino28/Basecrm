@@ -152,11 +152,17 @@ export function AutomationFlowMap({
     if (!stage) return;
     const bounds = stage.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
+    // Encaixa pelo contorno REAL da árvore (layout.width/height), não pela caixa
+    // mínima inflada (720x492) — senão um fluxo pequeno fica ancorado no canto
+    // superior-esquerdo dessa caixa em vez de centralizado.
     setViewport(fitAutomationViewport(
       { width: bounds.width, height: bounds.height },
-      { width: contentWidth, height: contentHeight },
+      {
+        width: layout.width || contentWidth,
+        height: layout.height || contentHeight,
+      },
     ));
-  }, [contentHeight, contentWidth]);
+  }, [contentHeight, contentWidth, layout]);
 
   // Traz o passo dado ao centro da área visível, mantendo o zoom atual.
   const centerOnStep = React.useCallback((stepKey: string) => {
