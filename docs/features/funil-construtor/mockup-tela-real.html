@@ -102,7 +102,8 @@
   /* árvore: cartões posicionados por coordenada, fios desenhados atrás */
   .tree { position:relative; }
   .wires { position:absolute; inset:0; pointer-events:none; overflow:visible; }
-  .wires path { fill:none; stroke:var(--line-strong); stroke-width:2; }
+  .wires path { fill:none; stroke:var(--line-strong); stroke-width:2; transition:stroke .12s, stroke-width .12s; }
+  .wires path.alvo { stroke:var(--accent); stroke-width:4; }
   .edge-tag { display:inline-block; font-family:var(--sans); font-size:10.5px; font-weight:650;
               color:var(--ink-soft); background:var(--panel); border:1px solid var(--line-strong);
               border-radius:999px; padding:2px 9px; white-space:nowrap; }
@@ -178,6 +179,9 @@
   .zoomer button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
   #z-level { font-size:11.5px; color:var(--ink-mute); min-width:42px; text-align:center; font-variant-numeric:tabular-nums; }
 
+  .aviso { position:absolute; left:50%; top:16px; transform:translateX(-50%); z-index:6;
+           background:rgba(224,163,60,.14); border:1px solid rgba(224,163,60,.45); color:var(--no);
+           font-size:12.5px; padding:8px 14px; border-radius:999px; pointer-events:none; }
   .hint { position:absolute; left:18px; bottom:14px; z-index:3; font-size:11.5px; color:var(--ink-mute);
           background:rgba(0,0,0,.45); padding:5px 11px; border-radius:999px; pointer-events:none; }
 
@@ -420,12 +424,13 @@ const FLOWS = {
   },
 };
 
+let arestas = [];
 let current = 'triagem';
 let raiz = FLOWS[current].raiz;
 
 /* ============ layout de árvore + desenho ============ */
 const track = document.getElementById('track');
-const LARG = 186, ALT = 96, GAP_X = 82, GAP_Y = 20;
+const LARG = 186, ALT = 96, GAP_X = 124, GAP_Y = 20;
 
 /* posiciona: coluna = profundidade; pai centralizado entre o primeiro e o último filho */
 function medir(n, prof, cursor) {
@@ -458,13 +463,15 @@ function render() {
   const alt = Math.max(...nos.map(n => n._y)) + ALT + 40;
 
   const fios = [];
-  nos.forEach(n => (n.children || []).forEach(f => {
+  arestas = [];
+  nos.forEach(n => (n.children || []).forEach((f, idx) => {
     const x1 = n._x + LARG, y1 = n._y + ALT / 2;
     const x2 = f.node._x,   y2 = f.node._y + ALT / 2;
     const cx = (x1 + x2) / 2;
-    fios.push(`<path d="M${x1} ${y1} C${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}" />`);
+    arestas.push({ pai: n, idx, meioX: cx, meioY: (y1 + y2) / 2 });
+    fios.push(`<path class="fio" data-aresta="${arestas.length - 1}" d="M${x1} ${y1} C${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}" />`);
     if (f.outcome) {
-      fios.push(`<foreignObject x="${x1 + 8}" y="${(y1 + y2) / 2 - 26}" width="${Math.max(70, x2 - x1 - 16)}" height="26">
+      fios.push(`<foreignObject x="${x1 + 8}" y="${(y1 + y2) / 2 - 26}" width="${Math.max(104, x2 - x1 - 14)}" height="26">
         <span xmlns="http://www.w3.org/1999/xhtml" class="edge-tag">${f.outcome}</span></foreignObject>`);
     }
   }));
@@ -588,26 +595,118 @@ stage.addEventListener('wheel', e => {
   zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
 }, { passive: false });
 
-/* No layout de árvore quem posiciona é o sistema: arrastar move o mapa, clicar abre o passo.
-   Reordenar por arrasto precisa de um gesto novo (soltar sobre uma linha) — decisão pendente. */
+/* ---- mover passo na árvore: arrastar o card e SOLTAR EM CIMA DE UMA LINHA ---- */
+function paiDe(alvo, n = raiz) {
+  for (const f of (n.children || [])) {
+    if (f.node === alvo) return n;
+    const achou = paiDe(alvo, f.node);
+    if (achou) return achou;
+  }
+  return null;
+}
+function naSubarvore(alvo, n) {          /* n está dentro da subárvore de alvo? */
+  if (alvo === n) return true;
+  return (alvo.children || []).some(f => naSubarvore(f.node, n));
+}
+function podeMover(n) {
+  if (n === raiz) return 'O primeiro passo não pode mudar de lugar.';
+  if ((n.children || []).length > 1) return 'Um passo que divide caminhos não pode ser movido — moveria a árvore inteira junto.';
+  return null;
+}
+function mover(n, aresta) {
+  const pai = paiDe(n);
+  if (!pai) return;
+  const meu = (n.children || [])[0] || null;              /* quem vem depois de mim */
+  const iNoPai = pai.children.findIndex(f => f.node === n);
+  if (meu) pai.children[iNoPai].node = meu.node;          /* meu filho ocupa meu lugar */
+  else pai.children.splice(iNoPai, 1);
+
+  const destino = aresta.pai.children[aresta.idx];        /* aresta A -> B */
+  const B = destino.node;
+  destino.node = n;                                        /* A -> n */
+  n.children = [{ outcome: '', node: B }];                 /* n -> B */
+}
+
+let arrastando = null, arestaAlvo = null, avisoTimer = null;
+
+function mostrarAviso(texto) {
+  let el = stage.querySelector('.aviso');
+  if (!el) { el = document.createElement('div'); el.className = 'aviso'; stage.appendChild(el); }
+  el.textContent = texto;
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => el.remove(), 2600);
+}
+
 stage.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
   pressStep = e.target.closest('.hstep');
   sx = e.clientX; sy = e.clientY; moved = false;
   stage.setPointerCapture(e.pointerId);
+
+  if (pressStep) { arrastando = pressStep; return; }       /* pode virar arrasto de passo */
   panning = true; ox = tx; oy = ty;
   stage.classList.add('is-panning');
 });
 
 stage.addEventListener('pointermove', e => {
-  if (!panning) return;
   const dx = e.clientX - sx, dy = e.clientY - sy;
+
+  if (arrastando) {
+    if (!moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    if (!moved) {
+      moved = true;
+      const n = coletar(raiz).find(x => x.id === arrastando.dataset.step);
+      const impedimento = podeMover(n);
+      if (impedimento) { mostrarAviso(impedimento); arrastando = null; return; }
+      arrastando.classList.add('is-dragging');
+      stage.classList.add('is-sorting');
+    }
+    arrastando.style.transform = `translate(${dx / scale}px, ${dy / scale}px)`;
+
+    /* qual linha está mais perto do cursor? */
+    const n = coletar(raiz).find(x => x.id === arrastando.dataset.step);
+    const r = stage.getBoundingClientRect();
+    const px = (e.clientX - r.left - tx) / scale - 34;     /* 34 = padding do palco */
+    const py = (e.clientY - r.top - ty) / scale - 34;
+    let melhor = null, dist = 150;
+    arestas.forEach((a, i) => {
+      const B = a.pai.children[a.idx].node;
+      if (naSubarvore(n, B) || a.pai === n || B === n) return;   /* evita laço */
+      const d = Math.hypot(px - a.meioX, py - a.meioY);
+      if (d < dist) { dist = d; melhor = i; }
+    });
+    if (melhor !== arestaAlvo) {
+      arestaAlvo = melhor;
+      track.querySelectorAll('.fio').forEach(p =>
+        p.classList.toggle('alvo', Number(p.dataset.aresta) === arestaAlvo));
+    }
+    return;
+  }
+
+  if (!panning) return;
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
   tx = ox + dx; ty = oy + dy; apply();
 });
 
 function soltar(e) {
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+
+  if (arrastando) {
+    const el = arrastando, arrastou = moved;
+    arrastando = null;
+    stage.classList.remove('is-sorting');
+    el.classList.remove('is-dragging');
+    el.style.transform = '';
+    if (!arrastou) { abrir(el.dataset.step); }
+    else if (arestaAlvo !== null) {
+      const n = coletar(raiz).find(x => x.id === el.dataset.step);
+      mover(n, arestas[arestaAlvo]);
+      render();
+    }
+    arestaAlvo = null; pressStep = null;
+    return;
+  }
+
   if (!panning) return;
   panning = false;
   stage.classList.remove('is-panning');
