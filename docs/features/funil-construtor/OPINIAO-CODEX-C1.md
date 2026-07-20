@@ -1,443 +1,395 @@
-# Opinião do Codex — Entrega C1
+# Parecer do Codex — Entrega C1
 
-> Rodada de opinião, sem implementação.  
-> Data: 2026-07-20  
-> Base examinada: branch `feat/funil-construtor` em `5df37fa`.
+Data: 2026-07-20  
+Branch inspecionada: `feat/funil-construtor`  
+Escopo: opinião técnica, sem código, migration ou teste
 
-## Veredito
+## Veredito executivo
 
-**Fatiar, mas não manter a C1 atual como uma única entrega.**
+**Recomendo fatiar. Não recomendo executar toda a Entrega C de uma vez e também
+não recomendo tratar a C1 atual como um único pacote de implementação/revisão.**
 
-Eu aprovaria quatro marcos:
+O macrofatiamento C1/C2/C3 está correto: interface e modelo do grafo, operação
+real e mídia têm riscos diferentes. Porém, o gap dos N caminhos aumentou a C1.
+Ela deixou de ser principalmente um redesenho e passou a incluir uma alteração
+de contrato do motor, do compilador e da execução.
 
-1. **C1a — contratos e segurança:** novo passo de N caminhos de ponta a ponta,
-   validação estrutural do draft, O1 e O2.
-2. **C1b — construtor aprovado:** árvore, layout automático, mover-na-linha,
-   doca, pan/zoom, seletor e correções de interface.
-3. **C2 — execução operacional:** roteamento, tarefas/movimentos, jobs pausados e
-   observabilidade de falhas.
-4. **C3 — mídia e ciclo de vida do tenant:** pipeline de mídia/ffmpeg e O5.
+Minha divisão recomendada:
 
-A recomendação anterior de executar C1 antes de C2/C3 estava correta. O achado
-dos N caminhos, porém, fez a C1 crescer: R2 não é mais uma adaptação de tela.
-Agora envolve schema, compilador, versão publicada e executor. Somar isso a R1 e
-R3 — ambos grandes — recriaria o problema de revisão excessivamente volumosa que
-o próprio fatiamento pretendia evitar.
+1. **C1A — contrato e segurança:** novo passo N-ário, execução desse passo,
+   invariantes de árvore, O1, O2 e O6.
+2. **C1B — árvore navegável:** R1, R4, R5, R6 e R7, inicialmente sobre operações
+   do grafo já validadas no servidor.
+3. **C1C — edição estrutural:** criação/edição dos caminhos de R2 e
+   mover-na-linha de R3, com mutação no servidor, concorrência otimista e testes
+   reais de ponteiro/teclado.
 
-Se o Junior não quiser uma rodada formal extra, C1a e C1b ainda devem existir
-como dois gates de revisão e conjuntos de commits separados. Eu não executaria
-tudo numa rodada.
+Essas três partes podem continuar sob o nome “Entrega C1”, mas devem ter commits,
+gates e revisão manual separados. Depois permanecem:
 
-## Achados que corrigem a spec
+- **C2:** N1, N2, N4, O3 e O4. O2 já estará resolvido e N4 amplia a tela de saúde
+  para a observabilidade operacional completa.
+- **C3:** N3 e O5, isolando mídia/ffmpeg e a decisão de ciclo de vida do tenant.
 
-### 1. R2 não cabe nos outcomes atuais
+O print aprovado confirma que “Divide caminho” é semanticamente um nó com quatro
+resultados exclusivos e nomeados. Não é apenas uma apresentação mais bonita de
+uma sequência de perguntas binárias.
 
-A frase de R2 dizendo que N caminhos serão gravados com
-`true`/`false`/`otherwise` está errada.
+## Evidência verificada
 
-Há três travas simultâneas:
-
-- o banco aceita somente sete outcomes fixos;
-- existe unicidade por `(from_step_id, outcome)`;
-- o compilador aceita em `condition` apenas `true`, `false` e `otherwise` e
-  rejeita outcome repetido.
-
-Logo, quatro filhos semanticamente distintos não podem sair de um único
-`condition` atual.
-
-### 2. Não existe execução de `condition`
-
-O compilador conhece `condition`, mas o runtime entregue até F6 não a avalia. O
-materializador cria um job genérico, enquanto o dispatch implementado aceita
-mensagem e o avanço normal usa sempre `success`. Não há caminho que escolha
-`true`, `false` ou `otherwise`.
-
-Portanto, adicionar apenas o tipo/outcome no schema e no compilador criaria uma
-automação publicável que não percorre os ramos. O novo passo precisa chegar até
-o executor em C1a, ou a publicação de fluxos que o contenham deve continuar
-bloqueada. Como o critério da C1 exige publicar e testar o fluxo, recomendo
-implementar a execução em C1a.
-
-### 3. A “árvore” ainda é um DAG no motor
-
-O compilador exige uma entrada, alcançabilidade e ausência de ciclo, mas não
-proíbe um passo com dois pais. O mockup e o algoritmo de mover pressupõem uma
-árvore enraizada, na qual cada passo não raiz tem exatamente um pai.
-
-C1 precisa travar essa decisão. Para o desenho aprovado, recomendo **árvore
-enraizada em v1**, rejeitando `indegree > 1`. Sem isso:
-
-- “o pai do passo” pode ser ambíguo;
-- remover e reinserir um nó não tem semântica única;
-- centralizar pai entre filhos deixa de ser um layout de árvore;
-- o mesmo passo pode aparecer duas vezes ou exigir layout de DAG.
+- O banco aceita apenas os tipos atuais e outcomes fechados em
+  `20260718000000_funil_f1_authoring.sql`.
+- A constraint única `(from_step_id, outcome)` impede repetir `true`, `false` ou
+  `otherwise` no mesmo passo.
+- O compilador permite apenas `true`, `false` e `otherwise` para `condition` e
+  também acusa `duplicate_outcome`.
+- O compilador rejeita entrada múltipla, órfão e ciclo, mas **não rejeita um nó
+  com dois pais**. O modelo atual é um DAG; o mockup e a mutação de R3 pressupõem
+  uma árvore com pai único.
+- O save da F6 substitui arestas e passos em uma transação e possui
+  `draft_revision` como compare-and-set, mas não aplica a validação completa do
+  compilador ao salvar.
+- `advance_automation_enrollment` apenas recebe um outcome e procura a aresta
+  correspondente. Não encontrei um avaliador de `condition`/N caminhos no fluxo
+  executável atual.
+- `request_automation_tick()` retorna `null` quando faltam segredos e engole
+  qualquer exceção. O healthcheck atual confirma instalação/agendamento, não
+  confirma que o tick chegou e concluiu.
 
 ## 1. Modelagem dos N caminhos
 
-### Escolha: opção B, refinada
+### Escolha
 
-Criar um tipo técnico novo, **`switch`**, apresentado na interface como
-**Divide caminho**. Manter `condition` binário e inalterado.
+Escolho a opção **(b), mas com uma correção importante**: criar um tipo
+`switch` e dar a cada caso uma identidade estável. Não usaria o texto visível
+nem um slug editável como identidade da transição.
 
-O `switch` v1 deve ser deliberadamente limitado:
+Contrato conceitual:
 
-- um campo observado;
-- um operador comum compatível com o campo;
-- N casos ordenados;
-- cada caso com ID imutável, rótulo legível e valor;
-- um fallback obrigatório.
+```text
+step type: switch
+config:
+  field
+  cases[]:
+    case_id       # UUID estável
+    label         # texto que aparece na linha
+    operator
+    value
+    order
+  fallback_label
 
-Exemplo conceitual:
-
-```json
-{
-  "field": "contact.tags",
-  "operator": "contains",
-  "cases": [
-    { "id": "<uuid>", "label": "Lentes", "value": "lentes" },
-    { "id": "<uuid>", "label": "Ortodontia", "value": "ortodontia" }
-  ],
-  "fallbackLabel": "Não identificou"
-}
+edges:
+  outcome = case:<case_id>
+  outcome = otherwise
 ```
 
-As arestas usam uma chave estável, como `case:<uuid>`, e `otherwise` para o
-fallback. **Não usar o slug do rótulo como identidade.** O usuário precisa poder
-renomear “Estética” sem trocar a identidade da aresta nem alterar inscrições
-versionadas.
+O label “Lentes” pode ser renomeado sem mudar a identidade do caminho. A ordem
+dos casos define a avaliação; se mais de um caso casar, **o primeiro vence**.
+`otherwise` é único e obrigatório.
 
-O compilador deve cruzar config e arestas:
+Também seria válido adicionar uma coluna `branch_key` às arestas em vez de
+codificar `case:<UUID>` no outcome. Para este motor, o token controlado no
+outcome é a alteração menor porque `advance_automation_enrollment` já transita
+por texto. O ponto inegociável é: token de máquina estável e rótulo humano
+separado.
+
+### Por que não (a)
+
+Encadear condições funciona no armazenamento atual, mas muda o significado
+visual e operacional aprovado. A árvore vira uma escada, a observabilidade
+mostrará várias decisões artificiais e editar/reordenar um serviço passa a
+alterar uma cadeia interna. É solução de contingência, não o modelo correto.
+
+Uma macro visual que escondesse várias condições binárias sob um cartão único é
+uma quarta alternativa possível, mas cria dois grafos — o que o usuário edita e
+o que o motor executa. Isso complica versionamento, attempts, erros e restauração
+de draft. Não recomendo.
+
+### Por que não (c)
+
+A suspeita procede. Liberar outcomes dinâmicos para `condition` enfraquece uma
+garantia importante: hoje o tipo do passo determina exatamente quais transições
+podem existir.
+
+O dinamismo deve ficar **confinado ao `switch`**. O compilador precisa provar:
 
 - IDs de caso únicos;
-- rótulos não vazios;
-- um outcome para cada caso;
-- nenhum `case:<id>` que não exista no config;
-- um único `otherwise`;
-- ordem normalizada;
-- limite explícito de casos;
-- publicação bloqueada enquanto faltar destino.
+- ordem única e determinística;
+- correspondência bijetiva entre casos e arestas `case:<id>`;
+- exatamente um `otherwise`;
+- ausência de aresta dinâmica em qualquer outro tipo;
+- campo, operador e valor compatíveis;
+- rótulo não vazio e limite de quantidade/tamanho.
 
-### Por que não A
+### O que muda no que já foi aprovado
 
-Encadear condições preserva o resultado lógico, mas muda o modelo aprovado:
-introduz precedência entre perguntas, cria uma escada visual e torna um caso
-posterior dependente das negativas anteriores. Também fica mais difícil explicar
-e editar a intenção “escolha uma entre quatro categorias”.
+A mudança é aditiva e não invalida automações já publicadas, mas toca:
 
-### Por que não C
+- constraint de tipo do passo;
+- domínio/constraint de outcome;
+- tipos TypeScript;
+- schema Zod e `ALLOWED_OUTCOMES`;
+- validação de correspondência caso ↔ aresta;
+- snapshot canônico/versionamento da definição;
+- builder, leitura e publicação;
+- execução que escolhe o caso;
+- testes de isolamento, compilação, publicação e execução.
 
-A suspeita procede. Liberar strings arbitrárias em `condition` sem cruzá-las com
-uma definição de casos permitiria:
+Versões antigas devem continuar legíveis. Como a definição publicada ganha uma
+nova forma, recomendo tratar o snapshot como `schemaVersion: 2` e manter o
+executor compatível com v1.
 
-- typo entre config e aresta;
-- rótulo sem regra correspondente;
-- regra sem destino;
-- outcomes inesperados por outros tipos;
-- publicação de um grafo que o executor não sabe resolver.
-
-É possível tornar C segura adicionando toda a validação acima, mas então ela
-vira um `switch` chamado `condition`. Separar os tipos mantém o contrato explícito
-e evita quebrar o significado binário já aprovado.
-
-### Impacto sobre o que já foi aprovado
-
-A mudança deve ser aditiva:
-
-- nova migration, sem reescrever F1;
-- novo tipo `switch`;
-- outcome dinâmico aceito apenas no formato fechado `case:<uuid>`;
-- predicate de validação por tipo no lugar de um `Set` totalmente estático;
-- schema específico do config;
-- **`schemaVersion: 2`** na definição compilada;
-- executor capaz de produzir exatamente um `case:<uuid>` ou `otherwise`;
-- versões v1 antigas continuam imutáveis e executáveis.
-
-Além de compiler e banco, será necessário atualizar tipos do builder, Zod das
-rotas, persistência, testes de publicação e runtime. Isso é uma mudança
-controlada, não uma quebra retroativa.
-
-Uma quarta alternativa seria normalizar casos numa nova tabela. Ela daria mais
-integridade relacional, mas adicionaria tabela, RLS, snapshots e joins sem
-benefício suficiente agora. Casos dentro do config versionado, com IDs estáveis
-e validação cruzada, são o melhor custo/benefício.
+Há um bloqueio adicional: **não se deve publicar um `switch` que o motor não
+consegue executar**. O teste simulado atual exercita o primeiro job e pode passar
+sem nunca chegar à decisão. A C1A precisa implementar a avaliação N-ária ou
+bloquear a publicação até ela existir. Como o critério da C1 exige publicar,
+recomendo implementar a avaliação na C1A.
 
 ## 2. Mover passo soltando na linha
 
-### Persistência
+Não colocaria a regra de negócio no cliente e não criaria um RPC SQL específico
+para cada gesto.
 
-**Não criar RPC dedicado para cada drop.** O builder atual tem edição local,
-botão Salvar e concorrência otimista por `draftRevision`. Persistir o drop
-separadamente criaria duas fontes de estado:
+Recomendo um **comando dedicado no servidor**, por exemplo
+`moveAutomationStep`, que:
 
-- o grafo já movido no servidor;
-- outras edições ainda não salvas no cliente.
+1. recebe `automationId`, `draftRevision`, `movingStepKey` e a identidade da
+   aresta destino;
+2. carrega o grafo vigente pelo tenant;
+3. valida raiz, tipo/outdegree, pai único e subárvore;
+4. aplica detach e insert em uma função TypeScript pura;
+5. valida a topologia resultante;
+6. usa o `save_automation_draft` atual para substituir o conjunto inteiro em uma
+   transação, com a revisão esperada.
 
-Isso tornaria desfazer, falha de rede e duas abas mais difíceis.
+Assim, o browser envia **a intenção**, não um conjunto de arestas reescrito e
+confiável. O RPC existente continua responsável pela persistência atômica. A
+revisão otimista resolve a corrida entre o load e o save: se outro editor salvar
+no intervalo, a operação é recusada e a tela recarrega.
 
-Recomendo:
+Um RPC SQL dedicado duplicaria em PL/pgSQL regras que já pertencem ao compilador
+e tornaria mais fácil haver duas definições de ciclo/órfão. Só escolheria essa
+opção se a mutação precisasse ser chamada por clientes que não passam pela
+aplicação, o que não é o caso.
 
-1. movimento como transformação pura do grafo no cliente;
-2. validação imediata da transformação para feedback;
-3. persistência do grafo completo pelo save já existente;
-4. compare-and-set de `draftRevision`, como hoje;
-5. validação estrutural novamente no servidor;
-6. RPC salva tudo em uma transação ou faz rollback completo.
+### Invariante ausente
 
-### Garantia server-side
+O mockup usa `paiDe()` e assume um pai por nó. O compilador atual permite um DAG
+com convergência. Antes de R3 é preciso decidir:
 
-O save atual é atômico, mas não rejeita ciclo ou órfão; essas verificações só
-ocorrem na publicação. A C1 deve acrescentar uma asserção estrutural ao fluxo de
-save. A melhor divisão é:
+- suportar DAG e implementar layout/movimento de merges; ou
+- declarar o builder v1 como **árvore enraizada**, rejeitando indegree maior que
+  1 para qualquer nó não raiz.
 
-- validador puro TypeScript compartilhado pelo servidor e pelos testes;
-- rota PATCH valida o payload inteiro antes da RPC;
-- a RPC, depois de montar passos e arestas e antes de concluir, verifica ao menos
-  uma raiz, alcançabilidade, ausência de ciclo e no máximo um pai. Se falhar, a
-  transação inteira volta.
+Recomendo a segunda opção. É coerente com o visual aprovado e torna a operação
+de mover inequívoca.
 
-Draft pode continuar incompleto em conteúdo e pode ter um caso ainda sem filho,
-mas não pode persistir passo existente inacessível, referência inválida, ciclo ou
-dois pais.
+### Outro caso que a spec não fecha
 
-### Semântica exata do movimento
+“Não mover passo de decisão” não basta. Um envio pode ter `success` e `failed`;
+uma espera pode ter `answered`, `timeout` e `failed`. Portanto, “o filho assume”
+não é definido quando há mais de uma saída.
 
-Para mover `n` de `P → n → C` para a aresta `A → B`:
+A C1A precisa classificar:
 
-1. preservar o outcome de `P → n` em `P → C`;
-2. preservar o outcome da aresta alvo em `A → n`;
-3. criar `n → B` com o outcome linear válido de `n`, normalmente `success`;
-4. normalizar `order` dos irmãos;
-5. recalcular `sort_key` como ordem de UI, sem usá-lo para execução.
+- continuação principal;
+- caminhos de erro/timeout anexos;
+- se esses anexos acompanham o passo ao mover ou tornam o passo não movível.
 
-Se `n` for folha, a posição antiga simplesmente passa a terminar em `P`; ao
-inserir em `A → B`, `n → B` ainda precisa do outcome linear correto.
-
-A regra de bloqueio deve ser estrutural: **qualquer nó com mais de uma saída não
-move**, não apenas o tipo `switch`. Um `wait_for_event`, ou uma mensagem com
-caminho explícito de falha, também divide a árvore e não cabe na regra “o filho
-assume”.
-
-Continuam bloqueados:
-
-- raiz;
-- nó com mais de uma saída;
-- aresta na própria subárvore;
-- aresta incidente no próprio nó;
-- destino que faria o grafo exceder limites.
-
-Também recomendo um “Desfazer movimento” local antes de salvar. Arrasto é um
-gesto fácil de executar acidentalmente; depender de recarregar perderia outras
-edições do draft.
+Para a primeira versão, a regra segura é recusar movimento quando a operação não
+tem exatamente uma continuação estrutural bem definida, com mensagem explícita.
 
 ## 3. Layout automático e persistência
 
-Não persistir coordenadas `x/y`. O layout aprovado é derivado, não livre.
+Não persistiria coordenadas `x/y`. Isso criaria estado visual concorrente e
+contradiria “o sistema posiciona”.
 
-Para resultado determinístico:
+A fonte determinística deve ser:
 
-- topologia vem das arestas;
-- ordem entre irmãos vem de `automation_step_edges.order`;
-- `step_key` é o último desempate estável;
-- `sort_key` pode guardar a travessia pre-order para compatibilidade de UI, mas
-  não decide topologia;
-- pan e zoom são estado de sessão/usuário, não parte da automação.
+1. topologia das arestas;
+2. `automation_step_edges.order` para ordenar irmãos;
+3. `step_key` como desempate estável;
+4. `sort_key` apenas como ordem auxiliar de autoria/listagem, nunca execução.
 
-`sort_key + edge.order` bastam somente se forem normalizados. Hoje dois irmãos
-podem receber o mesmo `order`. A C1 deve rejeitar duplicidade por pai ou
-normalizar para `0..N-1`. A identidade do caso não pode depender da ordem.
+O algoritmo “coluna = profundidade; pai centralizado entre primeiro e último
+filho” produzirá o mesmo desenho em sessões diferentes se a ordem de irmãos for
+total. Hoje `order` não é único por pai. Deve haver validação
+`duplicate_edge_order` ou um desempate canônico obrigatório.
 
-Como a estrutura será uma árvore, o layout necessário é simples e determinístico
-em O(n): profundidade define a coluna; folhas recebem faixas verticais; cada pai
-fica no centro entre o primeiro e o último filho. Não vejo necessidade de adotar
-um motor de canvas ou um layout de DAG nesta fase.
+Pan e zoom podem ficar em estado local por usuário, se desejado. Não pertencem à
+definição publicada.
 
 ## 4. O1 — permissão
 
-Usar **nova migration versionada**, mantendo F1 intacta.
+Deve ser uma **nova migration**. Não se edita a F1 aplicada.
 
-Recomendação:
+Também não recomendo apenas atualizar duas linhas continuando a chamá-las de
+snapshot v1. A migration E2 já documentou que a primeira mudança de defaults
+introduziria snapshots paralelos e um ponteiro ativo. Esta é essa primeira
+mudança.
 
-1. adicionar `automation.operate` a `CLINIC_STAFF_DENIED`;
-2. isso também altera `vendedor`, que usa o mesmo conjunto;
-3. gerar snapshot completo v2 com as 222 combinações;
-4. a migration v2 faz o upsert do snapshot e valida 6 × 37;
-5. atualizar `has_permission` para exigir a versão completa v2;
-6. reapontar o gerador/teste para a migration v2, sem editar F1.
+Forma correta:
 
-Não recomendo um `UPDATE` manual solto nas duas linhas: ele deixaria fonte
-TypeScript, snapshot gerado e versão ativa mais fáceis de divergir.
+1. mudar a chave para incluir `defaults_version`;
+2. criar estado singleton com `active_version`;
+3. inserir o snapshot v2 completo, gerado de `permissions.ts`;
+4. colocar `automation.operate = false` para `clinic_staff` e `vendedor`;
+5. trocar `has_permission` para ler a versão ativa;
+6. ativar v2 na mesma transação;
+7. preservar overrides individuais, que continuam podendo liberar o toggle;
+8. testar completude de v1 e v2, ponteiro ativo e fail-closed.
 
-Os toggles manuais continuam funcionando. `profile_permissions` é consultada
-depois do default e prevalece quando pertence ao mesmo tenant. Assim:
+Agência, `agency_staff`, `agency_admin` e `clinic_admin` continuam com acesso por
+default. Menu e endpoints precisam usar a mesma permissão; esconder somente o
+menu não basta.
 
-- `clinic_staff`/`vendedor`: false por padrão;
-- override manual true: acesso liberado;
-- admin da clínica e equipe da agência: defaults mantidos.
-
-Os testes precisam cobrir não apenas o menu, mas também GET, teste e demais rotas
-de automação; esconder navegação sem negar endpoint não atende a decisão.
+Isso aumenta O1 de P para P/M, mas paga uma dívida que o próprio schema deixou
+explicitamente marcada.
 
 ## 5. O2 — tick que falha calado
 
-Não criar histórico infinito e não depender de `net._http_response` como fonte
-durável. A tabela do `pg_net` é unlogged e tem retenção curta; no container local
-examinado ela pertence ao pg_net 0.14.0, enquanto o ambiente registrado no
-briefing usa 0.19.5. Acoplar o produto a detalhes privados dela também criaria
-risco de versão.
+Usaria **estado agregado singleton**, não uma linha por tick.
 
-Criar uma única linha global, por exemplo em
-`automation_scheduler_state`, atualizada in place:
+Exemplo de estado:
 
-- `last_enqueued_at`;
+- `last_requested_at`;
 - `last_request_id`;
 - `last_received_at`;
-- `last_completed_at`;
-- `last_success_at`;
-- `last_status`;
-- `last_result` pequeno, com contagens;
-- `last_error` sanitizado e limitado;
+- `last_succeeded_at`;
+- `last_http_status`;
 - `consecutive_failures`;
-- `total_attempts`.
+- `last_error`;
+- `updated_at`.
 
 Fluxo:
 
-1. `request_automation_tick()` registra tentativa e request ID;
-2. se `net.http_post` lançar erro, registra `queue_error` em vez de engolir;
-3. a rota, **depois da autenticação**, registra que recebeu o tick;
-4. sucesso registra conclusão e zera falhas consecutivas;
-5. erro de reconciliação registra falha antes de devolver 500;
-6. saúde é derivada por tempo: cron ativo e último sucesso dentro de duas ou três
-   janelas.
+1. `request_automation_tick()` registra a tentativa antes do `net.http_post`;
+2. segredo/URL ausente e exceção atualizam erro e contador, em vez de sumirem;
+3. o endpoint do tick marca início e sucesso, inclusive quantidade de jobs
+   materializados;
+4. se uma tentativa não for recebida/concluída em dois intervalos, o healthcheck
+   deriva estado degradado;
+5. a observabilidade lê essa única linha.
 
-URL errada, app fora do ar ou segredo inválido aparecem como
-`last_enqueued_at` avançando enquanto `last_received_at`/`last_success_at` ficam
-velhos. Se o próprio cron parar, até `last_enqueued_at` fica velho.
+São poucas atualizações a cada cinco minutos e crescimento zero. Se futuramente
+for necessário histórico, registrar somente transições de saúde/falhas, com
+retenção curta, não todos os ticks.
 
-São duas ou três atualizações da mesma linha a cada cinco minutos, custo
-irrelevante para o banco e crescimento zero.
+O healthcheck atual só prova que cron e extensão existem. Ele precisa distinguir
+“agendado”, “requisição emitida”, “endpoint recebeu” e “tick concluiu”.
 
-C1 deve mostrar ao menos um estado verde/amarelo/vermelho na tela de Automações.
-A observabilidade detalhada fica em C2, mas gravar silenciosamente sem superfície
-visível ainda seria apenas trocar um silêncio por outro.
+### Amarração com envio real
 
-Antes de live, um alerta ativo também é necessário. Uma página vermelha só ajuda
-quem a abre. O canal de alerta pode ser decidido na C2, mas o gate de produção
-deve exigir:
+Eu transformaria a preocupação do Junior em gate técnico, não só em ordem de
+roadmap:
 
-- tick recente;
-- dispatcher da VPS com heartbeat recente;
-- backlog sem job vencido além do limite;
-- O3 resolvido;
-- `unknown` e `dead_letter` visíveis/alertáveis.
+- a ação que futuramente habilitar `automation_live_enabled` deve exigir tick e
+  worker com heartbeat recente;
+- a UI deve recusar habilitação e explicar a causa quando a saúde estiver
+  degradada;
+- depois de live, ausência de heartbeat deve gerar alerta operacional.
 
-O2 é necessário antes de live, mas não é suficiente sozinho.
+Não bloquearia o consumo de jobs já materializados apenas porque o cron caiu;
+isso pioraria a interrupção. O gate vale para **habilitar live** e para alertar,
+enquanto o dispatcher continua esvaziando o que já existe.
 
 ## 6. Ordem de execução e TDD
 
-### C1a
+### C1A — primeiro
 
-1. **Corrigir spec/ADR de contrato:** `switch`, schema v2, árvore enraizada,
-   semântica de mover e definição de saúde.
-2. **O1:** testes de defaults/override/rotas primeiro; depois migration v2.
-3. **O2:** testes de estado ausente, enqueue, sucesso, 401/stale, 500 e cron
-   parado; depois singleton e fiação da rota.
-4. **`switch` no compilador:** testes red para N casos, fallback, caso faltante,
-   duplicado, desconhecido e compatibilidade v1.
-5. **`switch` no runtime:** teste local que escolhe cada caso e fallback e avança
-   exatamente uma vez.
-6. **Validação de draft e transformação de movimento:** testes de propriedades
-   para cadeia, folha, raiz, nó com múltiplas saídas, alvo na subárvore, ciclo,
-   órfão, dois pais e CAS obsoleto.
+1. Testes vermelhos do `switch`: casos, fallback, duplicidade, ordem, compatibilidade
+   e publicação v2.
+2. Testes de execução: primeiro caso que casa vence; nenhum caso usa
+   `otherwise`; reprocessamento não duplica efeito.
+3. Invariante de árvore/pai único e regra estrutural de movimento.
+4. O2 com testes de segredo ausente, exceção, requisição não recebida, sucesso e
+   recuperação do contador.
+5. O1 com snapshot v2, override manual e menu/endpoint negados ao staff.
+6. O6, para que toda a bateria seguinte seja incapaz de resolver produção.
 
-Gate C1a: publicar e simular um fluxo pequeno com `switch`, comprovando no banco
-qual ramo venceu, sem UI nova.
+### C1B — segundo
 
-### C1b
+1. Função pura de layout com fixtures pequenas, ramos assimétricos e fluxo longo.
+2. Árvore inicialmente renderizada sem coordenadas persistidas.
+3. Doca, seletor, gatilho fora do mapa, pan, zoom, piso e “Ajustar”.
+4. Testes de componente para texto/estado e testes reais de navegador para
+   viewport, zoom ancorado, clique, Esc e fechamento no vazio.
+5. Validação manual do Junior antes de empilhar R3.
 
-1. layout como função pura, com snapshots de coordenadas e determinismo;
-2. árvore e fios/rótulos;
-3. doca contextual e seletor;
-4. pan/zoom/fit;
-5. mover-na-linha e desfazer;
-6. correções R7;
-7. testes de navegador dos cinco gestos obrigatórios;
-8. percurso manual do Junior.
+### C1C — terceiro
 
-Gate C1b: o critério visual da C1, acrescido de evidência de que o teste percorreu
-o ramo correto — não apenas que a primeira mensagem foi simulada.
+1. Testes de propriedade da mutação de mover: mesmo conjunto de nós, uma raiz,
+   pai único, zero ciclo, zero órfão e outcomes preservados.
+2. Teste de revisão obsoleta com dois editores.
+3. Comando de servidor e persistência atômica.
+4. Gesto de arrastar, realce de linha, cancelamento e mensagens de impedimento.
+5. Alternativa de teclado para mover.
+6. Publicação e teste ponta a ponta que atravesse o `switch`; não apenas a
+   primeira mensagem.
 
-Para a interface, TDD não significa testar pixel por pixel. Começaria por:
+## 7. Armadilha do gesto
 
-- funções puras de layout e mutação;
-- invariantes do grafo;
-- testes de componente para estados/labels;
-- Playwright para pointer, teclado, dock, pan/zoom e publicação;
-- inspeção humana final, porque os três defeitos anteriores provaram que ela é
-  parte do aceite.
+A solução do mockup é válida, mas existe uma abordagem menos frágil:
 
-## 7. Armadilha de gesto
+1. no `pointerdown`, registrar candidato, alvo original, `pointerId` e posição;
+2. **não capturar ainda**;
+3. ao ultrapassar o limiar de movimento, entrar em `dragging-node` ou `panning`
+   e só então chamar `setPointerCapture`;
+4. sem movimento, deixar o `click` nativo chegar ao cartão;
+5. depois de drag, suprimir o click sintético residual;
+6. tratar `pointercancel`, `lostpointercapture`, Esc e desmontagem.
 
-A solução usada no mockup é válida: quando há pointer capture, guardar a origem e
-decidir no `pointerup` é mais confiável que consultar `event.target`.
-
-Há uma melhoria: **não capturar o ponteiro de um cartão imediatamente**.
-
-1. `pointerdown` no cartão entra em estado `pressed`;
-2. enquanto o deslocamento estiver abaixo do limiar, não há capture;
-3. ao cruzar 4–6 px, entra em `dragging`, chama `setPointerCapture` e suprime o
-   próximo click;
-4. sem deslocamento, deixa o click nativo abrir a doca;
-5. teclado continua usando click nativo;
-6. fundo pode capturar imediatamente para pan.
-
-Isso mantém o target correto no clique e conserva capture durante o arrasto real.
-Ainda é necessário modelar o gesto como uma máquina de estados explícita:
-`idle`, `pressed-card`, `drag-card`, `pan`. Também limpar estado em
-`pointercancel` e `lostpointercapture` e usar `touch-action: none` no palco.
-
-Não recomendo HTML5 Drag and Drop. Ele combina mal com touch, pan/zoom e
-coordenadas transformadas. Para escolher a linha alvo, a busca geométrica usada
-no mockup é adequada; não dependa do `event.target` capturado.
-
-## 8. O que está arriscado ou faltando
-
-1. **C1 ainda estava grande demais.** Com executor de `switch`, são três frentes
-   de alto risco: contrato do motor, layout e mutação do grafo.
-2. **Critério de teste ambíguo.** O teste atual da F6 simula só o primeiro job.
-   A C1 precisa provar qual ramo foi percorrido.
-3. **Árvore versus DAG não estava decidida.** O mockup exige um pai por nó.
-4. **Bloqueio de movimento estava estreito.** A regra correta é saída múltipla,
-   não apenas “tipo decisão”.
-5. **Ordem de irmãos não tem unicidade.** Precisa normalização/validação.
-6. **Caso e rótulo não podem compartilhar identidade.** Renomear não pode mudar
-   a aresta.
-7. **Falha de concorrência precisa de UX.** Se outra aba salvar, o drop local
-   deve ser preservado para comparação ou oferecer recarregar; um 500 genérico
-   não basta.
-8. **Mover precisa de desfazer.** O botão Salvar reduz o risco, mas não recupera
-   outras edições se o usuário tiver de recarregar.
-9. **O2 sem alerta ativo ainda é parcialmente silencioso.**
-10. **O gate de live está incompleto.** Além do tick, precisa cobrir worker,
-    backlog, paused jobs, `unknown` e `dead_letter`.
-11. **Compatibilidade do pg_net precisa ser deliberada.** Local e ambiente
-    registrado têm versões diferentes; usar contrato público e estado próprio.
-12. **Limites devem ser visíveis.** O backend já limita 100 passos e 300 arestas;
-    o número máximo de casos e o comportamento do mapa perto desses limites
-    precisam de aceite.
-
-## Decisão recomendada ao Junior
-
-**Aprovar o fatiamento, com C1 dividida em C1a e C1b.**
-
-Não aprovar tudo de uma vez e não autorizar o plano técnico a tratar R2 como
-mudança apenas visual. A ordem segura é:
+Isso deve ser uma pequena máquina de estados:
 
 ```text
-C1a contratos/segurança
-  → C1b construtor demonstrável
-    → C2 operação + observabilidade + gate de live
-      → C3 mídia/ffmpeg + ciclo de vida do tenant
+idle -> pressed-card -> dragging-node -> idle
+idle -> pressed-stage -> panning -> idle
 ```
 
-O tick silencioso deve ser resolvido em C1a. O envio real permanece desligado
-até C2 fechar o gate operacional completo.
+Reconstruir manualmente o clique no `pointerup`, como o mockup faz, funciona,
+mas mistura ativação, pan e drag no mesmo handler. A captura atrasada preserva
+melhor mouse, toque e teclado. O `click` com `detail === 0` continua válido como
+fallback de teclado, mas não deveria ser o mecanismo principal.
+
+## 8. O que está errado, arriscado ou faltando
+
+### Bloqueantes
+
+1. **R2 está contraditório.** Diz N caminhos, mas afirma que usará somente
+   `true/false/otherwise`. Isso não é implementável no schema/compilador atuais.
+2. **Árvore versus DAG não foi decidido.** Layout e movimento assumem pai único;
+   o compilador não.
+3. **O switch não tem executor.** Publicar/testar somente a primeira mensagem
+   pode dar falsa segurança.
+4. **Mover não define passos com múltiplas saídas.** Isso inclui falha e timeout,
+   não apenas decisões.
+
+### Importantes
+
+5. Definir “primeiro caso vence” quando um contato possui múltiplas etiquetas.
+6. Tornar a ordem entre irmãos única ou canonicamente desempatada.
+7. Manter IDs de caso estáveis ao renomear rótulos.
+8. Incluir operação por teclado; arrastar não pode ser a única forma de mover.
+9. Avisar sobre alterações não salvas ao trocar de automação.
+10. Testar auto-pan ao arrastar perto da borda em fluxos maiores que o viewport.
+11. Fazer o teste de sucesso atravessar a decisão e comprovar ramo/fallback.
+
+## Conclusão
+
+**A recomendação original de fatiar está correta. A recomendação “C1 sozinha”
+também está correta como prioridade, mas não como um diff único.**
+
+O caminho seguro é C1A/C1B/C1C, com revisão manual depois da primeira árvore
+navegável e antes de R3. O2 entra na C1A e vira gate de habilitação do live.
+
+Para os quatro caminhos, a decisão correta é um `switch` tipado, com casos de
+identidade estável, labels separados e validação fechada. Não vale economizar uma
+migration criando outcomes livres em `condition`: esse atalho retiraria
+justamente a proteção que torna a publicação confiável.
+
+## Limitação desta rodada
+
+O navegador conectado não ficou disponível nesta sessão. A referência visual
+foi avaliada pelo print fornecido pelo Junior, e o comportamento interativo foi
+conferido no HTML do mockup. Não afirmo ter concluído uma operação manual do
+mockup no navegador nesta rodada.
