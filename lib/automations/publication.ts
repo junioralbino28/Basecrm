@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  AUTOMATION_EDGE_OUTCOMES,
   AUTOMATION_STEP_TYPES,
   AutomationCompileError,
   compileAutomationDefinition,
+  isAutomationEdgeOutcome,
   type AutomationCompileIssue,
   type AutomationEdgeOutcome,
   type AutomationStepType,
@@ -31,8 +31,8 @@ function ensureStepType(value: string): AutomationStepType {
 }
 
 function ensureOutcome(value: string): AutomationEdgeOutcome {
-  if ((AUTOMATION_EDGE_OUTCOMES as readonly string[]).includes(value)) {
-    return value as AutomationEdgeOutcome;
+  if (isAutomationEdgeOutcome(value)) {
+    return value;
   }
   throw new AutomationCompileError([{
     code: 'unknown_edge_outcome',

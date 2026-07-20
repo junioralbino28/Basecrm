@@ -107,7 +107,7 @@ type CompiledEdge = {
 };
 
 export type CompiledAutomationDefinition = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   automationId: string;
   organizationId: string;
   name: string;
@@ -137,6 +137,15 @@ const CASE_OUTCOME_PATTERN =
 const MAX_SWITCH_CASES = 20;
 const MAX_SWITCH_LABEL_LENGTH = 80;
 const MAX_SWITCH_VALUE_LENGTH = 200;
+
+export function isAutomationEdgeOutcome(
+  value: string,
+): value is AutomationEdgeOutcome {
+  return (
+    (AUTOMATION_EDGE_OUTCOMES as readonly string[]).includes(value)
+    || CASE_OUTCOME_PATTERN.test(value)
+  );
+}
 
 const SendMessageConfigSchema = z.object({
   link_mode: z.enum(['copied', 'linked']).default('copied'),
@@ -820,7 +829,7 @@ export function compileAutomationDefinition(input: AutomationCompileInput): {
   })).sort((left, right) => left.stepKey.localeCompare(right.stepKey));
 
   const definition: CompiledAutomationDefinition = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     automationId: input.automation.id,
     organizationId: input.automation.organizationId,
     name: input.automation.name.trim(),

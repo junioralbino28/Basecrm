@@ -195,6 +195,7 @@ describe('compileAutomationDefinition', () => {
     });
 
     expect(first.definitionHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.definition.schemaVersion).toBe(2);
     expect(second.definitionHash).toBe(first.definitionHash);
     expect(second.canonicalJson).toBe(first.canonicalJson);
     expect(first.definition.entryStepKey).toBe(

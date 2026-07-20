@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createE2AdminClient,
@@ -28,6 +28,7 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
   let automationA = '';
   let templateA = '';
   let version1 = '';
+  let latestVersionId = '';
   let enrollment1 = '';
 
   async function createCrmFixture(organizationId: string, label: string) {
@@ -271,17 +272,27 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
     expect(published.version.version).toBe(1);
     expect(published.version.definition_hash).toBe(published.definitionHash);
     version1 = published.version.id;
+    latestVersionId = published.version.id;
 
-    const automation = await admin
-      .from('automations')
-      .select('lifecycle_status, published_version_id')
-      .eq('id', automationA)
-      .single();
+    const [automation, storedVersion] = await Promise.all([
+      admin
+        .from('automations')
+        .select('lifecycle_status, published_version_id')
+        .eq('id', automationA)
+        .single(),
+      admin
+        .from('automation_versions')
+        .select('definition')
+        .eq('id', published.version.id)
+        .single(),
+    ]);
     expect(automation.error).toBeNull();
     expect(automation.data).toMatchObject({
       lifecycle_status: 'published',
       published_version_id: version1,
     });
+    expect(storedVersion.error).toBeNull();
+    expect(storedVersion.data?.definition).toMatchObject({ schemaVersion: 2 });
   });
 
   it('cria inscrição fixada na versão vigente', async () => {
@@ -321,6 +332,7 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
     });
     expect(published.version.version).toBe(2);
     expect(published.version.id).not.toBe(version1);
+    latestVersionId = published.version.id;
 
     const originalEnrollment = await admin
       .from('automation_enrollments')
@@ -338,6 +350,80 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
     });
     expect(nextEnrollment.error).toBeNull();
     expect(nextEnrollment.data.automation_version_id).toBe(published.version.id);
+  });
+
+  it('mantém snapshot legado schemaVersion 1 executável', async () => {
+    if (!admin) throw new Error('admin E2 ausente');
+    const source = await admin
+      .from('automation_versions')
+      .select('definition, source_draft_revision')
+      .eq('id', version1)
+      .single();
+    if (source.error || !source.data) {
+      throw new Error(`versão fonte v1: ${source.error?.message}`);
+    }
+
+    const legacyDefinition = {
+      ...(source.data.definition as Record<string, unknown>),
+      schemaVersion: 1,
+    };
+    const legacyHash = createHash('sha256')
+      .update(JSON.stringify(legacyDefinition))
+      .digest('hex');
+    const legacy = await admin
+      .from('automation_versions')
+      .insert({
+        organization_id: organizationA,
+        automation_id: automationA,
+        version: 99,
+        source_draft_revision: source.data.source_draft_revision,
+        definition: legacyDefinition,
+        definition_hash: legacyHash,
+        created_by: actorId,
+      })
+      .select('id')
+      .single();
+    if (legacy.error || !legacy.data) {
+      throw new Error(`versão legada v1: ${legacy.error?.message}`);
+    }
+
+    const selectedLegacy = await admin
+      .from('automations')
+      .update({ published_version_id: legacy.data.id })
+      .eq('id', automationA);
+    expect(selectedLegacy.error).toBeNull();
+
+    const enrolled = await admin.rpc('create_automation_enrollment', {
+      p_automation_id: automationA,
+      p_deal_id: dealA,
+      p_contact_id: contactA,
+      p_thread_id: threadA,
+      p_channel_connection_id: channelA,
+    });
+    expect(enrolled.error).toBeNull();
+    expect(enrolled.data.automation_version_id).toBe(legacy.data.id);
+
+    const materialized = await admin.rpc('materialize_automation_jobs', {
+      p_batch_limit: 50,
+    });
+    expect(materialized.error).toBeNull();
+
+    const legacyJob = await admin
+      .from('automation_jobs')
+      .select('job_type, version_id')
+      .eq('enrollment_id', enrolled.data.id)
+      .single();
+    expect(legacyJob.error).toBeNull();
+    expect(legacyJob.data).toEqual({
+      job_type: 'send_message',
+      version_id: legacy.data.id,
+    });
+
+    const restored = await admin
+      .from('automations')
+      .update({ published_version_id: latestVersionId })
+      .eq('id', automationA);
+    expect(restored.error).toBeNull();
   });
 
   it('bloqueia mutação de versão e inscrição cross-tenant no banco', async () => {
