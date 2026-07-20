@@ -530,7 +530,11 @@
     steps.forEach(s => s.setAttribute('aria-current', 'false'));
   }
 
-  steps.forEach(s => s.addEventListener('click', () => select(s.dataset.step)));
+  /* teclado (Enter/Espaço) continua pelo clique; o mouse é tratado no pointerup do palco,
+     porque a captura de ponteiro do arrasto impede o clique de chegar ao cartão */
+  steps.forEach(s => s.addEventListener('click', (e) => {
+    if (e.detail === 0) select(s.dataset.step);
+  }));
   document.getElementById('dockClose').addEventListener('click', fecharDoca);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharDoca(); });
 
@@ -541,6 +545,7 @@
   const MIN = 0.4, MAX = 2;
   let scale = 1, tx = 0, ty = 0;
   let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  let pressStep = null;   /* cartão sob o cursor no momento em que o botão desceu */
 
   function apply() {
     inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
@@ -573,6 +578,7 @@
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     dragging = true; moved = false;
+    pressStep = e.target.closest('.hstep');
     sx = e.clientX; sy = e.clientY; ox = tx; oy = ty;
     stage.classList.add('is-panning');
     stage.setPointerCapture(e.pointerId);
@@ -591,11 +597,15 @@
   }
   stage.addEventListener('pointerup', (e) => {
     endPan(e);
-    /* clicar no vazio do mapa fecha a edição */
-    if (!moved && !e.target.closest('.hstep, .addstep, .zoomer')) fecharDoca();
+    if (moved) { pressStep = null; return; }          /* foi arrasto, não clique */
+    if (pressStep) {
+      select(pressStep.dataset.step);                  /* clicou num passo */
+    } else if (!e.target.closest('.addstep, .zoomer')) {
+      fecharDoca();                                    /* clicou no vazio do mapa */
+    }
+    pressStep = null;
   });
   stage.addEventListener('pointercancel', endPan);
-  steps.forEach(s => s.addEventListener('click', (e) => { if (moved) e.stopPropagation(); }, true));
 
   document.getElementById('z-in').addEventListener('click', () => {
     const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
