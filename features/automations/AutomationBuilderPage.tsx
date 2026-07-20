@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   FlaskConical,
   Loader2,
@@ -15,7 +14,6 @@ import {
   Search,
   Send,
   Sparkles,
-  Tag,
   Timer,
   Workflow,
 } from 'lucide-react';
@@ -30,6 +28,7 @@ import type {
 import type { AutomationStepType } from '@/lib/automations/compiler';
 import { useTenantDetail } from '@/features/platform/tenants/useTenantDetail';
 import { AutomationFlowMap } from './AutomationFlowMap';
+import { AutomationFlowToolbar } from './AutomationFlowToolbar';
 import { AutomationStepDock } from './AutomationStepDock';
 
 type MessageTemplate = {
@@ -132,22 +131,6 @@ function stepTitle(step: AutomationBuilderStep) {
   if (step.stepType === 'wait_for_event') return 'Aguardar resposta';
   if (step.stepType === 'create_task') return 'Criar tarefa';
   return 'Ação';
-}
-
-function statusLabel(status: AutomationWorkspaceItem['lifecycleStatus']) {
-  if (status === 'published') return 'Publicada';
-  if (status === 'paused') return 'Pausada';
-  return 'Rascunho';
-}
-
-function statusClass(status: AutomationWorkspaceItem['lifecycleStatus']) {
-  if (status === 'published') {
-    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
-  }
-  if (status === 'paused') {
-    return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
-  }
-  return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300';
 }
 
 function feedbackClass(tone: Feedback['tone']) {
@@ -749,79 +732,33 @@ export function AutomationBuilderPage(props: {
         </div>
       ) : null}
 
-      <div className="grid min-h-[650px] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-card">
-          <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            Seus fluxos
-          </div>
-          {workspace?.automations.length ? (
-            <div className="space-y-1.5">
-              {workspace.automations.map((automation) => (
-                <button
-                  key={automation.id}
-                  type="button"
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
-                    selectedId === automation.id
-                      ? 'border-cyan-300 bg-cyan-50/70 dark:border-cyan-500/30 dark:bg-cyan-500/10'
-                      : 'border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-white/10 dark:hover:bg-white/5'
-                  }`}
-                  onClick={() => selectAutomation(automation)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {automation.name}
-                    </span>
-                    <ChevronRight size={15} className="mt-0.5 shrink-0 text-slate-400" />
-                  </div>
-                  <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(automation.lifecycleStatus)}`}>
-                    {statusLabel(automation.lifecycleStatus)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 px-3 py-8 text-center dark:border-white/10">
-              <Workflow size={24} className="mx-auto text-slate-300" />
-              <div className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-200">
-                Nenhuma automação criada
-              </div>
-              <p className="mt-1 text-xs text-slate-400">
-                Comece por um fluxo curto e teste em simulação.
-              </p>
-            </div>
-          )}
-        </aside>
-
+      <div className="min-h-[650px]">
         <main>
           {!draft ? (
             <div className="flex h-full min-h-[500px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center dark:border-white/10 dark:bg-card">
               <div>
                 <Sparkles size={30} className="mx-auto text-cyan-500" />
                 <h2 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">
-                  Crie sua primeira automação
+                  Nenhuma automação criada
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Você começará com um gatilho por tag e uma mensagem editável.
+                  Crie um fluxo curto e comece por uma mensagem editável.
                 </p>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="sticky top-0 z-10 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/95 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate text-xl font-semibold text-slate-950 dark:text-white">
-                      {draft.name}
-                    </h2>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(draft.lifecycleStatus)}`}>
-                      {statusLabel(draft.lifecycleStatus)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    Sempre em simulação nesta entrega
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+              <AutomationFlowToolbar
+                automations={workspace?.automations ?? [draft]}
+                selected={draft}
+                onSelect={(automationId) => {
+                  const automation = workspace?.automations.find(
+                    (item) => item.id === automationId,
+                  );
+                  if (automation) selectAutomation(automation);
+                }}
+                actions={(
+                  <>
                   <Button
                     type="button"
                     variant="outline"
@@ -848,37 +785,9 @@ export function AutomationBuilderPage(props: {
                     {busy === 'publish' ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Send size={16} className="mr-2" />}
                     Publicar
                   </Button>
-                </div>
-              </div>
-
-              <Card className="border-cyan-200 bg-cyan-50/40 shadow-none dark:border-cyan-500/20 dark:bg-cyan-500/5">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-600 text-white">
-                      <Tag size={19} />
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Gatilho</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        O fluxo começa quando esta tag é adicionada.
-                      </p>
-                    </div>
-                  </div>
-                  <label className="mt-4 block space-y-1.5 text-sm font-medium">
-                    Nome da tag
-                    <input
-                      className={FIELD_CLASS}
-                      value={String(draft.triggerConfig.tag ?? '')}
-                      onChange={(event) => patchDraft((current) => ({
-                        ...current,
-                        triggerConfig: { ...current.triggerConfig, tag: event.target.value },
-                      }))}
-                      placeholder="Ex.: lead-novo"
-                      disabled={!canEdit}
-                    />
-                  </label>
-                </CardContent>
-              </Card>
+                  </>
+                )}
+              />
 
               <AutomationFlowMap
                 steps={draft.steps}

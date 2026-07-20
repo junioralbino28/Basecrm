@@ -74,8 +74,12 @@ describe('AutomationBuilderPage — percurso manual', () => {
     });
     fireEvent.click(within(createDialog).getByRole('button', { name: 'Criar automação' }));
 
-    expect(await screen.findByRole('heading', { name: 'Boas-vindas' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Gatilho' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Automação')).toHaveValue(AUTOMATION_ID);
+    expect(screen.getByTestId('service-tag-trigger-boundary')).toHaveAttribute(
+      'data-trigger-contract',
+      'service-tag-entity-v3',
+    );
+    expect(screen.queryByLabelText('Nome da tag')).not.toBeInTheDocument();
     const map = screen.getByRole('region', { name: 'Mapa da automação' });
     const messageStep = screen.getByRole('button', {
       name: /Envia · WhatsApp: Mensagem sem conteúdo/i,
