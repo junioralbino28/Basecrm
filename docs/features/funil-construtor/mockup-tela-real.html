@@ -1,0 +1,567 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Automações — Base A²</title>
+
+<style>
+  :root {
+    --ground:      #070B0A;
+    --panel:       #0B100F;
+    --surface:     #0F1614;
+    --surface-2:   #141D1A;
+    --line:        rgba(255,255,255,.08);
+    --line-strong: rgba(255,255,255,.16);
+    --ink:         #E9EFEC;
+    --ink-soft:    #A7B5B0;
+    --ink-mute:    #6C7B76;
+    --accent:      #17B9A3;
+    --accent-deep: #0E7A6C;
+    --yes:         #34C08A;
+    --no:          #E0A33C;
+    --fail:        #E4685D;
+    --radius: 12px;
+    --sans: ui-sans-serif, "Segoe UI", "Noto Sans", -apple-system, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 14px; line-height: 1.5;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  svg { display: block; }
+
+  .app { display: grid; grid-template-columns: 236px minmax(0,1fr); height: 100dvh; }
+
+  /* ---------------- menu lateral ---------------- */
+  .side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 18px; }
+  .logo {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    background: linear-gradient(140deg, var(--accent), var(--accent-deep));
+    display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #04201C;
+  }
+  .brand-name { font-family: var(--serif); font-size: 17px; letter-spacing: .01em; }
+  .side-group { padding: 0 10px; }
+  .side-label {
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ink-mute); padding: 4px 8px 8px;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; }
+  .nav a {
+    display: flex; align-items: center; gap: 11px; padding: 9px 10px;
+    border-radius: 9px; color: var(--ink-soft); text-decoration: none; font-size: 13.5px;
+  }
+  .nav a:hover { background: rgba(255,255,255,.04); color: var(--ink); }
+  .nav a.on { background: rgba(23,185,163,.12); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(23,185,163,.28); }
+  .nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; opacity: .9; }
+  .side-foot { margin-top: auto; padding: 12px; }
+  .user {
+    display: flex; align-items: center; gap: 10px; padding: 10px;
+    border: 1px solid var(--line); border-radius: 11px; background: var(--surface);
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    background: #10201C; border: 1px solid rgba(23,185,163,.35);
+    display: grid; place-items: center; font-size: 12px; color: var(--accent); font-weight: 700;
+  }
+  .user-name { font-size: 13px; font-weight: 600; }
+  .user-role { font-size: 11px; color: var(--ink-mute); }
+
+  /* ---------------- área principal ---------------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+
+  .topbar {
+    flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .pill {
+    font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 12px;
+  }
+  .tenant {
+    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  }
+  .tenant-name { font-size: 13px; font-weight: 600; }
+  .tenant-sub { font-size: 11px; color: var(--ink-mute); }
+  .top-icons { margin-left: auto; display: flex; gap: 6px; color: var(--ink-mute); }
+  .top-icons span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; }
+  .top-icons span:hover { background: rgba(255,255,255,.05); color: var(--ink); }
+  .top-icons svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+
+  .pagehead {
+    flex: none; display: flex; align-items: center; gap: 16px;
+    padding: 14px 24px; border-bottom: 1px solid var(--line);
+  }
+  .crumb { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  .ptitle { font-family: var(--serif); font-size: 21px; font-weight: 600; }
+  .head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .chip-safe {
+    font-size: 11.5px; font-weight: 600; color: var(--yes);
+    background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.28);
+    padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+  }
+  .btn {
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    border-radius: 9px; padding: 8px 14px; display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #04201C; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+  /* barra da automação */
+  .flowbar {
+    flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 11px 24px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015);
+  }
+  .flowpick {
+    display: flex; align-items: center; gap: 9px; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 10px; padding: 7px 12px; color: var(--ink); font: inherit;
+  }
+  .flowpick:hover { border-color: var(--accent); }
+  .flowpick .fname { font-size: 14px; font-weight: 650; }
+  .tag-draft {
+    font-size: 11px; font-weight: 600; color: var(--no);
+    background: rgba(224,163,60,.12); border: 1px solid rgba(224,163,60,.3);
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .trigger-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-mute); }
+  .trigger-inline b { color: var(--ink-soft); font-weight: 600; }
+  .flow-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* ---------------- palco ---------------- */
+  .stage {
+    position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
+    background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0 / 26px 26px;
+    cursor: grab; touch-action: none;
+  }
+  .stage.is-panning { cursor: grabbing; }
+  .stage-inner { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: 34px; }
+  .track { display: flex; align-items: flex-start; width: max-content; }
+
+  .hstep {
+    flex: none; width: 178px; min-height: 92px;
+    display: flex; flex-direction: column; gap: 5px; text-align: left;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 13px 14px;
+    color: var(--ink); font: inherit; cursor: pointer; transition: border-color .16s, transform .16s;
+  }
+  .hstep:hover { border-color: var(--line-strong); transform: translateY(-2px); }
+  .hstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hstep[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .hstep.is-action { box-shadow: inset 0 3px 0 var(--accent); }
+  .hstep.is-action[aria-current="true"] { box-shadow: inset 0 3px 0 var(--accent), 0 0 0 1px var(--accent); }
+  .hstep.is-wait { background: transparent; border-style: dashed; }
+  .hstep.is-trigger { box-shadow: inset 0 3px 0 var(--ink-mute); }
+  .hkind { font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-mute); }
+  .hname { font-weight: 620; font-size: 14px; line-height: 1.3; }
+  .hstep.is-wait .hname { color: var(--ink-soft); font-weight: 600; }
+  .hfail { margin-top: auto; font-size: 11px; color: var(--fail); opacity: .85; }
+
+  .link { flex: none; align-self: center; width: 26px; height: 2px; background: var(--line-strong); }
+  .link.short { width: 16px; }
+  .split {
+    flex: none; align-self: stretch; width: 26px;
+    background:
+      linear-gradient(var(--line-strong), var(--line-strong)) left 46px / 13px 2px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 2px 84px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 46px / 13px 2px no-repeat,
+      linear-gradient(var(--line-strong), var(--line-strong)) 13px 128px / 13px 2px no-repeat;
+  }
+  .branches { display: flex; flex-direction: column; gap: 26px; }
+  .branch { display: flex; align-items: center; }
+  .btag {
+    flex: none; font-size: 11px; font-weight: 650; padding: 4px 10px;
+    border-radius: 999px; margin-right: 4px; white-space: nowrap;
+  }
+  .branch.yes .btag { color: var(--yes); background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.3); }
+  .branch.no  .btag { color: var(--no);  background: rgba(224,163,60,.12); border: 1px solid rgba(224,163,60,.3); }
+  .branch.yes .hstep { border-color: rgba(52,192,138,.28); }
+  .branch.no  .hstep { border-color: rgba(224,163,60,.28); }
+  .hend { flex: none; margin-left: 14px; font-size: 11.5px; color: var(--ink-mute); }
+
+  .addstep {
+    flex: none; align-self: center; width: 24px; height: 24px; margin: 0 4px;
+    border-radius: 50%; display: grid; place-items: center;
+    background: var(--panel); color: var(--ink-mute);
+    border: 1px dashed var(--line-strong); cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
+  }
+  .addstep:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
+  .addstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .zoomer {
+    position: absolute; right: 18px; bottom: 14px; z-index: 3;
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(0,0,0,.55); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px;
+  }
+  .zoomer button {
+    font: inherit; font-size: 14px; line-height: 1; color: var(--ink-soft);
+    background: none; border: 0; cursor: pointer; padding: 6px 10px; border-radius: 999px;
+  }
+  .zoomer button.wide { font-size: 12px; font-weight: 600; }
+  .zoomer button:hover { color: var(--ink); background: rgba(255,255,255,.07); }
+  .zoomer button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #z-level { font-size: 11.5px; color: var(--ink-mute); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+
+  /* ---------------- doca ---------------- */
+  .dock {
+    flex: none; height: 262px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    border-top: 1px solid var(--line); background: rgba(0,0,0,.25);
+  }
+  .dock-col { padding: 14px 22px 16px; overflow: auto; }
+  .dock-col + .dock-col { border-left: 1px solid var(--line); }
+  .dock-title { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
+
+  .panel-kind { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
+  .panel-name { font-family: var(--serif); font-size: 17px; margin: 3px 0 11px; font-weight: 600; }
+  .field { margin-bottom: 9px; }
+  .field label { display: block; font-size: 11.5px; color: var(--ink-soft); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; font: inherit; font-size: 13.5px; color: var(--ink);
+    background: rgba(0,0,0,.4); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+  }
+  .field textarea { min-height: 76px; resize: vertical; }
+  .field:focus-within label { color: var(--accent); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .attach-note { font-size: 11.5px; color: var(--ink-mute); border-left: 2px solid rgba(228,104,93,.5); padding-left: 10px; }
+
+  .lib-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .lib-item {
+    display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 7px 10px; color: var(--ink); font: inherit; cursor: pointer;
+  }
+  .lib-item:hover { border-color: var(--accent); }
+  .lib-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .lib-name { font-size: 12.5px; font-weight: 620; }
+  .lib-prev { font-size: 11.5px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-new { border-top: 1px dashed var(--line); padding-top: 12px; }
+  .row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: end; }
+  .row .field { margin-bottom: 0; }
+  .btn-save {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
+    background: rgba(255,255,255,.04); color: var(--ink-mute); border: 1px solid var(--line);
+    cursor: not-allowed; white-space: nowrap;
+  }
+  .why { margin-top: 6px; font-size: 11.5px; color: var(--no); display: flex; gap: 6px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+
+  <!-- ---------------- menu lateral ---------------- -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">BA²</div>
+      <div class="brand-name">Base A²</div>
+    </div>
+
+    <div class="side-group">
+      <div class="side-label">Área da clínica</div>
+      <nav class="nav">
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9"/></svg>Atividades</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Tarefas</a>
+        <a href="#"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>Atendimentos</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Relatórios</a>
+        <a href="#"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/></svg>Financeiro</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M12 11a4 4 0 100-8 4 4 0 000 8z"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>Profissionais</a>
+        <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.7 1.7 0 006.9 19a1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H1a2 2 0 110-4h.1A1.7 1.7 0 002.6 8a1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H7a1.7 1.7 0 001-1.5V2a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V8a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Configurações</a>
+        <a href="#" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4a3 3 0 013 3v4"/></svg>Automações</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1121 11.5z"/></svg>Conversas</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg>Conexões</a>
+      </nav>
+    </div>
+
+    <div class="side-foot">
+      <div class="user">
+        <div class="avatar">J</div>
+        <div>
+          <div class="user-name">junior</div>
+          <div class="user-role">Admin da Agência</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ---------------- principal ---------------- -->
+  <div class="main">
+
+    <div class="topbar">
+      <span class="pill">Área da clínica</span>
+      <div class="tenant">
+        <div>
+          <div class="tenant-name">Clinica Demo (local)</div>
+          <div class="tenant-sub">Clínica ativa</div>
+        </div>
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" style="color:var(--ink-mute)"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></svg>
+      </div>
+      <div class="top-icons">
+        <span><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/></svg></span>
+        <span><svg viewBox="0 0 24 24"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M4 11h4M16 11h4M6 17h2M16 17h2M9 4l1 2M15 4l-1 2"/></svg></span>
+        <span><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></span>
+        <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+      </div>
+    </div>
+
+    <div class="pagehead">
+      <div>
+        <div class="crumb">Clinica Demo (local)</div>
+        <div class="ptitle">Automações</div>
+      </div>
+      <div class="head-right">
+        <span class="chip-safe">Envio real desligado</span>
+        <button class="btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova automação</button>
+      </div>
+    </div>
+
+    <div class="flowbar">
+      <button class="flowpick" type="button">
+        <span class="fname">teste</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" style="color:var(--ink-mute)"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <span class="tag-draft">Rascunho</span>
+      <div class="trigger-inline">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2a2 2 0 01-.6-1.4V4a1 1 0 011-1h8a2 2 0 011.4.6l7.4 7.4a2 2 0 010 2.4z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>
+        começa com a tag <b>anuncio meta</b>
+      </div>
+      <div class="flow-actions">
+        <button class="btn"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Salvar</button>
+        <button class="btn"><svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>Testar</button>
+        <button class="btn primary"><svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Publicar</button>
+      </div>
+    </div>
+
+    <!-- palco -->
+    <div class="stage" id="stage">
+      <div class="zoomer">
+        <button type="button" id="z-out" aria-label="Afastar">−</button>
+        <span id="z-level">100%</span>
+        <button type="button" id="z-in" aria-label="Aproximar">+</button>
+        <button type="button" id="z-fit" class="wide">Ajustar</button>
+      </div>
+
+      <div class="stage-inner" id="stageInner">
+        <div class="track">
+
+          <button class="hstep is-action" data-step="msg" type="button" aria-current="true">
+            <span class="hkind">Envia · WhatsApp</span>
+            <span class="hname">Mensagem de abertura</span>
+            <span class="hfail">falha encerra</span>
+          </button>
+
+          <button class="addstep" type="button" aria-label="Inserir passo">+</button>
+
+          <button class="hstep is-wait" data-step="wait1" type="button">
+            <span class="hkind">Espera</span>
+            <span class="hname">1 hora</span>
+          </button>
+
+          <button class="addstep" type="button" aria-label="Inserir passo">+</button>
+
+          <button class="hstep is-wait" data-step="wait2" type="button">
+            <span class="hkind">Espera resposta</span>
+            <span class="hname">até 1 dia</span>
+          </button>
+
+          <span class="split" aria-hidden="true"></span>
+
+          <div class="branches">
+            <div class="branch yes">
+              <span class="btag">Se respondeu</span>
+              <span class="link short"></span>
+              <button class="hstep is-task" data-step="t1" type="button">
+                <span class="hkind">Cria tarefa</span>
+                <span class="hname">Retomar conversa</span>
+              </button>
+              <button class="addstep" type="button" aria-label="Inserir passo">+</button>
+              <span class="hend">fim</span>
+            </div>
+            <div class="branch no">
+              <span class="btag">Se não respondeu</span>
+              <span class="link short"></span>
+              <button class="hstep is-task" data-step="t2" type="button">
+                <span class="hkind">Cria tarefa</span>
+                <span class="hname">Contato sem resposta</span>
+              </button>
+              <button class="addstep" type="button" aria-label="Inserir passo">+</button>
+              <span class="hend">fim</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- doca -->
+    <div class="dock">
+      <section class="dock-col">
+        <div class="dock-title">Passo selecionado</div>
+        <div id="panel"></div>
+      </section>
+
+      <section class="dock-col">
+        <div class="dock-title">Biblioteca de mensagens</div>
+        <div class="lib-list">
+          <button class="lib-item" type="button">
+            <span class="lib-name">Abertura — anúncio Meta</span>
+            <span class="lib-prev">ola teste salvo 1</span>
+          </button>
+          <button class="lib-item" type="button">
+            <span class="lib-name">Lembrete 24h</span>
+            <span class="lib-prev">Passando pra saber se ficou alguma dúvida…</span>
+          </button>
+        </div>
+        <div class="lib-new">
+          <div class="field">
+            <label for="lib-b">Salvar nova mensagem</label>
+            <textarea id="lib-b" placeholder="Escreva a mensagem…"></textarea>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="lib-n">Nome para encontrar depois</label>
+              <input id="lib-n" placeholder="Ex.: Facetas — abertura" />
+            </div>
+            <button class="btn-save" type="button" disabled>Salvar</button>
+          </div>
+          <div class="why"><span aria-hidden="true">↑</span><span>Falta dar um nome e escrever a mensagem.</span></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const CONTENT = {
+    msg: {
+      kind: 'Envia · WhatsApp',
+      name: 'Mensagem de abertura',
+      html: `<div class="field"><label for="f-msg">Mensagem</label>
+             <textarea id="f-msg">ola teste salvo 1</textarea></div>
+             <div class="attach-note">Se o envio falhar, encerra este caminho e registra para a operação.</div>`,
+    },
+    wait1: {
+      kind: 'Espera',
+      name: 'Pausa antes do próximo passo',
+      html: `<div class="two">
+               <div class="field"><label for="f-q">Quantidade</label><input id="f-q" value="1" /></div>
+               <div class="field"><label for="f-u">Unidade</label>
+                 <select id="f-u"><option>Horas</option><option>Dias</option></select></div>
+             </div>`,
+    },
+    wait2: {
+      kind: 'Espera resposta',
+      name: 'Aguarda o paciente responder',
+      html: `<div class="two">
+               <div class="field"><label for="f-l">Tempo limite</label><input id="f-l" value="1" /></div>
+               <div class="field"><label for="f-lu">Unidade</label>
+                 <select id="f-lu"><option>Dias</option><option>Horas</option></select></div>
+             </div>`,
+    },
+    t1: {
+      kind: 'Cria tarefa · caminho “respondeu”',
+      name: 'Retomar conversa após resposta',
+      html: `<div class="field"><label for="f-t1">Título da tarefa</label>
+             <input id="f-t1" value="Retomar conversa após resposta" /></div>
+             <div class="field"><label for="f-r1">Responsável</label>
+             <select id="f-r1"><option>Secretária</option><option>Dra. Jéssica</option></select></div>`,
+    },
+    t2: {
+      kind: 'Cria tarefa · caminho “não respondeu”',
+      name: 'Tratar contato sem resposta',
+      html: `<div class="field"><label for="f-t2">Título da tarefa</label>
+             <input id="f-t2" value="Tratar contato sem resposta" /></div>
+             <div class="field"><label for="f-r2">Responsável</label>
+             <select id="f-r2"><option>Secretária</option><option>Dra. Jéssica</option></select></div>`,
+    },
+  };
+
+  const panelEl = document.getElementById('panel');
+  const steps = document.querySelectorAll('.hstep');
+
+  function select(key) {
+    const d = CONTENT[key];
+    if (!d) return;
+    steps.forEach(s => s.setAttribute('aria-current', String(s.dataset.step === key)));
+    panelEl.innerHTML = `<div class="panel-kind">${d.kind}</div><div class="panel-name">${d.name}</div>${d.html}`;
+  }
+  steps.forEach(s => s.addEventListener('click', () => select(s.dataset.step)));
+  select('msg');
+
+  /* palco: arrastar em todas as direções + zoom na roda */
+  const stage = document.getElementById('stage');
+  const inner = document.getElementById('stageInner');
+  const level = document.getElementById('z-level');
+  const MIN = 0.4, MAX = 2;
+  let scale = 1, tx = 0, ty = 0;
+  let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+
+  function apply() {
+    inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    level.textContent = Math.round(scale * 100) + '%';
+  }
+  function zoomAt(cx0, cy0, f) {
+    const next = Math.min(MAX, Math.max(MIN, scale * f));
+    if (next === scale) return;
+    const r = stage.getBoundingClientRect();
+    const cx = cx0 - r.left, cy = cy0 - r.top;
+    tx = cx - (cx - tx) * (next / scale);
+    ty = cy - (cy - ty) * (next / scale);
+    scale = next; apply();
+  }
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const w = inner.scrollWidth, h = inner.scrollHeight;
+    scale = Math.min(1, Math.max(MIN, Math.min(r.width / w, r.height / h)));
+    tx = Math.max(0, (r.width - w * scale) / 2);
+    ty = Math.max(0, (r.height - h * scale) / 2);
+    apply();
+  }
+
+  stage.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    dragging = true; moved = false;
+    sx = e.clientX; sy = e.clientY; ox = tx; oy = ty;
+    stage.classList.add('is-panning');
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    tx = ox + dx; ty = oy + dy; apply();
+  });
+  function endPan(e) {
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove('is-panning');
+    try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+  }
+  stage.addEventListener('pointerup', endPan);
+  stage.addEventListener('pointercancel', endPan);
+  steps.forEach(s => s.addEventListener('click', (e) => { if (moved) e.stopPropagation(); }, true));
+
+  document.getElementById('z-in').addEventListener('click', () => {
+    const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
+  });
+  document.getElementById('z-out').addEventListener('click', () => {
+    const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
+  });
+  document.getElementById('z-fit').addEventListener('click', fit);
+  window.addEventListener('resize', fit);
+  apply();
+  requestAnimationFrame(fit);
+</script>
