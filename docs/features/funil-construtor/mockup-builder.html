@@ -289,10 +289,13 @@
     width: 100vw; max-width: 100vw;
     margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
     border-radius: 0; border-left: 0; border-right: 0;
+    /* uma tela inteira, nada rola: barra + palco + doca */
+    height: 100dvh; display: flex; flex-direction: column;
   }
+  #v-hor .screen-bar { flex: none; }
   /* palco navegável: arrasta em qualquer direção, roda dá zoom */
   .stage {
-    position: relative; overflow: hidden; height: 56vh; min-height: 340px;
+    position: relative; overflow: hidden; flex: 1 1 auto; min-height: 0;
     background:
       radial-gradient(circle at 1px 1px, rgba(255,255,255,.055) 1px, transparent 0) 0 0 / 26px 26px;
     cursor: grab; touch-action: none;
@@ -324,11 +327,12 @@
 
   /* doca inferior: editar o passo + biblioteca, lado a lado */
   .dock {
+    flex: none; height: 268px;
     display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
     border-top: 1px solid var(--line); background: rgba(0,0,0,.22);
   }
-  @media (max-width: 900px) { .dock { grid-template-columns: 1fr; } }
-  .dock-col { padding: 20px 24px 24px; }
+  @media (max-width: 900px) { .dock { grid-template-columns: 1fr; height: auto; } }
+  .dock-col { padding: 14px 20px 16px; overflow: auto; }
   .dock-col + .dock-col { border-left: 1px solid var(--line); }
   @media (max-width: 900px) { .dock-col + .dock-col { border-left: 0; border-top: 1px solid var(--line); } }
   .dock-title {
@@ -346,7 +350,29 @@
   .lib-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .lib-name { font-size: 13.5px; font-weight: 620; }
   .lib-prev { font-size: 12.5px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lib-new { border-top: 1px dashed var(--line); padding-top: 16px; }
+  .lib-new { border-top: 1px dashed var(--line); padding-top: 12px; }
+
+  /* --- compactação da doca: tudo cabe sem rolar --- */
+  .dock .dock-title { margin-bottom: 9px; }
+  .dock .panel-kind { font-size: 10px; }
+  .dock .panel-name { font-size: 16px; margin: 2px 0 10px; }
+  .dock .field { margin-bottom: 9px; }
+  .dock .field label { margin-bottom: 4px; font-size: 11.5px; }
+  .dock .field input,
+  .dock .field select,
+  .dock .field textarea { padding: 7px 10px; font-size: 13.5px; border-radius: 8px; }
+  .dock .field textarea { min-height: 74px; }
+  .dock .panel-hint { font-size: 11.5px; line-height: 1.45; }
+  .dock .lib-list { gap: 6px; margin-bottom: 12px; }
+  .dock .lib-item { padding: 7px 10px; }
+  .dock .lib-name { font-size: 12.5px; }
+  .dock .lib-prev { font-size: 11.5px; }
+  .dock .btn-off { padding: 8px; font-size: 13px; }
+  .dock .why { margin-top: 6px; font-size: 11.5px; }
+  /* nome e botão dividem a linha, economizando altura */
+  .lib-new .row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: end; }
+  .lib-new .row .field { margin-bottom: 0; }
+  .lib-new .row .btn-off { width: auto; white-space: nowrap; }
 
   .hstep {
     flex: none; width: 178px; min-height: 92px;
@@ -540,11 +566,13 @@
           </button>
         </div>
         <div class="lib-new">
-          <div class="field"><label for="lib-n">Nome para encontrar depois</label>
-            <input id="lib-n" placeholder="Ex.: Facetas — abertura" /></div>
-          <div class="field"><label for="lib-b">Mensagem</label>
+          <div class="field"><label for="lib-b">Salvar nova mensagem</label>
             <textarea id="lib-b" placeholder="Escreva a mensagem…"></textarea></div>
-          <button class="btn-off" type="button" disabled>Salvar na biblioteca</button>
+          <div class="row">
+            <div class="field"><label for="lib-n">Nome para encontrar depois</label>
+              <input id="lib-n" placeholder="Ex.: Facetas — abertura" /></div>
+            <button class="btn-off" type="button" disabled>Salvar</button>
+          </div>
           <div class="why"><span aria-hidden="true">↑</span><span>Falta dar um nome e escrever a mensagem.</span></div>
         </div>
       </section>
@@ -774,7 +802,14 @@
       notes[key].hidden = !on;
     }
   }
-  for (const key of KEYS) tabs[key].addEventListener('click', () => show(key));
+  for (const key of KEYS) tabs[key].addEventListener('click', () => {
+    show(key);
+    if (key === 'hor') {
+      /* a tela do construtor ocupa a janela toda — encosta ela no topo e reenquadra */
+      panels.hor.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      requestAnimationFrame(() => window.fitFlow && window.fitFlow());
+    }
+  });
 
   /* ---------- painel de edição da versão horizontal ---------- */
   const CONTENT = {
@@ -905,14 +940,20 @@
     const r = stage.getBoundingClientRect();
     zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
   });
-  document.getElementById('z-fit').addEventListener('click', () => {
+  /* enquadra o fluxo inteiro: nada de rolar pro lado nem pra baixo */
+  function fit() {
     const r = stage.getBoundingClientRect();
+    if (!r.width || !r.height) return;
     const w = inner.scrollWidth, h = inner.scrollHeight;
     scale = Math.min(1, Math.max(MIN, Math.min(r.width / w, r.height / h)));
     tx = Math.max(0, (r.width - w * scale) / 2);
     ty = Math.max(0, (r.height - h * scale) / 2);
     apply();
-  });
+  }
+  window.fitFlow = fit;
+  document.getElementById('z-fit').addEventListener('click', fit);
+  window.addEventListener('resize', () => { if (!panels.hor.hidden) fit(); });
 
   apply();
+  requestAnimationFrame(fit);
 </script>
