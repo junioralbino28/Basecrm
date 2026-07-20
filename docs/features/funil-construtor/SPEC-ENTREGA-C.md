@@ -42,12 +42,30 @@ O que o Junior vê e opera. Tudo aqui já está desenhado e validado por ele no 
 
 | # | Item | Tamanho |
 |---|---|---|
-| N1 | **Roteamento por etiqueta** (a etiqueta do lead escolhe o fluxo) + **reentrada e carência** (esfriou = 5 dias). | **M** |
+| N1 | **Roteamento por etiqueta** (a etiqueta do lead escolhe o fluxo) + **reentrada e carência** (esfriou = 5 dias). **Ver N1.1 — etiquetas viram lista escolhida, não texto livre.** | **M** |
+| N1.1 | **Etiquetas controladas, em duas famílias separadas** (decidido pelo Junior em 2026-07-20). **Motivo:** o avaliador casa etiqueta por **texto exato** (`deal_tags @> array[valor]`) — `Lentes` ≠ `lentes` faz o fluxo **não disparar sem erro nenhum**, e texto livre transformaria `indicação`/`indicacao`/`Indicação` em três origens no painel. **A secretária nunca digita: seleciona.** | **M** |
 | N2 | **Passos de tarefa e de mover etapa/funil**, já usados no mockup (destino real: Funil de Vendas → "Triagem e Qualificação IA"). | **M** |
 | N3 | **Mídia.** Bucket próprio `automation-media` (o `deal-files` **não serve** — as policies exigem `deal_id` como primeira pasta) · upload retomável · variantes por canal · **worker ffmpeg na VPS** convertendo para MP4 ≤16MB. Os 12 vídeos do piloto já estão convertidos à mão em `Desktop/Videos Follow-up Dra Jessica/COMPRIMIDOS-WHATSAPP/`. | **G** |
 | N4 | **Observabilidade navegável** — ver o que rodou, o que falhou, e por quê. Precisa absorver os itens O2/O3/O4 abaixo. | **M** |
 
 ---
+
+### N1.1 — as duas famílias de etiqueta (detalhe)
+
+| | **Etiqueta de SERVIÇO** | **Etiqueta de ORIGEM** |
+|---|---|---|
+| Responde | o que o paciente quer | de onde o lead veio |
+| Função | **escolhe qual automação dispara** (é o gatilho) | **atribuição** — alimenta painel comercial e, depois, conversão pro pixel |
+| Exemplos | lentes · ortodontia · estética facial | Anúncio Instagram · Anúncio Google Ads · Perfil Instagram · Indicação |
+| Quem cria | **junto com a automação** — o fluxo é dono do próprio gatilho | **configuração da clínica**, criada uma vez e usada por todos os funis |
+| Quem usa | secretária **seleciona** | secretária **seleciona** |
+
+**Por que separadas:** numa lista única a secretária veria `lentes` ao lado de `Indicação` sem saber se escolhe uma ou as duas, e o painel perderia o cruzamento que é justamente o objetivo — *quantos leads de indicação fecharam facetas × quantos de anúncio fecharam o mesmo*. São dois campos na mesma tela, cada um com sua lista.
+
+**Regras:**
+- A secretária **nunca digita** etiqueta que o sistema lê. Texto livre continua existindo apenas para anotação que nenhuma automação nem relatório consome.
+- Renomear o rótulo visível **não** pode quebrar automação publicada nem histórico de métrica — mesma lição do `case_id` estável do `switch`: **identidade estável, rótulo humano separado.**
+- Etiqueta de origem em uso não pode ser apagada silenciosamente; arquivar em vez de excluir (mesmo problema do O5).
 
 ## Bloco 3 — Correções de operação (achadas ao usar, não estavam no plano)
 
