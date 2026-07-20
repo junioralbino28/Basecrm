@@ -103,6 +103,14 @@ seguinte lê a etiqueta atual. Não é preciso oferecer a escolha por passo.
 > mandar para o humano. O lugar já existe; falta a ação.
 
 **D2 — Quando a paciente quer mais de um procedimento.**
+
+> ⚠️ **LEIA ANTES DE IMPLEMENTAR: isto é a EXCEÇÃO, não o caminho normal.**
+> **Caminho normal (a esmagadora maioria dos casos): um procedimento, a pessoa
+> não responde → entra no follow-up direto.** Sem tarefa, sem porteiro, sem
+> decisão humana, sem espera. Nada do que está descrito abaixo acontece.
+> A tarefa-porteiro só existe quando há **2 ou mais procedimentos de interesse**
+> e a pessoa parou de responder. Implementar o porteiro como etapa geral do
+> roteamento **quebraria o fluxo principal do piloto** — é o oposto da decisão.
 Nem tela de bloqueio (proposta do Codex), nem principal automático pela primeira
 etiqueta (minha emenda). **A tarefa é porteiro, não paralela ao fluxo:**
 
