@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AutomationBuilderEdge,
@@ -83,5 +83,102 @@ describe('AutomationFlowMap', () => {
     expect(screen.getByRole('button', {
       name: 'Adicionar passo após Retomar manualmente',
     })).toBeInTheDocument();
+  });
+
+  it('distingue clique curto no passo de arrasto iniciado sobre ele', () => {
+    const onStepActivate = vi.fn();
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={onStepActivate}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const card = screen.getByRole('button', { name: /Espera resposta/i });
+
+    fireEvent.pointerDown(card, {
+      pointerId: 1,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerUp(stage, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(onStepActivate).toHaveBeenCalledWith('raiz');
+
+    onStepActivate.mockClear();
+    fireEvent.pointerDown(card, {
+      pointerId: 2,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(stage, {
+      pointerId: 2,
+      clientX: 120,
+      clientY: 130,
+    });
+    fireEvent.pointerUp(stage, {
+      pointerId: 2,
+      clientX: 120,
+      clientY: 130,
+    });
+    expect(onStepActivate).not.toHaveBeenCalled();
+  });
+
+  it('move somente pelo fundo e informa clique vazio', () => {
+    const onBackgroundActivate = vi.fn();
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onBackgroundActivate={onBackgroundActivate}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const track = screen.getByTestId('automation-track');
+
+    fireEvent.pointerDown(stage, {
+      pointerId: 3,
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.pointerMove(stage, {
+      pointerId: 3,
+      clientX: 35,
+      clientY: 40,
+    });
+    fireEvent.pointerUp(stage, {
+      pointerId: 3,
+      clientX: 35,
+      clientY: 40,
+    });
+    expect(track).toHaveStyle({ transform: 'translate(59px, 64px) scale(1)' });
+    expect(onBackgroundActivate).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(stage, {
+      pointerId: 4,
+      button: 0,
+      clientX: 50,
+      clientY: 50,
+    });
+    fireEvent.pointerUp(stage, {
+      pointerId: 4,
+      clientX: 50,
+      clientY: 50,
+    });
+    expect(onBackgroundActivate).toHaveBeenCalledTimes(1);
   });
 });

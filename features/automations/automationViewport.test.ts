@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+import {
+  AUTOMATION_MAX_ZOOM,
+  AUTOMATION_MIN_ZOOM,
+  fitAutomationViewport,
+  panAutomationViewport,
+  zoomAutomationViewportAt,
+} from './automationViewport';
+
+describe('automationViewport', () => {
+  it('ancora o zoom no ponto do cursor', () => {
+    const zoomed = zoomAutomationViewportAt(
+      { x: 30, y: 40, scale: 1 },
+      1.5,
+      { x: 230, y: 140 },
+    );
+
+    expect(zoomed).toEqual({ x: -70, y: -10, scale: 1.5 });
+  });
+
+  it('respeita o piso de 70% e o teto de 200%', () => {
+    expect(zoomAutomationViewportAt(
+      { x: 0, y: 0, scale: 1 },
+      0.1,
+      { x: 0, y: 0 },
+    ).scale).toBe(AUTOMATION_MIN_ZOOM);
+    expect(zoomAutomationViewportAt(
+      { x: 0, y: 0, scale: 1 },
+      4,
+      { x: 0, y: 0 },
+    ).scale).toBe(AUTOMATION_MAX_ZOOM);
+  });
+
+  it('ajusta e centraliza sem espremer um fluxo grande abaixo de 70%', () => {
+    const fitted = fitAutomationViewport(
+      { width: 800, height: 500 },
+      { width: 1600, height: 900 },
+    );
+
+    expect(fitted.scale).toBe(0.7);
+    expect(fitted.x).toBe(-160);
+    expect(fitted.y).toBe(-65);
+  });
+
+  it('move o mapa pela diferença entre início e cursor', () => {
+    expect(panAutomationViewport(
+      { x: 34, y: 34, scale: 1 },
+      { x: 10, y: 15 },
+      { x: 35, y: 5 },
+    )).toEqual({ x: 59, y: 24, scale: 1 });
+  });
+});
