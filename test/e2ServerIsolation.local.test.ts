@@ -247,23 +247,41 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
     expect(config?.isLocal || process.env.E2_ALLOW_REMOTE_BRANCH === '1').toBe(true);
   });
 
-  it('trava anti-drift: banco v1 é idêntico a getDefaultPermissionMap para os 6 cargos', async (ctx) => {
+  it('trava anti-drift: preserva v1, ativa v2 e iguala v2 aos defaults atuais', async (ctx) => {
     if (!ready || !admin) return ctx.skip();
-    const result = await admin
-      .from('role_permission_defaults')
-      .select('defaults_version, role, permission_key, enabled');
+    const [result, state] = await Promise.all([
+      admin
+        .from('role_permission_defaults')
+        .select('defaults_version, role, permission_key, enabled'),
+      admin
+        .from('permission_defaults_state')
+        .select('active_version')
+        .single(),
+    ]);
     expect(result.error).toBeNull();
-    expect(result.data).toHaveLength(TEST_ROLES.length * APP_PERMISSIONS.length);
-    expect(new Set((result.data ?? []).map((row) => row.defaults_version))).toEqual(new Set([1]));
+    expect(state.error).toBeNull();
+    expect(state.data?.active_version).toBe(2);
+    expect(result.data).toHaveLength(TEST_ROLES.length * APP_PERMISSIONS.length * 2);
+    expect(new Set((result.data ?? []).map((row) => row.defaults_version))).toEqual(
+      new Set([1, 2]),
+    );
 
     for (const role of TEST_ROLES) {
       const actual = Object.fromEntries(
         (result.data ?? [])
-          .filter((row) => row.role === role)
+          .filter((row) => row.defaults_version === 2 && row.role === role)
           .map((row) => [row.permission_key, row.enabled]),
       );
       expect(actual).toEqual(getDefaultPermissionMap(role));
     }
+
+    const legacyStaff = (result.data ?? []).find(
+      (row) =>
+        row.defaults_version === 1
+        && row.role === 'clinic_staff'
+        && row.permission_key === 'automation.operate',
+    );
+    expect(legacyStaff?.enabled).toBe(true);
   });
 
   it('defaults e aliases são resolvidos; chave órfã e usuário sem profile fecham em false', async (ctx) => {
@@ -273,6 +291,9 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
     expect(await hasPermission(users.get('agency_staff')!, 'reports.finance')).toBe(true);
     expect(await hasPermission(users.get('admin')!, 'settings.users.manage')).toBe(true);
     expect(await hasPermission(users.get('vendedor')!, 'reports.professionals')).toBe(false);
+    expect(await hasPermission(users.get('clinic_staff')!, 'automation.operate')).toBe(false);
+    expect(await hasPermission(users.get('vendedor')!, 'automation.operate')).toBe(false);
+    expect(await hasPermission(users.get('agency_staff')!, 'automation.operate')).toBe(true);
     expect(await hasPermission(users.get('clinic_admin')!, 'permission.does_not_exist')).toBe(false);
     expect(await hasPermission(noProfileUser, 'atendimentos.view')).toBe(false);
   });
@@ -284,6 +305,8 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
 
     await setOverride(staff, 'reports.finance', true);
     expect(await hasPermission(staff, 'reports.finance')).toBe(true);
+    await setOverride(staff, 'automation.operate', true);
+    expect(await hasPermission(staff, 'automation.operate')).toBe(true);
 
     await setOverride(clinicAdmin, 'reports.finance', false);
     expect(await hasPermission(clinicAdmin, 'reports.finance')).toBe(false);

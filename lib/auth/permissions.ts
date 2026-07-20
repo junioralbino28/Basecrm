@@ -139,6 +139,7 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'reports.professionals',
   'ai.configure',
   'automation.edit',
+  'automation.operate',
   'settings.general',
   'settings.products',
   'settings.professionals',

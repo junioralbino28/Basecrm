@@ -19,6 +19,12 @@ const snapshotMigrationPath = resolve(
   'supabase/migrations',
   SNAPSHOT_MIGRATION_NAME,
 );
+const V2_MIGRATION_NAME = '20260720020000_e3_role_defaults_v2.sql';
+const v2MigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations',
+  V2_MIGRATION_NAME,
+);
 const generatorPath = resolve(
   process.cwd(),
   'scripts/generate-e2-role-permission-defaults.mjs',
@@ -27,6 +33,7 @@ const sql = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : ''
 const snapshotSql = existsSync(snapshotMigrationPath)
   ? readFileSync(snapshotMigrationPath, 'utf8')
   : '';
+const v2Sql = existsSync(v2MigrationPath) ? readFileSync(v2MigrationPath, 'utf8') : '';
 
 const ROLES = [
   'agency_admin',
@@ -79,6 +86,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
   it('possui migration e gerador determinístico em modo --check', () => {
     expect(existsSync(migrationPath), MIGRATION_NAME).toBe(true);
     expect(existsSync(snapshotMigrationPath), SNAPSHOT_MIGRATION_NAME).toBe(true);
+    expect(existsSync(v2MigrationPath), V2_MIGRATION_NAME).toBe(true);
     expect(existsSync(generatorPath), 'gerador do snapshot').toBe(true);
 
     execFileSync(process.execPath, [generatorPath, '--check'], {
@@ -87,7 +95,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
     });
   });
 
-  it('materializa exatamente o produto cartesiano cargo × permissão no snapshot v1', () => {
+  it('preserva o produto cartesiano v1 sem reescrever a decisão antiga', () => {
     const snapshotMatch = snapshotSql.match(
       /-- E2_ROLE_PERMISSION_DEFAULTS:START\r?\n([\s\S]*?)\r?\n-- E2_ROLE_PERMISSION_DEFAULTS:END/,
     );
@@ -106,7 +114,12 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
       .toBe(tuples.length);
 
     for (const role of ROLES) {
-      const expected = getDefaultPermissionMap(role);
+      const expected = {
+        ...getDefaultPermissionMap(role),
+        ...(['clinic_staff', 'vendedor'].includes(role)
+          ? { 'automation.operate': true }
+          : {}),
+      };
       const actual = Object.fromEntries(
         tuples
           .filter((tuple) => tuple.role === role)
@@ -122,6 +135,46 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
     expect(sql).toMatch(/primary key \(role, permission_key\)/);
     expect(sql).not.toContain('permission_defaults_state');
     expect(sql).not.toContain('active_version');
+  });
+});
+
+describe('E3 — defaults paralelos com ponteiro ativo', () => {
+  it('materializa o snapshot v2 completo a partir de permissions.ts', () => {
+    const snapshotMatch = v2Sql.match(
+      /-- E3_ROLE_PERMISSION_DEFAULTS_V2:START\r?\n([\s\S]*?)\r?\n-- E3_ROLE_PERMISSION_DEFAULTS_V2:END/,
+    );
+    expect(snapshotMatch, 'marcadores do snapshot v2').not.toBeNull();
+
+    const tuples = [...(snapshotMatch?.[1] ?? '').matchAll(
+      /\(2, '([^']+)', '([^']+)', (true|false)\)/g,
+    )].map((match) => ({
+      role: match[1],
+      permission: match[2],
+      enabled: match[3] === 'true',
+    }));
+    expect(tuples).toHaveLength(ROLES.length * APP_PERMISSIONS.length);
+
+    for (const role of ROLES) {
+      const actual = Object.fromEntries(
+        tuples
+          .filter((tuple) => tuple.role === role)
+          .map((tuple) => [tuple.permission, tuple.enabled]),
+      );
+      expect(actual).toEqual(getDefaultPermissionMap(role));
+    }
+  });
+
+  it('troca a PK, preserva v1 e ativa v2 atomicamente', () => {
+    expect(v2Sql).toContain(
+      'primary key (defaults_version, role, permission_key)',
+    );
+    expect(v2Sql).toContain('create table public.permission_defaults_state');
+    expect(v2Sql).toContain('active_version integer not null');
+    expect(v2Sql).toContain('update public.permission_defaults_state');
+    expect(v2Sql).toContain('set active_version = 2');
+    expect(v2Sql).toMatch(/defaults_version = v_active_version/);
+    expect(v2Sql).toContain('v_v1_rows <> 222');
+    expect(v2Sql).toContain('v_v2_rows <> 222');
   });
 });
 

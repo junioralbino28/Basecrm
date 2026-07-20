@@ -92,7 +92,6 @@ describe('clinic_staff (secretária) — operacional sim, sensível não', () =>
       'atendimentos.manage',
       'agenda.manage',
       'ai.use',
-      'automation.operate',
     ] as const) {
       expect(staff[key], `staff deveria ter ${key}`).toBe(true);
     }
@@ -116,6 +115,7 @@ describe('clinic_staff (secretária) — operacional sim, sensível não', () =>
       'settings.audit',
       'settings.users.manage',
       'automation.edit',
+      'automation.operate',
     ] as const) {
       expect(staff[key], `staff NÃO deveria ter ${key}`).toBe(false);
     }
@@ -124,6 +124,7 @@ describe('clinic_staff (secretária) — operacional sim, sensível não', () =>
   it("'vendedor' (legado) resolve igual a clinic_staff", () => {
     expect(getDefaultPermissionMap('vendedor')['settings.finance']).toBe(false);
     expect(getDefaultPermissionMap('vendedor')['atendimentos.manage']).toBe(true);
+    expect(getDefaultPermissionMap('vendedor')['automation.operate']).toBe(false);
   });
 });
 
@@ -139,5 +140,18 @@ describe('overrides e hasPermission continuam funcionando com chaves novas', () 
     expect(hasPermission('clinic_staff', 'reports.finance')).toBe(false);
     expect(hasPermission('clinic_staff', 'reports.finance', { 'reports.finance': true })).toBe(true);
     expect(hasPermission('clinic_admin', 'settings.finance')).toBe(true);
+  });
+
+  it('restringe operação de automações ao staff, preservando admins e override', () => {
+    expect(hasPermission('clinic_staff', 'automation.operate')).toBe(false);
+    expect(hasPermission('vendedor', 'automation.operate')).toBe(false);
+    expect(hasPermission('clinic_admin', 'automation.operate')).toBe(true);
+    expect(hasPermission('agency_admin', 'automation.operate')).toBe(true);
+    expect(hasPermission('agency_staff', 'automation.operate')).toBe(true);
+    expect(hasPermission(
+      'clinic_staff',
+      'automation.operate',
+      { 'automation.operate': true },
+    )).toBe(true);
   });
 });
