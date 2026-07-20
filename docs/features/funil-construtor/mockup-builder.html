@@ -283,10 +283,17 @@
   /* =========================================================
      HORIZONTAL — ver de relance, editar no painel
      ========================================================= */
-  .hor-layout { display: grid; grid-template-columns: minmax(0,1fr) 340px; }
+  /* tela cheia: escapa da coluna do documento e usa a largura toda,
+     como vai acontecer no app (viewport menos o menu lateral) */
+  #v-hor {
+    width: 100vw; max-width: 100vw;
+    margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+    border-radius: 0; border-left: 0; border-right: 0;
+  }
+  .hor-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; }
   @media (max-width: 900px) { .hor-layout { grid-template-columns: 1fr; } }
 
-  .hor-scroll { overflow-x: auto; padding: 28px 24px 32px; }
+  .hor-scroll { overflow-x: auto; padding: 32px 28px 36px; min-height: 380px; }
   .track { display: flex; align-items: flex-start; gap: 0; min-width: max-content; }
 
   .hstep {
