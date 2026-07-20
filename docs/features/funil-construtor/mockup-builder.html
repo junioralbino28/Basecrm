@@ -1,0 +1,537 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Construtor de Funil — proposta de redesenho</title>
+
+<style>
+  /* ---------------------------------------------------------------
+     Mockup do construtor de funil — Basecrm
+     Committed dark: espelha a UI real do produto (tema escuro fixo).
+     Paleta derivada do app: fundo verde-quase-preto, acento teal.
+     --------------------------------------------------------------- */
+  :root {
+    --ground:      #080C0B;
+    --surface:     #0F1614;
+    --surface-2:   #141D1A;
+    --line:        rgba(255,255,255,.09);
+    --line-strong: rgba(255,255,255,.16);
+
+    --ink:         #E9EFEC;
+    --ink-soft:    #A7B5B0;
+    --ink-mute:    #6C7B76;
+
+    --accent:      #17B9A3;   /* teal do produto */
+    --accent-deep: #0E7A6C;
+
+    --yes:         #34C08A;   /* respondeu */
+    --no:          #E0A33C;   /* nao respondeu */
+    --fail:        #E4685D;   /* falha de envio */
+
+    --rail: 2px;
+    --radius: 12px;
+
+    --sans: ui-sans-serif, "Segoe UI", "Noto Sans", -apple-system, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  /* ---------- cabeçalho do documento ---------- */
+  .doc-head { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 32px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ink-mute); margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(28px, 4vw, 40px);
+    margin: 0 0 12px; letter-spacing: -.01em; text-wrap: balance;
+  }
+  .lede { color: var(--ink-soft); max-width: 62ch; margin: 0; }
+
+  /* ---------- alternador ---------- */
+  .switch {
+    display: inline-flex; gap: 4px; margin: 28px 0 8px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px;
+  }
+  .switch button {
+    font: inherit; font-size: 13px; font-weight: 600;
+    color: var(--ink-soft); background: none; border: 0; cursor: pointer;
+    padding: 8px 18px; border-radius: 999px; transition: background .16s, color .16s;
+  }
+  .switch button:hover { color: var(--ink); }
+  .switch button[aria-selected="true"] { background: var(--accent-deep); color: #fff; }
+  .switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .note {
+    font-size: 13.5px; color: var(--ink-soft); margin: 0 0 28px; max-width: 68ch;
+  }
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- moldura da tela ---------- */
+  .screen {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden;
+  }
+  .screen-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.03), transparent);
+  }
+  .screen-title { font-family: var(--serif); font-size: 18px; }
+  .chip-safe {
+    font-size: 11.5px; font-weight: 600; color: var(--yes);
+    background: rgba(52,192,138,.12); border: 1px solid rgba(52,192,138,.28);
+    padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+  }
+  .canvas { padding: 28px 24px 36px; }
+
+  /* =========================================================
+     PROPOSTA — trilho contínuo
+     ========================================================= */
+  .flow { position: relative; padding-left: 34px; }
+  /* trilho principal */
+  .flow::before {
+    content: ""; position: absolute; left: 11px; top: 6px; bottom: 6px;
+    width: var(--rail); background: linear-gradient(180deg, var(--accent-deep), rgba(23,185,163,.15));
+    border-radius: 2px;
+  }
+
+  .node { position: relative; margin-bottom: 6px; }
+  /* marcador no trilho */
+  .node::before {
+    content: ""; position: absolute; left: -28px; top: 22px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--ground);
+  }
+  .node.is-wait::before { background: var(--ground); border: 2px dashed var(--ink-mute); }
+
+  .card {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px;
+  }
+  /* passo que AGE: peso, cor, presença */
+  .node.is-action .card {
+    border-color: rgba(23,185,163,.34);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  /* passo que ESPERA: recuado, leve, quase transparente */
+  .node.is-wait .card {
+    background: transparent; border-style: dashed; border-color: var(--line-strong);
+    padding: 12px 16px;
+  }
+
+  .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .step-name { font-weight: 650; font-size: 15px; }
+  .node.is-wait .step-name { font-weight: 600; color: var(--ink-soft); }
+  .step-kind {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-mute);
+  }
+  .channel {
+    margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    color: var(--accent); background: rgba(23,185,163,.10);
+    border: 1px solid rgba(23,185,163,.24); padding: 3px 9px; border-radius: 999px;
+  }
+
+  .preview {
+    margin-top: 12px; padding: 12px 14px; border-radius: 9px;
+    background: rgba(0,0,0,.30); border: 1px solid var(--line);
+    color: var(--ink-soft); font-size: 14px;
+  }
+  .meta { margin-top: 10px; font-size: 13px; color: var(--ink-mute); }
+
+  /* aviso de falha: preso ao passo, discreto, não um banner gritando */
+  .attach {
+    margin: 8px 0 0 14px; padding-left: 12px; border-left: 2px solid rgba(228,104,93,.5);
+    font-size: 12.5px; color: var(--ink-mute);
+  }
+  .attach b { color: var(--fail); font-weight: 600; }
+
+  /* ---------- inserir passo ---------- */
+  .insert { position: relative; height: 34px; }
+  .insert button {
+    position: absolute; left: -34px; top: 6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--surface); color: var(--ink-mute);
+    border: 1px dashed var(--line-strong); cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0; transition: .16s;
+  }
+  .insert button:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
+  .insert button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* =========================================================
+     A BIFURCAÇÃO — o trilho se divide de verdade
+     ========================================================= */
+  .fork { position: relative; margin: 4px 0 6px; }
+  .fork-label {
+    font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute); margin-bottom: 12px;
+  }
+  .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .lanes { grid-template-columns: 1fr; } }
+
+  .lane {
+    position: relative; border-radius: var(--radius);
+    border: 1px solid var(--line); padding: 14px;
+    background: rgba(255,255,255,.015);
+  }
+  .lane::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .lane.yes::before { background: var(--yes); }
+  .lane.no::before  { background: var(--no); }
+
+  .lane-head { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; }
+  .lane-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .lane.yes .lane-dot { background: var(--yes); }
+  .lane.no  .lane-dot { background: var(--no); }
+  .lane-name { font-weight: 650; font-size: 13.5px; }
+  .lane.yes .lane-name { color: var(--yes); }
+  .lane.no  .lane-name { color: var(--no); }
+  .lane-when { font-size: 12px; color: var(--ink-mute); margin-left: auto; }
+
+  .lane .card { background: var(--surface-2); }
+  .lane .card + .card { margin-top: 10px; }
+
+  .lane-end {
+    margin-top: 12px; font-size: 12px; color: var(--ink-mute);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .lane-end::before {
+    content: ""; width: 18px; height: 1px; background: var(--line-strong);
+  }
+
+  /* =========================================================
+     HOJE — lista chapada (para comparação)
+     ========================================================= */
+  .flat .old-card {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px;
+  }
+  .flat .old-head { display: flex; align-items: center; gap: 10px; }
+  .flat .num {
+    width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    background: #fff; color: #111; font-size: 12px; font-weight: 700; flex: none;
+  }
+  .flat .old-kind { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); }
+  .flat .old-name { font-weight: 620; font-size: 14.5px; }
+  .flat .wa {
+    margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--accent);
+    background: rgba(23,185,163,.10); border: 1px solid rgba(23,185,163,.22);
+    padding: 3px 8px; border-radius: 999px;
+  }
+  .flat .thread { width: 1px; height: 12px; background: var(--line); margin: 0 auto 8px; }
+  .flat .old-body { margin-top: 10px; font-size: 13.5px; color: var(--ink-soft); }
+  .flat .banner {
+    margin-top: 10px; padding: 9px 12px; border-radius: 8px; font-size: 13px;
+    background: rgba(228,104,93,.10); border: 1px solid rgba(228,104,93,.25); color: #F0A59D;
+  }
+  .flat .pathnote {
+    display: inline-block; margin-top: 8px; margin-right: 6px;
+    padding: 7px 11px; border-radius: 8px; font-size: 12.5px;
+  }
+  .flat .pathnote.y { background: rgba(52,192,138,.10); border: 1px solid rgba(52,192,138,.22); color: #97DCBC; }
+  .flat .pathnote.n { background: rgba(224,163,60,.10); border: 1px solid rgba(224,163,60,.22); color: #E8C489; }
+
+  .flag {
+    margin-top: 14px; padding: 12px 14px; border-radius: 9px;
+    border: 1px dashed rgba(228,104,93,.45); background: rgba(228,104,93,.06);
+    font-size: 13px; color: #F0A59D;
+  }
+
+  /* ---------- correções de UX ---------- */
+  .fixes { margin-top: 44px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr)); }
+  .fix { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .fix h3 { font-family: var(--serif); font-size: 17px; margin: 0 0 6px; font-weight: 600; }
+  .fix p { margin: 0 0 14px; font-size: 13.5px; color: var(--ink-soft); }
+
+  .demo { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .btn-off {
+    width: 100%; font: inherit; font-size: 14px; font-weight: 600;
+    padding: 10px; border-radius: 9px; cursor: not-allowed;
+    background: rgba(255,255,255,.04); color: var(--ink-mute); border: 1px solid var(--line);
+  }
+  .why { margin-top: 8px; font-size: 12.5px; color: var(--no); display: flex; gap: 7px; }
+  .empty {
+    border: 1px dashed var(--line-strong); border-radius: 10px; padding: 20px 16px; text-align: center;
+  }
+  .empty-t { font-weight: 620; margin-bottom: 4px; font-size: 14px; }
+  .empty-s { font-size: 13px; color: var(--ink-soft); }
+
+  .legend {
+    margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-soft);
+  }
+  .legend h2 { font-family: var(--serif); font-size: 19px; margin: 0 0 12px; color: var(--ink); font-weight: 600; }
+  .legend ul { margin: 0; padding-left: 20px; }
+  .legend li { margin-bottom: 8px; }
+  .legend b { color: var(--ink); font-weight: 600; }
+
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <div class="doc-head">
+    <p class="eyebrow">Basecrm · Construtor de funil</p>
+    <h1>O fluxo precisa se ler sozinho</h1>
+    <p class="lede">
+      Mesma automação que você montou — tag <em>anuncio meta</em>, mensagem, espera, aguardar resposta
+      e as duas tarefas. Alterne entre as duas versões e veja o que muda no entendimento.
+    </p>
+  </div>
+
+  <div class="switch" role="tablist" aria-label="Comparar versões">
+    <button role="tab" id="tab-new" aria-selected="true"  aria-controls="v-new">Proposta</button>
+    <button role="tab" id="tab-old" aria-selected="false" aria-controls="v-old">Como está hoje</button>
+  </div>
+
+  <p class="note" id="note-new">
+    Um trilho contínuo conduz o olho. Passo que <strong>age</strong> tem cor e peso; passo que
+    <strong>espera</strong> fica recuado e pontilhado. E onde o fluxo se divide, o trilho
+    <strong>se divide junto</strong> — cada caminho na sua faixa, com o gatilho escrito no topo.
+  </p>
+  <p class="note" id="note-old" hidden>
+    Tudo com o mesmo peso, numerado em sequência. Os passos <strong>4</strong> e <strong>5</strong> são
+    caminhos que <strong>nunca acontecem juntos</strong>, mas estão empilhados como se um viesse
+    depois do outro. A numeração afirma uma sequência que não existe.
+  </p>
+
+  <!-- ============================ PROPOSTA ============================ -->
+  <section class="screen" id="v-new" role="tabpanel" aria-labelledby="tab-new">
+    <div class="screen-bar">
+      <div class="screen-title">teste · rascunho</div>
+      <span class="chip-safe">Envio real desligado</span>
+    </div>
+
+    <div class="canvas">
+      <div class="flow">
+
+        <div class="node is-action">
+          <div class="card">
+            <div class="card-head">
+              <span class="step-kind">Começa quando</span>
+              <span class="step-name">a tag <em>anuncio meta</em> é adicionada</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="insert"><button type="button" aria-label="Inserir passo aqui">+</button></div>
+
+        <div class="node is-action">
+          <div class="card">
+            <div class="card-head">
+              <span class="step-kind">Envia</span>
+              <span class="step-name">Mensagem de abertura</span>
+              <span class="channel">WhatsApp</span>
+            </div>
+            <div class="preview">ola teste salvo 1</div>
+            <div class="meta">Vinculada à biblioteca · editar aqui altera só este fluxo</div>
+          </div>
+          <div class="attach"><b>Se o envio falhar</b> — encerra este caminho e registra para a operação.</div>
+        </div>
+
+        <div class="insert"><button type="button" aria-label="Inserir passo aqui">+</button></div>
+
+        <div class="node is-wait">
+          <div class="card">
+            <div class="card-head">
+              <span class="step-kind">Espera</span>
+              <span class="step-name">1 hora</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="insert"><button type="button" aria-label="Inserir passo aqui">+</button></div>
+
+        <div class="node is-wait">
+          <div class="card">
+            <div class="card-head">
+              <span class="step-kind">Espera</span>
+              <span class="step-name">o paciente responder — até 1 dia</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- a bifurcação -->
+        <div class="fork">
+          <div class="fork-label">Daqui em diante, só um dos dois acontece</div>
+          <div class="lanes">
+
+            <div class="lane yes">
+              <div class="lane-head">
+                <span class="lane-dot"></span>
+                <span class="lane-name">Se respondeu</span>
+                <span class="lane-when">assim que chega a resposta</span>
+              </div>
+              <div class="card">
+                <div class="card-head">
+                  <span class="step-kind">Cria tarefa</span>
+                  <span class="step-name">Retomar conversa após resposta</span>
+                </div>
+              </div>
+              <div class="lane-end">o fluxo termina aqui</div>
+            </div>
+
+            <div class="lane no">
+              <div class="lane-head">
+                <span class="lane-dot"></span>
+                <span class="lane-name">Se não respondeu</span>
+                <span class="lane-when">ao completar 1 dia</span>
+              </div>
+              <div class="card">
+                <div class="card-head">
+                  <span class="step-kind">Cria tarefa</span>
+                  <span class="step-name">Tratar contato sem resposta</span>
+                </div>
+              </div>
+              <div class="lane-end">o fluxo termina aqui</div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ HOJE ============================ -->
+  <section class="screen" id="v-old" role="tabpanel" aria-labelledby="tab-old" hidden>
+    <div class="screen-bar">
+      <div class="screen-title">teste · rascunho</div>
+      <span class="chip-safe">Envio real desligado</span>
+    </div>
+
+    <div class="canvas flat">
+      <div class="old-card">
+        <div class="old-head"><span class="old-name">Gatilho</span></div>
+        <div class="old-body">O fluxo começa quando esta tag é adicionada — <em>anuncio meta</em></div>
+      </div>
+      <div class="thread"></div>
+
+      <div class="old-card">
+        <div class="old-head">
+          <span class="num">1</span>
+          <div><div class="old-kind">Passo 1</div><div class="old-name">Enviar mensagem</div></div>
+          <span class="wa">WhatsApp</span>
+        </div>
+        <div class="old-body">ola teste salvo 1</div>
+        <div class="banner">Se o envio falhar: encerra este caminho e registra a falha para operação.</div>
+      </div>
+      <div class="thread"></div>
+
+      <div class="old-card">
+        <div class="old-head">
+          <span class="num">2</span>
+          <div><div class="old-kind">Passo 2</div><div class="old-name">Aguardar um tempo</div></div>
+          <span class="wa">WhatsApp</span>
+        </div>
+        <div class="old-body">1 · Horas</div>
+      </div>
+      <div class="thread"></div>
+
+      <div class="old-card">
+        <div class="old-head">
+          <span class="num">3</span>
+          <div><div class="old-kind">Passo 3</div><div class="old-name">Aguardar resposta</div></div>
+          <span class="wa">WhatsApp</span>
+        </div>
+        <div class="old-body">1 · Dias</div>
+        <span class="pathnote y">Se respondeu: segue pelo caminho de resposta.</span>
+        <span class="pathnote n">Se não respondeu: segue ao atingir o prazo.</span>
+      </div>
+      <div class="thread"></div>
+
+      <div class="old-card">
+        <div class="old-head">
+          <span class="num">4</span>
+          <div><div class="old-kind">Passo 4</div><div class="old-name">Criar tarefa</div></div>
+          <span class="wa">WhatsApp</span>
+        </div>
+        <div class="old-body">Retomar conversa após resposta</div>
+      </div>
+      <div class="thread"></div>
+
+      <div class="old-card">
+        <div class="old-head">
+          <span class="num">5</span>
+          <div><div class="old-kind">Passo 5</div><div class="old-name">Criar tarefa</div></div>
+          <span class="wa">WhatsApp</span>
+        </div>
+        <div class="old-body">Tratar contato sem resposta</div>
+      </div>
+
+      <div class="flag">
+        Os passos 4 e 5 são caminhos alternativos: só um deles roda para cada paciente.
+        A tela mostra os dois como etapas seguidas. A etiqueta “WhatsApp” aparece até em
+        “Aguardar” e “Criar tarefa”, que não enviam nada.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ CORREÇÕES ============================ -->
+  <div class="fixes">
+    <div class="fix">
+      <h3>Botão apagado diz o que falta</h3>
+      <p>Você leu como “não tem botão”. A secretária vai ler igual.</p>
+      <div class="demo">
+        <button class="btn-off" type="button" disabled>Salvar na biblioteca</button>
+        <div class="why"><span aria-hidden="true">↑</span><span>Falta dar um nome e escrever a mensagem.</span></div>
+      </div>
+    </div>
+
+    <div class="fix">
+      <h3>Biblioteca vazia ensina o próximo passo</h3>
+      <p>Constatar que está vazia não ajuda ninguém a sair do lugar.</p>
+      <div class="demo">
+        <div class="empty">
+          <div class="empty-t">Nenhuma mensagem salva ainda</div>
+          <div class="empty-s">Salve os textos que você repete — abertura, lembrete, retorno — e reutilize em qualquer fluxo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h2>O que muda, e por quê</h2>
+    <ul>
+      <li><b>O trilho vira o elemento mais forte.</b> Hoje a linha entre os passos tem 1 pixel de largura e 12 de altura: some. Sem conexão visível não é um fluxo, é uma pilha de caixas.</li>
+      <li><b>Agir e esperar deixam de ser iguais.</b> Enviar mensagem tem cor e peso; esperar fica recuado e pontilhado. Você bate o olho e sabe onde o paciente recebe algo.</li>
+      <li><b>A bifurcação existe visualmente.</b> Duas faixas lado a lado, cada uma com seu gatilho no topo e o fim declarado. A numeração sequencial some dos desvios, porque ali não há sequência.</li>
+      <li><b>A etiqueta de canal só aparece onde há canal.</b> “WhatsApp” em cinco cards seguidos vira ruído — e em “Criar tarefa” é simplesmente falso.</li>
+      <li><b>O aviso de falha encolhe e gruda no passo.</b> Vira uma nota presa ao envio, não um banner vermelho competindo com o conteúdo.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+  const tabs = { new: document.getElementById('tab-new'), old: document.getElementById('tab-old') };
+  const panels = { new: document.getElementById('v-new'), old: document.getElementById('v-old') };
+  const notes = { new: document.getElementById('note-new'), old: document.getElementById('note-old') };
+
+  function show(which) {
+    for (const key of ['new', 'old']) {
+      const on = key === which;
+      tabs[key].setAttribute('aria-selected', String(on));
+      panels[key].hidden = !on;
+      notes[key].hidden = !on;
+    }
+  }
+  tabs.new.addEventListener('click', () => show('new'));
+  tabs.old.addEventListener('click', () => show('old'));
+</script>
