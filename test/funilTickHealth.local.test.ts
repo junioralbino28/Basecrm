@@ -22,6 +22,10 @@ describeLocal('C1A — saúde real do tick no Supabase local', () => {
 
   it('segredo ausente registra falha e contador', async () => {
     if (!admin) throw new Error('admin local ausente');
+    const previousHealth = await admin.rpc('automation_scheduler_health').single();
+    expect(previousHealth.error).toBeNull();
+    const previousFailures = previousHealth.data?.consecutive_failures ?? 0;
+
     const requested = await admin.rpc('request_automation_tick');
     expect(requested.error).toBeNull();
     expect(requested.data).toBeNull();
@@ -31,8 +35,8 @@ describeLocal('C1A — saúde real do tick no Supabase local', () => {
     expect(health.data).toMatchObject({
       stage: 'request_failed',
       degraded: true,
-      consecutive_failures: 1,
     });
+    expect(health.data?.consecutive_failures).toBe(previousFailures + 1);
     expect(health.data?.last_error).toMatch(/segredo ou URL/i);
   });
 
