@@ -133,6 +133,40 @@ Nos pipelines de oportunidade existem **Smart Tags**: chips coloridos **derivado
 
 **É rótulo computado, não digitado.** Eles sabem qual é o desenho bom — só não aplicaram em contatos por peso de legado.
 
+### 7. 🎯 A CAUSA-RAIZ, encontrada em fórum `[Alta confiança]`
+
+Pedido aberto no board do GHL — *"Allow Tag Renaming Without Breaking Smart Lists, Workflows, and Integrations"* (abr/2025) — expõe o motivo técnico de tudo:
+
+> **As tags são referenciadas pelo NOME (string), não por um ID interno estável.**
+
+É daí que sai **toda** a dor: renomear quebra automação e lista salva · variantes de caixa não podem ser fundidas · não existe merge · limpar é perigoso.
+
+**É exatamente a decisão que estamos tomando ao contrário** — identidade estável por baixo, rótulo por cima. A mesma lição do `case_id` do `switch` na C1A, agora com prova de campo.
+
+### 8. ⚠️ Corrida de escrita da etiqueta — alerta direto para o nosso motor `[média-alta]`
+
+Post *"10 GHL mistakes that cost me real money"* (mar/2026) lista como **erro nº1**:
+
+> *"Você adiciona a tag no passo 1 e checa no passo 2 com um se/então. A tag ainda não foi gravada no contato. O contato desce pelo ramo errado. Toda vez."*
+
+**Nosso motor tem exatamente essa forma:** etiqueta é gatilho, e o passo de decisão lê etiqueta. Precisa ficar garantido que a gravação está **confirmada** antes da avaliação — senão o lead entra no ramo errado silenciosamente. **Levar para o N1 da C2.**
+
+### 9. Sem trilha de auditoria e sem filtro por data `[alta]`
+
+- *"Filter Tags By Date Tagged"* — **111 votos**, aberto fev/2024, **não existe**. Comentário: *"Dashboard is not very useful without this."*
+- *"Tag History & Tracking"* — pede saber **qual etiqueta, quando e quem aplicou**. Hoje não há registro.
+
+**Impacto direto no plano do Junior:** ele quer medir origem de lead e montar case. Sem data e sem autor, não dá para dizer *"em março as indicações fecharam mais que os anúncios"*. **Registrar quando e quem etiquetou é barato agora e é o que falta nos dois.**
+
+> **Sinal de que a alternativa é melhor:** usuários do GHL declaram que **contornam a etiqueta** para relatório — *"eu não usaria tags para isso, criaria as listas por atribuição de origem"*.
+
+### Limitações declaradas desta terceira rodada
+
+- **Reddit bloqueou o acesso direto** (403); o conteúdo veio por raspagem que **retornou pontuação zero em todos os itens** → **nenhuma contagem de votos do Reddit é reportada**.
+- **Nenhuma evidência obtida de grupo do Facebook ou comentário de YouTube** (conteúdo fechado) — *não encontrado*, não *inexistente*.
+- **Não existe thread famosa de "proliferação de tags" no r/gohighlevel.** A dor aparece de lado (campos bagunçados, snapshots sujos, corrida de escrita). **O peso da evidência está no board oficial, não no Reddit.**
+- **Limite de tags por contato: não documentado.** Um trecho de busca citou "máximo 50", **não verificado em nenhuma página** → descartado.
+
 ---
 
 ## O que copiar
@@ -156,6 +190,8 @@ Nos pipelines de oportunidade existem **Smart Tags**: chips coloridos **derivado
 7. **Normalizar na escrita** (minúscula, sem espaço nas pontas, slug) e guardar o rótulo de exibição **separado**. Custa dez linhas e elimina uma classe inteira de dor que os dois carregam.
 8. **Contador de uso + "quem depende disto" desde o dia 1.** A dor mais repetida do fórum do GHL é não saber quantos contatos têm cada etiqueta nem qual automação usa qual — então **ninguém apaga nada, com medo de quebrar**. Barato agora, impossível de retrofitar (o GHL não conseguiu em 7 anos).
 9. **Permissão separada: usar × criar.** Pedido aberto no GHL com 71 votos. É exatamente o nosso caso: secretária **usa**, admin **cria**.
+10. **Registrar quando e quem aplicou a etiqueta.** Pedido de filtro por data tem 111 votos e não existe; o de histórico pede justamente *quem* aplicou. Sem isso, o painel comercial do Junior não consegue dizer *"em março, indicação fechou mais que anúncio"*.
+11. **Garantir que a etiqueta está gravada antes de avaliar a decisão** — o erro nº1 relatado por usuários do GHL é o contato descer pelo ramo errado porque a tag ainda não tinha sido persistida.
 
 ## O que evitar (acrescentado pelo GHL)
 
