@@ -646,6 +646,17 @@ function validateGraph(
     });
   }
 
+  for (const step of steps) {
+    const parentCount = indegree.get(step.id) ?? 0;
+    if (parentCount > 1) {
+      issues.push({
+        code: 'multiple_parents',
+        message: `passo ${step.stepKey} possui ${parentCount} pais; o builder v1 exige pai único`,
+        stepKey: step.stepKey,
+      });
+    }
+  }
+
   const entries = steps.filter((step) => indegree.get(step.id) === 0);
   if (entries.length !== 1) {
     issues.push({

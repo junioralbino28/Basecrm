@@ -247,6 +247,18 @@ describe('compileAutomationDefinition', () => {
     );
   });
 
+  it('rejeita convergência porque o builder v1 exige pai único', () => {
+    const input = validInput();
+    input.edges.push({
+      fromStepId: IDS.answered,
+      outcome: 'success',
+      toStepId: IDS.timeout,
+      order: 0,
+    });
+
+    expect(issueCodes(input)).toContain('multiple_parents');
+  });
+
   it('exige os caminhos answered e timeout em wait_for_event', () => {
     const input = validInput();
     input.edges = input.edges.filter((edge) => edge.outcome !== 'timeout');
