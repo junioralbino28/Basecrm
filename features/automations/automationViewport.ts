@@ -64,6 +64,21 @@ export function fitAutomationViewport(
   };
 }
 
+// Mantém o zoom atual e desloca a câmera para deixar um ponto do conteúdo
+// (ex.: o centro do passo selecionado) no centro da área visível. Usado quando a
+// doca abre e encolhe o mapa — sem isso, o passo clicado sai da tela.
+export function centerAutomationViewportOn(
+  viewport: AutomationViewport,
+  container: Size,
+  contentPoint: Point,
+): AutomationViewport {
+  return {
+    scale: viewport.scale,
+    x: container.width / 2 - contentPoint.x * viewport.scale,
+    y: container.height / 2 - contentPoint.y * viewport.scale,
+  };
+}
+
 export function panAutomationViewport(
   origin: AutomationViewport,
   start: Point,

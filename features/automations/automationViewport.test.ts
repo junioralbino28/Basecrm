@@ -2,12 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTOMATION_MAX_ZOOM,
   AUTOMATION_MIN_ZOOM,
+  centerAutomationViewportOn,
   fitAutomationViewport,
   panAutomationViewport,
   zoomAutomationViewportAt,
 } from './automationViewport';
 
 describe('automationViewport', () => {
+  it('centraliza um ponto do conteúdo mantendo o zoom', () => {
+    const centered = centerAutomationViewportOn(
+      { x: 999, y: 999, scale: 1.5 },
+      { width: 800, height: 400 },
+      { x: 200, y: 100 },
+    );
+    // centro visível (400,200) menos o ponto*scale (300,150)
+    expect(centered).toEqual({ x: 100, y: 50, scale: 1.5 });
+  });
+
   it('ancora o zoom no ponto do cursor', () => {
     const zoomed = zoomAutomationViewportAt(
       { x: 30, y: 40, scale: 1 },

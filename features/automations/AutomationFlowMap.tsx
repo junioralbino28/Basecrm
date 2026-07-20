@@ -22,6 +22,7 @@ import {
   layoutAutomationTree,
 } from './automationTreeLayout';
 import {
+  centerAutomationViewportOn,
   fitAutomationViewport,
   panAutomationViewport,
   zoomAutomationViewportAt,
@@ -157,19 +158,65 @@ export function AutomationFlowMap({
     ));
   }, [contentHeight, contentWidth]);
 
+  // Traz o passo dado ao centro da área visível, mantendo o zoom atual.
+  const centerOnStep = React.useCallback((stepKey: string) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const node = layout.nodes.find((item) => item.step.stepKey === stepKey);
+    if (!node) return;
+    const bounds = stage.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    setViewport((current) => centerAutomationViewportOn(
+      current,
+      { width: bounds.width, height: bounds.height },
+      {
+        x: node.x + AUTOMATION_NODE_WIDTH / 2,
+        y: node.y + AUTOMATION_NODE_HEIGHT / 2,
+      },
+    ));
+  }, [layout]);
+
+  // Refs para o ResizeObserver enxergar o estado atual sem recriar o observer.
+  const selectedRef = React.useRef(selectedStepKey);
+  selectedRef.current = selectedStepKey;
+  const centerRef = React.useRef(centerOnStep);
+  centerRef.current = centerOnStep;
+  const didFitRef = React.useRef(false);
+
   React.useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const frame = requestAnimationFrame(fitMap);
-    const observer = typeof ResizeObserver === 'undefined'
-      ? null
-      : new ResizeObserver(fitMap);
-    observer?.observe(stage);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
+    const handleResize = () => {
+      if (!didFitRef.current) {
+        // Primeiro cálculo (montagem): encaixa o fluxo inteiro.
+        didFitRef.current = true;
+        fitMap();
+      } else if (selectedRef.current) {
+        // Resize causado pela doca abrindo: em vez de re-encaixar tudo (que
+        // recentraliza na vertical e joga o gatilho pra fora), mantém o zoom e
+        // traz o passo selecionado pro centro visível.
+        centerRef.current(selectedRef.current);
+      }
+      // Sem passo selecionado (doca fechou): preserva o viewport atual.
     };
+    if (typeof ResizeObserver === 'undefined') {
+      const frame = requestAnimationFrame(() => {
+        didFitRef.current = true;
+        fitMap();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    const observer = new ResizeObserver(handleResize);
+    observer.observe(stage);
+    return () => observer.disconnect();
   }, [fitMap]);
+
+  // Trocar de passo com a doca já aberta (o stage não muda de tamanho, então o
+  // ResizeObserver não dispara) também precisa recentralizar.
+  React.useEffect(() => {
+    if (selectedStepKey) centerOnStep(selectedStepKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStepKey]);
 
   // O React registra onWheel como listener passivo, então o preventDefault dele é
   // ignorado e a página rola junto com o zoom. Prendemos o wheel na mão com
