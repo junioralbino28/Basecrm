@@ -67,6 +67,65 @@ O que o Junior vê e opera. Tudo aqui já está desenhado e validado por ele no 
 - Renomear o rótulo visível **não** pode quebrar automação publicada nem histórico de métrica — mesma lição do `case_id` estável do `switch`: **identidade estável, rótulo humano separado.**
 - Etiqueta de origem em uso não pode ser apagada silenciosamente; arquivar em vez de excluir (mesmo problema do O5).
 
+### N1.2 — decisões fechadas pelo Junior (2026-07-20) — CONTRATO, não reabrir
+
+Fechadas depois do parecer `OPINIAO-CODEX-ETIQUETAS.md` e da adjudicação
+`REVIEW-OPINIAO-ETIQUETAS.md`. O Junior **dissolveu** as duas perguntas em aberto
+em vez de escolher entre as opções apresentadas — as duas soluções abaixo são
+dele, e são melhores que a minha proposta e a do Codex.
+
+**D1 — Quando a paciente muda de interesse no meio do fluxo.**
+Não é "congelar na entrada" *versus* "seguir o estado atual". São as duas, cada
+uma no seu momento:
+
+1. a paciente responde → **sai do follow-up e vai para atendimento humano**;
+2. a secretária edita o procedimento e escreve o contexto na **área de notas**
+   (dela ou da IA);
+3. se a paciente esfriar de novo, ao **reentrar** no follow-up ela entra pelo
+   **procedimento novo**.
+
+Ou seja: o caminho **congela dentro de uma passagem** pelo fluxo, e a passagem
+seguinte lê a etiqueta atual. Não é preciso oferecer a escolha por passo.
+
+> 🔴 **O motor NÃO faz isso hoje — implementar na C2.** A mensagem *inbound* da
+> paciente **não pausa** a inscrição; ela só resolve o passo se houver
+> `automation_waits` com status `pending` (aí segue pelo ramo "Respondeu"). Quem
+> pausa de fato é a **secretária ou a IA respondendo** —
+> `pause_automation_enrollments_for_thread` é chamada no envio `outbound|internal`
+> com motivo `manual_message`
+> (`app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts:176-185`,
+> `lib/conversations/aiReply.ts:380`).
+> **Fresta:** paciente responde 22h · secretária vê 9h · follow-up agendado 8h
+> **dispara** e pergunta "ainda tem interesse?" a quem já respondeu.
+> **Correção:** inbound que **não** casa com wait — hoje vira
+> `result_status = 'unmatched'` e **não faz nada**
+> (`20260718040000_funil_f5_waits.sql:395-399`) — deve **pausar a inscrição** e
+> mandar para o humano. O lugar já existe; falta a ação.
+
+**D2 — Quando a paciente quer mais de um procedimento.**
+Nem tela de bloqueio (proposta do Codex), nem principal automático pela primeira
+etiqueta (minha emenda). **A tarefa é porteiro, não paralela ao fluxo:**
+
+1. a pessoa demonstra interesse em 2+ procedimentos e **para de responder**;
+2. **cria-se a tarefa ANTES de qualquer follow-up** — para a secretária ou para a
+   IA decidir pelo teor da conversa qual interesse é o real;
+3. só **depois da decisão** ela entra no fluxo, e já entra no fluxo certo.
+
+Como nenhum fluxo começa antes da decisão, **não existe a pergunta** "ela recebe
+follow-up enquanto a tarefa está aberta" — não há follow-up para receber. Isso
+elimina de vez o risco de começar pelo procedimento errado.
+
+**Por que o caso é raro** (razão do Junior, e é a razão certa): o anúncio já vem
+segmentado por procedimento, e quem debate dois procedimentos **está conversando**
+— logo não está em follow-up. Não vale desenhar bloqueio para a exceção.
+
+O passo `create_task` **já existe** no motor; isto não inventa mecanismo novo.
+
+**Detalhe de execução que eu carrego para o plano** (julgamento meu, dentro do
+escopo — não é decisão nova): a tarefa nasce com **prazo curto, do mesmo dia**.
+Ela segura o encaminhamento, e o lead esfria em 5 dias — fila parada vira lead
+perdido.
+
 ## Bloco 3 — Correções de operação (achadas ao usar, não estavam no plano)
 
 Nenhuma é cosmética. Três delas só aparecem quando o sistema já está rodando na clínica.
