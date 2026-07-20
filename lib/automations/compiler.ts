@@ -9,6 +9,7 @@ export const AUTOMATION_STEP_TYPES = [
   'move_stage',
   'move_pipeline',
   'condition',
+  'switch',
 ] as const;
 
 export const AUTOMATION_EDGE_OUTCOMES = [
@@ -22,7 +23,10 @@ export const AUTOMATION_EDGE_OUTCOMES = [
 ] as const;
 
 export type AutomationStepType = (typeof AUTOMATION_STEP_TYPES)[number];
-export type AutomationEdgeOutcome = (typeof AUTOMATION_EDGE_OUTCOMES)[number];
+export type AutomationStaticEdgeOutcome = (typeof AUTOMATION_EDGE_OUTCOMES)[number];
+export type AutomationEdgeOutcome =
+  | AutomationStaticEdgeOutcome
+  | `case:${string}`;
 
 export type AutomationDraftStep = {
   id: string;
@@ -126,6 +130,13 @@ export type CompiledAutomationDefinition = {
 const UUID_SCHEMA = z.string().uuid();
 const TIME_SCHEMA = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/);
 const MESSAGE_KINDS = ['text', 'image', 'video', 'audio', 'link'] as const;
+const CASE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const CASE_OUTCOME_PATTERN =
+  /^case:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MAX_SWITCH_CASES = 20;
+const MAX_SWITCH_LABEL_LENGTH = 80;
+const MAX_SWITCH_VALUE_LENGTH = 200;
 
 const SendMessageConfigSchema = z.object({
   link_mode: z.enum(['copied', 'linked']).default('copied'),
@@ -167,6 +178,77 @@ const ConditionConfigSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
 }).strict();
 
+const SwitchConfigSchema = z.object({
+  field: z.enum([
+    'contact.tags',
+    'contact.phone',
+    'deal.stage_id',
+    'deal.board_id',
+  ]),
+  cases: z.array(z.object({
+    case_id: z.string().regex(CASE_ID_PATTERN),
+    label: z.string().trim().min(1).max(MAX_SWITCH_LABEL_LENGTH),
+    operator: z.enum([
+      'equals',
+      'not_equals',
+      'contains',
+      'not_contains',
+      'exists',
+    ]),
+    value: z.string().trim().max(MAX_SWITCH_VALUE_LENGTH).nullable().optional(),
+    order: z.number().int().min(0),
+  }).strict()).min(1).max(MAX_SWITCH_CASES),
+  fallback_label: z.string().trim().min(1).max(MAX_SWITCH_LABEL_LENGTH),
+}).strict().superRefine((config, context) => {
+  for (const [index, switchCase] of config.cases.entries()) {
+    const path = ['cases', index] as (string | number)[];
+    const allowedOperators = config.field === 'contact.tags'
+      ? new Set(['contains', 'not_contains'])
+      : config.field === 'contact.phone'
+        ? new Set(['equals', 'not_equals', 'contains', 'not_contains', 'exists'])
+        : new Set(['equals', 'not_equals', 'exists']);
+
+    if (!allowedOperators.has(switchCase.operator)) {
+      context.addIssue({
+        code: 'custom',
+        message: `operador ${switchCase.operator} incompatível com ${config.field}`,
+        path: [...path, 'operator'],
+      });
+    }
+
+    if (switchCase.operator === 'exists') {
+      if (switchCase.value !== undefined && switchCase.value !== null) {
+        context.addIssue({
+          code: 'custom',
+          message: 'operador exists não aceita value',
+          path: [...path, 'value'],
+        });
+      }
+      continue;
+    }
+
+    if (!switchCase.value) {
+      context.addIssue({
+        code: 'custom',
+        message: `operador ${switchCase.operator} exige value`,
+        path: [...path, 'value'],
+      });
+      continue;
+    }
+
+    if (
+      (config.field === 'deal.stage_id' || config.field === 'deal.board_id')
+      && !UUID_SCHEMA.safeParse(switchCase.value).success
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: `${config.field} exige value UUID`,
+        path: [...path, 'value'],
+      });
+    }
+  }
+});
+
 const KNOWN_VARIABLES = new Set([
   'contato.nome',
   'contato.primeiro_nome',
@@ -177,7 +259,7 @@ const KNOWN_VARIABLES = new Set([
   'organizacao.nome',
 ]);
 
-const ALLOWED_OUTCOMES: Record<AutomationStepType, ReadonlySet<AutomationEdgeOutcome>> = {
+const ALLOWED_OUTCOMES: Record<AutomationStepType, ReadonlySet<string>> = {
   send_message: new Set(['success', 'failed']),
   delay: new Set(['success', 'failed']),
   wait_for_event: new Set(['answered', 'timeout', 'failed']),
@@ -185,6 +267,7 @@ const ALLOWED_OUTCOMES: Record<AutomationStepType, ReadonlySet<AutomationEdgeOut
   move_stage: new Set(['success', 'failed']),
   move_pipeline: new Set(['success', 'failed']),
   condition: new Set(['true', 'false', 'otherwise']),
+  switch: new Set(['otherwise']),
 };
 
 function isJsonValue(value: unknown): value is JsonValue {
@@ -364,6 +447,39 @@ function compileSendMessage(
   };
 }
 
+function parseSwitchConfig(step: AutomationDraftStep) {
+  const parsed = SwitchConfigSchema.safeParse(step.config);
+  if (!parsed.success) throw zodIssue(step, parsed.error);
+
+  const caseIds = new Set<string>();
+  const orders = new Set<number>();
+  for (const switchCase of parsed.data.cases) {
+    if (caseIds.has(switchCase.case_id)) {
+      throw new AutomationCompileError([{
+        code: 'switch_case_duplicate',
+        message: `case_id duplicado no switch: ${switchCase.case_id}`,
+        stepKey: step.stepKey,
+      }]);
+    }
+    if (orders.has(switchCase.order)) {
+      throw new AutomationCompileError([{
+        code: 'switch_case_duplicate',
+        message: `ordem de caso duplicada no switch: ${switchCase.order}`,
+        stepKey: step.stepKey,
+      }]);
+    }
+    caseIds.add(switchCase.case_id);
+    orders.add(switchCase.order);
+  }
+
+  return {
+    ...parsed.data,
+    cases: [...parsed.data.cases].sort((left, right) =>
+      left.order - right.order || left.case_id.localeCompare(right.case_id)
+    ),
+  };
+}
+
 function compileStepConfig(
   step: AutomationDraftStep,
   templates: Map<string, AutomationTemplateSnapshotSource>,
@@ -405,6 +521,20 @@ function compileStepConfig(
     return {
       boardId: parsed.data.board_id,
       stageId: parsed.data.stage_id,
+    };
+  }
+  if (step.stepType === 'switch') {
+    const config = parseSwitchConfig(step);
+    return {
+      field: config.field,
+      cases: config.cases.map((switchCase) => ({
+        caseId: switchCase.case_id,
+        label: switchCase.label,
+        operator: switchCase.operator,
+        value: switchCase.value ?? null,
+        order: switchCase.order,
+      })),
+      fallbackLabel: config.fallback_label,
     };
   }
   const parsed = ConditionConfigSchema.safeParse(step.config);
@@ -451,6 +581,7 @@ function validateGraph(
   const indegree = new Map(steps.map((step) => [step.id, 0]));
   const adjacency = new Map(steps.map((step) => [step.id, [] as string[]]));
   const outcomesByStep = new Map<string, Set<AutomationEdgeOutcome>>();
+  const ordersByStep = new Map<string, Set<number>>();
   const compiledEdges: CompiledEdge[] = [];
 
   for (const edge of edges) {
@@ -464,7 +595,18 @@ function validateGraph(
       });
       continue;
     }
-    if (!ALLOWED_OUTCOMES[from.stepType].has(edge.outcome)) {
+    const isDynamicOutcome = edge.outcome.startsWith('case:');
+    const isValidCaseOutcome = CASE_OUTCOME_PATTERN.test(edge.outcome);
+    if (isDynamicOutcome && from.stepType !== 'switch') {
+      issues.push({
+        code: 'dynamic_outcome_not_allowed',
+        message: `outcome dinâmico não permitido para ${from.stepType}`,
+        stepKey: from.stepKey,
+      });
+    } else if (
+      !ALLOWED_OUTCOMES[from.stepType].has(edge.outcome)
+      && !(from.stepType === 'switch' && isValidCaseOutcome)
+    ) {
       issues.push({
         code: 'invalid_outcome',
         message: `outcome ${edge.outcome} inválido para ${from.stepType}`,
@@ -482,6 +624,18 @@ function validateGraph(
     }
     used.add(edge.outcome);
     outcomesByStep.set(from.id, used);
+
+    const usedOrders = ordersByStep.get(from.id) ?? new Set();
+    if (usedOrders.has(edge.order)) {
+      issues.push({
+        code: 'duplicate_edge_order',
+        message: `ordem de aresta ${edge.order} duplicada no mesmo passo`,
+        stepKey: from.stepKey,
+      });
+    }
+    usedOrders.add(edge.order);
+    ordersByStep.set(from.id, usedOrders);
+
     indegree.set(to.id, (indegree.get(to.id) ?? 0) + 1);
     adjacency.get(from.id)?.push(to.id);
     compiledEdges.push({
@@ -559,6 +713,34 @@ function validateGraph(
         stepKey: step.stepKey,
       });
     }
+    if (step.stepType === 'switch') {
+      const config = parseSwitchConfig(step);
+      const expectedCaseOutcomes = new Set(
+        config.cases.map(({ case_id: caseId }) => `case:${caseId}`),
+      );
+      const actualCaseOutcomes = new Set<string>(
+        [...outcomes].filter((outcome) => CASE_OUTCOME_PATTERN.test(outcome)),
+      );
+      if (
+        expectedCaseOutcomes.size !== actualCaseOutcomes.size
+        || [...expectedCaseOutcomes].some(
+          (outcome) => !actualCaseOutcomes.has(outcome),
+        )
+      ) {
+        issues.push({
+          code: 'switch_case_edge_mismatch',
+          message: 'casos do switch e arestas case:<id> não correspondem',
+          stepKey: step.stepKey,
+        });
+      }
+      if (!outcomes.has('otherwise')) {
+        issues.push({
+          code: 'switch_missing_otherwise',
+          message: 'switch exige exatamente um outcome otherwise',
+          stepKey: step.stepKey,
+        });
+      }
+    }
   }
 
   if (![...adjacency.values()].some((targets) => targets.length === 0)) {
@@ -570,8 +752,8 @@ function validateGraph(
     entryStepKey: entries[0].stepKey,
     compiledEdges: compiledEdges.sort((left, right) =>
       left.fromStepKey.localeCompare(right.fromStepKey)
-      || left.outcome.localeCompare(right.outcome)
       || left.order - right.order
+      || left.outcome.localeCompare(right.outcome)
       || left.toStepKey.localeCompare(right.toStepKey)
     ),
   };
