@@ -37,3 +37,8 @@ revoke all on table public.permission_defaults_state from anon;
 revoke all on table public.permission_defaults_state from authenticated;
 revoke all on table public.permission_defaults_state from service_role;
 grant select on table public.permission_defaults_state to service_role;
+
+revoke all on table public.automation_tick_health from anon;
+revoke all on table public.automation_tick_health from authenticated;
+revoke all on table public.automation_tick_health from service_role;
+grant select on table public.automation_tick_health to service_role;
