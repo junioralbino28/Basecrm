@@ -349,6 +349,11 @@ export function AutomationFlowMap({
                   <span className="line-clamp-3 text-[13.5px] font-semibold leading-[1.3]">
                     {name}
                   </span>
+                  {step.stepType === 'send_message' ? (
+                    <span className="mt-auto text-[10.5px] text-rose-400/85">
+                      falha encerra
+                    </span>
+                  ) : null}
                 </button>
 
                 {!outgoingKeys.has(step.stepKey) ? (

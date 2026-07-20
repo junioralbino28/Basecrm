@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AutomationBuilderEdge,
@@ -83,6 +83,27 @@ describe('AutomationFlowMap', () => {
     expect(screen.getByRole('button', {
       name: 'Adicionar passo após Retomar manualmente',
     })).toBeInTheDocument();
+  });
+
+  it('mostra canal só em mensagem e prende a nota de falha ao cartão', () => {
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const message = screen.getByRole('button', {
+      name: /^Envia · WhatsApp: Vamos continuar$/i,
+    });
+    const wait = screen.getByRole('button', { name: /Espera resposta/i });
+
+    expect(within(message).getByText('falha encerra')).toBeInTheDocument();
+    expect(within(message).getByText(/WhatsApp/i)).toBeInTheDocument();
+    expect(within(wait).queryByText(/WhatsApp/i)).not.toBeInTheDocument();
   });
 
   it('distingue clique curto no passo de arrasto iniciado sobre ele', () => {

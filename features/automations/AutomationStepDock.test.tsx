@@ -103,4 +103,13 @@ describe('AutomationStepDock', () => {
       'copied',
     );
   });
+
+  it('orienta a primeira mensagem e explica por que salvar está desabilitado', () => {
+    renderDock(sendStep);
+
+    expect(screen.getByText(/salve a primeira mensagem abaixo/i)).toBeInTheDocument();
+    expect(screen.getByText('Falta dar um nome e escrever a mensagem.'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
 });

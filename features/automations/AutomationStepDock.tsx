@@ -264,7 +264,7 @@ export function AutomationStepDock({
               </div>
             )) : (
               <div className="rounded-lg border border-dashed border-slate-800 px-3 py-3 text-xs text-slate-500">
-                A biblioteca ainda está vazia.
+                Salve a primeira mensagem abaixo. Depois, ela ficará disponível para reutilizar em qualquer passo.
               </div>
             )}
           </div>
@@ -297,6 +297,12 @@ export function AutomationStepDock({
                 Salvar
               </Button>
             </div>
+            {!templateName.trim() || !templateBody.trim() ? (
+              <div className="mt-1.5 flex gap-1.5 text-[11px] text-rose-300">
+                <span aria-hidden="true">↑</span>
+                <span>Falta dar um nome e escrever a mensagem.</span>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

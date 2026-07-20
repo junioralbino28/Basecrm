@@ -3,7 +3,6 @@
 import React from 'react';
 import {
   AlertTriangle,
-  BookOpen,
   CheckCircle2,
   Clock3,
   FlaskConical,
@@ -19,7 +18,6 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import type { AutomationWorkspaceItem } from '@/lib/automations/workspace';
 import type {
   AutomationBuilderEdge,
@@ -125,14 +123,6 @@ function newStep(
   };
 }
 
-function stepTitle(step: AutomationBuilderStep) {
-  if (step.stepType === 'send_message') return 'Enviar mensagem';
-  if (step.stepType === 'delay') return 'Aguardar um tempo';
-  if (step.stepType === 'wait_for_event') return 'Aguardar resposta';
-  if (step.stepType === 'create_task') return 'Criar tarefa';
-  return 'Ação';
-}
-
 function feedbackClass(tone: Feedback['tone']) {
   if (tone === 'success') {
     return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200';
@@ -217,178 +207,6 @@ function insertAction(
     steps: steps.map((step, index) => ({ ...step, sortKey: index })),
     edges,
   };
-}
-
-export function StepEditor(props: {
-  step: AutomationBuilderStep;
-  index: number;
-  canEdit: boolean;
-  onConfig: (config: Record<string, unknown>) => void;
-  onOpenLibrary: () => void;
-}) {
-  const { step, index, canEdit, onConfig, onOpenLibrary } = props;
-  const setConfig = (key: string, value: unknown) => {
-    onConfig({ ...step.config, [key]: value });
-  };
-
-  return (
-    <Card className="overflow-hidden border-slate-200 shadow-none dark:border-white/10">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-        <div className="flex items-center gap-3">
-          <span className="grid h-7 min-w-7 place-items-center rounded-full bg-slate-900 px-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900">
-            {index + 1}
-          </span>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Passo {index + 1}
-            </div>
-            <div className="text-sm font-semibold text-slate-900 dark:text-white">
-              {stepTitle(step)}
-            </div>
-          </div>
-        </div>
-        <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300">
-          WhatsApp
-        </span>
-      </div>
-      <CardContent className="space-y-4 p-4">
-        {step.stepType === 'send_message' ? (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label
-                htmlFor={`message-${step.stepKey}`}
-                className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400"
-              >
-                Mensagem do passo {index + 1}
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onOpenLibrary}
-                disabled={!canEdit}
-              >
-                <BookOpen size={15} className="mr-2" />
-                Usar biblioteca
-              </Button>
-            </div>
-            <textarea
-              id={`message-${step.stepKey}`}
-              aria-label={`Mensagem do passo ${index + 1}`}
-              className={`${FIELD_CLASS} min-h-28 resize-y`}
-              value={String(step.config.body_local ?? '')}
-              onChange={(event) => setConfig('body_local', event.target.value)}
-              placeholder='Ex.: Olá, {{ contato.nome | default: "tudo bem" }}!'
-              disabled={!canEdit || step.config.link_mode === 'linked'}
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-cyan-300 hover:text-cyan-700 disabled:opacity-50 dark:border-white/10 dark:text-slate-300"
-                disabled={!canEdit || step.config.link_mode === 'linked'}
-                onClick={() => setConfig(
-                  'body_local',
-                  `${String(step.config.body_local ?? '')}{{ contato.nome | default: "tudo bem" }}`,
-                )}
-              >
-                + Nome do contato
-              </button>
-              {step.config.link_mode === 'linked' ? (
-                <span className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-medium text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
-                  Vinculada à biblioteca
-                </span>
-              ) : null}
-            </div>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
-              <span className="font-semibold">Se o envio falhar:</span> encerra este caminho e registra a falha para operação.
-            </div>
-          </>
-        ) : null}
-
-        {step.stepType === 'delay' ? (
-          <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
-            <label className="space-y-1.5 text-sm font-medium">
-              Quantidade
-              <input
-                className={FIELD_CLASS}
-                type="number"
-                min={1}
-                max={365}
-                value={Number(step.config.amount ?? 1)}
-                onChange={(event) => setConfig('amount', Number(event.target.value))}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              Unidade
-              <select
-                className={FIELD_CLASS}
-                value={String(step.config.unit ?? 'hours')}
-                onChange={(event) => setConfig('unit', event.target.value)}
-                disabled={!canEdit}
-              >
-                <option value="minutes">Minutos</option>
-                <option value="hours">Horas</option>
-                <option value="days">Dias</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
-
-        {step.stepType === 'wait_for_event' ? (
-          <>
-            <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
-              <label className="space-y-1.5 text-sm font-medium">
-                Tempo limite
-                <input
-                  className={FIELD_CLASS}
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={Number(step.config.timeout_amount ?? 1)}
-                  onChange={(event) => setConfig('timeout_amount', Number(event.target.value))}
-                  disabled={!canEdit}
-                />
-              </label>
-              <label className="space-y-1.5 text-sm font-medium">
-                Unidade
-                <select
-                  className={FIELD_CLASS}
-                  value={String(step.config.timeout_unit ?? 'days')}
-                  onChange={(event) => setConfig('timeout_unit', event.target.value)}
-                  disabled={!canEdit}
-                >
-                  <option value="minutes">Minutos</option>
-                  <option value="hours">Horas</option>
-                  <option value="days">Dias</option>
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                <span className="font-semibold">Se respondeu:</span> segue pelo caminho de resposta.
-              </div>
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                <span className="font-semibold">Se não respondeu:</span> segue ao atingir o prazo.
-              </div>
-            </div>
-          </>
-        ) : null}
-
-        {step.stepType === 'create_task' ? (
-          <label className="space-y-1.5 text-sm font-medium">
-            Título da tarefa
-            <input
-              className={FIELD_CLASS}
-              value={String(step.config.title ?? '')}
-              onChange={(event) => setConfig('title', event.target.value)}
-              disabled={!canEdit}
-            />
-          </label>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
 }
 
 export function AutomationBuilderPage(props: {
