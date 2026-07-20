@@ -30,6 +30,7 @@ import type {
 import type { AutomationStepType } from '@/lib/automations/compiler';
 import { useTenantDetail } from '@/features/platform/tenants/useTenantDetail';
 import { AutomationFlowMap } from './AutomationFlowMap';
+import { AutomationStepDock } from './AutomationStepDock';
 
 type MessageTemplate = {
   id: string;
@@ -416,6 +417,7 @@ export function AutomationBuilderPage(props: {
   const { tenantId, tenantName } = props;
   const [workspace, setWorkspace] = React.useState<WorkspaceResponse | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [selectedStepKey, setSelectedStepKey] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<AutomationWorkspaceItem | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -425,8 +427,6 @@ export function AutomationBuilderPage(props: {
   const [actionOpen, setActionOpen] = React.useState(false);
   const [actionSearch, setActionSearch] = React.useState('');
   const [insertAfter, setInsertAfter] = React.useState(0);
-  const [libraryOpen, setLibraryOpen] = React.useState(false);
-  const [libraryStepKey, setLibraryStepKey] = React.useState<string | null>(null);
   const [templateName, setTemplateName] = React.useState('');
   const [templateBody, setTemplateBody] = React.useState('');
   const [testOpen, setTestOpen] = React.useState(false);
@@ -450,6 +450,7 @@ export function AutomationBuilderPage(props: {
         (item) => item.id === selectedId,
       ) ?? payload.automations[0] ?? null;
       setSelectedId(preferred?.id ?? null);
+      setSelectedStepKey(null);
       setDraft(preferred);
       setTestTargetId((payload.testTargets as TestTarget[])[0]?.threadId ?? '');
     } catch (error) {
@@ -468,6 +469,7 @@ export function AutomationBuilderPage(props: {
 
   const selectAutomation = (automation: AutomationWorkspaceItem) => {
     setSelectedId(automation.id);
+    setSelectedStepKey(null);
     setDraft(structuredClone(automation));
     setFeedback(null);
   };
@@ -498,6 +500,7 @@ export function AutomationBuilderPage(props: {
       } : current);
       setDraft(automation);
       setSelectedId(automation.id);
+      setSelectedStepKey(null);
       setCreateOpen(false);
       setNewName('');
       setFeedback({ tone: 'success', text: 'Automação criada em modo simulação.' });
@@ -633,10 +636,10 @@ export function AutomationBuilderPage(props: {
   };
 
   const applyTemplate = (template: MessageTemplate, mode: 'copied' | 'linked') => {
-    if (!libraryStepKey) return;
+    if (!selectedStepKey) return;
     patchDraft((current) => ({
       ...current,
-      steps: current.steps.map((step) => step.stepKey === libraryStepKey
+      steps: current.steps.map((step) => step.stepKey === selectedStepKey
         ? {
             ...step,
             config: {
@@ -650,7 +653,6 @@ export function AutomationBuilderPage(props: {
           }
         : step),
     }));
-    setLibraryOpen(false);
   };
 
   const createTemplate = async () => {
@@ -694,6 +696,9 @@ export function AutomationBuilderPage(props: {
       .toLowerCase()
       .includes(search);
   });
+  const selectedStep = draft?.steps.find(
+    (step) => step.stepKey === selectedStepKey,
+  ) ?? null;
 
   if (loading) {
     return (
@@ -879,14 +884,37 @@ export function AutomationBuilderPage(props: {
                 steps={draft.steps}
                 edges={draft.edges}
                 canEdit={canEdit}
-                selectedStepKey={null}
-                onStepActivate={() => undefined}
+                selectedStepKey={selectedStepKey}
+                onStepActivate={setSelectedStepKey}
+                onBackgroundActivate={() => setSelectedStepKey(null)}
                 onAddAfter={(stepKey) => {
                   const index = draft.steps.findIndex((step) => step.stepKey === stepKey);
                   if (index < 0) return;
                   setInsertAfter(index);
                   setActionOpen(true);
                 }}
+              />
+              <AutomationStepDock
+                step={selectedStep}
+                canEdit={canEdit}
+                templates={workspace?.templates ?? []}
+                templateName={templateName}
+                templateBody={templateBody}
+                templateBusy={busy === 'template'}
+                onConfig={(config) => {
+                  if (!selectedStepKey) return;
+                  patchDraft((current) => ({
+                    ...current,
+                    steps: current.steps.map((step) => (
+                      step.stepKey === selectedStepKey ? { ...step, config } : step
+                    )),
+                  }));
+                }}
+                onClose={() => setSelectedStepKey(null)}
+                onApplyTemplate={applyTemplate}
+                onTemplateNameChange={setTemplateName}
+                onTemplateBodyChange={setTemplateBody}
+                onCreateTemplate={() => void createTemplate()}
               />
             </div>
           )}
@@ -971,74 +999,6 @@ export function AutomationBuilderPage(props: {
               </button>
             );
           })}
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={libraryOpen}
-        onClose={() => setLibraryOpen(false)}
-        title="Biblioteca de mensagens"
-        size="xl"
-      >
-        <div className="space-y-5">
-          <section>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              Mensagens salvas
-            </h3>
-            <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
-              {workspace?.templates.length ? workspace.templates.map((template) => (
-                <div key={template.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {template.name}
-                  </div>
-                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
-                    {template.body}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" size="sm" onClick={() => applyTemplate(template, 'copied')}>
-                      Copiar para o passo
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => applyTemplate(template, 'linked')}>
-                      Manter vinculado
-                    </Button>
-                  </div>
-                </div>
-              )) : (
-                <div className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-sm text-slate-500 dark:border-white/10">
-                  A biblioteca ainda está vazia.
-                </div>
-              )}
-            </div>
-          </section>
-          <section className="border-t border-slate-200 pt-4 dark:border-white/10">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              Salvar nova mensagem
-            </h3>
-            <div className="mt-3 space-y-3">
-              <input
-                aria-label="Nome da mensagem"
-                className={FIELD_CLASS}
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="Nome para encontrar depois"
-              />
-              <textarea
-                aria-label="Conteúdo da mensagem"
-                className={`${FIELD_CLASS} min-h-24`}
-                value={templateBody}
-                onChange={(event) => setTemplateBody(event.target.value)}
-                placeholder="Escreva a mensagem..."
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void createTemplate()}
-                disabled={!templateName.trim() || !templateBody.trim() || busy === 'template'}
-              >
-                Salvar na biblioteca
-              </Button>
-            </div>
-          </section>
         </div>
       </Modal>
 

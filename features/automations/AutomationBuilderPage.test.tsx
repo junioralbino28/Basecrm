@@ -76,10 +76,32 @@ describe('AutomationBuilderPage — percurso manual', () => {
 
     expect(await screen.findByRole('heading', { name: 'Boas-vindas' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Gatilho' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Mapa da automação' })).toBeInTheDocument();
-    expect(screen.getByRole('button', {
+    const map = screen.getByRole('region', { name: 'Mapa da automação' });
+    const messageStep = screen.getByRole('button', {
       name: /Envia · WhatsApp: Mensagem sem conteúdo/i,
-    })).toHaveAttribute('data-depth', '0');
+    });
+    expect(messageStep).toHaveAttribute('data-depth', '0');
+    expect(screen.queryByRole('region', { name: 'Edição do passo' })).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(messageStep, {
+      pointerId: 1,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerUp(map, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(screen.getByRole('region', { name: 'Edição do passo' })).toHaveAttribute(
+      'data-dock-size',
+      'tall',
+    );
+    expect(screen.getByLabelText('Mensagem')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: 'Edição do passo' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', {
       name: 'Adicionar passo após Mensagem sem conteúdo',
