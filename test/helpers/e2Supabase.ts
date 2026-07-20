@@ -13,7 +13,7 @@ function isLoopback(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
 
-export function assertSafeE2SupabaseTarget(rawUrl: string): { isLocal: boolean } {
+export function assertTestSupabaseTarget(rawUrl: string): { isLocal: boolean } {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -40,6 +40,10 @@ export function assertSafeE2SupabaseTarget(rawUrl: string): { isLocal: boolean }
   }
 
   return { isLocal: false };
+}
+
+export function assertSafeE2SupabaseTarget(rawUrl: string): { isLocal: boolean } {
+  return assertTestSupabaseTarget(rawUrl);
 }
 
 export function loadE2SupabaseConfig(): E2SupabaseConfig | null {

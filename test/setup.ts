@@ -1,5 +1,6 @@
 import { afterEach, vi } from 'vitest';
 import { loadEnvFile } from './helpers/env';
+import { assertTestSupabaseTarget } from './helpers/e2Supabase';
 import { cleanupFixtures } from './helpers/fixtures';
 import { getRunId } from './helpers/runId';
 
@@ -7,6 +8,19 @@ import { getRunId } from './helpers/runId';
 // In runtime do Next, `server-only` previne import acidental em Client Components.
 // Em testes Node (Vitest), queremos que seja um no-op.
 vi.mock('server-only', () => ({}));
+
+const DEFAULT_LOCAL_SUPABASE_URL = 'http://127.0.0.1:54321';
+const configuredSupabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+  process.env.SUPABASE_URL?.trim() ||
+  DEFAULT_LOCAL_SUPABASE_URL;
+const { isLocal: usesLocalSupabase } = assertTestSupabaseTarget(configuredSupabaseUrl);
+
+if (usesLocalSupabase) {
+  process.env.SUPABASE_TEST_TARGET = 'local';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = configuredSupabaseUrl;
+  process.env.SUPABASE_URL = configuredSupabaseUrl;
+}
 
 /**
  * Test noise suppression (targeted).
