@@ -171,6 +171,26 @@ export function AutomationFlowMap({
     };
   }, [fitMap]);
 
+  // O React registra onWheel como listener passivo, então o preventDefault dele é
+  // ignorado e a página rola junto com o zoom. Prendemos o wheel na mão com
+  // { passive: false } para o bloqueio valer.
+  React.useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const onWheel = (event: WheelEvent) => {
+      if ((event.target as Element).closest('[data-map-control]')) return;
+      event.preventDefault();
+      const bounds = stage.getBoundingClientRect();
+      setViewport((current) => zoomAutomationViewportAt(
+        current,
+        event.deltaY < 0 ? current.scale * 1.1 : current.scale / 1.1,
+        { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
+      ));
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, []);
+
   const zoomAtStageCenter = (factor: number) => {
     const bounds = stageRef.current?.getBoundingClientRect();
     if (!bounds) return;
@@ -203,16 +223,6 @@ export function AutomationFlowMap({
         backgroundImage:
           'radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0)',
         backgroundSize: '26px 26px',
-      }}
-      onWheel={(event) => {
-        if ((event.target as Element).closest('[data-map-control]')) return;
-        event.preventDefault();
-        const bounds = event.currentTarget.getBoundingClientRect();
-        setViewport((current) => zoomAutomationViewportAt(
-          current,
-          event.deltaY < 0 ? current.scale * 1.1 : current.scale / 1.1,
-          { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
-        ));
       }}
       onPointerDown={(event) => {
         if (event.button !== 0) return;

@@ -74,8 +74,8 @@ export function AutomationStepDock({
       aria-label="Edição do passo"
       data-dock-size={isMessage ? 'tall' : 'compact'}
       className={[
-        'relative flex-none overflow-hidden border-t border-slate-800',
-        'bg-slate-950/95 text-slate-100 shadow-2xl backdrop-blur',
+        'relative flex-none overflow-hidden border-t border-white/10',
+        'bg-[#0B100F] text-slate-100 shadow-2xl backdrop-blur',
         isMessage
           ? 'grid h-[262px] md:grid-cols-2'
           : 'h-[156px]',
@@ -228,7 +228,7 @@ export function AutomationStepDock({
       </div>
 
       {isMessage ? (
-        <div className="overflow-auto border-t border-slate-800 px-5 py-4 md:border-l md:border-t-0">
+        <div className="overflow-auto border-t border-white/10 px-5 py-4 md:border-l md:border-t-0">
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4 text-teal-400" />
             <h3 className="text-sm font-semibold">Biblioteca de mensagens</h3>
@@ -237,7 +237,7 @@ export function AutomationStepDock({
             {templates.length ? templates.map((template) => (
               <div
                 key={template.id}
-                className="rounded-lg border border-slate-800 bg-slate-900 p-2.5"
+                className="rounded-lg border border-white/10 bg-slate-900 p-2.5"
               >
                 <div className="text-xs font-semibold">{template.name}</div>
                 <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
@@ -263,12 +263,12 @@ export function AutomationStepDock({
                 </div>
               </div>
             )) : (
-              <div className="rounded-lg border border-dashed border-slate-800 px-3 py-3 text-xs text-slate-500">
+              <div className="rounded-lg border border-dashed border-white/10 px-3 py-3 text-xs text-slate-500">
                 Salve a primeira mensagem abaixo. Depois, ela ficará disponível para reutilizar em qualquer passo.
               </div>
             )}
           </div>
-          <div className="mt-3 border-t border-dashed border-slate-800 pt-3">
+          <div className="mt-3 border-t border-dashed border-white/10 pt-3">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
               <input
                 aria-label="Nome da mensagem"

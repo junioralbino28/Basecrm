@@ -607,7 +607,7 @@ export function AutomationBuilderPage(props: {
                 )}
               />
 
-              <div className="flex h-[62vh] min-h-[460px] flex-col overflow-hidden rounded-2xl border border-slate-800">
+              <div className="flex h-[62vh] min-h-[460px] flex-col overflow-hidden rounded-2xl border border-white/10">
               <AutomationFlowMap
                 steps={draft.steps}
                 edges={draft.edges}

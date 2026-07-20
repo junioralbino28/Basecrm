@@ -38,12 +38,12 @@ export function AutomationFlowToolbar({
     : '';
 
   return (
-    <div className="sticky top-0 z-20 flex flex-col gap-3 rounded-t-2xl border border-slate-800 bg-slate-950/95 px-4 py-3 text-slate-100 shadow-lg backdrop-blur lg:flex-row lg:items-center">
+    <div className="sticky top-0 z-20 flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#0B100F] px-4 py-3 text-slate-100 shadow-lg backdrop-blur lg:flex-row lg:items-center">
       <label className="relative min-w-0">
         <span className="sr-only">Automação</span>
         <select
           aria-label="Automação"
-          className="max-w-full appearance-none rounded-[10px] border border-slate-700 bg-slate-900 py-2 pl-3 pr-9 text-sm font-semibold text-slate-100 outline-none transition hover:border-teal-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+          className="max-w-full appearance-none rounded-[10px] border border-white/10 bg-[#141D1A] py-2 pl-3 pr-9 text-sm font-semibold text-slate-100 outline-none transition hover:border-teal-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
           value={selected.id}
           onChange={(event) => onSelect(event.target.value)}
         >
