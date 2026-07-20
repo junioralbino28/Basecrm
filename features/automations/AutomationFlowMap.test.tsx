@@ -154,6 +154,30 @@ describe('AutomationFlowMap', () => {
     expect(onStepActivate).not.toHaveBeenCalled();
   });
 
+  it('abre a edição no clique com o tremor natural da mão (não exige clique imóvel)', () => {
+    const onStepActivate = vi.fn();
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={onStepActivate}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const card = screen.getByRole('button', { name: /Espera resposta/i });
+
+    // Tremor de ~6px (dx=4, dy=5) — passa do limiar de pan de 4px, mas continua
+    // sendo um clique. Antes, isso caía como "movimento" e a doca não abria.
+    fireEvent.pointerDown(card, { pointerId: 3, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(stage, { pointerId: 3, clientX: 104, clientY: 105 });
+    fireEvent.pointerUp(stage, { pointerId: 3, clientX: 104, clientY: 105 });
+
+    expect(onStepActivate).toHaveBeenCalledWith('raiz');
+  });
+
   it('move somente pelo fundo e informa clique vazio', () => {
     const onBackgroundActivate = vi.fn();
     render(

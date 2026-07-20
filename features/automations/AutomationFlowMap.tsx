@@ -29,6 +29,10 @@ import {
   type AutomationViewport,
 } from './automationViewport';
 
+// Deslocamento máximo (px) que ainda conta como clique num card, e não arrasto.
+// Cobre o tremor natural da mão sem confundir com um arrasto deliberado.
+const CLICK_SLOP = 10;
+
 type AutomationFlowMapProps = {
   steps: AutomationBuilderStep[];
   edges: AutomationBuilderEdge[];
@@ -315,9 +319,22 @@ export function AutomationFlowMap({
       }}
       onPointerUp={(event) => {
         const press = finishPointer(event.currentTarget, event.pointerId);
-        if (!press || press.moved) return;
-        if (press.stepKey) onStepActivate(press.stepKey);
-        else onBackgroundActivate?.();
+        if (!press) return;
+        if (press.stepKey) {
+          // Card: o limiar de 4px do pan é sensível demais e o tremor natural da
+          // mão passava dele, matando o clique. Aqui um deslocamento pequeno
+          // (CLICK_SLOP) ainda conta como clique e abre a edição. Um arrasto
+          // grande sobre o card fica reservado para o mover-passo da C1C.
+          const travel = Math.hypot(
+            event.clientX - press.startX,
+            event.clientY - press.startY,
+          );
+          if (travel <= CLICK_SLOP) onStepActivate(press.stepKey);
+          return;
+        }
+        // Fundo: se arrastou, foi pan (não é clique).
+        if (press.moved) return;
+        onBackgroundActivate?.();
       }}
       onPointerCancel={(event) => {
         finishPointer(event.currentTarget, event.pointerId);
