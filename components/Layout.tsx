@@ -318,6 +318,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       : []),
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];
+
+  // Os itens do espaço de trabalho (Conversas, Automações, Conexões) não ficam
+  // empilhados no fim da lista: entram onde a mão procura. Decisão do Junior
+  // (2026-07-21): Conversas logo abaixo de Contatos, por ser das telas mais
+  // usadas por todos; Automações e Conexões antes de Configurações.
+  const toNavEntry = (item: (typeof tenantWorkspaceNav)[number]) => ({
+    to: item.href,
+    icon: item.icon,
+    label: item.label,
+    prefetch: 'dashboard' as const,
+  });
+  const conversationsNav = tenantWorkspaceNav
+    .filter((item) => item.id === 'tenant_conversations')
+    .map(toNavEntry);
+  const workspaceTailNav = tenantWorkspaceNav
+    .filter((item) => item.id !== 'tenant_conversations')
+    .map(toNavEntry);
+  const contactsIndex = primarySidebarNav.findIndex((item) => item.label === 'Contatos');
+  const settingsIndex = primarySidebarNav.findIndex((item) => item.label === 'Configurações');
+  const clinicSidebarNav = primarySidebarNav.flatMap((item, index) => [
+    ...(index === settingsIndex ? workspaceTailNav : []),
+    item,
+    ...(index === contactsIndex ? conversationsNav : []),
+  ]);
   const adminSidebarNav = isAdmin
     && isPlatformRoute
     ? [
@@ -525,17 +549,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {
               key: 'clinica',
               header: 'Clínica',
-              items: showClinicNav
-                ? [
-                    ...primarySidebarNav,
-                    ...tenantWorkspaceNav.map((item) => ({
-                      to: item.href,
-                      icon: item.icon,
-                      label: item.label,
-                      prefetch: 'dashboard' as const,
-                    })),
-                  ]
-                : [],
+              items: showClinicNav ? clinicSidebarNav : [],
             },
             { key: 'agencia', header: 'Agência', items: adminSidebarNav },
           ]
