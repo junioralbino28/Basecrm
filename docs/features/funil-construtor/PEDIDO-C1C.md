@@ -119,6 +119,64 @@ O motor **já suporta** (entregue na C1A, não reimplementar):
    ignora 125 de 793 testes **em silêncio** e "0 falhas" não significa o que parece.
    (`REVIEW-ENTREGA-C1B.md` §3)
 
+---
+
+## Adendo — plano do Codex APROVADO com 3 condições (2026-07-21)
+
+O plano dele preserva a C1B polida e acrescenta R3/R2 por cima. Aprovado. Ele
+levantou uma lacuna real que este pedido não cobria, e eu confirmei no código.
+
+### 1. Lacuna dele — remover caminho do switch: **PROCEDE, aceito**
+
+Verificado: `lib/automations/compiler.ts:690` emite `orphan_step`. Remover um
+caminho cujo alvo tenha passos abaixo geraria órfãos e **quebraria o publicar**.
+Aceito a regra: **só remove caminho cujo alvo ainda seja folha**; com subárvore, a
+remoção fica bloqueada.
+
+**Condição:** o bloqueio **não pode ser um "não pode" seco**. Diga o que fazer —
+algo como *"Este caminho tem passos abaixo. Mova ou remova esses passos antes de
+apagar o caminho."* Mesma régua do R7 (botão desabilitado que explica o que falta).
+
+### 2. Achado meu — o caso espelho no MOVER (nem eu nem ele tínhamos visto)
+
+O mockup, em `mover(n, aresta)`, faz:
+
+```js
+if (meu) pai.children[iNoPai].node = meu.node;   // filho assume meu lugar
+else pai.children.splice(iNoPai, 1);             // sem filho: sai da lista do pai
+```
+
+O mockup **não tem switch**, então esse `splice` é inofensivo lá. **Na tela real
+não é:** se o pai for um `switch` e o nó movido for o **último passo daquele
+caminho**, o `splice` **apaga o caminho inteiro do switch — em silêncio.** É
+exatamente a perda silenciosa que a regra nº1 quer evitar, só que pela porta do
+arrasto em vez da porta do botão remover.
+
+**Condição:** ao mover o último passo de um caminho do `switch`, **o caminho
+permanece**, recebendo uma **folha-placeholder** (o mesmo mecanismo que você já
+propôs ao criar caminhos). Nenhum caminho pode desaparecer por arrasto. **Quero
+teste explícito para este caso.**
+
+### 3. Limite de 20 caminhos — aceito, com mensagem
+
+O teto não está na spec; é seu. Aceito — teto explícito é boa prática (foi
+justamente o acerto das *Smart Tags* do GHL na `PESQUISA-ETIQUETAS.md`). **Condição:**
+ao bater o limite, mensagem em português claro, não erro seco de validação.
+
+### Confirmações que fiz por você
+
+- **`supabase status -o env` funciona** — testei. **Atenção:** ele imprime
+  `ANON_KEY` e `SERVICE_ROLE_KEY` em texto. Seu plano já prevê não imprimir; reforço
+  que o runner **não pode ecoar a saída** nem em erro/log.
+- Playwright MCP no aceite visual: ok. MCP do Supabase não é necessário — CLI local
+  protegida pelo runner é o caminho certo.
+
+**Fora isso, o plano está aprovado como escrito.** Ordem, TDD, commits separados,
+função pura reaproveitada pelo teclado, `case_id` preservado na reordenação,
+fronteira `service-tag-entity-v3` intacta e `schemaVersion: 2` mantido — tudo certo.
+
+---
+
 ## Regras da entrega
 
 - Supabase **local** apenas; nunca `eqidsihasmwwamkaqfka`.
