@@ -187,11 +187,15 @@ export function AutomationFlowMap({
   }, [layout]);
 
   // Refs para o ResizeObserver enxergar o estado atual sem recriar o observer.
+  // Sincronizados em efeito (mutar ref durante o render é anti-pattern).
   const selectedRef = React.useRef(selectedStepKey);
-  selectedRef.current = selectedStepKey;
   const centerRef = React.useRef(centerOnStep);
-  centerRef.current = centerOnStep;
   const didFitRef = React.useRef(false);
+
+  React.useEffect(() => {
+    selectedRef.current = selectedStepKey;
+    centerRef.current = centerOnStep;
+  });
 
   React.useEffect(() => {
     const stage = stageRef.current;
@@ -225,8 +229,7 @@ export function AutomationFlowMap({
   // ResizeObserver não dispara) também precisa recentralizar.
   React.useEffect(() => {
     if (selectedStepKey) centerOnStep(selectedStepKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStepKey]);
+  }, [selectedStepKey, centerOnStep]);
 
   // O React registra onWheel como listener passivo, então o preventDefault dele é
   // ignorado e a página rola junto com o zoom. Prendemos o wheel na mão com
