@@ -178,6 +178,89 @@ describe('AutomationFlowMap', () => {
     expect(onStepActivate).toHaveBeenCalledWith('raiz');
   });
 
+  it('acende a linha mais próxima e pede a recostura ao soltar o passo', () => {
+    const onMoveStep = vi.fn();
+    const linearSteps: AutomationBuilderStep[] = [
+      { ...steps[0], stepKey: 'root' },
+      { ...steps[1], stepKey: 'moving' },
+      { ...steps[2], stepKey: 'child' },
+      { ...steps[2], stepKey: 'target', config: { title: 'Destino' } },
+    ];
+    const targetEdge: AutomationBuilderEdge = {
+      fromStepKey: 'root',
+      outcome: 'timeout',
+      toStepKey: 'target',
+      order: 1,
+    };
+    const linearEdges: AutomationBuilderEdge[] = [
+      { fromStepKey: 'root', outcome: 'answered', toStepKey: 'moving', order: 0 },
+      { fromStepKey: 'moving', outcome: 'success', toStepKey: 'child', order: 0 },
+      targetEdge,
+    ];
+    render(
+      <AutomationFlowMap
+        steps={linearSteps}
+        edges={linearEdges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onMoveStep={onMoveStep}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const card = screen.getByRole('button', { name: /Vamos continuar/i });
+
+    fireEvent.pointerDown(card, {
+      pointerId: 8,
+      button: 0,
+      clientX: 360,
+      clientY: 70,
+    });
+    fireEvent.pointerMove(stage, {
+      pointerId: 8,
+      clientX: 282,
+      clientY: 198,
+    });
+
+    expect(document.querySelector('path[data-drop-target="true"]')).toHaveAttribute(
+      'data-edge-outcome',
+      'timeout',
+    );
+
+    fireEvent.pointerUp(stage, {
+      pointerId: 8,
+      clientX: 282,
+      clientY: 198,
+    });
+    expect(onMoveStep).toHaveBeenCalledWith('moving', targetEdge);
+  });
+
+  it('avisa no palco assim que alguém tenta arrastar a raiz', () => {
+    const onMoveStep = vi.fn();
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onMoveStep={onMoveStep}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const root = screen.getByRole('button', { name: /Espera resposta/i });
+
+    fireEvent.pointerDown(root, { pointerId: 9, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(stage, { pointerId: 9, clientX: 120, clientY: 100 });
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'O primeiro passo não pode mudar de lugar.',
+    );
+    expect(onMoveStep).not.toHaveBeenCalled();
+  });
+
   it('move somente pelo fundo e informa clique vazio', () => {
     const onBackgroundActivate = vi.fn();
     render(

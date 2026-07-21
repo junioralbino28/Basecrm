@@ -83,6 +83,8 @@ describe('layoutAutomationTree', () => {
     expect(layout.edges[0]).toMatchObject({
       labelX: AUTOMATION_NODE_WIDTH + 8,
       labelY: 77,
+      midpointX: 248,
+      midpointY: 77,
     });
     expect(AUTOMATION_NODE_HEIGHT).toBe(96);
   });

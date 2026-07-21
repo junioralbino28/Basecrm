@@ -25,9 +25,14 @@ import type {
 } from '@/lib/automations/builder';
 import type { AutomationStepType } from '@/lib/automations/compiler';
 import { useTenantDetail } from '@/features/platform/tenants/useTenantDetail';
-import { AutomationFlowMap } from './AutomationFlowMap';
+import { AutomationFlowMap, automationStepName } from './AutomationFlowMap';
 import { AutomationFlowToolbar } from './AutomationFlowToolbar';
 import { AutomationStepDock } from './AutomationStepDock';
+import {
+  eligibleAutomationMoveTargets,
+  getAutomationMoveBlock,
+  moveAutomationStep,
+} from './automationGraphMove';
 
 type MessageTemplate = {
   id: string;
@@ -500,6 +505,43 @@ export function AutomationBuilderPage(props: {
   const selectedStep = draft?.steps.find(
     (step) => step.stepKey === selectedStepKey,
   ) ?? null;
+  const moveBlockedMessage = draft && selectedStepKey
+    ? getAutomationMoveBlock(selectedStepKey, draft.steps, draft.edges)
+    : null;
+  const moveTargets = draft && selectedStepKey && !moveBlockedMessage
+    ? eligibleAutomationMoveTargets(selectedStepKey, draft.steps, draft.edges).map((edge) => {
+        const from = draft.steps.find((step) => step.stepKey === edge.fromStepKey);
+        const to = draft.steps.find((step) => step.stepKey === edge.toStepKey);
+        return {
+          edge,
+          label: `Entre ${from ? automationStepName(from) : 'passo anterior'} e ${
+            to ? automationStepName(to) : 'passo seguinte'
+          }`,
+        };
+      })
+    : [];
+
+  const applyStepMove = (
+    stepKey: string,
+    targetEdge: AutomationBuilderEdge,
+  ) => {
+    if (!draft) return;
+    try {
+      const moved = moveAutomationStep({
+        stepKey,
+        targetEdge,
+        steps: draft.steps,
+        edges: draft.edges,
+      });
+      setDraft({ ...draft, ...moved });
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        tone: 'warning',
+        text: error instanceof Error ? error.message : 'Não foi possível mover este passo.',
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -615,6 +657,7 @@ export function AutomationBuilderPage(props: {
                 selectedStepKey={selectedStepKey}
                 onStepActivate={setSelectedStepKey}
                 onBackgroundActivate={() => setSelectedStepKey(null)}
+                onMoveStep={applyStepMove}
                 onAddAfter={(stepKey) => {
                   const index = draft.steps.findIndex((step) => step.stepKey === stepKey);
                   if (index < 0) return;
@@ -629,6 +672,11 @@ export function AutomationBuilderPage(props: {
                 templateName={templateName}
                 templateBody={templateBody}
                 templateBusy={busy === 'template'}
+                moveTargets={moveTargets}
+                moveBlockedMessage={moveBlockedMessage}
+                onMove={(targetEdge) => {
+                  if (selectedStepKey) applyStepMove(selectedStepKey, targetEdge);
+                }}
                 onConfig={(config) => {
                   if (!selectedStepKey) return;
                   patchDraft((current) => ({

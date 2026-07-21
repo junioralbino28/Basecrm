@@ -21,6 +21,8 @@ export type AutomationTreeEdge = AutomationBuilderEdge & {
   path: string;
   labelX: number;
   labelY: number;
+  midpointX: number;
+  midpointY: number;
 };
 
 export type AutomationTreeLayout = {
@@ -169,6 +171,8 @@ export function layoutAutomationTree(
         path: `M${x1} ${y1} C${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}`,
         labelX: x1 + 8,
         labelY: (y1 + y2) / 2,
+        midpointX: controlX,
+        midpointY: (y1 + y2) / 2,
       };
     });
 

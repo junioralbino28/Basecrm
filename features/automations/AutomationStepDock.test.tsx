@@ -35,6 +35,9 @@ function renderDock(
     templateBody: '',
     templateBusy: false,
     onConfig: vi.fn(),
+    moveTargets: [],
+    moveBlockedMessage: null,
+    onMove: vi.fn(),
     onClose: vi.fn(),
     onApplyTemplate: vi.fn(),
     onTemplateNameChange: vi.fn(),
@@ -111,5 +114,35 @@ describe('AutomationStepDock', () => {
     expect(screen.getByText('Falta dar um nome e escrever a mensagem.'))
       .toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
+
+  it('oferece o mesmo mover-passo por teclado usando uma linha elegível', () => {
+    const onMove = vi.fn();
+    const target = {
+      fromStepKey: 'inicio',
+      outcome: 'success' as const,
+      toStepKey: 'fim',
+      order: 0,
+    };
+    renderDock(delayStep, {
+      moveTargets: [{ edge: target, label: 'Entre Boas-vindas e Encerramento' }],
+      onMove,
+    });
+
+    fireEvent.change(screen.getByLabelText('Mover passo para'), {
+      target: { value: '0' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mover passo' }));
+
+    expect(onMove).toHaveBeenCalledWith(target);
+  });
+
+  it('explica por que o passo selecionado não pode ser movido', () => {
+    renderDock(delayStep, {
+      moveBlockedMessage: 'O primeiro passo não pode mudar de lugar.',
+    });
+
+    expect(screen.getByText('O primeiro passo não pode mudar de lugar.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Mover passo para')).not.toBeInTheDocument();
   });
 });

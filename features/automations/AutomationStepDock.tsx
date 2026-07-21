@@ -3,7 +3,10 @@
 import React from 'react';
 import { BookOpen, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { AutomationBuilderStep } from '@/lib/automations/builder';
+import type {
+  AutomationBuilderEdge,
+  AutomationBuilderStep,
+} from '@/lib/automations/builder';
 import {
   automationStepKind,
   automationStepName,
@@ -26,6 +29,9 @@ type AutomationStepDockProps = {
   templateBody: string;
   templateBusy: boolean;
   onConfig: (config: Record<string, unknown>) => void;
+  moveTargets: Array<{ edge: AutomationBuilderEdge; label: string }>;
+  moveBlockedMessage: string | null;
+  onMove: (edge: AutomationBuilderEdge) => void;
   onClose: () => void;
   onApplyTemplate: (
     template: AutomationMessageTemplate,
@@ -47,12 +53,21 @@ export function AutomationStepDock({
   templateBody,
   templateBusy,
   onConfig,
+  moveTargets,
+  moveBlockedMessage,
+  onMove,
   onClose,
   onApplyTemplate,
   onTemplateNameChange,
   onTemplateBodyChange,
   onCreateTemplate,
 }: AutomationStepDockProps) {
+  const [moveTargetIndex, setMoveTargetIndex] = React.useState('');
+
+  React.useEffect(() => {
+    setMoveTargetIndex('');
+  }, [step?.stepKey]);
+
   React.useEffect(() => {
     if (!step) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -225,6 +240,50 @@ export function AutomationStepDock({
             Os caminhos existentes aparecem no mapa. A edição dos caminhos entra na C1C.
           </div>
         ) : null}
+
+        <div className="mt-4 border-t border-white/10 pt-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Mover pelo teclado
+          </div>
+          {moveBlockedMessage ? (
+            <p className="mt-1.5 text-xs text-amber-300">{moveBlockedMessage}</p>
+          ) : moveTargets.length ? (
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="min-w-0 flex-1 space-y-1 text-xs text-slate-300">
+                Mover passo para
+                <select
+                  aria-label="Mover passo para"
+                  className={FIELD_CLASS}
+                  value={moveTargetIndex}
+                  onChange={(event) => setMoveTargetIndex(event.target.value)}
+                  disabled={!canEdit}
+                >
+                  <option value="">Escolha uma linha</option>
+                  {moveTargets.map((target, index) => (
+                    <option key={`${target.edge.fromStepKey}:${target.edge.outcome}:${target.edge.toStepKey}:${target.edge.order}`} value={index}>
+                      {target.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canEdit || moveTargetIndex === ''}
+                onClick={() => {
+                  const target = moveTargets[Number(moveTargetIndex)];
+                  if (target) onMove(target.edge);
+                }}
+              >
+                Mover passo
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-1.5 text-xs text-slate-500">
+              Não há outra linha disponível fora deste caminho.
+            </p>
+          )}
+        </div>
       </div>
 
       {isMessage ? (

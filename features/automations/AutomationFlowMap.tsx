@@ -28,10 +28,15 @@ import {
   zoomAutomationViewportAt,
   type AutomationViewport,
 } from './automationViewport';
+import {
+  eligibleAutomationMoveTargets,
+  getAutomationMoveBlock,
+} from './automationGraphMove';
 
 // Deslocamento máximo (px) que ainda conta como clique num card, e não arrasto.
 // Cobre o tremor natural da mão sem confundir com um arrasto deliberado.
 const CLICK_SLOP = 10;
+const EDGE_DROP_RADIUS = 150;
 
 type AutomationFlowMapProps = {
   steps: AutomationBuilderStep[];
@@ -41,6 +46,7 @@ type AutomationFlowMapProps = {
   onStepActivate: (stepKey: string) => void;
   onBackgroundActivate?: () => void;
   onAddAfter: (stepKey: string) => void;
+  onMoveStep?: (stepKey: string, targetEdge: AutomationBuilderEdge) => void;
 };
 
 type MapPress = {
@@ -51,7 +57,22 @@ type MapPress = {
   stepKey: string | null;
   moved: boolean;
   captured: boolean;
+  mode: 'pending' | 'panning' | 'sorting' | 'blocked';
+  targetEdge: AutomationBuilderEdge | null;
 };
+
+function automationEdgeKey(edge: AutomationBuilderEdge) {
+  return `${edge.fromStepKey}:${edge.outcome}:${edge.toStepKey}:${edge.order}`;
+}
+
+function toBuilderEdge(edge: AutomationBuilderEdge): AutomationBuilderEdge {
+  return {
+    fromStepKey: edge.fromStepKey,
+    outcome: edge.outcome,
+    toStepKey: edge.toStepKey,
+    order: edge.order,
+  };
+}
 
 const UNIT_LABELS: Record<string, [string, string]> = {
   minutes: ['minuto', 'minutos'],
@@ -134,6 +155,7 @@ export function AutomationFlowMap({
   onStepActivate,
   onBackgroundActivate,
   onAddAfter,
+  onMoveStep,
 }: AutomationFlowMapProps) {
   const layout = React.useMemo(() => layoutAutomationTree(steps, edges), [edges, steps]);
   const outgoingKeys = React.useMemo(
@@ -144,7 +166,11 @@ export function AutomationFlowMap({
   const contentHeight = Math.max(layout.height, 492);
   const stageRef = React.useRef<HTMLElement>(null);
   const pressRef = React.useRef<MapPress | null>(null);
+  const warningTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPanning, setIsPanning] = React.useState(false);
+  const [draggingStepKey, setDraggingStepKey] = React.useState<string | null>(null);
+  const [dropTargetKey, setDropTargetKey] = React.useState<string | null>(null);
+  const [moveWarning, setMoveWarning] = React.useState<string | null>(null);
   const [viewport, setViewport] = React.useState<AutomationViewport>({
     x: 34,
     y: 34,
@@ -228,8 +254,18 @@ export function AutomationFlowMap({
   // Trocar de passo com a doca já aberta (o stage não muda de tamanho, então o
   // ResizeObserver não dispara) também precisa recentralizar.
   React.useEffect(() => {
-    if (selectedStepKey) centerOnStep(selectedStepKey);
-  }, [selectedStepKey, centerOnStep]);
+    if (selectedStepKey) centerRef.current(selectedStepKey);
+  }, [selectedStepKey]);
+
+  React.useEffect(() => () => {
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+  }, []);
+
+  const showMoveWarning = React.useCallback((message: string) => {
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    setMoveWarning(message);
+    warningTimerRef.current = setTimeout(() => setMoveWarning(null), 2_600);
+  }, []);
 
   // O React registra onWheel como listener passivo, então o preventDefault dele é
   // ignorado e a página rola junto com o zoom. Prendemos o wheel na mão com
@@ -269,6 +305,8 @@ export function AutomationFlowMap({
     }
     pressRef.current = null;
     setIsPanning(false);
+    setDraggingStepKey(null);
+    setDropTargetKey(null);
     return press;
   };
 
@@ -277,8 +315,9 @@ export function AutomationFlowMap({
       ref={stageRef}
       aria-label="Mapa da automação"
       className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-[#0F1614] text-slate-100 ${
-        isPanning ? 'cursor-grabbing' : 'cursor-grab'
+        isPanning || draggingStepKey ? 'cursor-grabbing' : 'cursor-grab'
       }`}
+      data-sorting={draggingStepKey ? 'true' : undefined}
       style={{
         backgroundImage:
           'radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0)',
@@ -297,6 +336,8 @@ export function AutomationFlowMap({
           stepKey: step?.dataset.stepKey ?? null,
           moved: false,
           captured: false,
+          mode: 'pending',
+          targetEdge: null,
         };
       }}
       onPointerMove={(event) => {
@@ -304,15 +345,65 @@ export function AutomationFlowMap({
         if (!press || press.pointerId !== event.pointerId) return;
         const dx = event.clientX - press.startX;
         const dy = event.clientY - press.startY;
-        if (!press.moved && Math.hypot(dx, dy) < 4) return;
+        const travel = Math.hypot(dx, dy);
+
+        if (press.stepKey) {
+          if (press.mode === 'pending' && travel <= CLICK_SLOP) return;
+          if (press.mode === 'pending') {
+            press.moved = true;
+            const blocked = !canEdit
+              ? 'Você não tem permissão para mover passos.'
+              : getAutomationMoveBlock(press.stepKey, steps, edges);
+            if (blocked) {
+              press.mode = 'blocked';
+              showMoveWarning(blocked);
+            } else {
+              press.mode = 'sorting';
+              setDraggingStepKey(press.stepKey);
+            }
+            if (typeof event.currentTarget.setPointerCapture === 'function') {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              press.captured = true;
+            }
+          }
+          if (press.mode !== 'sorting') return;
+
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const point = {
+            x: (event.clientX - bounds.left - viewport.x) / viewport.scale,
+            y: (event.clientY - bounds.top - viewport.y) / viewport.scale,
+          };
+          const eligibleKeys = new Set(
+            eligibleAutomationMoveTargets(press.stepKey, steps, edges)
+              .map(automationEdgeKey),
+          );
+          let nearest: typeof layout.edges[number] | null = null;
+          let nearestDistance = EDGE_DROP_RADIUS;
+          for (const edge of layout.edges) {
+            if (!eligibleKeys.has(automationEdgeKey(edge))) continue;
+            const distance = Math.hypot(
+              point.x - edge.midpointX,
+              point.y - edge.midpointY,
+            );
+            if (distance < nearestDistance) {
+              nearest = edge;
+              nearestDistance = distance;
+            }
+          }
+          press.targetEdge = nearest ? toBuilderEdge(nearest) : null;
+          setDropTargetKey(nearest ? automationEdgeKey(nearest) : null);
+          return;
+        }
+
+        if (!press.moved && travel < 4) return;
         if (!press.moved) {
           press.moved = true;
+          press.mode = 'panning';
           if (typeof event.currentTarget.setPointerCapture === 'function') {
             event.currentTarget.setPointerCapture(event.pointerId);
             press.captured = true;
           }
         }
-        if (press.stepKey) return;
         setIsPanning(true);
         setViewport(panAutomationViewport(
           press.origin,
@@ -332,7 +423,11 @@ export function AutomationFlowMap({
             event.clientX - press.startX,
             event.clientY - press.startY,
           );
-          if (travel <= CLICK_SLOP) onStepActivate(press.stepKey);
+          if (press.mode === 'pending' && travel <= CLICK_SLOP) {
+            onStepActivate(press.stepKey);
+          } else if (press.mode === 'sorting' && press.targetEdge) {
+            onMoveStep?.(press.stepKey, press.targetEdge);
+          }
           return;
         }
         // Fundo: se arrastou, foi pan (não é clique).
@@ -370,10 +465,20 @@ export function AutomationFlowMap({
               >
                 <path
                   data-edge-outcome={edge.outcome}
+                  data-drop-target={
+                    dropTargetKey === automationEdgeKey(edge) ? 'true' : undefined
+                  }
                   d={edge.path}
                   fill="none"
-                  stroke="rgba(148, 163, 184, .48)"
-                  strokeWidth="2"
+                  stroke={
+                    dropTargetKey === automationEdgeKey(edge)
+                      ? 'rgb(45, 212, 191)'
+                      : 'rgba(148, 163, 184, .48)'
+                  }
+                  strokeWidth={dropTargetKey === automationEdgeKey(edge) ? 4 : 2}
+                  style={dropTargetKey === automationEdgeKey(edge)
+                    ? { filter: 'drop-shadow(0 0 7px rgba(45, 212, 191, .8))' }
+                    : undefined}
                 />
                 {edge.label ? (
                   <foreignObject
@@ -419,6 +524,7 @@ export function AutomationFlowMap({
                       ? 'border-t-[3px] border-t-teal-500 bg-teal-950/30'
                       : '',
                     isWait(step) ? 'border-dashed bg-transparent' : '',
+                    draggingStepKey === step.stepKey ? 'opacity-60 shadow-2xl' : '',
                   ].join(' ')}
                   style={{ left: x, top: y, minHeight: AUTOMATION_NODE_HEIGHT }}
                   onClick={(event) => {
@@ -460,6 +566,14 @@ export function AutomationFlowMap({
           })}
         </div>
       </div>
+      {moveWarning ? (
+        <div
+          role="status"
+          className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full border border-amber-400/35 bg-amber-950/95 px-4 py-2 text-sm font-medium text-amber-100 shadow-xl"
+        >
+          {moveWarning}
+        </div>
+      ) : null}
       <div
         data-map-control
         className="absolute bottom-3.5 right-[18px] z-10 flex items-center gap-1 rounded-full border border-slate-700 bg-black/65 p-1 shadow-lg"
