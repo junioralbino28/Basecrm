@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { AUTOMATION_EDGE_OUTCOMES, AUTOMATION_STEP_TYPES } from '@/lib/automations/compiler';
+import {
+  AUTOMATION_STEP_TYPES,
+  isAutomationEdgeOutcome,
+  type AutomationEdgeOutcome,
+} from '@/lib/automations/compiler';
 import { saveAutomationDraft } from '@/lib/automations/builder';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
@@ -13,7 +17,15 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const DraftSchema = z.object({
+const EdgeOutcomeSchema = z.string().transform((value, context): AutomationEdgeOutcome => {
+  if (!isAutomationEdgeOutcome(value)) {
+    context.addIssue({ code: 'custom', message: 'Outcome de automação inválido.' });
+    return z.NEVER;
+  }
+  return value;
+});
+
+export const AutomationDraftHttpSchema = z.object({
   name: z.string().trim().min(2).max(160),
   draftRevision: z.number().int().positive(),
   triggerConfig: z.record(z.string(), z.unknown()),
@@ -25,7 +37,7 @@ const DraftSchema = z.object({
   }).strict()).max(100),
   edges: z.array(z.object({
     fromStepKey: z.string().uuid(),
-    outcome: z.enum(AUTOMATION_EDGE_OUTCOMES),
+    outcome: EdgeOutcomeSchema,
     toStepKey: z.string().uuid(),
     order: z.number().int().nonnegative(),
   }).strict()).max(300),
@@ -42,7 +54,7 @@ export async function PATCH(
   });
   if ('error' in auth) return auth.error;
 
-  const parsed = DraftSchema.safeParse(await req.json().catch(() => null));
+  const parsed = AutomationDraftHttpSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return json({ error: 'Draft inválido.', details: parsed.error.flatten() }, 400);
   }
