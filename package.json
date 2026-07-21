@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:local": "node scripts/test-local.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:auth": "playwright test test/e2e/auth.setup.ts",
