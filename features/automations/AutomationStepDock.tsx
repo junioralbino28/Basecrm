@@ -99,11 +99,14 @@ export function AutomationStepDock({
       className={[
         'relative flex-none overflow-hidden border-t border-white/10',
         'bg-[#0B100F] text-slate-100 shadow-2xl backdrop-blur',
+        // Altura proporcional ao painel (não fixa): em tela grande a edição
+        // respira, em tela pequena o mínimo garante que não vire uma fresta.
+        // O "divide caminho" pede mais espaço porque lista N caminhos.
         isMessage
-          ? 'grid h-[262px] md:grid-cols-2'
+          ? 'grid h-[42%] min-h-[248px] md:grid-cols-2'
           : isSwitch
-            ? 'h-[300px]'
-            : 'h-[156px]',
+            ? 'h-[52%] min-h-[320px]'
+            : 'h-[160px]',
       ].join(' ')}
     >
       <button

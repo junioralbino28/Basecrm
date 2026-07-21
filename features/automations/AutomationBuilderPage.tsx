@@ -646,17 +646,19 @@ export function AutomationBuilderPage(props: {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-white/10 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-            <Workflow size={15} />
-            {tenantName}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+      {/* Cabeçalho compacto: a tela é de trabalho, o espaço vertical vale mais
+          para o mapa e a doca do que para título grande (pedido do Junior). */}
+      <header className="flex flex-col gap-2 border-b border-slate-200 pb-2.5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+            <Workflow size={16} className="text-cyan-700 dark:text-cyan-300" />
             Automações
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-            Monte o gatilho e a sequência na mesma tela. Publicar cria uma versão; testar nunca envia ao paciente.
+          <span className="text-xs uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
+            {tenantName}
+          </span>
+          <p className="w-full text-xs text-slate-500 dark:text-slate-400 lg:w-auto">
+            Publicar cria uma versão; testar nunca envia ao paciente.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -741,7 +743,7 @@ export function AutomationBuilderPage(props: {
                 )}
               />
 
-              <div className="flex h-[62vh] min-h-[460px] flex-col overflow-hidden rounded-2xl border border-white/10">
+              <div className="flex h-[calc(100vh-190px)] min-h-[520px] flex-col overflow-hidden rounded-2xl border border-white/10">
               <AutomationFlowMap
                 steps={draft.steps}
                 edges={draft.edges}
