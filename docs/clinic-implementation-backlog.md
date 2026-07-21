@@ -444,3 +444,33 @@ Prioridade:
 - WhatsApp pode ser conectado por tenant
 - atendimento alimenta pipeline
 - agenda se conecta ao fluxo comercial
+
+## Backlog futuro — decidido, NÃO é para agora
+
+### Tela de personalização do CRM pelo próprio cliente (P2, pós-100%)
+
+**Decisão do Junior — 2026-07-21.** Palavras dele: *"depois eu ter uma tela de edição
+básica do CRM, onde eu consigo fazer algumas edições sem ter que te pedir, como
+cores, ordem de menus, e etc"*.
+
+**Quando:** só **depois que as funções estiverem rodando e funcionando 100%**.
+Ele foi explícito: **"isso não é para agora"**. Não puxar para nenhuma fatia atual
+(C1C/C2/C3) — entra quando o produto já roda.
+
+**O que é:** uma tela de configuração onde o **próprio Junior/admin** ajusta a
+aparência e a disposição do CRM **sem pedir para mim ou para o Codex**:
+
+- cores / tema da clínica;
+- **ordem dos itens de menu** (nasce da dor real de 2026-07-21: Conversas e
+  Automações estavam empilhadas no fim da sidebar e precisou de mudança em código
+  — `684de95` — para reordenar);
+- demais ajustes visuais de baixo risco.
+
+**Por que importa mais do que parece:** é multi-tenant. A mesma tela permite
+**personalizar o uso por cliente** — cada clínica com sua ordem de menu e sua
+identidade, sem deploy. Hoje `branding_config` já existe por tenant; esta tela é a
+evolução natural dela, cobrindo navegação além de cor/logo.
+
+**Cuidado registrado desde já:** ordem de menu é dado por tenant, não constante de
+código. Quando isso for implementado, a ordem definida em `components/Layout.tsx`
+(e travada por `Layout.navOrder.test.tsx`) vira **default**, não regra fixa.
