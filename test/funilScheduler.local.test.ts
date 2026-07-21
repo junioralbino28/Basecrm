@@ -97,11 +97,13 @@ describeLocal('F4 — scheduler durável no Supabase local', () => {
         p_worker_id: 'worker-a',
         p_batch_limit: 10,
         p_lease_seconds: 60,
+        p_job_id: targetJob.data?.id,
       }),
       admin.rpc('claim_automation_jobs', {
         p_worker_id: 'worker-b',
         p_batch_limit: 10,
         p_lease_seconds: 60,
+        p_job_id: targetJob.data?.id,
       }),
     ]);
     expect(claims.every((claim) => claim.error === null)).toBe(true);
