@@ -90,10 +90,17 @@ export function moveAutomationStep({
   const incoming = edges.find((edge) => edge.toStepKey === stepKey)!;
   const outgoing = edges.find((edge) => edge.fromStepKey === stepKey) ?? null;
   const parent = steps.find((step) => step.stepKey === incoming.fromStepKey);
+  const parentBranchCount = edges.filter((edge) => (
+    edge.fromStepKey === incoming.fromStepKey
+  )).length;
   const nextSteps = steps.map((step) => ({ ...step, config: { ...step.config } }));
   let replacementForIncoming: string | null = outgoing?.toStepKey ?? null;
 
-  if (!replacementForIncoming && parent?.stepType === 'switch') {
+  if (
+    !replacementForIncoming
+    && parent
+    && (parent.stepType === 'switch' || parentBranchCount > 1)
+  ) {
     const placeholderKey = createStepKey();
     replacementForIncoming = placeholderKey;
     nextSteps.push({

@@ -225,6 +225,7 @@ describe('AutomationStepDock', () => {
       'data-switch-contract',
       'service-tag-entity-v3',
     );
+    expect(screen.getByLabelText('Regra do caminho 1')).toHaveValue('contains');
     expect(screen.queryByLabelText('Valor do caminho 1')).not.toBeInTheDocument();
   });
 

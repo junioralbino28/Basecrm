@@ -21,6 +21,10 @@ const PHONE_OPERATORS: Array<[AutomationSwitchCase['operator'], string]> = [
   ['not_contains', 'não contém'],
   ['exists', 'existe'],
 ];
+const TAG_OPERATORS: Array<[AutomationSwitchCase['operator'], string]> = [
+  ['contains', 'contém'],
+  ['not_contains', 'não contém'],
+];
 const ENTITY_OPERATORS = PHONE_OPERATORS.filter(([operator]) => (
   operator === 'equals' || operator === 'not_equals' || operator === 'exists'
 ));
@@ -108,7 +112,11 @@ export function AutomationSwitchEditor({
 
       <div className="space-y-2">
         {cases.map((item, index) => {
-          const operators = field === 'contact.phone' ? PHONE_OPERATORS : ENTITY_OPERATORS;
+          const operators = field === 'contact.phone'
+            ? PHONE_OPERATORS
+            : field === 'deal.tags'
+              ? TAG_OPERATORS
+              : ENTITY_OPERATORS;
           return (
             <div
               key={item.case_id}

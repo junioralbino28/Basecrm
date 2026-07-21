@@ -53,6 +53,18 @@ describe('AutomationBuilderPage — percurso manual', () => {
           },
         }, 201);
       }
+      if (url.endsWith(`/automations/${AUTOMATION_ID}`) && init?.method === 'PATCH') {
+        const saved = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return jsonResponse({
+          automation: {
+            id: AUTOMATION_ID,
+            lifecycleStatus: 'draft',
+            deliveryMode: 'simulation',
+            draftRevision: 1,
+            ...saved,
+          },
+        });
+      }
       throw new Error(`fetch inesperado: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -139,5 +151,39 @@ describe('AutomationBuilderPage — percurso manual', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar caminho' }));
     expect(screen.getByLabelText('Nome do caminho 2')).toHaveValue('Caminho 2');
+
+    fireEvent.change(screen.getByLabelText('Valor do caminho 1'), {
+      target: { value: '11' },
+    });
+    fireEvent.change(screen.getByLabelText('Valor do caminho 2'), {
+      target: { value: '21' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByText('Rascunho salvo.')).toBeInTheDocument();
+
+    const saveCall = fetchMock.mock.calls.find(([input, init]) => (
+      String(input).endsWith(`/automations/${AUTOMATION_ID}`)
+      && init?.method === 'PATCH'
+    ));
+    const savedBody = JSON.parse(String(saveCall?.[1]?.body));
+    const savedSwitch = savedBody.steps.find(
+      (step: { stepType: string }) => step.stepType === 'switch',
+    );
+    const caseIds = savedSwitch.config.cases.map(
+      (item: { case_id: string }) => item.case_id,
+    );
+    expect(new Set(caseIds).size).toBe(2);
+    expect(caseIds).toEqual([
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+    ]);
+    expect(savedBody.edges
+      .filter((edge: { fromStepKey: string }) => edge.fromStepKey === savedSwitch.stepKey)
+      .map((edge: { outcome: string }) => edge.outcome)
+      .sort()).toEqual([
+        `case:${caseIds[0]}`,
+        `case:${caseIds[1]}`,
+        'otherwise',
+      ].sort());
   });
 });

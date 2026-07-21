@@ -132,6 +132,36 @@ describe('movimentação pura do grafo da automação', () => {
     expect(moved.edges).not.toContainEqual(switchEdge);
   });
 
+  it('não apaga nenhum caminho ao mover a folha de outra bifurcação', () => {
+    const steps = [
+      step('r', 'wait_for_event'),
+      step('n'),
+      step('o'),
+      step('x'),
+      step('y'),
+    ];
+    const answered = edge('r', 'n', 'answered');
+    const target = edge('x', 'y');
+    const edges = [answered, edge('r', 'o', 'timeout', 1), target];
+
+    const moved = moveAutomationStep({
+      stepKey: 'n',
+      targetEdge: target,
+      steps,
+      edges,
+      createStepKey: () => 'placeholder-respondeu',
+    });
+
+    expect(moved.edges).toContainEqual(edge(
+      'r',
+      'placeholder-respondeu',
+      'answered',
+    ));
+    expect(moved.steps).toContainEqual(expect.objectContaining({
+      stepKey: 'placeholder-respondeu',
+    }));
+  });
+
   it('ao mover uma folha linear remove somente sua antiga aresta de entrada', () => {
     const steps = ['a', 'n', 'x', 'y'].map((key) => step(key));
     const edges = [edge('a', 'n'), edge('x', 'y')];
