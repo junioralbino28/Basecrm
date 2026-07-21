@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   FlaskConical,
+  GitBranch,
   Loader2,
   MessageSquareText,
   Plus,
@@ -33,6 +34,11 @@ import {
   getAutomationMoveBlock,
   moveAutomationStep,
 } from './automationGraphMove';
+import {
+  addAutomationSwitchCase,
+  moveAutomationSwitchCase,
+  removeAutomationSwitchCase,
+} from './automationSwitchDraft';
 
 type MessageTemplate = {
   id: string;
@@ -63,7 +69,7 @@ type Feedback = {
 };
 
 type ActionDefinition = {
-  type: 'send_message' | 'delay' | 'wait_for_event' | 'create_task';
+  type: 'send_message' | 'delay' | 'wait_for_event' | 'create_task' | 'switch';
   title: string;
   description: string;
   keywords: string;
@@ -102,6 +108,13 @@ const ACTIONS: ActionDefinition[] = [
     keywords: 'tarefa atividade lembrete',
     icon: CheckCircle2,
   },
+  {
+    type: 'switch',
+    title: 'Dividir caminho',
+    description: 'Cria caminhos nomeados e um caminho final obrigatório.',
+    keywords: 'dividir caminho condição decisão branch',
+    icon: GitBranch,
+  },
 ];
 
 function newStep(
@@ -119,6 +132,17 @@ function newStep(
     delay: { amount: 1, unit: 'hours' },
     wait_for_event: { timeout_amount: 1, timeout_unit: 'days' },
     create_task: { title: 'Dar continuidade' },
+    switch: {
+      field: 'contact.phone',
+      cases: [{
+        case_id: globalThis.crypto.randomUUID(),
+        label: 'Caminho 1',
+        operator: 'contains',
+        value: '',
+        order: 0,
+      }],
+      fallback_label: 'Para quem não se encaixa',
+    },
   };
   return {
     stepKey: globalThis.crypto.randomUUID(),
@@ -164,7 +188,47 @@ function insertAction(
     },
   ];
 
-  if (action === 'wait_for_event') {
+  if (action === 'switch') {
+    const firstCase = Array.isArray(inserted.config.cases)
+      ? inserted.config.cases[0] as { case_id?: unknown }
+      : null;
+    const caseId = typeof firstCase?.case_id === 'string'
+      ? firstCase.case_id
+      : globalThis.crypto.randomUUID();
+    const firstPath = newStep(
+      'create_task',
+      afterIndex + 2,
+      { title: 'Configurar Caminho 1' },
+    );
+    const fallback = newStep(
+      'create_task',
+      afterIndex + 3,
+      { title: 'Configurar quem não se encaixa' },
+    );
+    steps.splice(afterIndex + 2, 0, firstPath, fallback);
+    edges.push(
+      {
+        fromStepKey: inserted.stepKey,
+        outcome: `case:${caseId}`,
+        toStepKey: firstPath.stepKey,
+        order: 0,
+      },
+      {
+        fromStepKey: inserted.stepKey,
+        outcome: 'otherwise',
+        toStepKey: fallback.stepKey,
+        order: 1,
+      },
+    );
+    if (outgoingSuccess) {
+      edges.push({
+        fromStepKey: firstPath.stepKey,
+        outcome: 'success',
+        toStepKey: outgoingSuccess.toStepKey,
+        order: 0,
+      });
+    }
+  } else if (action === 'wait_for_event') {
     const answered = newStep(
       'create_task',
       afterIndex + 2,
@@ -436,7 +500,14 @@ export function AutomationBuilderPage(props: {
   };
 
   const addAction = (action: ActionDefinition['type']) => {
-    patchDraft((current) => insertAction(current, insertAfter, action));
+    if (!draft) return;
+    const previousKeys = new Set(draft.steps.map((step) => step.stepKey));
+    const next = insertAction(draft, insertAfter, action);
+    const inserted = next.steps.find((step) => (
+      !previousKeys.has(step.stepKey) && step.stepType === action
+    ));
+    setDraft(next);
+    if (inserted) setSelectedStepKey(inserted.stepKey);
     setActionOpen(false);
     setActionSearch('');
   };
@@ -540,6 +611,27 @@ export function AutomationBuilderPage(props: {
         tone: 'warning',
         text: error instanceof Error ? error.message : 'Não foi possível mover este passo.',
       });
+    }
+  };
+
+  const mutateSelectedSwitch = (
+    mutation: (graph: {
+      switchStepKey: string;
+      steps: AutomationBuilderStep[];
+      edges: AutomationBuilderEdge[];
+    }) => { steps: AutomationBuilderStep[]; edges: AutomationBuilderEdge[] },
+  ): string | null => {
+    if (!draft || !selectedStepKey) return 'Selecione novamente o passo Divide caminho.';
+    try {
+      const changed = mutation({
+        switchStepKey: selectedStepKey,
+        steps: draft.steps,
+        edges: draft.edges,
+      });
+      setDraft({ ...draft, ...changed });
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Não foi possível alterar este caminho.';
     }
   };
 
@@ -677,6 +769,13 @@ export function AutomationBuilderPage(props: {
                 onMove={(targetEdge) => {
                   if (selectedStepKey) applyStepMove(selectedStepKey, targetEdge);
                 }}
+                onAddSwitchCase={() => mutateSelectedSwitch(addAutomationSwitchCase)}
+                onRemoveSwitchCase={(caseId) => mutateSelectedSwitch((graph) => (
+                  removeAutomationSwitchCase({ ...graph, caseId })
+                ))}
+                onMoveSwitchCase={(caseId, direction) => mutateSelectedSwitch((graph) => (
+                  moveAutomationSwitchCase({ ...graph, caseId, direction })
+                ))}
                 onConfig={(config) => {
                   if (!selectedStepKey) return;
                   patchDraft((current) => ({

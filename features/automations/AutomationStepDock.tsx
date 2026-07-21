@@ -11,6 +11,7 @@ import {
   automationStepKind,
   automationStepName,
 } from './AutomationFlowMap';
+import { AutomationSwitchEditor } from './AutomationSwitchEditor';
 
 export type AutomationMessageTemplate = {
   id: string;
@@ -32,6 +33,9 @@ type AutomationStepDockProps = {
   moveTargets: Array<{ edge: AutomationBuilderEdge; label: string }>;
   moveBlockedMessage: string | null;
   onMove: (edge: AutomationBuilderEdge) => void;
+  onAddSwitchCase: () => string | null;
+  onRemoveSwitchCase: (caseId: string) => string | null;
+  onMoveSwitchCase: (caseId: string, direction: 'up' | 'down') => string | null;
   onClose: () => void;
   onApplyTemplate: (
     template: AutomationMessageTemplate,
@@ -56,6 +60,9 @@ export function AutomationStepDock({
   moveTargets,
   moveBlockedMessage,
   onMove,
+  onAddSwitchCase,
+  onRemoveSwitchCase,
+  onMoveSwitchCase,
   onClose,
   onApplyTemplate,
   onTemplateNameChange,
@@ -80,6 +87,7 @@ export function AutomationStepDock({
   if (!step) return null;
 
   const isMessage = step.stepType === 'send_message';
+  const isSwitch = step.stepType === 'switch';
   const setConfig = (key: string, value: unknown) => {
     onConfig({ ...step.config, [key]: value });
   };
@@ -87,13 +95,15 @@ export function AutomationStepDock({
   return (
     <section
       aria-label="Edição do passo"
-      data-dock-size={isMessage ? 'tall' : 'compact'}
+      data-dock-size={isMessage || isSwitch ? 'tall' : 'compact'}
       className={[
         'relative flex-none overflow-hidden border-t border-white/10',
         'bg-[#0B100F] text-slate-100 shadow-2xl backdrop-blur',
         isMessage
           ? 'grid h-[262px] md:grid-cols-2'
-          : 'h-[156px]',
+          : isSwitch
+            ? 'h-[300px]'
+            : 'h-[156px]',
       ].join(' ')}
     >
       <button
@@ -235,10 +245,21 @@ export function AutomationStepDock({
           </label>
         ) : null}
 
-        {step.stepType === 'condition' || step.stepType === 'switch' ? (
+        {step.stepType === 'condition' ? (
           <div className="border-l-2 border-teal-500/50 pl-3 text-xs text-slate-400">
-            Os caminhos existentes aparecem no mapa. A edição dos caminhos entra na C1C.
+            Os caminhos existentes aparecem no mapa.
           </div>
+        ) : null}
+
+        {isSwitch ? (
+          <AutomationSwitchEditor
+            step={step}
+            canEdit={canEdit}
+            onConfig={onConfig}
+            onAddCase={onAddSwitchCase}
+            onRemoveCase={onRemoveSwitchCase}
+            onMoveCase={onMoveSwitchCase}
+          />
         ) : null}
 
         <div className="mt-4 border-t border-white/10 pt-3">

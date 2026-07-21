@@ -23,6 +23,32 @@ const delayStep: AutomationBuilderStep = {
   config: { amount: 1, unit: 'days' },
 };
 
+const switchStep: AutomationBuilderStep = {
+  stepKey: 'divide',
+  stepType: 'switch',
+  sortKey: 2,
+  config: {
+    field: 'contact.phone',
+    cases: [
+      {
+        case_id: '11111111-1111-4111-8111-111111111111',
+        label: 'Tem DDD 11',
+        operator: 'contains',
+        value: '11',
+        order: 0,
+      },
+      {
+        case_id: '22222222-2222-4222-8222-222222222222',
+        label: 'Tem DDD 21',
+        operator: 'contains',
+        value: '21',
+        order: 1,
+      },
+    ],
+    fallback_label: 'Outro DDD',
+  },
+};
+
 function renderDock(
   step: AutomationBuilderStep | null,
   overrides: Partial<React.ComponentProps<typeof AutomationStepDock>> = {},
@@ -38,6 +64,9 @@ function renderDock(
     moveTargets: [],
     moveBlockedMessage: null,
     onMove: vi.fn(),
+    onAddSwitchCase: vi.fn(() => null),
+    onRemoveSwitchCase: vi.fn(() => null),
+    onMoveSwitchCase: vi.fn(() => null),
     onClose: vi.fn(),
     onApplyTemplate: vi.fn(),
     onTemplateNameChange: vi.fn(),
@@ -144,5 +173,79 @@ describe('AutomationStepDock', () => {
 
     expect(screen.getByText('O primeiro passo não pode mudar de lugar.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Mover passo para')).not.toBeInTheDocument();
+  });
+
+  it('edita caminhos em ordem visível sem trocar o case_id', () => {
+    const onConfig = vi.fn();
+    const onMoveSwitchCase = vi.fn(() => null);
+    renderDock(switchStep, { onConfig, onMoveSwitchCase });
+
+    expect(screen.getByText(/o primeiro caminho compatível vence/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Nome do caminho 1'), {
+      target: { value: 'São Paulo' },
+    });
+    expect(onConfig).toHaveBeenCalledWith(expect.objectContaining({
+      cases: [
+        expect.objectContaining({
+          case_id: '11111111-1111-4111-8111-111111111111',
+          label: 'São Paulo',
+        }),
+        expect.objectContaining({ case_id: '22222222-2222-4222-8222-222222222222' }),
+      ],
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mover caminho 2 para cima' }));
+    expect(onMoveSwitchCase).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      'up',
+    );
+    expect(screen.getByLabelText('Nome do caminho final')).toHaveValue('Outro DDD');
+  });
+
+  it('mostra na doca a orientação ao bloquear remoção com subárvore', () => {
+    renderDock(switchStep, {
+      onRemoveSwitchCase: vi.fn(() => (
+        'Este caminho tem passos abaixo. Mova ou remova esses passos antes de apagar o caminho.'
+      )),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover caminho 1' }));
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Este caminho tem passos abaixo. Mova ou remova esses passos antes de apagar o caminho.',
+    );
+  });
+
+  it('mantém etiquetas na fronteira substituível da C2, sem texto livre', () => {
+    renderDock({
+      ...switchStep,
+      config: { ...switchStep.config, field: 'deal.tags' },
+    });
+
+    expect(screen.getByTestId('service-tag-switch-boundary')).toHaveAttribute(
+      'data-switch-contract',
+      'service-tag-entity-v3',
+    );
+    expect(screen.queryByLabelText('Valor do caminho 1')).not.toBeInTheDocument();
+  });
+
+  it('explica o teto de 20 caminhos em português claro', () => {
+    const firstCase = (switchStep.config.cases as Array<Record<string, unknown>>)[0];
+    renderDock({
+      ...switchStep,
+      config: {
+        ...switchStep.config,
+        cases: Array.from({ length: 20 }, (_, index) => ({
+          ...firstCase,
+          case_id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+          label: `Caminho ${index + 1}`,
+          order: index,
+        })),
+      },
+    });
+
+    expect(screen.getByText(
+      'Limite de 20 caminhos atingido. Remova um caminho antes de adicionar outro.',
+    )).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adicionar caminho' })).toBeDisabled();
   });
 });

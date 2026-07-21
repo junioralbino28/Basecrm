@@ -121,5 +121,23 @@ describe('AutomationBuilderPage — percurso manual', () => {
     });
     expect(screen.getByText('respondeu')).toBeInTheDocument();
     expect(screen.getByText('não respondeu')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Adicionar passo após Retomar conversa após resposta',
+    }));
+    const divideDialog = screen.getByRole('dialog', { name: 'Adicionar ação' });
+    fireEvent.change(within(divideDialog).getByLabelText('Buscar ação'), {
+      target: { value: 'dividir' },
+    });
+    fireEvent.click(within(divideDialog).getByRole('button', { name: /Dividir caminho/i }));
+
+    expect(await screen.findByText(/o primeiro caminho compatível vence/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Campo de comparação')).toHaveValue('contact.phone');
+    expect(screen.getByLabelText('Nome do caminho 1')).toHaveValue('Caminho 1');
+    expect(screen.getByLabelText('Nome do caminho final')).toHaveValue(
+      'Para quem não se encaixa',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar caminho' }));
+    expect(screen.getByLabelText('Nome do caminho 2')).toHaveValue('Caminho 2');
   });
 });
