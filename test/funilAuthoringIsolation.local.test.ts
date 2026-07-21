@@ -158,11 +158,10 @@ describeE2('F1 — isolamento real do authoring no Supabase local', () => {
     expect(crossInsert.error?.code).toBe('42501');
   });
 
-  it('operador lê automações do tenant, mas não altera draft, grafo ou templates', async () => {
+  it('operador não lê nem altera draft, grafo ou templates', async () => {
     const selected = await operator.client.from('automations').select('id, organization_id');
     expect(selected.error).toBeNull();
-    expect(selected.data?.map((row) => row.id)).toContain(automationA);
-    expect(selected.data?.map((row) => row.id)).not.toContain(automationB);
+    expect(selected.data).toEqual([]);
 
     const update = await operator.client
       .from('automations')
