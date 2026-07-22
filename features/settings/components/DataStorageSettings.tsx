@@ -253,6 +253,7 @@ export const DataStorageSettings: React.FC = () => {
                                     <li>{stats.companies} empresas de clientes</li>
                                     <li>{stats.activities} atividades</li>
                                     <li>{stats.boards} funis (e suas etapas)</li>
+                                    <li>Todas as automações e suas execuções</li>
                                     <li>Todas as tags e produtos</li>
                                 </ul>
                                 <p className="text-sm text-red-700 dark:text-red-300 mt-3 font-medium">

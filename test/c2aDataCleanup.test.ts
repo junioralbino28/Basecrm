@@ -15,5 +15,6 @@ describe('C2A — limpeza coerente com dependências de etiquetas', () => {
     expect(automationsDelete).toBeGreaterThan(-1);
     expect(tagsDelete).toBeGreaterThan(automationsDelete);
     expect(source.slice(automationsDelete, tagsDelete)).toContain('.delete()');
+    expect(source).toContain('Todas as automações e suas execuções');
   });
 });
