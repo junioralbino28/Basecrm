@@ -31,6 +31,7 @@ describeLocal('F6 — builder, publicação e teste seguro no Supabase local', (
     fixture = await createFunilTestFixture({
       admin,
       label: 'f6-target',
+      entityTagNames: ['Lead novo'],
       steps: [{ type: 'create_task', config: { title: 'Fixture alvo' } }],
     });
 
@@ -39,7 +40,7 @@ describeLocal('F6 — builder, publicação e teste seguro no Supabase local', (
     const draft = {
       id: null,
       name: 'Boas-vindas demonstrável',
-      triggerConfig: { tag: 'lead-novo' },
+      triggerConfig: { tag_id: fixture.tagIdsByName['Lead novo'] },
       steps: [
         {
           stepKey: sendStepKey,

@@ -18,6 +18,10 @@ type FixtureEdge = {
   order?: number;
 };
 
+type FixtureTagContext = {
+  tagIdsByName: Record<string, string>;
+};
+
 export type FunilTestFixture = {
   actorId: string;
   automationId: string;
@@ -27,7 +31,9 @@ export type FunilTestFixture = {
   enrollmentId: string;
   organizationId: string;
   stepKeys: string[];
+  tagIdsByName: Record<string, string>;
   threadId: string;
+  triggerTagId: string;
   versionId: string;
   cleanup: () => Promise<void>;
 };
@@ -39,9 +45,11 @@ function fail(label: string, error?: { message?: string } | null): never {
 export async function createFunilTestFixture(params: {
   admin: SupabaseClient;
   label: string;
-  steps: FixtureStep[];
+  steps: FixtureStep[] | ((context: FixtureTagContext) => FixtureStep[]);
   edges?: FixtureEdge[];
   dealTags?: string[];
+  entityTagNames?: string[];
+  assignedEntityTagNames?: string[];
 }): Promise<FunilTestFixture> {
   const { admin } = params;
   const runId = randomUUID();
@@ -162,21 +170,76 @@ export async function createFunilTestFixture(params: {
   if (thread.error || !thread.data) fail('thread fixture', thread.error);
   const threadId = thread.data.id;
 
+  const category = await admin
+    .from('tag_categories')
+    .insert({
+      organization_id: organizationId,
+      label: `Serviços ${params.label} ${runId}`,
+      cardinality: 'multiple',
+    })
+    .select('id')
+    .single();
+  if (category.error || !category.data) fail('tag category fixture', category.error);
+
+  const triggerTagName = `Gatilho ${params.label} ${runId}`;
+  const entityTagNames = [...new Set(params.entityTagNames ?? [])];
+  const tags = await admin
+    .from('tags')
+    .insert([triggerTagName, ...entityTagNames].map((name) => ({
+      organization_id: organizationId,
+      category_id: category.data.id,
+      name,
+    })))
+    .select('id, name');
+  if (tags.error || !tags.data) fail('tags fixture', tags.error);
+  const triggerTagId = tags.data.find(({ name }) => name === triggerTagName)?.id;
+  if (!triggerTagId) fail('trigger tag fixture');
+  const tagIdsByName = Object.fromEntries(
+    entityTagNames.map((name) => {
+      const tagId = tags.data.find((tag) => tag.name === name)?.id;
+      if (!tagId) fail(`entity tag fixture ${name}`);
+      return [name, tagId];
+    }),
+  );
+
+  const assignedEntityTagNames = [...new Set(params.assignedEntityTagNames ?? [])];
+  if (assignedEntityTagNames.length) {
+    const unknownName = assignedEntityTagNames.find((name) => !tagIdsByName[name]);
+    if (unknownName) fail(`assigned entity tag desconhecida ${unknownName}`);
+    const assignedAt = new Date().toISOString();
+    const assignments = await admin.from('deal_tag_assignments').insert(
+      assignedEntityTagNames.map((name, index) => ({
+        organization_id: organizationId,
+        deal_id: dealId,
+        category_id: category.data.id,
+        tag_id: tagIdsByName[name],
+        is_primary: index === 0,
+        provenance: 'api',
+        applied_at: assignedAt,
+        recorded_at: assignedAt,
+      })),
+    );
+    if (assignments.error) fail('deal tag assignments fixture', assignments.error);
+  }
+
   const automation = await admin
     .from('automations')
     .insert({
       organization_id: organizationId,
       name: `Automação ${params.label}`,
       created_by: actorId,
-      trigger_config: { tag: `tag-${runId}` },
+      trigger_config: { tag_id: triggerTagId },
     })
     .select('id')
     .single();
   if (automation.error || !automation.data) fail('automation fixture', automation.error);
   const automationId = automation.data.id;
 
+  const fixtureSteps = typeof params.steps === 'function'
+    ? params.steps({ tagIdsByName })
+    : params.steps;
   const insertedSteps = [];
-  for (const [index, step] of params.steps.entries()) {
+  for (const [index, step] of fixtureSteps.entries()) {
     const inserted = await admin
       .from('automation_steps')
       .insert({
@@ -229,7 +292,9 @@ export async function createFunilTestFixture(params: {
     enrollmentId: enrollment.data.id,
     organizationId,
     stepKeys: insertedSteps.map((step) => step.step_key),
+    tagIdsByName,
     threadId,
+    triggerTagId,
     versionId,
     cleanup: async () => {
       const cleanupTables = [
@@ -239,6 +304,7 @@ export async function createFunilTestFixture(params: {
         'conversation_messages',
         'automation_jobs',
         'automation_enrollments',
+        'deal_tag_assignments',
       ] as const;
       for (const table of cleanupTables) {
         const deleted = await admin
