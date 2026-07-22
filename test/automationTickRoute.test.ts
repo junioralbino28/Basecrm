@@ -23,6 +23,9 @@ describe('endpoint interno do tick', () => {
 
   it('marca recebimento e conclusão com a quantidade materializada', async () => {
     const rpc = vi.fn(async (name: string) => {
+      if (name === 'process_due_automation_routing') {
+        return { data: [{ routing_event_id: 'route-1' }], error: null };
+      }
       if (name === 'expire_due_automation_waits') return { data: [{ id: 'wait-1' }], error: null };
       if (name === 'materialize_automation_jobs') {
         return { data: [{ id: 'job-1' }, { id: 'job-2' }], error: null };
@@ -42,11 +45,13 @@ describe('endpoint interno do tick', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       ok: true,
+      routed: 1,
       expired: 1,
       materialized: 2,
     });
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
       'mark_automation_tick_received',
+      'process_due_automation_routing',
       'expire_due_automation_waits',
       'materialize_automation_jobs',
       'complete_automation_tick',

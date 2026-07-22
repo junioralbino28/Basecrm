@@ -36,6 +36,13 @@ export async function POST(request: Request) {
     });
   }
 
+  const routed = await admin.rpc('process_due_automation_routing', {
+    p_batch_limit: 50,
+  });
+  if (routed.error) {
+    await markFailure('Falha ao rotear conversas esfriadas.');
+    return json({ error: 'Falha ao rotear conversas esfriadas.' }, 500);
+  }
   const expired = await admin.rpc('expire_due_automation_waits', {
     p_batch_limit: 50,
   });
@@ -63,6 +70,7 @@ export async function POST(request: Request) {
 
   return json({
     ok: true,
+    routed: routed.data?.length ?? 0,
     expired: expired.data?.length ?? 0,
     materialized: materializedCount,
   });
