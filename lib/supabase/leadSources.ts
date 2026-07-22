@@ -184,4 +184,58 @@ export const leadSourcesService = {
       return { error: e as Error };
     }
   },
+
+  /**
+   * C2C — ponteiros de origem do negócio (primeira/última, mantidos pela RPC
+   * na mesma transação do evento; o histórico é a fonte auditável).
+   */
+  async getDealOriginPointers(organizationId: string, dealId: string): Promise<{
+    firstSourceId: string | null;
+    lastSourceId: string | null;
+    error: Error | null;
+  }> {
+    try {
+      if (!supabase) return { firstSourceId: null, lastSourceId: null, error: new Error('Supabase não configurado') };
+      const { data, error } = await supabase
+        .from('deals')
+        .select('first_lead_source_id, last_lead_source_id')
+        .eq('organization_id', sanitizeUUID(organizationId))
+        .eq('id', sanitizeUUID(dealId))
+        .single();
+
+      if (error) return { firstSourceId: null, lastSourceId: null, error };
+      return {
+        firstSourceId: (data as any)?.first_lead_source_id ?? null,
+        lastSourceId: (data as any)?.last_lead_source_id ?? null,
+        error: null,
+      };
+    } catch (e) {
+      return { firstSourceId: null, lastSourceId: null, error: e as Error };
+    }
+  },
+
+  /**
+   * C2C — registra um toque de origem declarado por humano (§N1.1: origem é
+   * entidade separada; a RPC grava evento + ponteiros na MESMA transação, com
+   * provenance = 'human' e idempotência).
+   */
+  async recordAttribution(input: {
+    organizationId: string;
+    dealId: string;
+    sourceId: string;
+    idempotencyKey: string;
+  }): Promise<{ error: Error | null }> {
+    try {
+      if (!supabase) return { error: new Error('Supabase não configurado') };
+      const { error } = await supabase.rpc('record_lead_source_attribution', {
+        p_organization_id: sanitizeUUID(input.organizationId),
+        p_idempotency_key: input.idempotencyKey,
+        p_deal_id: sanitizeUUID(input.dealId),
+        p_source_id: sanitizeUUID(input.sourceId),
+      });
+      return { error: error ?? null };
+    } catch (e) {
+      return { error: e as Error };
+    }
+  },
 };
