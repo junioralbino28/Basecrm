@@ -130,16 +130,17 @@ export const useUpdateLeadSource = () => {
 };
 
 /**
- * Hook to delete a lead source
+ * Hook to archive a lead source. O nome antigo continua como alias temporário
+ * para não quebrar consumidores enquanto a UI de configuração chega na C2C.
  */
-export const useDeleteLeadSource = () => {
+export const useArchiveLeadSource = () => {
   const queryClient = useQueryClient();
   const { tenant } = useTenant();
   const organizationId = tenant?.organizationId || null;
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await leadSourcesService.delete(id);
+      const { error } = await leadSourcesService.archive(id);
       if (error) throw error;
       return id;
     },
@@ -162,3 +163,6 @@ export const useDeleteLeadSource = () => {
     },
   });
 };
+
+/** @deprecated Use `useArchiveLeadSource`. */
+export const useDeleteLeadSource = useArchiveLeadSource;

@@ -94,6 +94,7 @@ export {
   useCreateLeadSource,
   useUpdateLeadSource,
   useDeleteLeadSource,
+  useArchiveLeadSource,
 } from './useLeadSourcesQuery';
 
 // Products (catálogo de procedimentos)

@@ -234,7 +234,10 @@ export interface LeadSource {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   name: string;
+  normalizedName?: string;
+  code?: string;
   active: boolean;
+  archivedAt?: string;
   ownerId?: string;
   createdAt?: string;
   updatedAt?: string;
