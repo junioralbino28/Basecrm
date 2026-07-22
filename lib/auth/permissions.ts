@@ -39,6 +39,11 @@ export const APP_PERMISSIONS = [
   // Automações
   'automation.edit',
   'automation.operate',
+  // Etiquetas e origens
+  'tags.assign',
+  'tags.manage',
+  'lead_sources.assign',
+  'lead_sources.manage',
   // Configurações
   'settings.general',
   'settings.products',
@@ -100,6 +105,11 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   // Automações
   { key: 'automation.edit', label: 'Editar automações', description: 'Criar e alterar fluxos, passos, arestas e templates de automação.', group: 'Automações' },
   { key: 'automation.operate', label: 'Operar automações', description: 'Acompanhar e operar automações publicadas sem alterar o grafo.', group: 'Automações' },
+  // Etiquetas e origens
+  { key: 'tags.assign', label: 'Aplicar etiquetas', description: 'Aplicar e remover etiquetas existentes nos negócios.', group: 'Etiquetas e Origens' },
+  { key: 'tags.manage', label: 'Gerenciar etiquetas', description: 'Criar, renomear e arquivar categorias e etiquetas.', group: 'Etiquetas e Origens' },
+  { key: 'lead_sources.assign', label: 'Registrar origem', description: 'Registrar a origem observada ou declarada de um lead.', group: 'Etiquetas e Origens' },
+  { key: 'lead_sources.manage', label: 'Gerenciar origens', description: 'Criar, renomear e arquivar o catálogo de origens.', group: 'Etiquetas e Origens' },
   // Configurações
   { key: 'settings.general', label: 'Configurações gerais', description: 'Abrir e editar as configurações gerais da clínica.', group: 'Configurações' },
   { key: 'settings.products', label: 'Produtos e procedimentos', description: 'Gerenciar o catálogo de produtos/procedimentos.', group: 'Configurações' },
@@ -140,6 +150,8 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'ai.configure',
   'automation.edit',
   'automation.operate',
+  'tags.manage',
+  'lead_sources.manage',
   'settings.general',
   'settings.products',
   'settings.professionals',

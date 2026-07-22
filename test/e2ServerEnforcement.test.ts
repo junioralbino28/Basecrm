@@ -25,6 +25,12 @@ const v2MigrationPath = resolve(
   'supabase/migrations',
   V2_MIGRATION_NAME,
 );
+const V3_MIGRATION_NAME = '20260722000000_c2a_permission_defaults_v3.sql';
+const v3MigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations',
+  V3_MIGRATION_NAME,
+);
 const generatorPath = resolve(
   process.cwd(),
   'scripts/generate-e2-role-permission-defaults.mjs',
@@ -34,6 +40,7 @@ const snapshotSql = existsSync(snapshotMigrationPath)
   ? readFileSync(snapshotMigrationPath, 'utf8')
   : '';
 const v2Sql = existsSync(v2MigrationPath) ? readFileSync(v2MigrationPath, 'utf8') : '';
+const v3Sql = existsSync(v3MigrationPath) ? readFileSync(v3MigrationPath, 'utf8') : '';
 
 const ROLES = [
   'agency_admin',
@@ -87,6 +94,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
     expect(existsSync(migrationPath), MIGRATION_NAME).toBe(true);
     expect(existsSync(snapshotMigrationPath), SNAPSHOT_MIGRATION_NAME).toBe(true);
     expect(existsSync(v2MigrationPath), V2_MIGRATION_NAME).toBe(true);
+    expect(existsSync(v3MigrationPath), V3_MIGRATION_NAME).toBe(true);
     expect(existsSync(generatorPath), 'gerador do snapshot').toBe(true);
 
     execFileSync(process.execPath, [generatorPath, '--check'], {
@@ -109,7 +117,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
       enabled: match[3] === 'true',
     }));
 
-    expect(tuples).toHaveLength(ROLES.length * APP_PERMISSIONS.length);
+    expect(tuples).toHaveLength(ROLES.length * 37);
     expect(new Set(tuples.map(({ role, permission }) => `${role}:${permission}`)).size)
       .toBe(tuples.length);
 
@@ -120,12 +128,17 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
           ? { 'automation.operate': true }
           : {}),
       };
+      const roleTuples = tuples.filter((tuple) => tuple.role === role);
       const actual = Object.fromEntries(
-        tuples
-          .filter((tuple) => tuple.role === role)
-          .map((tuple) => [tuple.permission, tuple.enabled]),
+        roleTuples.map((tuple) => [tuple.permission, tuple.enabled]),
       );
-      expect(actual).toEqual(expected);
+      const expectedFrozen = Object.fromEntries(
+        roleTuples.map((tuple) => [
+          tuple.permission,
+          expected[tuple.permission as keyof typeof expected],
+        ]),
+      );
+      expect(actual).toEqual(expectedFrozen);
     }
   });
 
@@ -152,15 +165,21 @@ describe('E3 — defaults paralelos com ponteiro ativo', () => {
       permission: match[2],
       enabled: match[3] === 'true',
     }));
-    expect(tuples).toHaveLength(ROLES.length * APP_PERMISSIONS.length);
+    expect(tuples).toHaveLength(ROLES.length * 37);
 
     for (const role of ROLES) {
+      const roleTuples = tuples.filter((tuple) => tuple.role === role);
       const actual = Object.fromEntries(
-        tuples
-          .filter((tuple) => tuple.role === role)
-          .map((tuple) => [tuple.permission, tuple.enabled]),
+        roleTuples.map((tuple) => [tuple.permission, tuple.enabled]),
       );
-      expect(actual).toEqual(getDefaultPermissionMap(role));
+      const currentDefaults = getDefaultPermissionMap(role);
+      const expectedFrozen = Object.fromEntries(
+        roleTuples.map((tuple) => [
+          tuple.permission,
+          currentDefaults[tuple.permission as keyof typeof currentDefaults],
+        ]),
+      );
+      expect(actual).toEqual(expectedFrozen);
     }
   });
 
@@ -175,6 +194,43 @@ describe('E3 — defaults paralelos com ponteiro ativo', () => {
     expect(v2Sql).toMatch(/defaults_version = v_active_version/);
     expect(v2Sql).toContain('v_v1_rows <> 222');
     expect(v2Sql).toContain('v_v2_rows <> 222');
+  });
+});
+
+describe('C2A — defaults v3 para etiquetas e origens', () => {
+  it('materializa o snapshot v3 completo a partir de permissions.ts', () => {
+    const snapshotMatch = v3Sql.match(
+      /-- C2A_ROLE_PERMISSION_DEFAULTS_V3:START\r?\n([\s\S]*?)\r?\n-- C2A_ROLE_PERMISSION_DEFAULTS_V3:END/,
+    );
+    expect(snapshotMatch, 'marcadores do snapshot v3').not.toBeNull();
+
+    const tuples = [...(snapshotMatch?.[1] ?? '').matchAll(
+      /\(3, '([^']+)', '([^']+)', (true|false)\)/g,
+    )].map((match) => ({
+      role: match[1],
+      permission: match[2],
+      enabled: match[3] === 'true',
+    }));
+    expect(tuples).toHaveLength(ROLES.length * APP_PERMISSIONS.length);
+
+    for (const role of ROLES) {
+      const actual = Object.fromEntries(
+        tuples
+          .filter((tuple) => tuple.role === role)
+          .map((tuple) => [tuple.permission, tuple.enabled]),
+      );
+      expect(actual).toEqual(getDefaultPermissionMap(role));
+    }
+  });
+
+  it('preserva v1/v2 e ativa v3 atomicamente', () => {
+    expect(v3Sql).toContain('set active_version = 3');
+    expect(v3Sql).toContain('v_v1_rows <> 222');
+    expect(v3Sql).toContain('v_v2_rows <> 222');
+    expect(v3Sql).toContain('v_v3_rows <> 246');
+    expect(v3Sql).toContain('v_v1_permissions <> 37');
+    expect(v3Sql).toContain('v_v2_permissions <> 37');
+    expect(v3Sql).toContain('v_v3_permissions <> 41');
   });
 });
 

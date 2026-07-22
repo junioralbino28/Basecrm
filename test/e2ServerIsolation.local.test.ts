@@ -247,7 +247,7 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
     expect(config?.isLocal || process.env.E2_ALLOW_REMOTE_BRANCH === '1').toBe(true);
   });
 
-  it('trava anti-drift: preserva v1, ativa v2 e iguala v2 aos defaults atuais', async (ctx) => {
+  it('trava anti-drift: preserva v1/v2, ativa v3 e iguala v3 aos defaults atuais', async (ctx) => {
     if (!ready || !admin) return ctx.skip();
     const [result, state] = await Promise.all([
       admin
@@ -260,16 +260,16 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
     ]);
     expect(result.error).toBeNull();
     expect(state.error).toBeNull();
-    expect(state.data?.active_version).toBe(2);
-    expect(result.data).toHaveLength(TEST_ROLES.length * APP_PERMISSIONS.length * 2);
+    expect(state.data?.active_version).toBe(3);
+    expect(result.data).toHaveLength(TEST_ROLES.length * (37 + 37 + APP_PERMISSIONS.length));
     expect(new Set((result.data ?? []).map((row) => row.defaults_version))).toEqual(
-      new Set([1, 2]),
+      new Set([1, 2, 3]),
     );
 
     for (const role of TEST_ROLES) {
       const actual = Object.fromEntries(
         (result.data ?? [])
-          .filter((row) => row.defaults_version === 2 && row.role === role)
+          .filter((row) => row.defaults_version === 3 && row.role === role)
           .map((row) => [row.permission_key, row.enabled]),
       );
       expect(actual).toEqual(getDefaultPermissionMap(role));
@@ -294,6 +294,12 @@ describeE2('E2 S1 — isolamento real em Supabase local/branch não produtivo', 
     expect(await hasPermission(users.get('clinic_staff')!, 'automation.operate')).toBe(false);
     expect(await hasPermission(users.get('vendedor')!, 'automation.operate')).toBe(false);
     expect(await hasPermission(users.get('agency_staff')!, 'automation.operate')).toBe(true);
+    expect(await hasPermission(users.get('agency_staff')!, 'tags.manage')).toBe(true);
+    expect(await hasPermission(users.get('clinic_admin')!, 'lead_sources.manage')).toBe(true);
+    expect(await hasPermission(users.get('clinic_staff')!, 'tags.manage')).toBe(false);
+    expect(await hasPermission(users.get('vendedor')!, 'lead_sources.manage')).toBe(false);
+    expect(await hasPermission(users.get('clinic_staff')!, 'tags.assign')).toBe(true);
+    expect(await hasPermission(users.get('vendedor')!, 'lead_sources.assign')).toBe(true);
     expect(await hasPermission(users.get('clinic_admin')!, 'permission.does_not_exist')).toBe(false);
     expect(await hasPermission(noProfileUser, 'atendimentos.view')).toBe(false);
   });
