@@ -3,9 +3,9 @@
 // Isolamento cross-tenant das origens de lead (N1) — teste NÃO-tautológico.
 //
 // Espelha test/financeConfig.multiTenant.test.ts (usuário real + RLS de
-// verdade). lead_sources é tabela OPERACIONAL: SELECT can_access, mutação
-// can_operate — clinic_staff (Vitória) cadastra origem na PRÓPRIA org e
-// nunca na org B.
+// verdade). lead_sources é catálogo: SELECT segue can_access; gestão exige
+// lead_sources.manage. clinic_staff lê e atribui origens, mas não altera o
+// catálogo nem na própria organização.
 //
 // ⚠️ Skip gracioso: se a tabela ainda não existe no banco (migração
 // 20260617000000 não aplicada), a suíte inteira é pulada com aviso.
@@ -198,7 +198,7 @@ describeSupabase('lead_sources - isolamento multi-tenant operacional (usuário r
     await client.auth.signOut();
   });
 
-  it('clinic_staff CADASTRA e edita origem na própria org (mutação = can_operate, não deny-all)', async ctx => {
+  it('clinic_staff lê, mas não cria, edita nem exclui o catálogo da própria org', async ctx => {
     if (tableMissing) return ctx.skip();
     const client = createUserClient();
     const signIn = await client.auth.signInWithPassword({ email: staffEmail, password });
@@ -210,24 +210,30 @@ describeSupabase('lead_sources - isolamento multi-tenant operacional (usuário r
       .select('id, organization_id, active')
       .single();
 
-    expect(ins.error).toBeNull();
-    expect(ins.data?.organization_id).toBe(orgAId);
-    expect(ins.data?.active).toBe(true);
+    expect(ins.data).toBeNull();
+    expect(ins.error?.code).toBe('42501');
 
     const upd = await client
       .from('lead_sources')
       .update({ active: false })
-      .eq('id', ins.data!.id)
-      .select('active')
-      .single();
+      .eq('id', sourceAId)
+      .select('active');
 
     expect(upd.error).toBeNull();
-    expect(upd.data?.active).toBe(false);
+    expect(upd.data).toEqual([]);
+
+    const del = await client
+      .from('lead_sources')
+      .delete()
+      .eq('id', sourceAId)
+      .select('id');
+    expect(del.error).toBeNull();
+    expect(del.data).toEqual([]);
 
     await client.auth.signOut();
   });
 
-  it('clinic_staff de org A NÃO insere origem em org B (WITH CHECK cross-org)', async ctx => {
+  it('clinic_staff de org A também NÃO insere origem em org B', async ctx => {
     if (tableMissing) return ctx.skip();
     const client = createUserClient();
     const signIn = await client.auth.signInWithPassword({ email: staffEmail, password });
