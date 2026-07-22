@@ -3,12 +3,18 @@
 import React from 'react';
 import { Tag } from 'lucide-react';
 import type { AutomationWorkspaceItem } from '@/lib/automations/workspace';
+import { TriggerTagSelector } from './TriggerTagSelector';
 
 type AutomationFlowToolbarProps = {
   automations: AutomationWorkspaceItem[];
   selected: AutomationWorkspaceItem;
   onSelect: (automationId: string) => void;
   actions: React.ReactNode;
+  /** C2C — sem organizationId o gatilho fica somente leitura (fronteira C1B). */
+  organizationId?: string;
+  canEditTrigger?: boolean;
+  canManageTags?: boolean;
+  onTriggerTagChange?: (tagId: string) => void;
 };
 
 function statusLabel(status: AutomationWorkspaceItem['lifecycleStatus']) {
@@ -32,6 +38,10 @@ export function AutomationFlowToolbar({
   selected,
   onSelect,
   actions,
+  organizationId,
+  canEditTrigger = false,
+  canManageTags = false,
+  onTriggerTagChange,
 }: AutomationFlowToolbarProps) {
   const legacyTag = typeof selected.triggerConfig.tag === 'string'
     ? selected.triggerConfig.tag.trim()
@@ -71,7 +81,15 @@ export function AutomationFlowToolbar({
         className="flex min-w-0 items-center gap-2 text-xs text-slate-500"
       >
         <Tag className="h-3.5 w-3.5 shrink-0" />
-        {legacyTag ? (
+        {organizationId && onTriggerTagChange ? (
+          <TriggerTagSelector
+            organizationId={organizationId}
+            triggerConfig={selected.triggerConfig}
+            canEdit={canEditTrigger}
+            canManage={canManageTags}
+            onSelectTag={onTriggerTagChange}
+          />
+        ) : legacyTag ? (
           <span>
             começa com a etiqueta{' '}
             <strong className="font-semibold text-slate-300">{legacyTag}</strong>

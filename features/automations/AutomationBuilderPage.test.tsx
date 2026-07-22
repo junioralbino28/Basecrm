@@ -1,6 +1,18 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// C2C: o gatilho agora usa permissão (tags.manage) e catálogo de etiquetas.
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: () => true,
+}));
+vi.mock('@/lib/supabase/dealTags', () => ({
+  dealTagsService: {
+    getCatalog: vi.fn().mockResolvedValue({ categories: [], tags: [], error: null }),
+    createTag: vi.fn(),
+  },
+}));
+
 import { AutomationBuilderPage } from './AutomationBuilderPage';
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';

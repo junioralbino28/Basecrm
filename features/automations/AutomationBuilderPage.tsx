@@ -26,6 +26,7 @@ import type {
 } from '@/lib/automations/builder';
 import type { AutomationStepType } from '@/lib/automations/compiler';
 import { useTenantDetail } from '@/features/platform/tenants/useTenantDetail';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { AutomationFlowMap, automationStepName } from './AutomationFlowMap';
 import { AutomationFlowToolbar } from './AutomationFlowToolbar';
 import { AutomationStepDock } from './AutomationStepDock';
@@ -304,6 +305,9 @@ export function AutomationBuilderPage(props: {
 
   const canEdit = props.canEdit || Boolean(workspace?.access?.canEdit);
   const canOperate = props.canOperate || Boolean(workspace?.access?.canOperate);
+  // C2C: criar etiqueta dentro do gatilho é gestão de catálogo (§N1.1) —
+  // agência + admin da clínica têm; secretária/vendedor não.
+  const canManageTags = useHasPermission('tags.manage') === true;
 
   const loadWorkspace = React.useCallback(async () => {
     setLoading(true);
@@ -705,6 +709,17 @@ export function AutomationBuilderPage(props: {
               <AutomationFlowToolbar
                 automations={workspace?.automations ?? [draft]}
                 selected={draft}
+                organizationId={tenantId}
+                canEditTrigger={canEdit}
+                canManageTags={canManageTags}
+                onTriggerTagChange={(tagId) => {
+                  // Contrato v3: o gatilho vira { tag_id } — o texto legado sai
+                  // do rascunho aqui e a próxima publicação usa schemaVersion 3.
+                  patchDraft((current) => ({
+                    ...current,
+                    triggerConfig: { tag_id: tagId },
+                  }));
+                }}
                 onSelect={(automationId) => {
                   const automation = workspace?.automations.find(
                     (item) => item.id === automationId,
