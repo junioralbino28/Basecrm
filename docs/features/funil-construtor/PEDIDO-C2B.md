@@ -7,8 +7,20 @@
 
 Hoje `create_automation_enrollment` só é chamada pelo **botão Testar**
 (`lib/automations/builder.ts:128`) e por testes. **Nenhum lead entra sozinho em
-automação nenhuma.** Depois da C2B, aplicar a etiqueta de serviço no negócio
-inscreve o lead no fluxo certo — na mesma transação, sem corrida.
+automação nenhuma.** Depois da C2B, o lead entra no fluxo certo sozinho.
+
+> ⚠️ **CORRIGIDO em 2026-07-22 — erro conceitual meu, apontado pelo Codex.**
+> A versão original desta seção dizia *"aplicar a etiqueta inscreve o lead"*.
+> **Está revogado.** Follow-up existe para quem **parou de responder** — disparar no
+> instante da etiquetagem mandaria *"ainda tem interesse?"* para alguém que está
+> conversando com a secretária naquele momento. Além disso, a C2A torna a primeira
+> etiqueta principal automaticamente
+> (`20260722010000_c2a_tag_taxonomy.sql:522`), então inscrever na primeira
+> atribuição faria o fluxo começar antes da tarefa-porteiro — violando o §N1.2 D2.
+>
+> **O correto:** `assign`/`remove` **registram interesse**; o **evento de
+> esfriamento** roteia (1 interesse → inscrição · 2+ → porteiro, sem inscrição).
+> Adjudicação completa em `REVIEW-PLANO-C2B.md` §1.
 
 ## O que a C2A já deixou pronto (não refazer)
 
@@ -144,8 +156,11 @@ de novo (§3).
 
 Invisível, então por teste:
 
-1. aplicar a etiqueta de serviço **cria a inscrição** no fluxo publicado
-   correspondente — **é o item central da fatia**;
+1. **(REVISTO)** aplicar a etiqueta **registra o interesse e NÃO inicia fluxo**; o
+   **evento de esfriamento** é que roteia — com **um** interesse, inscrição no fluxo
+   publicado correspondente; com **dois ou mais**, porteiro e **nenhuma inscrição**.
+   **É o item central da fatia.** O relógio dos 5 dias conta do **último evento da
+   conversa (inbound ou outbound)** — senão o lead nunca respondido nunca esfria;
 2. a mesma operação repetida (retry) **não cria segunda inscrição**;
 3. o tick **nunca** enxerga inscrição sem a etiqueta correspondente já gravada
    (tudo-ou-nada);
