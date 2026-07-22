@@ -17,18 +17,24 @@ describe('dealTagsService (C2C — etiquetas controladas, §N1.1)', () => {
     expect('update' in dealTagsService).toBe(false);
   });
 
-  it('toda escrita passa pelas RPCs da C2A — nunca insert/update direto', () => {
+  it('escrita de atribuição/criação passa pelas RPCs da C2A; arquivar é o único update direto', () => {
     const src = readFileSync(resolve(process.cwd(), 'lib/supabase/dealTags.ts'), 'utf-8');
     expect(src).toContain("rpc('assign_deal_tag'");
     expect(src).toContain("rpc('remove_deal_tag'");
     expect(src).toContain("rpc('set_primary_deal_tag'");
     expect(src).toContain("rpc('get_or_create_tag_category'");
     expect(src).toContain("rpc('get_or_create_tag'");
-    // Escrever direto nas tabelas driblaria cardinalidade, auditoria e a ponte
-    // legacy_value — a RLS até deixaria em alguns cargos, o contrato não.
-    expect(src).not.toMatch(/from\('deal_tag_assignments'\)\s*[\s\S]{0,80}\.(insert|update|delete|upsert)\(/);
-    expect(src).not.toMatch(/from\('tags'\)\s*[\s\S]{0,80}\.(insert|update|delete|upsert)\(/);
-    expect(src).not.toMatch(/from\('tag_categories'\)\s*[\s\S]{0,80}\.(insert|update|delete|upsert)\(/);
+    // Atribuições NUNCA por escrita direta (driblaria cardinalidade, auditoria
+    // e a ponte legacy_value); catálogo nunca por insert/delete direto (criação
+    // é RPC com dedupe; apagar não existe — arquiva). O único update direto
+    // permitido é o de `archived_at`, cujo guard no banco valida `tags.manage`
+    // e bloqueia dependência publicada com mensagem acionável.
+    expect(src).not.toMatch(/from\('deal_tag_assignments'\)\s*[\s\S]{0,120}\.(insert|update|delete|upsert)\(/);
+    expect(src).not.toMatch(/from\('tags'\)\s*[\s\S]{0,120}\.(insert|delete|upsert)\(/);
+    expect(src).not.toMatch(/from\('tag_categories'\)\s*[\s\S]{0,120}\.(insert|delete|upsert)\(/);
+    const archiveUpdates = src.match(/\.update\(\{ archived_at/g) ?? [];
+    const allUpdates = src.match(/\.update\(/g) ?? [];
+    expect(allUpdates.length).toBe(archiveUpdates.length);
   });
 
   it('sem Supabase configurado retorna erro sem lançar', async () => {

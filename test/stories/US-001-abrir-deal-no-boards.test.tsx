@@ -20,6 +20,20 @@ vi.mock('@/context/AuthContext', () => ({
   }),
 }));
 
+// C2C: o modal agora resolve tenant/permissões e usa os seletores controlados.
+vi.mock('@/context/TenantContext', () => ({
+  useTenant: () => ({ tenant: { organizationId: 'org-1' }, loading: false }),
+}));
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: () => true,
+}));
+vi.mock('@/features/tags/DealTagSelector', () => ({
+  DealTagSelector: () => <div data-testid="deal-tag-selector" />,
+}));
+vi.mock('@/features/tags/DealOriginSelector', () => ({
+  DealOriginSelector: () => <div data-testid="deal-origin-selector" />,
+}));
+
 vi.mock('@/context/ToastContext', () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }));

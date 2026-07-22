@@ -238,4 +238,38 @@ export const dealTagsService = {
       return { data: null, error: e as Error };
     }
   },
+
+  /**
+   * Arquivar é o fluxo normal; apagar não existe aqui (O5/§10 do parecer).
+   * O caminho sancionado é o UPDATE de `archived_at`: os guards da C2A validam
+   * `tags.manage` e BLOQUEIAM com mensagem acionável quando uma automação
+   * publicada depende da etiqueta.
+   */
+  async setTagArchived(organizationId: string, tagId: string, archived: boolean): Promise<{ error: Error | null }> {
+    try {
+      if (!supabase) return { error: new Error('Supabase não configurado') };
+      const { error } = await supabase
+        .from('tags')
+        .update({ archived_at: archived ? new Date().toISOString() : null })
+        .eq('organization_id', sanitizeUUID(organizationId))
+        .eq('id', sanitizeUUID(tagId));
+      return { error: error ?? null };
+    } catch (e) {
+      return { error: e as Error };
+    }
+  },
+
+  async setCategoryArchived(organizationId: string, categoryId: string, archived: boolean): Promise<{ error: Error | null }> {
+    try {
+      if (!supabase) return { error: new Error('Supabase não configurado') };
+      const { error } = await supabase
+        .from('tag_categories')
+        .update({ archived_at: archived ? new Date().toISOString() : null })
+        .eq('organization_id', sanitizeUUID(organizationId))
+        .eq('id', sanitizeUUID(categoryId));
+      return { error: error ?? null };
+    } catch (e) {
+      return { error: e as Error };
+    }
+  },
 };

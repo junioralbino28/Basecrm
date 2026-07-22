@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSettingsController } from './hooks/useSettingsController';
-import { TagsManager } from './components/TagsManager';
 import { CustomFieldsManager } from './components/CustomFieldsManager';
+import { TagCatalogSettings } from './components/TagCatalogSettings';
 import { ApiKeysSection } from './components/ApiKeysSection';
 import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
@@ -21,9 +21,9 @@ import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
 import { isAgencyRole } from '@/lib/auth/scope';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign, Tag as TagIcon } from 'lucide-react';
 
-type SettingsTab = 'general' | 'products' | 'professionals' | 'financeiro' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'tags' | 'professionals' | 'financeiro' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -75,14 +75,8 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
 
       {isAdmin && (
         <>
-          <TagsManager
-            availableTags={controller.availableTags}
-            newTagName={controller.newTagName}
-            setNewTagName={controller.setNewTagName}
-            onAddTag={controller.handleAddTag}
-            onRemoveTag={controller.removeTag}
-          />
-
+          {/* C2C: o gerenciador de tags por texto livre (localStorage) saiu —
+              etiquetas agora são entidades, na aba "Etiquetas". */}
           <CustomFieldsManager
             customFieldDefinitions={controller.customFieldDefinitions}
             newFieldLabel={controller.newFieldLabel}
@@ -249,6 +243,7 @@ interface SettingsPageProps {
 const getSettingsTabFromPathname = (pathname: string | null): SettingsTab => {
   if (pathname?.includes('/settings/ai')) return 'ai';
   if (pathname?.includes('/settings/products')) return 'products';
+  if (pathname?.includes('/settings/etiquetas')) return 'tags';
   if (pathname?.includes('/settings/profissionais')) return 'professionals';
   if (pathname?.includes('/settings/financeiro')) return 'financeiro';
   if (pathname?.includes('/settings/integracoes')) return 'integrations';
@@ -271,6 +266,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   );
   const canViewGeneral = useHasPermission('settings.general');
   const canViewProducts = useHasPermission('settings.products');
+  const canManageTags = useHasPermission('tags.manage');
   const canViewProfessionals = useHasPermission('settings.professionals');
   const canViewFinance = useHasPermission('settings.finance');
   const canViewIntegrations = useHasPermission('settings.integrations');
@@ -289,6 +285,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const tabs = [
     ...(canViewGeneral === true ? [{ id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon }] : []),
     ...(canViewProducts === true ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    ...(canManageTags === true ? [{ id: 'tags' as SettingsTab, name: 'Etiquetas', icon: TagIcon }] : []),
     ...(canViewProfessionals === true ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
     ...(canViewFinance === true ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
     ...(canViewIntegrations === true ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
@@ -300,6 +297,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const activePermission = {
     general: canViewGeneral,
     products: canViewProducts,
+    tags: canManageTags,
     professionals: canViewProfessionals,
     financeiro: canViewFinance,
     integrations: canViewIntegrations,
@@ -317,6 +315,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     switch (activeTab) {
       case 'products':
         return <ProductsSettings />;
+      case 'tags':
+        return <TagCatalogSettings />;
       case 'professionals':
         return <ProfessionalsSettings />;
       case 'financeiro':
