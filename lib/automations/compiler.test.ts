@@ -23,6 +23,11 @@ const IDS = {
   switchTarget3: '10000000-0000-4000-8000-000000000023',
   switchTarget4: '10000000-0000-4000-8000-000000000024',
   switchFallback: '10000000-0000-4000-8000-000000000025',
+  triggerTag: '10000000-0000-4000-8000-000000000026',
+  switchTag1: '10000000-0000-4000-8000-000000000031',
+  switchTag2: '10000000-0000-4000-8000-000000000032',
+  switchTag3: '10000000-0000-4000-8000-000000000033',
+  switchTag4: '10000000-0000-4000-8000-000000000034',
 } as const;
 
 function validInput(): AutomationCompileInput {
@@ -33,7 +38,7 @@ function validInput(): AutomationCompileInput {
       name: 'Follow-up principal',
       deliveryMode: 'simulation',
       triggerType: 'tag_added',
-      triggerConfig: { tag: 'follow-up' },
+      triggerConfig: { tag_id: IDS.triggerTag },
       draftRevision: 4,
     },
     schedule: {
@@ -131,12 +136,12 @@ function validSwitchInput(): AutomationCompileInput {
       stepType: 'switch',
       sortKey: 0,
       config: {
-        field: 'deal.tags',
+        field: 'deal.tag_ids',
         cases: caseIds.map((caseId, order) => ({
           case_id: caseId,
           label: `Serviço ${order + 1}`,
           operator: 'contains',
-          value: `servico-${order + 1}`,
+          value: [IDS.switchTag1, IDS.switchTag2, IDS.switchTag3, IDS.switchTag4][order],
           order,
         })),
         fallback_label: 'Não identificado',
@@ -195,7 +200,8 @@ describe('compileAutomationDefinition', () => {
     });
 
     expect(first.definitionHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(first.definition.schemaVersion).toBe(2);
+    expect(first.definition.schemaVersion).toBe(3);
+    expect(first.definition.trigger.config).toEqual({ tagId: IDS.triggerTag });
     expect(second.definitionHash).toBe(first.definitionHash);
     expect(second.canonicalJson).toBe(first.canonicalJson);
     expect(first.definition.entryStepKey).toBe(
@@ -369,6 +375,21 @@ describe('compileAutomationDefinition', () => {
     cases[0].value = 'não-é-uuid';
 
     expect(() => compileAutomationDefinition(input)).toThrowError(
+      /config inválida em switch/i,
+    );
+  });
+
+  it('exige UUID no gatilho e nos casos de deal.tag_ids', () => {
+    const invalidTrigger = validInput();
+    invalidTrigger.automation.triggerConfig = { tag_id: 'facetas' };
+    expect(() => compileAutomationDefinition(invalidTrigger)).toThrowError(
+      /gatilho.*etiqueta.*UUID/i,
+    );
+
+    const invalidCase = validSwitchInput();
+    const cases = invalidCase.steps[0].config.cases as Array<Record<string, unknown>>;
+    cases[0].value = 'facetas';
+    expect(() => compileAutomationDefinition(invalidCase)).toThrowError(
       /config inválida em switch/i,
     );
   });

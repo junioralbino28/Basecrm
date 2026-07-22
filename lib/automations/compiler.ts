@@ -107,7 +107,7 @@ type CompiledEdge = {
 };
 
 export type CompiledAutomationDefinition = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   automationId: string;
   organizationId: string;
   name: string;
@@ -171,6 +171,10 @@ const CreateTaskConfigSchema = z.object({
   due_in_minutes: z.number().int().min(0).max(525_600).optional(),
 }).strict();
 
+const TagTriggerConfigSchema = z.object({
+  tag_id: UUID_SCHEMA,
+}).strict();
+
 const MoveConfigSchema = z.object({
   board_id: UUID_SCHEMA,
   stage_id: UUID_SCHEMA,
@@ -189,7 +193,7 @@ const ConditionConfigSchema = z.object({
 
 const SwitchConfigSchema = z.object({
   field: z.enum([
-    'deal.tags',
+    'deal.tag_ids',
     'contact.phone',
     'deal.stage_id',
     'deal.board_id',
@@ -211,7 +215,7 @@ const SwitchConfigSchema = z.object({
 }).strict().superRefine((config, context) => {
   for (const [index, switchCase] of config.cases.entries()) {
     const path = ['cases', index] as (string | number)[];
-    const allowedOperators = config.field === 'deal.tags'
+    const allowedOperators = config.field === 'deal.tag_ids'
       ? new Set(['contains', 'not_contains'])
       : config.field === 'contact.phone'
         ? new Set(['equals', 'not_equals', 'contains', 'not_contains', 'exists'])
@@ -246,7 +250,11 @@ const SwitchConfigSchema = z.object({
     }
 
     if (
-      (config.field === 'deal.stage_id' || config.field === 'deal.board_id')
+      (
+        config.field === 'deal.tag_ids'
+        || config.field === 'deal.stage_id'
+        || config.field === 'deal.board_id'
+      )
       && !UUID_SCHEMA.safeParse(switchCase.value).success
     ) {
       context.addIssue({
@@ -278,33 +286,6 @@ const ALLOWED_OUTCOMES: Record<AutomationStepType, ReadonlySet<string>> = {
   condition: new Set(['true', 'false', 'otherwise']),
   switch: new Set(['otherwise']),
 };
-
-function isJsonValue(value: unknown): value is JsonValue {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'number'
-    || typeof value === 'boolean'
-  ) {
-    return true;
-  }
-  if (Array.isArray(value)) return value.every(isJsonValue);
-  if (typeof value !== 'object') return false;
-  return Object.values(value as Record<string, unknown>).every(isJsonValue);
-}
-
-function assertJsonObject(
-  value: Record<string, unknown>,
-  label: string,
-): Record<string, JsonValue> {
-  if (!isJsonValue(value)) {
-    throw new AutomationCompileError([{
-      code: 'invalid_json',
-      message: `${label} precisa conter apenas JSON serializável`,
-    }]);
-  }
-  return value as Record<string, JsonValue>;
-}
 
 function canonicalize(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -809,6 +790,14 @@ export function compileAutomationDefinition(input: AutomationCompileInput): {
   }
   if (inputIssues.length) throw new AutomationCompileError(inputIssues);
 
+  const triggerConfig = TagTriggerConfigSchema.safeParse(input.automation.triggerConfig);
+  if (!triggerConfig.success) {
+    throw new AutomationCompileError([{
+      code: 'invalid_trigger_config',
+      message: 'gatilho exige uma etiqueta em UUID',
+    }]);
+  }
+
   const templates = new Map<string, AutomationTemplateSnapshotSource>();
   for (const template of input.templates) {
     if (templates.has(template.id)) {
@@ -829,14 +818,14 @@ export function compileAutomationDefinition(input: AutomationCompileInput): {
   })).sort((left, right) => left.stepKey.localeCompare(right.stepKey));
 
   const definition: CompiledAutomationDefinition = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     automationId: input.automation.id,
     organizationId: input.automation.organizationId,
     name: input.automation.name.trim(),
     deliveryMode: input.automation.deliveryMode,
     trigger: {
       type: input.automation.triggerType,
-      config: assertJsonObject(input.automation.triggerConfig, 'triggerConfig'),
+      config: { tagId: triggerConfig.data.tag_id },
     },
     schedule: {
       timezone: input.schedule.timezone,

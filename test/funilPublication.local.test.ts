@@ -26,6 +26,7 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
   let threadA = '';
   let channelA = '';
   let automationA = '';
+  let triggerTagA = '';
   let templateA = '';
   let version1 = '';
   let latestVersionId = '';
@@ -173,13 +174,35 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
     if (template.error) throw new Error(`template F2: ${template.error.message}`);
     templateA = template.data.id;
 
+    const category = await admin
+      .from('tag_categories')
+      .insert({
+        organization_id: organizationA,
+        label: `Procedimentos F2 ${runId}`,
+        cardinality: 'multiple',
+      })
+      .select('id')
+      .single();
+    if (category.error) throw new Error(`tag category F2: ${category.error.message}`);
+    const triggerTag = await admin
+      .from('tags')
+      .insert({
+        organization_id: organizationA,
+        category_id: category.data.id,
+        name: `Procedimento F2 ${runId}`,
+      })
+      .select('id')
+      .single();
+    if (triggerTag.error) throw new Error(`trigger tag F2: ${triggerTag.error.message}`);
+    triggerTagA = triggerTag.data.id;
+
     const automation = await admin
       .from('automations')
       .insert({
         organization_id: organizationA,
         name: `Automação F2 ${runId}`,
         created_by: actorId,
-        trigger_config: { tag: 'f2' },
+        trigger_config: { tag_id: triggerTagA },
       })
       .select('id')
       .single();
@@ -292,7 +315,40 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
       published_version_id: version1,
     });
     expect(storedVersion.error).toBeNull();
-    expect(storedVersion.data?.definition).toMatchObject({ schemaVersion: 2 });
+    expect(storedVersion.data?.definition).toMatchObject({
+      schemaVersion: 3,
+      trigger: { config: { tagId: triggerTagA } },
+    });
+  });
+
+  it('recusa um segundo fluxo publicado para a mesma etiqueta com mensagem acionável', async () => {
+    if (!admin) throw new Error('admin E2 ausente');
+    const duplicate = await admin.from('automations').insert({
+      organization_id: organizationA,
+      name: `Automação duplicada F2 ${runId}`,
+      created_by: actorId,
+      trigger_config: { tag_id: triggerTagA },
+    }).select('id').single();
+    if (duplicate.error || !duplicate.data) throw duplicate.error;
+    const step = await admin.from('automation_steps').insert({
+      organization_id: organizationA,
+      automation_id: duplicate.data.id,
+      step_type: 'send_message',
+      sort_key: 0,
+      config: {
+        link_mode: 'copied',
+        body_local: 'Mensagem duplicada',
+        message_kind: 'text',
+        channel: 'whatsapp',
+      },
+    });
+    if (step.error) throw step.error;
+
+    await expect(publishAutomationDraft({
+      db: admin,
+      automationId: duplicate.data.id,
+      actorId,
+    })).rejects.toThrow(/etiqueta já possui uma automação publicada ativa/i);
   });
 
   it('cria inscrição fixada na versão vigente', async () => {
@@ -314,7 +370,7 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
     enrollment1 = enrolled.data.id;
   });
 
-  it('republica template linked em v2 sem mover inscrição existente', async () => {
+  it('republica template linked em v3 sem mover inscrição existente', async () => {
     if (!admin) throw new Error('admin E2 ausente');
     const changed = await admin
       .from('message_templates')
@@ -354,18 +410,22 @@ describeE2('F2 — publicação e pinagem de versão no Supabase local', () => {
 
   it('mantém snapshot legado schemaVersion 1 executável', async () => {
     if (!admin) throw new Error('admin E2 ausente');
-    const source = await admin
-      .from('automation_versions')
-      .select('definition, source_draft_revision')
-      .eq('id', version1)
-      .single();
-    if (source.error || !source.data) {
-      throw new Error(`versão fonte v1: ${source.error?.message}`);
+    const [source, triggerTag] = await Promise.all([
+      admin
+        .from('automation_versions')
+        .select('definition, source_draft_revision')
+        .eq('id', version1)
+        .single(),
+      admin.from('tags').select('name').eq('id', triggerTagA).single(),
+    ]);
+    if (source.error || !source.data || triggerTag.error || !triggerTag.data) {
+      throw new Error(`versão fonte v1: ${source.error?.message ?? triggerTag.error?.message}`);
     }
 
     const legacyDefinition = {
       ...(source.data.definition as Record<string, unknown>),
       schemaVersion: 1,
+      trigger: { type: 'tag_added', config: { tag: triggerTag.data.name } },
     };
     const legacyHash = createHash('sha256')
       .update(JSON.stringify(legacyDefinition))

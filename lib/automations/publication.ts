@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import {
   AUTOMATION_STEP_TYPES,
   AutomationCompileError,
@@ -92,6 +93,75 @@ async function validateDestinationReferences(
   if (issues.length) throw new AutomationCompileError(issues);
 }
 
+async function validateTagReferences(
+  db: SupabaseClient,
+  organizationId: string,
+  triggerConfig: Record<string, unknown>,
+  steps: Array<{ step_type: string; step_key: string; config: Record<string, unknown> }>,
+) {
+  const references: Array<{ tagId: string; stepKey?: string }> = [];
+  if (typeof triggerConfig.tag_id === 'string') {
+    references.push({ tagId: triggerConfig.tag_id });
+  }
+  for (const step of steps) {
+    if (step.step_type !== 'switch' || step.config.field !== 'deal.tag_ids') continue;
+    const cases = Array.isArray(step.config.cases) ? step.config.cases : [];
+    for (const switchCase of cases) {
+      if (
+        switchCase
+        && typeof switchCase === 'object'
+        && typeof (switchCase as Record<string, unknown>).value === 'string'
+      ) {
+        references.push({
+          tagId: (switchCase as Record<string, unknown>).value as string,
+          stepKey: step.step_key,
+        });
+      }
+    }
+  }
+
+  const validReferences = references.filter(({ tagId }) => z.string().uuid().safeParse(tagId).success);
+  if (!validReferences.length) return;
+  const tagIds = [...new Set(validReferences.map(({ tagId }) => tagId))];
+  const tags = await db
+    .from('tags')
+    .select('id, category_id')
+    .eq('organization_id', organizationId)
+    .is('archived_at', null)
+    .in('id', tagIds);
+  if (tags.error) fail(tags.error.message);
+  const categoryIds = [...new Set(
+    (tags.data ?? []).flatMap(({ category_id }) => category_id ? [category_id] : []),
+  )];
+  const categories = categoryIds.length
+    ? await db
+      .from('tag_categories')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .is('archived_at', null)
+      .in('id', categoryIds)
+    : { data: [], error: null };
+  if (categories.error) fail(categories.error.message);
+
+  const activeCategoryIds = new Set((categories.data ?? []).map(({ id }) => id));
+  const availableTagIds = new Set(
+    (tags.data ?? [])
+      .filter(({ category_id }) => category_id && activeCategoryIds.has(category_id))
+      .map(({ id }) => id),
+  );
+  const issues: AutomationCompileIssue[] = [];
+  for (const reference of validReferences) {
+    if (!availableTagIds.has(reference.tagId)) {
+      issues.push({
+        code: 'tag_not_found',
+        message: 'etiqueta do gatilho ou caminho não existe, está arquivada ou pertence a outro tenant',
+        stepKey: reference.stepKey,
+      });
+    }
+  }
+  if (issues.length) throw new AutomationCompileError(issues);
+}
+
 export async function publishAutomationDraft(params: {
   db: SupabaseClient;
   automationId: string;
@@ -147,6 +217,12 @@ export async function publishAutomationDraft(params: {
   await validateDestinationReferences(
     params.db,
     automation.organization_id,
+    rawSteps,
+  );
+  await validateTagReferences(
+    params.db,
+    automation.organization_id,
+    automation.trigger_config,
     rawSteps,
   );
 
