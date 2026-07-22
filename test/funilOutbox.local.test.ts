@@ -147,13 +147,26 @@ describeE2('F3 — outbox idempotente e dispatch simulation no Supabase local', 
     const signed = await actorClient.auth.signInWithPassword({ email, password });
     if (signed.error) throw new Error(`signIn F3: ${signed.error.message}`);
 
+    const category = await admin.from('tag_categories').insert({
+      organization_id: organizationId,
+      label: `Serviços F3 ${runId}`,
+      cardinality: 'multiple',
+    }).select('id').single();
+    if (category.error) throw new Error(`tag category F3: ${category.error.message}`);
+    const triggerTag = await admin.from('tags').insert({
+      organization_id: organizationId,
+      category_id: category.data.id,
+      name: `Gatilho F3 ${runId}`,
+    }).select('id').single();
+    if (triggerTag.error) throw new Error(`trigger tag F3: ${triggerTag.error.message}`);
+
     const automation = await admin
       .from('automations')
       .insert({
         organization_id: organizationId,
         name: `Automação F3 ${runId}`,
         created_by: actorId,
-        trigger_config: { tag: 'f3' },
+        trigger_config: { tag_id: triggerTag.data.id },
       })
       .select('id')
       .single();
