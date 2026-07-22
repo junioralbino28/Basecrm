@@ -236,6 +236,45 @@ describe('AutomationFlowMap', () => {
     expect(onMoveStep).toHaveBeenCalledWith('moving', targetEdge);
   });
 
+  it('faz o cartão acompanhar o cursor enquanto arrasta', () => {
+    // Sem isso a linha acende mas nada parece se mover — o Junior levou um tempo
+    // para entender que o passo estava sendo arrastado (2026-07-22).
+    const linearSteps: AutomationBuilderStep[] = [
+      { ...steps[0], stepKey: 'root' },
+      { ...steps[1], stepKey: 'moving' },
+      { ...steps[2], stepKey: 'child' },
+      { ...steps[2], stepKey: 'target', config: { title: 'Destino' } },
+    ];
+    const linearEdges: AutomationBuilderEdge[] = [
+      { fromStepKey: 'root', outcome: 'answered', toStepKey: 'moving', order: 0 },
+      { fromStepKey: 'moving', outcome: 'success', toStepKey: 'child', order: 0 },
+      { fromStepKey: 'root', outcome: 'timeout', toStepKey: 'target', order: 1 },
+    ];
+    render(
+      <AutomationFlowMap
+        steps={linearSteps}
+        edges={linearEdges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onMoveStep={vi.fn()}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const stage = screen.getByRole('region', { name: 'Mapa da automação' });
+    const card = screen.getByRole('button', { name: /Vamos continuar/i });
+
+    expect(card.style.transform).toBe('');
+
+    fireEvent.pointerDown(card, { pointerId: 9, button: 0, clientX: 360, clientY: 70 });
+    fireEvent.pointerMove(stage, { pointerId: 9, clientX: 300, clientY: 150 });
+
+    expect(card.style.transform).toMatch(/^translate\(/);
+
+    fireEvent.pointerUp(stage, { pointerId: 9, clientX: 300, clientY: 150 });
+    expect(card.style.transform).toBe('');
+  });
+
   it('avisa no palco assim que alguém tenta arrastar a raiz', () => {
     const onMoveStep = vi.fn();
     render(

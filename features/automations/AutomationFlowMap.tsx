@@ -169,6 +169,7 @@ export function AutomationFlowMap({
   const warningTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPanning, setIsPanning] = React.useState(false);
   const [draggingStepKey, setDraggingStepKey] = React.useState<string | null>(null);
+  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
   const [dropTargetKey, setDropTargetKey] = React.useState<string | null>(null);
   const [moveWarning, setMoveWarning] = React.useState<string | null>(null);
   const [viewport, setViewport] = React.useState<AutomationViewport>({
@@ -307,6 +308,7 @@ export function AutomationFlowMap({
     setIsPanning(false);
     setDraggingStepKey(null);
     setDropTargetKey(null);
+    setDragOffset({ x: 0, y: 0 });
     return press;
   };
 
@@ -392,6 +394,11 @@ export function AutomationFlowMap({
           }
           press.targetEdge = nearest ? toBuilderEdge(nearest) : null;
           setDropTargetKey(nearest ? automationEdgeKey(nearest) : null);
+          // O cartão acompanha o cursor: sem isso a linha acende mas nada parece
+          // estar se movendo, e não fica claro que o passo está sendo arrastado.
+          // Divide pelo zoom porque o deslocamento é de tela e o cartão vive
+          // dentro do track já escalado.
+          setDragOffset({ x: dx / viewport.scale, y: dy / viewport.scale });
           return;
         }
 
@@ -524,9 +531,24 @@ export function AutomationFlowMap({
                       ? 'border-t-[3px] border-t-teal-500 bg-teal-950/30'
                       : '',
                     isWait(step) ? 'border-dashed bg-transparent' : '',
-                    draggingStepKey === step.stepKey ? 'opacity-60 shadow-2xl' : '',
+                    draggingStepKey === step.stepKey
+                      // Enquanto arrasta: sai da transição (senão o cartão fica
+                      // "nadando" atrás do cursor), levanta acima dos outros e
+                      // ganha contorno teal — fica claro que é ELE que se move.
+                      ? 'z-20 !transition-none border-teal-400 opacity-95 shadow-2xl ring-2 ring-teal-400/60'
+                      : '',
                   ].join(' ')}
-                  style={{ left: x, top: y, minHeight: AUTOMATION_NODE_HEIGHT }}
+                  style={{
+                    left: x,
+                    top: y,
+                    minHeight: AUTOMATION_NODE_HEIGHT,
+                    ...(draggingStepKey === step.stepKey
+                      ? {
+                          transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+                          cursor: 'grabbing',
+                        }
+                      : null),
+                  }}
                   onClick={(event) => {
                     if (event.detail === 0) onStepActivate(step.stepKey);
                   }}
