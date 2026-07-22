@@ -38,9 +38,15 @@ Conforme o seu parecer, já adjudicado:
 - **`tag_categories`** — UUID, organização, rótulo, nome normalizado,
   **cardinalidade (`single` | `multiple`)**, arquivamento, auditoria. A
   cardinalidade **não muda livremente depois de entrar em uso**.
-- **`tags`** — UUID, organização, categoria, rótulo de exibição, nome normalizado
-  para dedupe, código estável opcional, **`legacy_value` imutável** (ponte com os
-  snapshots v2), arquivamento, auditoria.
+- **`tags`** — ⚠️ **CORRIGIDO em 2026-07-22 (erro meu, apontado pelo Codex):
+  `public.tags` JÁ EXISTE** desde `20251201000000_schema_init.sql:366`, com
+  `organization_id` **anulável** e `UNIQUE(name, organization_id)`, e já endurecida
+  por `20260612000000_rls_hardening_clinic_pii.sql:48-55`. **Evoluir de forma
+  aditiva, preservando `id`/`name`/`color`** — criar tabela paralela produziria
+  duas fontes de verdade. Acrescentar: categoria, nome normalizado para dedupe,
+  código estável opcional, **`legacy_value` imutável** (ponte com os snapshots v2),
+  arquivamento, auditoria. Linhas **sem organização** vão para revisão humana —
+  **nunca fabricar tenant**. Detalhes em `REVIEW-PLANO-C2A.md` §1.
 - **`deal_tag_assignments`** — negócio, categoria e etiqueta por UUID,
   **`is_primary`**, quando/quem aplicou (**ator tipado**: humano, IA, automação,
   API, importação, migração), quando/quem removeu, e **linha nova** quando a mesma
@@ -120,9 +126,16 @@ quem administra catálogo**. Remover ou proteger o `delete()` exposto em
 
 - `tags.assign` — usar etiqueta no negócio → **secretária TEM** (é o ponto central
   do pedido do Junior: ela etiqueta, mas não monta automação);
-- `tags.manage` — criar, renomear, arquivar categoria/etiqueta → **só admin**;
+- `tags.manage` — criar, renomear, arquivar categoria/etiqueta;
 - `lead_sources.assign` — registrar origem → **secretária TEM**;
-- `lead_sources.manage` — administrar o catálogo → **só admin**.
+- `lead_sources.manage` — administrar o catálogo.
+
+**Quem recebe `*.manage` por padrão** (fechado em `REVIEW-PLANO-C2A.md` §3):
+`admin`, `agency_admin`, **`agency_staff`** e `clinic_admin`. **`agency_staff`
+entra obrigatoriamente** — ele tem `automation.edit` e, pelo §N1.1, a etiqueta de
+serviço nasce **junto com a automação**; sem `tags.manage` ele monta o fluxo e não
+consegue criar o próprio gatilho. A decisão do Junior era sobre a **secretária**,
+não sobre a agência. `clinic_staff` e `vendedor` recebem apenas `*.assign`.
 
 O snapshot de defaults está em **`active_version = 2`** (confirmei no banco).
 Criar a **v3** pelo mesmo mecanismo da C1A (`permission_defaults_state`), mantendo
