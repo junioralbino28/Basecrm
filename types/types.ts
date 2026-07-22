@@ -243,6 +243,43 @@ export interface LeadSource {
   updatedAt?: string;
 }
 
+// C2C — Etiquetas controladas (§N1.1): a secretária SELECIONA, nunca digita.
+export interface TagCategory {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  label: string;
+  normalizedName?: string;
+  /** 'single' = escolher outra substitui a atual; 'multiple' = acumula. */
+  cardinality: 'single' | 'multiple';
+  archivedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TagEntity {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  categoryId?: string;
+  name: string;
+  normalizedName?: string;
+  color?: string;
+  code?: string;
+  archivedAt?: string;
+  createdAt?: string;
+}
+
+export interface DealTagAssignment {
+  id: string;
+  organizationId?: OrganizationId; // Tenant FK (for RLS)
+  dealId: string;
+  categoryId: string;
+  tagId: string;
+  /** Só o principal dispara automação (decisão N1.2/D2). */
+  isPrimary: boolean;
+  appliedAt?: string;
+  recordedAt?: string;
+}
+
 // ITEM CLÍNICO: Profissionais (dentistas)
 export interface Professional {
   id: string;
