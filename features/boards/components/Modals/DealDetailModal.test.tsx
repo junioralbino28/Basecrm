@@ -8,8 +8,21 @@ vi.mock('@/hooks/useResponsiveMode', () => ({
   useResponsiveMode: () => ({ mode: 'desktop' }),
 }));
 
-vi.mock('@/hooks/usePersistedState', () => ({
-  usePersistedState: () => [[], vi.fn()],
+vi.mock('@/context/TenantContext', () => ({
+  useTenant: () => ({ tenant: { organizationId: 'org-1' }, loading: false }),
+}));
+
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: () => true,
+}));
+
+// C2C: os seletores têm testes próprios; aqui só interessa o modal não quebrar.
+vi.mock('@/features/tags/DealTagSelector', () => ({
+  DealTagSelector: () => <div data-testid="deal-tag-selector" />,
+}));
+
+vi.mock('@/features/tags/DealOriginSelector', () => ({
+  DealOriginSelector: () => <div data-testid="deal-origin-selector" />,
 }));
 
 vi.mock('@/context/AuthContext', () => ({
@@ -152,5 +165,19 @@ describe('DealDetailModal', () => {
 
     rerender(<DealDetailModal dealId="deal-1" isOpen={false} onClose={() => {}} />);
     expect(document.body.textContent).not.toContain('Application error');
+  });
+
+  it('C2C: usa os seletores controlados e não tem mais campo de texto livre de tag', async () => {
+    const { DealDetailModal } = await import('./DealDetailModal');
+
+    const { container, getByTestId } = render(
+      <DealDetailModal dealId="deal-1" isOpen={true} onClose={() => {}} />
+    );
+
+    expect(getByTestId('deal-tag-selector')).toBeInTheDocument();
+    expect(getByTestId('deal-origin-selector')).toBeInTheDocument();
+    // O input antigo ("Ex: VIP, Urgente, Q4...") escrevia texto livre direto em
+    // deal.tags — driblaria cardinalidade, auditoria e o roteamento da C2B.
+    expect(container.querySelector('input[placeholder*="VIP"]')).toBeNull();
   });
 });
