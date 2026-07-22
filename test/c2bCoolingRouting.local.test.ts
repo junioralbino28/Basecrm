@@ -130,6 +130,7 @@ describeLocal('C2B — esfriamento roteia por UUID no Supabase local', () => {
     scenario: Scenario,
     direction: 'inbound' | 'outbound',
     createdAt: string,
+    providerMessageId?: string,
   ) {
     if (!admin) throw new Error('admin local ausente');
     const message = await admin.from('conversation_messages').insert({
@@ -139,6 +140,7 @@ describeLocal('C2B — esfriamento roteia por UUID no Supabase local', () => {
       direction,
       message_type: 'text',
       content: `Mensagem ${direction} ${randomUUID()}`,
+      provider_message_id: providerMessageId,
       created_at: createdAt,
     }).select('id').single();
     if (message.error || !message.data) throw message.error;
@@ -178,6 +180,7 @@ describeLocal('C2B — esfriamento roteia por UUID no Supabase local', () => {
     await actorClient?.auth.signOut();
     if (admin && organizationId) {
       for (const table of [
+        'automation_inbox_events',
         'automation_jobs',
         'automation_waits',
         'automation_enrollments',
@@ -265,6 +268,98 @@ describeLocal('C2B — esfriamento roteia por UUID no Supabase local', () => {
     );
   }, 120_000);
 
+  it('resposta pausa a inscrição e só permite reentrada após nova carência completa', async () => {
+    if (!admin || !actorClient) throw new Error('clientes locais ausentes');
+    const scenario = await createScenario('reentrada', 2);
+    const firstAssignment = await actorClient.rpc('assign_deal_tag', {
+      p_organization_id: organizationId,
+      p_deal_id: scenario.dealId,
+      p_tag_id: scenario.tagIds[0],
+      p_is_primary: false,
+    });
+    expect(firstAssignment.error).toBeNull();
+    const now = new Date();
+    const firstActivityAt = new Date(
+      now.getTime() - 12 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    await insertMessage(scenario, 'inbound', firstActivityAt);
+    const firstRoutingAt = new Date(
+      now.getTime() - 6 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const firstRouting = await admin.rpc('process_due_automation_routing', {
+      p_batch_limit: 20,
+      p_now: firstRoutingAt,
+    });
+    expect(firstRouting.error).toBeNull();
+    expect(firstRouting.data?.[0]).toMatchObject({ outcome: 'enrolled' });
+
+    const responseAt = new Date(
+      now.getTime() - 4 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const providerMessageId = `c2b-reentrada-${randomUUID()}`;
+    const messageId = await insertMessage(
+      scenario,
+      'inbound',
+      responseAt,
+      providerMessageId,
+    );
+    const paused = await admin.rpc('resolve_automation_wait_from_inbox', {
+      p_channel_connection_id: scenario.channelId,
+      p_provider_message_id: providerMessageId,
+      p_thread_id: scenario.threadId,
+      p_message_id: messageId,
+      p_quoted_provider_message_id: null,
+      p_received_at: responseAt,
+    });
+    expect(paused.error).toBeNull();
+
+    const removed = await actorClient.rpc('remove_deal_tag', {
+      p_organization_id: organizationId,
+      p_deal_id: scenario.dealId,
+      p_tag_id: scenario.tagIds[0],
+    });
+    const reassigned = await actorClient.rpc('assign_deal_tag', {
+      p_organization_id: organizationId,
+      p_deal_id: scenario.dealId,
+      p_tag_id: scenario.tagIds[1],
+      p_is_primary: false,
+    });
+    expect(removed.error).toBeNull();
+    expect(reassigned.error).toBeNull();
+
+    const tooEarly = await admin.rpc('process_due_automation_routing', {
+      p_batch_limit: 20,
+      p_now: now.toISOString(),
+    });
+    expect(tooEarly.error).toBeNull();
+    expect(tooEarly.data).toEqual([]);
+    const beforeReentry = await admin.from('automation_enrollments')
+      .select('status, pause_reason')
+      .eq('deal_id', scenario.dealId);
+    expect(beforeReentry.data).toEqual([{
+      status: 'paused',
+      pause_reason: 'patient_inbound',
+    }]);
+
+    const afterGrace = new Date(
+      now.getTime() + 2 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const rerouted = await admin.rpc('process_due_automation_routing', {
+      p_batch_limit: 20,
+      p_now: afterGrace,
+    });
+    expect(rerouted.error).toBeNull();
+    expect(rerouted.data?.[0]).toMatchObject({ outcome: 'enrolled' });
+    const afterReentry = await admin.from('automation_enrollments')
+      .select('status, entry_tag_id')
+      .eq('deal_id', scenario.dealId)
+      .order('entered_at');
+    expect(afterReentry.data).toEqual([
+      { status: 'paused', entry_tag_id: scenario.tagIds[0] },
+      { status: 'active', entry_tag_id: scenario.tagIds[1] },
+    ]);
+  }, 120_000);
+
   it('dois procedimentos criam um porteiro; resolver é idempotente e só então inscreve', async () => {
     if (!admin || !actorClient) throw new Error('clientes locais ausentes');
     const scenario = await createScenario('porteiro', 2);
@@ -294,6 +389,12 @@ describeLocal('C2B — esfriamento roteia por UUID no Supabase local', () => {
     ]);
     expect(gate.data).toMatchObject({ status: 'open' });
     expect(task.data).toMatchObject({ id: gate.data?.task_id, status: 'open' });
+    expect(task.data?.due_date).toBe(new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now));
     expect(beforeResolution.data).toEqual([]);
 
     const first = await actorClient.rpc('resolve_automation_routing_gate', {

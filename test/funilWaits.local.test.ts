@@ -324,4 +324,82 @@ describeLocal('F5 — wait_for_event e inbox idempotente no Supabase local', () 
     });
     expect(wait.data?.status).toBe('pending');
   });
+
+  it('inbound sem espera pausa antes que um job concorrente possa enviar', async () => {
+    if (!admin) throw new Error('admin local ausente');
+    const fixture = await createFunilTestFixture({
+      admin,
+      label: 'c2b-inbound-unmatched',
+      steps: [{
+        type: 'send_message',
+        config: {
+          link_mode: 'copied',
+          body_local: 'Esta mensagem não pode sair após a resposta',
+          message_kind: 'text',
+        },
+      }],
+    });
+    fixtures.push(fixture);
+    const providerMessageId = `inbound-c2b-${fixture.enrollmentId}`;
+    const message = await admin.from('conversation_messages').insert({
+      organization_id: fixture.organizationId,
+      thread_id: fixture.threadId,
+      channel_connection_id: fixture.channelConnectionId,
+      direction: 'inbound',
+      message_type: 'conversation',
+      content: 'Oi, voltei',
+      provider_message_id: providerMessageId,
+      delivery_status: 'sent',
+    }).select('id, created_at').single();
+    expect(message.error).toBeNull();
+    const args = {
+      p_channel_connection_id: fixture.channelConnectionId,
+      p_provider_message_id: providerMessageId,
+      p_thread_id: fixture.threadId,
+      p_message_id: message.data!.id,
+      p_quoted_provider_message_id: null,
+      p_received_at: message.data!.created_at,
+    };
+    const [resolved, materialized] = await Promise.all([
+      admin.rpc('resolve_automation_wait_from_inbox', args),
+      admin.rpc('materialize_automation_jobs', { p_batch_limit: 20 }),
+    ]);
+    expect(resolved.error).toBeNull();
+    expect(materialized.error).toBeNull();
+    expect(resolved.data).toContainEqual(expect.objectContaining({
+      wait_id: null,
+      resolution: null,
+      duplicate: false,
+    }));
+
+    const duplicate = await admin.rpc('resolve_automation_wait_from_inbox', args);
+    expect(duplicate.error).toBeNull();
+    expect(duplicate.data).toContainEqual(expect.objectContaining({ duplicate: true }));
+    const enrollment = await admin.from('automation_enrollments')
+      .select('status, paused_from_status, pause_reason')
+      .eq('id', fixture.enrollmentId)
+      .single();
+    expect(enrollment.data).toEqual({
+      status: 'paused',
+      paused_from_status: 'active',
+      pause_reason: 'patient_inbound',
+    });
+
+    const job = await admin.from('automation_jobs').select('id')
+      .eq('enrollment_id', fixture.enrollmentId)
+      .eq('job_type', 'send_message')
+      .maybeSingle();
+    expect(job.error).toBeNull();
+    if (job.data) {
+      await expect(dispatchAutomationSimulation({
+        db: admin,
+        jobId: job.data.id,
+      })).rejects.toThrow(/pausada ou inativa|lease ativo/);
+    }
+    const automaticMessages = await admin.from('conversation_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', fixture.organizationId)
+      .eq('delivery_source', 'automation');
+    expect(automaticMessages.count).toBe(0);
+  }, 120_000);
 });
