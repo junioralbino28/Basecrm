@@ -107,6 +107,14 @@ export const DataStorageSettings: React.FC = () => {
                 .eq('organization_id', organizationId);
             if (activitiesError) throw activitiesError;
 
+            // Automações carregam dependências normalizadas de etiquetas. Removê-las
+            // antes dos negócios/tags mantém a limpeza total coerente com as FKs.
+            const { error: automationsError } = await sb
+                .from('automations')
+                .delete()
+                .eq('organization_id', organizationId);
+            if (automationsError) throw automationsError;
+
             const itemsDeleteQuery = sb
                 .from('deal_items')
                 .delete()

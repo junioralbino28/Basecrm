@@ -79,7 +79,10 @@ describeLocal('C2A — taxonomia de etiquetas no Supabase local', () => {
     if (!admin) return;
     for (const id of authUserIds) await admin.auth.admin.deleteUser(id);
     if (organizationA || organizationB) {
-      await admin.from('organizations').delete().in('id', [organizationA, organizationB]);
+      const cleanup = await admin.from('organizations')
+        .delete()
+        .in('id', [organizationA, organizationB]);
+      if (cleanup.error) throw cleanup.error;
     }
   }, 120_000);
 
