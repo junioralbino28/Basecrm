@@ -13,7 +13,7 @@
  */
 
 import React from 'react';
-import { Archive, ArchiveRestore, Loader2, MapPin, Plus, Tag as TagIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, HelpCircle, Loader2, MapPin, Plus, Tag as TagIcon } from 'lucide-react';
 import { dealTagsService } from '@/lib/supabase/dealTags';
 import { leadSourcesService } from '@/lib/supabase/leadSources';
 import { useAuth } from '@/context/AuthContext';
@@ -142,13 +142,17 @@ export const TagCatalogSettings: React.FC = () => {
 
       {/* ============================== ETIQUETAS ============================== */}
       <section aria-label="Categorias de etiquetas">
-        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
           <TagIcon size={16} /> Etiquetas
+          <span
+            className="cursor-help text-slate-400 dark:text-slate-500"
+            title="O usuário seleciona destas listas, nunca digita. A etiqueta principal do negócio é a que dispara a automação quando o lead esfria."
+            aria-label="O usuário seleciona destas listas, nunca digita. A etiqueta principal do negócio é a que dispara a automação quando o lead esfria."
+            role="img"
+          >
+            <HelpCircle size={14} />
+          </span>
         </h2>
-        <p className="mb-4 text-xs text-slate-500">
-          A secretária seleciona destas listas — nunca digita. A etiqueta <strong>principal</strong> do
-          negócio é a que dispara automação quando o lead esfria.
-        </p>
 
         <div className="mb-5 flex flex-col gap-2 sm:flex-row">
           <input
@@ -287,13 +291,17 @@ export const TagCatalogSettings: React.FC = () => {
 
       {/* =============================== ORIGENS =============================== */}
       <section aria-label="Origens de lead">
-        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
           <MapPin size={16} /> Origens de lead
+          <span
+            className="cursor-help text-slate-400 dark:text-slate-500"
+            title="De onde o lead veio (Anúncio Instagram, Indicação…). Alimenta o painel comercial e é um campo separado das etiquetas, de propósito."
+            aria-label="De onde o lead veio (Anúncio Instagram, Indicação…). Alimenta o painel comercial e é um campo separado das etiquetas, de propósito."
+            role="img"
+          >
+            <HelpCircle size={14} />
+          </span>
         </h2>
-        <p className="mb-4 text-xs text-slate-500">
-          De onde o lead veio (Anúncio Instagram, Indicação…). Alimenta o painel comercial —
-          é entidade separada das etiquetas, de propósito.
-        </p>
 
         <div className="mb-5 flex gap-2">
           <input

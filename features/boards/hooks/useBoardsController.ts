@@ -367,11 +367,14 @@ export const useBoardsController = () => {
     (!boardsLoading && !boardsFetching);
   const isLoading =
     (boardsLoading || boardsFetching || !hasCompletedInitialBoardsQuery) && boards.length === 0;
+  // PostgrestError não é instância de Error — extrair a mensagem real em vez de
+  // esconder a causa atrás do texto genérico.
   const boardsErrorMessage =
     boardsIsError
-      ? boardsError instanceof Error
-        ? boardsError.message
-        : 'Falha ao carregar os funis da empresa.'
+      ? (boardsError instanceof Error
+          ? boardsError.message
+          : (boardsError as { message?: string } | null)?.message) ||
+        'Falha ao carregar os funis da empresa.'
       : null;
 
   useEffect(() => {
