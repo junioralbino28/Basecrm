@@ -157,8 +157,13 @@ porteiros abertos.
 
 ## 8. Resquícios e pontos de atenção
 
-- `get_dashboard_stats()` e `get_contact_stage_counts()` são **globais, sem
-  filtro de tenant** (resquício single-tenant) — verificar se ainda são chamadas.
+- **BUG verificado (2ª passada):** `get_contact_stage_counts()` é declarada SEM
+  parâmetro no SQL, mas `lib/supabase/contacts.ts:214` a chama com `{ org_id }`
+  no caminho multi-tenant (erro de assinatura PGRST202); a chamada sem
+  parâmetro, por ser SECURITY DEFINER, **conta contatos de todas as orgs**
+  (vazamento de agregado). Fix: migration com versão org-filtrada.
+  `get_dashboard_stats()` **não tem nenhum chamador** no app — RPC morta,
+  candidata a remoção.
 - Realtime publicado só para: `deals`, `activities`, `contacts`, `crm_companies`,
   `board_stages`, `boards`. Tabelas do motor e da clínica NÃO estão no canal.
 - Validação das chaves de `permission_overrides` do convite é app-side (sem CHECK).

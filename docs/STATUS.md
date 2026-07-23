@@ -61,7 +61,7 @@
 | 4 | Custom fields + tags legadas em localStorage | perda de dado entre máquinas | [modulos.md](./modulos.md) |
 | 5 | 3 serviços de consentimento LGPD coexistindo | manutenção | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |
 | 6 | Duplicatas V1/V2 (modais, cockpit, rotas whatsapp/inbox) | confusão de dev | [modulos.md](./modulos.md) · [arquitetura/rotas-e-navegacao.md](./arquitetura/rotas-e-navegacao.md) |
-| 7 | RPCs globais sem filtro de tenant (`get_dashboard_stats`, `get_contact_stage_counts`) | verificar uso | [arquitetura/banco-de-dados.md](./arquitetura/banco-de-dados.md) |
+| 7 | **BUG confirmado:** `get_contact_stage_counts()` no SQL não aceita parâmetro, mas `contacts.ts:214` chama com `{org_id}` (caminho normal multi-tenant → erro de assinatura); e a variante SEM parâmetro é SECURITY DEFINER **contando contatos de TODAS as orgs** (vaza agregado cross-tenant). `get_dashboard_stats` não é chamada por ninguém (RPC morta). Fix: migration com versão org-filtrada + remover a morta. | correção obrigatória | [arquitetura/banco-de-dados.md](./arquitetura/banco-de-dados.md) |
 | 8 | `smoke:integrations` aponta pra script inexistente | gate quebrado | [arquitetura/apis-e-integracoes.md](./arquitetura/apis-e-integracoes.md) |
 | 9 | Módulos sem teste: activities, dashboard, cockpit, decisions, ai-hub, profile | regressão silenciosa | [modulos.md](./modulos.md) |
 | 10 | `products`/`lifecycleStages` com fonte de dado dupla | divergência de estado | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |

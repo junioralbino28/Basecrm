@@ -84,8 +84,20 @@ Board→Funil) — conferir termos ao usar.
 4. Candidatos a arquivar (coluna direita da era março) não se apagam — movem-se
    para `docs/arquivo/` quando alguém precisar mexer neles.
 
-## Não verificado nesta varredura
+## Verificações fechadas em 2026-07-23 (segunda passada)
 
-- Estado de conclusão exato de `e2-enforcement` e `multi-numero-inbox` (os SPECs
-  marcam status antigo; o banco indica E2 aplicado — migration `20260635`).
-- Conteúdo dos PDFs/HTMLs dos workspaces da Jéssica (catalogados, não lidos).
+- **E2 (enforcement de permissões): CONCLUÍDA E EM PRODUÇÃO** — a migration
+  `20260635000000` é exatamente a 34ª da `main`; o review final
+  (`REVIEW-SERVIDOR-S1.md`) aprovou com 2 pendências herdadas (E2.2: config
+  financeira ainda em `can_configure`; fail-open cosmético no TS).
+- **Multi-número inbox: CONCLUÍDA E MERGEADA NA MAIN** — os commits
+  `8ac2381`/`2c6b3d7`/`bde91d0` estão na `main`, e `be7fe35` (o último deploy)
+  é o próprio commit do REVIEW aprovado. 1 cosmético conhecido: campo
+  "Webhook CRM" mostra "-" porque o secret é redigido no browser.
+- Os SPECs dessas pastas ainda carregam status antigo ("aguardando aprovação") —
+  ignorar; o veredito vale pelo REVIEW + git.
+
+## Não verificado (restante)
+
+- Conteúdo dos PDFs/HTMLs dos workspaces da Jéssica (catalogados, não lidos:
+  cadência F1–F9, diagnóstico comercial, mockup-recepção).

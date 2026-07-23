@@ -137,7 +137,7 @@
 |---|---|
 | Módulo 100% localStorage + ação placebo | `decisions` |
 | TODO migrar pra Supabase | custom fields (`settings`, `boards`) · `crm_tags` legado (`settings`) |
-| Duplicatas V1/V2 (migração incompleta) | `ActivityFormModal` · `ContactFormModal` · `CreateDealModal` · cockpit vs cockpit-v2 |
+| Duplicatas V1/V2 — **verificado: os 3 modais V2 são ÓRFÃOS** (nenhum import além do próprio arquivo; a V1 é a montada) → código morto, candidatos a remoção | `ActivityFormModalV2` · `ContactFormModalV2` · `CreateDealModalV2` · cockpit vs cockpit-v2 (este segue em transição real) |
 | Botão sem handler | `DealDetailModal.tsx:755` (Edit) · "Gravar áudio (em breve)" |
 | Sem NENHUM teste | `activities` · `ai-hub` · `dashboard` · `deals` · `decisions` · `profile` |
 | Cobertura fraca | `boards` (1 teste) · `inbox` (1 teste) |
