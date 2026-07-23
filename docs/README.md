@@ -30,6 +30,7 @@
 | [decisoes.md](./decisoes.md) | decisões travadas (produto, arquitetura, processo) — não reabrir |
 | [historia-e-origens.md](./historia-e-origens.md) | linhagem NossoCRM→Base CRM + mapa de TODA a documentação fora do repo (workspaces, ledgers, auditoria Codex, planilha do Adel) |
 | [ativacao-cliente.md](./ativacao-cliente.md) | o que o cliente fornece × o que a agência configura × o que falta no produto — o caminho até "CRM finalizado" |
+| [OPINIAO-CODEX-PENTE-FINO.md](./OPINIAO-CODEX-PENTE-FINO.md) + [REVIEW](./REVIEW-OPINIAO-PENTE-FINO.md) | auditoria independente do pente fino (P1: RPCs legadas; P2: DTOs de canal, origem dupla, call-list) + adjudicação com ordem de execução |
 | [features/funil-construtor/](./features/funil-construtor/) | ciclo completo do construtor: SPEC, pedidos, adjudicações e revisões de cada fatia |
 
 ## Operação (como trabalhar)

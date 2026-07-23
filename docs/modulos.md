@@ -115,16 +115,20 @@
 
 - **Propósito:** analisadores geram sugestões (deals parados, atividades atrasadas)
   para aprovar/rejeitar.
-- **Situação real:** **módulo inteiro persiste em localStorage**
-  (`crm_decision_queue`) e `executeAction()` é **placeholder** — aprovar uma
-  decisão não executa nada. Sem testes. Sem entrada de menu.
-- **Veredito:** protótipo. Decidir: migrar pra Supabase + ações reais, ou remover.
+- **Situação real (corrigida pelo parecer Codex §3.3):** persiste em
+  localStorage SEM tenant/usuário na chave (trocar de clínica no mesmo
+  navegador vaza contexto). Existem DOIS executores: o do service é placeholder,
+  mas o hook da UI dispara mutações REAIS (`addActivity`/`updateDeal`/
+  `updateActivity`) **sem await** e marca aprovado mesmo se o banco falhar.
+  Sem testes. Sem entrada de menu.
+- **Veredito:** quarentenar a rota; NÃO absorver na C2D. Aproveitar só
+  UX/conceito dos analisadores numa futura central server-side tenantizada.
 
 ## ai-hub · profile · agenda · platform
 
 | Módulo | Situação |
 |---|---|
-| `ai-hub` | chat com tools de CRM (`crmTools.ts`) — tools são só schemas, execução fora da pasta (não verificado onde). Sem testes. Sem menu. |
+| `ai-hub` | chat via `UIChat` + `/api/ai/chat`. A pasta `tools/` (crmTools.ts) é **totalmente desconectada** — as tools reais vivem em `lib/ai/tools.ts` (parecer Codex §2). Sem testes. Sem menu. |
 | `profile` | perfil do usuário; Supabase direto; sem testes; sem pendências. |
 | `agenda` | agenda diária integrada ao Clinicorp (`/api/agenda/appointments`); 1 teste; sem item de menu ainda. |
 | `platform` | admin da agência: tenants, provisionamento, branding, domínios, canais Evolution. REST-based. 2 testes. |

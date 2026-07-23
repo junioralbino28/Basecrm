@@ -29,7 +29,7 @@
 | Agenda (Clinicorp) | 🟠 | sim | sem item de menu; `book` cria AO VIVO no Clinicorp |
 | Cockpit do negócio | 🟠 | sim | duas versões em transição (cockpit vs cockpit-v2); sem testes |
 | Plataforma (agência/tenants) | 🟡 | sim | REST-based; provisioning wizard |
-| Decisions (fila de decisões) | 🔴 | sim (oculto) | protótipo: 100% localStorage, ação de aprovar é placebo — migrar ou remover |
+| Decisions (fila de decisões) | 🔴 | sim (oculto) | protótipo local NÃO tenantizado; a UI dispara mutações reais SEM await e pode marcar falha como aprovada (parecer Codex §3.3). Quarentenar; NÃO absorver na C2D |
 | AI Hub (chat com tools) | 🟠 | sim (sem menu) | execução das tools fora da pasta; sem testes |
 | Perfil | 🟢 | sim | — |
 | Instalador self-host | 🟠 | sim | não exercitado recentemente (não verificado) |
@@ -61,7 +61,10 @@
 | 4 | Custom fields + tags legadas em localStorage | perda de dado entre máquinas | [modulos.md](./modulos.md) |
 | 5 | 3 serviços de consentimento LGPD coexistindo | manutenção | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |
 | 6 | Duplicatas V1/V2 (modais, cockpit, rotas whatsapp/inbox) | confusão de dev | [modulos.md](./modulos.md) · [arquitetura/rotas-e-navegacao.md](./arquitetura/rotas-e-navegacao.md) |
-| 7 | **BUG confirmado:** `get_contact_stage_counts()` no SQL não aceita parâmetro, mas `contacts.ts:214` chama com `{org_id}` (caminho normal multi-tenant → erro de assinatura); e a variante SEM parâmetro é SECURITY DEFINER **contando contatos de TODAS as orgs** (vaza agregado cross-tenant). `get_dashboard_stats` não é chamada por ninguém (RPC morta). Fix: migration com versão org-filtrada + remover a morta. | correção obrigatória | [arquitetura/banco-de-dados.md](./arquitetura/banco-de-dados.md) |
+| 7 | **P1 — RPCs legadas** (corrigido pelo parecer do Codex): `get_contact_stage_counts()` legado é SECURITY DEFINER sem filtro de tenant e precisa ser removido/substituído; o método parametrizado do serviço tem assinatura inválida mas está ÓRFÃO — a tela conta no cliente via `getAll(orgId)` e fica limitada aos primeiros 10 mil contatos (`limit(10000)`). `get_dashboard_stats` é PIOR: agrega métricas financeiras de todas as orgs (`[Inferred]` do SQL/grant; prova PostgREST vira o 1º teste do hotfix). Fix: migration removendo as duas + versão org-filtrada SECURITY INVOKER + prova dois-tenants. | **hotfix nº 1** | [REVIEW-OPINIAO-PENTE-FINO.md](./REVIEW-OPINIAO-PENTE-FINO.md) |
+| 7b | **P2 — 4 rotas de canal devolvem `config` cru** (com `webhookSecret`/`apiKey`) a gestores, em sucesso E erro: connect, healthcheck, disconnect, send-test — sem `toPublicChannelConnection`. "Webhook CRM: -" é consequência da redação correta na LISTA; corrigir os DTOs ANTES do visual. | **hotfix nº 2** | idem |
+| 7c | **P2 — origem do lead com duas verdades**: C2 grava histórico auditável por UUID, mas Visão Geral ainda agrupa `contacts.source` por TEXTO (com fallback de texto livre no form de contato). Rotular/corrigir antes de vender o painel como auditável — gate do deploy C2. | gate do deploy | idem |
+| 7d | **P2 — call-list descarta o resultado**: o modal coleta outcome/duração/notas e `CallListPage:69-73` joga fora; "Feita" conclui sem registrar o que houve. O núcleo "registrar contato em 1 toque" do conceito da secretária não foi entregue. | correção operacional | idem |
 | 8 | `smoke:integrations` aponta pra script inexistente | gate quebrado | [arquitetura/apis-e-integracoes.md](./arquitetura/apis-e-integracoes.md) |
 | 9 | Módulos sem teste: activities, dashboard, cockpit, decisions, ai-hub, profile | regressão silenciosa | [modulos.md](./modulos.md) |
 | 10 | `products`/`lifecycleStages` com fonte de dado dupla | divergência de estado | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |

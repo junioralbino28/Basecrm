@@ -90,4 +90,9 @@ com um cliente-sombra (tenant de ensaio) antes de valer para cliente pagante.
 2. **Link de totais na planilha do Adel** — gerar report token e colar quando
    ele indicar a aba (não precisa de mais nada dele).
 3. Clinicorp: **já conectado** (config no banco). Nada a pedir.
-4. Cadência F1–F9 + 12 vídeos: prontos, esperando C3 para entrar no funil.
+4. Cadência F1–F9: as versões .md vigentes são **texto-only** — a decisão
+   registrada em `02-followup/README.md` é "sem vídeo nos follows" (os
+   criativos já rodam em anúncio; reintroduzir só com mídia NOVA). Dos 12
+   MP4: 11 tecnicamente válidos, 1 corrompido (`F3 - Video 2`), 3 com CTA de
+   anúncio incompatível — servem como fixture técnica da C3, **não** como
+   conteúdo aprovado (parecer Codex §6.2).
