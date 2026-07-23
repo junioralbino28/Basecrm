@@ -66,6 +66,7 @@ Em ordem de dependência — cada item aponta onde já está planejado:
 | 7 | **O5 — ciclo de vida do tenant** (pausar/arquivar/excluir com segurança) | operar N clientes com churn | SPEC-ENTREGA-C |
 | 8 | **Correções do pente fino** (bug `get_contact_stage_counts`, RLS origens no deploy, código morto) | confiabilidade | `PEDIDO-OPINIAO-PENTE-FINO.md` (com o Codex) |
 | 9 | (Aceito, não urgente) personalização self-service (cores, ordem de menu) | escalar sem dev | backlog do Junior |
+| 10 | (Aceito, DEPOIS de 1–7) **CRM próprio da agência** — leads de anúncio/prospecção e funções agência-only; hoje `/platform` é só administração | a agência se vender com o próprio produto | decisão do Junior 2026-07-23, em `decisoes.md` |
 
 **Fora do produto (decisão consciente):** escrever DENTRO da planilha do cliente
 (Sheets API/OAuth). A direção é o contrário — o Financeiro do CRM substitui a

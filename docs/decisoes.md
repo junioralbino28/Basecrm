@@ -22,6 +22,7 @@
 | **Arquivar é o fluxo normal; apagar é exceção** para entidade nunca usada. Renomear rótulo não pode quebrar automação publicada (identidade estável ≠ rótulo humano). | parecer de etiquetas |
 | Ordem do menu lateral: **Conversas logo abaixo de Contatos**; **Automações antes de Configurações**. | pedido do Junior, 2026-07-22 |
 | **Backlog aceito, não é agora:** tela de personalização self-service do CRM (cores, ordem de menus) — só depois de 100% funcional. | pedido do Junior, 2026-07-22 |
+| **Backlog aceito, não é agora: CRM próprio da AGÊNCIA.** A agência passa a usar o produto para si — receber leads de anúncios e prospecção, funil de fechamento de clientes e funções agência-only. Hoje `/platform` é administração de tenants, não CRM. **Prioridade explícita: só DEPOIS de finalizar o lado clínicas/clientes** (lacunas 1–7 de `ativacao-cliente.md`). | decisão do Junior, 2026-07-23 |
 
 ## Arquitetura
 
