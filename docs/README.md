@@ -29,6 +29,7 @@
 | [modulos.md](./modulos.md) | cada módulo de features/: propósito, arquivos, dados, testes, pendências |
 | [decisoes.md](./decisoes.md) | decisões travadas (produto, arquitetura, processo) — não reabrir |
 | [historia-e-origens.md](./historia-e-origens.md) | linhagem NossoCRM→Base CRM + mapa de TODA a documentação fora do repo (workspaces, ledgers, auditoria Codex, planilha do Adel) |
+| [ativacao-cliente.md](./ativacao-cliente.md) | o que o cliente fornece × o que a agência configura × o que falta no produto — o caminho até "CRM finalizado" |
 | [features/funil-construtor/](./features/funil-construtor/) | ciclo completo do construtor: SPEC, pedidos, adjudicações e revisões de cada fatia |
 
 ## Operação (como trabalhar)
