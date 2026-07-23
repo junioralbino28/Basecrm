@@ -2,6 +2,10 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { fetchEvolutionConnectionState, setEvolutionWebhook } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
+import {
+  redactChannelPayload,
+  redactChannelSecrets,
+} from '@/lib/channels/redactChannelSecrets';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
@@ -43,13 +47,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       profileRole: auth.profile.role,
       requesterOrganizationId: auth.profile.organization_id,
     });
-  } catch (resolveError) {
+  } catch {
     return json(
       {
-        error:
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'Failed to resolve Evolution credentials for healthcheck.',
+        error: 'Failed to resolve Evolution credentials for healthcheck.',
       },
       500
     );
@@ -89,10 +90,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         });
         webhookConfigured = true;
       } catch (webhookError) {
-        webhookWarning =
-          webhookError instanceof Error
-            ? `Webhook CRM nao configurado automaticamente: ${webhookError.message}`
-            : 'Webhook CRM nao configurado automaticamente.';
+        webhookWarning = `Webhook CRM nao configurado automaticamente: ${redactChannelSecrets(
+          webhookError,
+          [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+          'Falha desconhecida.',
+        )}`;
       }
     } else {
       webhookWarning = 'Webhook secret ausente na conexao.';
@@ -100,15 +102,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
     const nextMetadata = {
       ...((connection.metadata as Record<string, unknown> | null) || {}),
-      lastHealthcheckState: result.stateLabel,
-      lastHealthcheckRaw: result.raw,
+      lastHealthcheckState: redactChannelSecrets(
+        result.stateLabel,
+        [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+        'unknown',
+      ),
+      lastHealthcheckRaw: redactChannelPayload(
+        result.raw,
+        [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+      ),
       lastWebhookConfiguredAt: webhookConfigured ? checkedAt : (connection.metadata as any)?.lastWebhookConfiguredAt || null,
       lastWebhookConfigError: webhookWarning,
       apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
       evolutionCredentialSource: resolved.source,
     };
 
-    const { data: updated, error: updateError } = await admin
+    const { error: updateError } = await admin
       .from('channel_connections')
       .update({
         status: result.normalizedStatus,
@@ -118,16 +127,30 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    if (updateError) return json({ error: updateError.message }, 500);
+    if (updateError) {
+      return json(
+        {
+          error: redactChannelSecrets(
+            updateError,
+            [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+            'Failed to persist healthcheck state.',
+          ),
+        },
+        500,
+      );
+    }
 
     return json({
       ok: true,
-      channel: updated,
       healthcheck: {
-        state: result.stateLabel,
+        state: redactChannelSecrets(
+          result.stateLabel,
+          [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+          'unknown',
+        ),
         checkedAt,
       },
       webhook: {
@@ -136,9 +159,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       },
     });
   } catch (healthError) {
-    const message = healthError instanceof Error ? healthError.message : 'Healthcheck failed.';
+    const message = redactChannelSecrets(
+      healthError,
+      [
+        resolved.apiKey,
+        (connection.config as any)?.apiKey,
+        (connection.config as any)?.webhookSecret,
+      ],
+      'Healthcheck failed.',
+    );
 
-    const { data: updated } = await admin
+    await admin
       .from('channel_connections')
       .update({
         status: 'error',
@@ -153,15 +184,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    return json(
-      {
-        error: message,
-        channel: updated || null,
-      },
-      502
-    );
+    return json({ error: message }, 502);
   }
 }

@@ -15,7 +15,7 @@ const connection = {
   config: {
     apiUrl: 'https://evo.example',
     instanceName: 'clinica-1',
-    webhookUrl: 'https://crm/webhook',
+    webhookUrl: 'https://crm/webhook?token=whk-abc-secret',
     apiKey: 'EVO-SECRET-1234',
     webhookSecret: 'whk-abc-secret',
   },
@@ -70,5 +70,28 @@ describe('toPublicChannelConnection', () => {
     expect(defaulted.config.aiEnabled).toBe(true);
     expect(disabled.config.apiKey).toBeUndefined();
     expect(disabled.config.webhookSecret).toBeUndefined();
+  });
+
+  it('sanitiza payloads brutos persistidos em metadata antes de enviar ao browser', () => {
+    const dto = toPublicChannelConnection(
+      {
+        ...connection,
+        metadata: {
+          ...connection.metadata,
+          lastHealthcheckRaw: {
+            apiKey: 'SEGREDO-DO-PROVEDOR',
+            detail: 'Evolution ecoou EVO-SECRET-1234',
+          },
+        },
+      },
+      { canManageChannelConfig: false },
+    );
+    const serializedMetadata = JSON.stringify(dto.metadata);
+
+    expect(serializedMetadata).not.toContain('SEGREDO-DO-PROVEDOR');
+    expect(serializedMetadata).not.toContain('EVO-SECRET-1234');
+    expect(dto.metadata?.lastHealthcheckRaw).not.toHaveProperty('apiKey');
+    expect(dto.metadata?.lastHealthcheckRaw).not.toHaveProperty('webhookSecret');
+    expect(dto.metadata?.phoneNumber).toBe('5511999');
   });
 });

@@ -7,6 +7,10 @@ import {
   type EvolutionPairingCode,
 } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
+import {
+  redactChannelPayload,
+  redactChannelSecrets,
+} from '@/lib/channels/redactChannelSecrets';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
@@ -53,13 +57,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       profileRole: auth.profile.role,
       requesterOrganizationId: auth.profile.organization_id,
     });
-  } catch (resolveError) {
+  } catch {
     return json(
       {
-        error:
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'Failed to resolve Evolution credentials for pairing.',
+        error: 'Failed to resolve Evolution credentials for pairing.',
       },
       500
     );
@@ -124,10 +125,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         });
         webhookConfigured = true;
       } catch (webhookError) {
-        webhookWarning =
-          webhookError instanceof Error
-            ? `Webhook CRM nao configurado automaticamente: ${webhookError.message}`
-            : 'Webhook CRM nao configurado automaticamente.';
+        webhookWarning = `Webhook CRM nao configurado automaticamente: ${redactChannelSecrets(
+          webhookError,
+          [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+          'Falha desconhecida.',
+        )}`;
       }
     } else {
       webhookWarning = 'Webhook secret ausente na conexao.';
@@ -135,9 +137,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
     const nextMetadata = {
       ...((connection.metadata as Record<string, unknown> | null) || {}),
-      lastPairingCode: pairing.pairingCode || pairing.code,
-      lastPairingQrBase64: pairing.qrBase64,
-      lastPairingPayload: pairing.raw,
+      lastPairingCode: redactChannelSecrets(
+        pairing.pairingCode || pairing.code,
+        [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+        '',
+      ) || null,
+      lastPairingQrBase64: pairing.qrBase64
+        ? redactChannelSecrets(
+            pairing.qrBase64,
+            [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+            '',
+          )
+        : pairing.qrBase64,
+      lastPairingPayload: redactChannelPayload(
+        pairing.raw,
+        [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+      ),
       lastPairingRequestedAt: requestedAt,
       lastWebhookConfiguredAt: webhookConfigured ? requestedAt : (connection.metadata as any)?.lastWebhookConfiguredAt || null,
       lastWebhookConfigError: webhookWarning,
@@ -145,7 +160,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       evolutionCredentialSource: resolved.source,
     };
 
-    const { data: updated, error: updateError } = await admin
+    const { error: updateError } = await admin
       .from('channel_connections')
       .update({
         metadata: nextMetadata,
@@ -153,18 +168,44 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    if (updateError) return json({ error: updateError.message }, 500);
+    if (updateError) {
+      return json(
+        {
+          error: redactChannelSecrets(
+            updateError,
+            [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+            'Failed to persist pairing state.',
+          ),
+        },
+        500,
+      );
+    }
 
     return json({
       ok: true,
-      channel: updated,
       pairing: {
-        qrBase64: pairing.qrBase64,
-        pairingCode: pairing.pairingCode || pairing.code,
-        code: pairing.code,
+        qrBase64: pairing.qrBase64
+          ? redactChannelSecrets(
+              pairing.qrBase64,
+              [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+              '',
+            )
+          : pairing.qrBase64,
+        pairingCode: redactChannelSecrets(
+          pairing.pairingCode || pairing.code,
+          [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+          '',
+        ) || null,
+        code: pairing.code
+          ? redactChannelSecrets(
+              pairing.code,
+              [resolved.apiKey, (connection.config as any)?.apiKey, webhookSecret],
+              '',
+            )
+          : pairing.code,
         count: pairing.count,
         requestedAt,
       },
@@ -174,7 +215,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       },
     });
   } catch (pairingError) {
-    const message = pairingError instanceof Error ? pairingError.message : 'Pairing failed.';
+    const message = redactChannelSecrets(
+      pairingError,
+      [
+        resolved.apiKey,
+        (connection.config as any)?.apiKey,
+        (connection.config as any)?.webhookSecret,
+      ],
+      'Pairing failed.',
+    );
 
     await admin
       .from('channel_connections')

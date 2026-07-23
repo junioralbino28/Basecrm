@@ -2,6 +2,10 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { logoutEvolutionInstance } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
+import {
+  redactChannelPayload,
+  redactChannelSecrets,
+} from '@/lib/channels/redactChannelSecrets';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
 function json(body: unknown, status = 200) {
@@ -43,13 +47,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       profileRole: auth.profile.role,
       requesterOrganizationId: auth.profile.organization_id,
     });
-  } catch (resolveError) {
+  } catch {
     return json(
       {
-        error:
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'Failed to resolve Evolution credentials for disconnect.',
+        error: 'Failed to resolve Evolution credentials for disconnect.',
       },
       500
     );
@@ -76,7 +77,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
     const nextMetadata = {
       ...((connection.metadata as Record<string, unknown> | null) || {}),
-      lastDisconnectPayload: payload,
+      lastDisconnectPayload: redactChannelPayload(
+        payload,
+        [
+          resolved.apiKey,
+          (connection.config as any)?.apiKey,
+          (connection.config as any)?.webhookSecret,
+        ],
+      ),
       lastDisconnectAt: requestedAt,
       lastPairingCode: null,
       lastPairingPayload: null,
@@ -84,7 +92,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       evolutionCredentialSource: resolved.source,
     };
 
-    const { data: updated, error: updateError } = await admin
+    const { error: updateError } = await admin
       .from('channel_connections')
       .update({
         status: 'disconnected',
@@ -94,20 +102,42 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    if (updateError) return json({ error: updateError.message }, 500);
+    if (updateError) {
+      return json(
+        {
+          error: redactChannelSecrets(
+            updateError,
+            [
+              resolved.apiKey,
+              (connection.config as any)?.apiKey,
+              (connection.config as any)?.webhookSecret,
+            ],
+            'Failed to persist disconnect state.',
+          ),
+        },
+        500,
+      );
+    }
 
     return json({
       ok: true,
-      channel: updated,
       disconnect: {
         requestedAt,
       },
     });
   } catch (disconnectError) {
-    const message = disconnectError instanceof Error ? disconnectError.message : 'Disconnect failed.';
+    const message = redactChannelSecrets(
+      disconnectError,
+      [
+        resolved.apiKey,
+        (connection.config as any)?.apiKey,
+        (connection.config as any)?.webhookSecret,
+      ],
+      'Disconnect failed.',
+    );
 
     await admin
       .from('channel_connections')

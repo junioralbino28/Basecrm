@@ -3,6 +3,7 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
+import { redactChannelSecrets } from '@/lib/channels/redactChannelSecrets';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 
@@ -56,13 +57,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       profileRole: auth.profile.role,
       requesterOrganizationId: auth.profile.organization_id,
     });
-  } catch (resolveError) {
+  } catch {
     return json(
       {
-        error:
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'Failed to resolve Evolution credentials for send test.',
+        error: 'Failed to resolve Evolution credentials for send test.',
       },
       500
     );
@@ -103,12 +101,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       lastSendTestAt: attemptedAt,
       lastSendTestStatus: 'sent',
       lastSendTestError: null,
-      lastSendTestAttempt: result.attemptLabel,
+      lastSendTestAttempt: redactChannelSecrets(
+        result.attemptLabel,
+        [
+          resolved.apiKey,
+          (connection.config as any)?.apiKey,
+          (connection.config as any)?.webhookSecret,
+        ],
+        'unknown',
+      ),
       apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
       evolutionCredentialSource: resolved.source,
     };
 
-    const { data: updated, error: updateError } = await admin
+    const { error: updateError } = await admin
       .from('channel_connections')
       .update({
         metadata: nextMetadata,
@@ -116,26 +122,74 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    if (updateError) return json({ error: updateError.message }, 500);
+    if (updateError) {
+      return json(
+        {
+          error: redactChannelSecrets(
+            updateError,
+            [
+              resolved.apiKey,
+              (connection.config as any)?.apiKey,
+              (connection.config as any)?.webhookSecret,
+            ],
+            'Failed to persist send test state.',
+          ),
+        },
+        500,
+      );
+    }
 
     return json({
       ok: true,
-      channel: updated,
       send_test: {
         attemptedAt,
         phone,
-        text,
-        attempt: result.attemptLabel,
-        providerMessageId: result.providerMessageId,
+        text: redactChannelSecrets(
+          text,
+          [
+            resolved.apiKey,
+            (connection.config as any)?.apiKey,
+            (connection.config as any)?.webhookSecret,
+          ],
+          '',
+        ),
+        attempt: redactChannelSecrets(
+          result.attemptLabel,
+          [
+            resolved.apiKey,
+            (connection.config as any)?.apiKey,
+            (connection.config as any)?.webhookSecret,
+          ],
+          'unknown',
+        ),
+        providerMessageId: result.providerMessageId
+          ? redactChannelSecrets(
+              result.providerMessageId,
+              [
+                resolved.apiKey,
+                (connection.config as any)?.apiKey,
+                (connection.config as any)?.webhookSecret,
+              ],
+              '',
+            )
+          : result.providerMessageId,
       },
     });
   } catch (sendError) {
-    const message = sendError instanceof Error ? sendError.message : 'Send test failed.';
+    const message = redactChannelSecrets(
+      sendError,
+      [
+        resolved.apiKey,
+        (connection.config as any)?.apiKey,
+        (connection.config as any)?.webhookSecret,
+      ],
+      'Send test failed.',
+    );
 
-    const { data: updated } = await admin
+    await admin
       .from('channel_connections')
       .update({
         metadata: {
@@ -151,9 +205,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       })
       .eq('id', connectionId)
       .eq('organization_id', tenantId)
-      .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
+      .select('id')
       .single();
 
-    return json({ error: message, channel: updated || null }, 502);
+    return json({ error: message }, 502);
   }
 }

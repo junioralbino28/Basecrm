@@ -1,3 +1,5 @@
+import { redactChannelPayload } from './redactChannelSecrets';
+
 /**
  * DTO de saída para `channel_connections` enviado ao browser.
  *
@@ -32,16 +34,25 @@ export function toPublicChannelConnection(
 
   const metadata = (connection.metadata as Record<string, unknown> | null) || {};
   const { apiKey, webhookSecret, ...safeConfig } = config;
+  const sanitizedConfig = redactChannelPayload(
+    safeConfig,
+    [apiKey, webhookSecret],
+  ) as Record<string, unknown>;
+  const safeMetadata = redactChannelPayload(
+    metadata,
+    [apiKey, webhookSecret],
+  ) as Record<string, unknown>;
 
   return {
     ...connection,
+    metadata: safeMetadata,
     config: {
-      ...safeConfig,
+      ...sanitizedConfig,
       aiEnabled: config.aiEnabled !== false,
       hasApiKey: Boolean(apiKey),
       hasWebhookSecret: Boolean(webhookSecret),
       apiKeyLast4:
-        (typeof metadata.apiKeyLast4 === 'string' && metadata.apiKeyLast4) ||
+        (typeof safeMetadata.apiKeyLast4 === 'string' && safeMetadata.apiKeyLast4) ||
         String(apiKey || '').slice(-4) ||
         undefined,
     },
