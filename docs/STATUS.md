@@ -65,6 +65,7 @@
 | 8 | `smoke:integrations` aponta pra script inexistente | gate quebrado | [arquitetura/apis-e-integracoes.md](./arquitetura/apis-e-integracoes.md) |
 | 9 | Módulos sem teste: activities, dashboard, cockpit, decisions, ai-hub, profile | regressão silenciosa | [modulos.md](./modulos.md) |
 | 10 | `products`/`lifecycleStages` com fonte de dado dupla | divergência de estado | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |
+| 11 | Docs da era março defasados (termo antigo, pré-sweep) + candidatos a `docs/arquivo/` | dev novo lê coisa errada | [historia-e-origens.md](./historia-e-origens.md) |
 
 ## Baseline de qualidade
 
