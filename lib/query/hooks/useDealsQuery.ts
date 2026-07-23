@@ -268,7 +268,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { title: deal.title, status: deal.status?.slice(0, 8) || 'null' };
         console.log(`[useCreateDeal] 📤 Sending create to server`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:230',message:'Sending create to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD1'})}).catch(()=>{});
       }
       // #endregion
 
@@ -281,7 +280,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { dealId: data?.id?.slice(0, 8) || 'null', title: data?.title };
         console.log(`[useCreateDeal] ✅ Server confirmed creation`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:240',message:'Server confirmed creation',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD2'})}).catch(()=>{});
       }
       // #endregion
       
@@ -314,7 +312,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { tempId: tempId.slice(0, 15), title: newDeal.title, status: newDeal.status?.slice(0, 8) || 'null' };
         console.log(`[useCreateDeal] 🔄 Optimistic insert with temp ID`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:260',message:'Optimistic insert with temp ID',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD3'})}).catch(()=>{});
       }
       // #endregion
 
@@ -331,7 +328,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { tempId: tempId?.slice(0, 15) || 'null', realId: data.id?.slice(0, 8) || 'null', title: data.title };
         console.log(`[useCreateDeal] 🔄 Replacing temp deal with real one`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:280',message:'Replacing temp deal with real one',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD4'})}).catch(()=>{});
       }
       // #endregion
       
@@ -356,7 +352,6 @@ export const useCreateDeal = () => {
           // #region agent log
           if (process.env.NODE_ENV !== 'production') {
             console.log(`[useCreateDeal] ⚠️ Deal already exists in cache (Realtime beat us)`, { dealId: data.id?.slice(0, 8) });
-            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:290',message:'Deal already exists in cache',data:{dealId:data.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD5'})}).catch(()=>{});
           }
           // #endregion
           return old; // Não sobrescreve - Realtime já tem dados enriquecidos
@@ -368,7 +363,6 @@ export const useCreateDeal = () => {
           // #region agent log
           if (process.env.NODE_ENV !== 'production') {
             console.log(`[useCreateDeal] ✅ Swapped temp for real deal`, { tempId: tempId.slice(0, 15), realId: data.id?.slice(0, 8), cacheSize: withoutTemp.length + 1 });
-            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:300',message:'Swapped temp for real deal',data:{tempId:tempId.slice(0,15),realId:data.id?.slice(0,8),cacheSize:withoutTemp.length+1},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD6'})}).catch(()=>{});
           }
           // #endregion
           return [dealAsView, ...withoutTemp];

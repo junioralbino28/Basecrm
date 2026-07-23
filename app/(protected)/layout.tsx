@@ -82,7 +82,6 @@ export default function ProtectedLayout({
           devtools = widthThreshold || heightThreshold;
           env.devToolsOpen = devtools;
 
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'env-detect',hypothesisId:'ENV1',location:'app/(protected)/layout.tsx:ProtectedLayout',message:'Environment detection',data:env,timestamp:Date.now()})}).catch(()=>{});
         };
         detectEnv();
       }
