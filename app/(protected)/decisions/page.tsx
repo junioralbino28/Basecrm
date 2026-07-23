@@ -1,17 +1,13 @@
-'use client'
-
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
-
-const DecisionQueuePage = dynamic(
-    () => import('@/features/decisions/DecisionQueuePage').then(m => ({ default: m.DecisionQueuePage })),
-    { loading: () => <PageLoader />, ssr: false }
-)
+import { redirect } from 'next/navigation'
 
 /**
- * Componente React `Decisions`.
- * @returns {Element} Retorna um valor do tipo `Element`.
+ * QUARENTENA (parecer do pente fino, 2026-07-23 — §3.3/§4.5):
+ * o módulo decisions persiste em localStorage sem tenant e a UI dispara
+ * mutações reais sem aguardar o resultado, podendo marcar falha como
+ * aprovada. A rota fica fora do ar até existir uma central de ações
+ * server-side tenantizada. O código em features/decisions/ está preservado
+ * como referência de UX/analisadores.
  */
 export default function Decisions() {
-    return <DecisionQueuePage />
+    redirect('/visao-geral')
 }

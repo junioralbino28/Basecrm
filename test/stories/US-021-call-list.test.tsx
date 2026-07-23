@@ -41,6 +41,7 @@ const contactsFixture: Contact[] = [
 vi.mock('@/lib/query/hooks/useActivitiesQuery', () => ({
   useActivities: () => ({ data: activitiesFixture, isLoading: false, error: null }),
   useToggleActivity: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateActivity: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/lib/query/hooks/useTasksQuery', () => ({

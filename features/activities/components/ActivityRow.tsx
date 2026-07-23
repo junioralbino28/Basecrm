@@ -10,7 +10,8 @@ interface ActivityRowProps {
     contact?: Contact;
     company?: Company;
     onToggleComplete: (id: string) => void;
-    onEdit: (activity: Activity) => void;
+    /** Sem handler, o botão Editar não renderiza (contextos sem fluxo de edição, ex.: modal do negócio). */
+    onEdit?: (activity: Activity) => void;
     onDelete: (id: string) => void;
     isSelected?: boolean;
     onSelect?: (id: string, selected: boolean) => void;
@@ -192,13 +193,15 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
             </div>
 
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                    onClick={() => onEdit(activity)}
-                    className="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg transition-colors"
-                    title="Editar"
-                >
-                    <Edit2 size={16} />
-                </button>
+                {onEdit ? (
+                    <button
+                        onClick={() => onEdit(activity)}
+                        className="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg transition-colors"
+                        title="Editar"
+                    >
+                        <Edit2 size={16} />
+                    </button>
+                ) : null}
                 <button
                     onClick={() => onDelete(activity.id)}
                     className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"

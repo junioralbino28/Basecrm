@@ -13,7 +13,6 @@ export {
   useDealsByBoard,
   useCreateDeal,
   useUpdateDeal,
-  useUpdateDealStatus,
   useDeleteDeal,
   useAddDealItem,
   useRemoveDealItem,

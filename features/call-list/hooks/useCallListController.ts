@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@/context/ToastContext';
-import { useActivities, useToggleActivity } from '@/lib/query/hooks/useActivitiesQuery';
+import { useActivities, useToggleActivity, useUpdateActivity } from '@/lib/query/hooks/useActivitiesQuery';
 import { useTasks, useUpdateTask } from '@/lib/query/hooks/useTasksQuery';
+import type { CallLogData } from '@/features/inbox/components/CallModal';
 import { useContacts } from '@/lib/query/hooks/useContactsQuery';
 import { useDeals } from '@/lib/query/hooks/useDealsQuery';
 import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
@@ -30,6 +31,7 @@ export const useCallListController = (now: Date = new Date()) => {
   const { data: deals = [] } = useDeals();
   const { data: boards = [] } = useBoards();
   const toggleActivityMutation = useToggleActivity();
+  const updateActivityMutation = useUpdateActivity();
   const updateTaskMutation = useUpdateTask();
 
   // Realtime: caminho simples de invalidate para as duas fontes da lista.
@@ -107,6 +109,54 @@ export const useCallListController = (now: Date = new Date()) => {
     [showToast, toggleActivityMutation, updateTaskMutation]
   );
 
+  /**
+   * Conclui a entrada PERSISTINDO o resultado da ligação (parecer §5.2: o
+   * modal coleta outcome/duração/notas e nada disso podia ser descartado).
+   * Activity: completed + resultado na description. Task: done + resultado
+   * na note. Guardrail mantido: NUNCA move o deal no funil.
+   */
+  const handleSaveCallResult = useCallback(
+    (entry: CallListEntry, log: CallLogData) => {
+      const note = buildCallResultNote(log, now);
+      if (entry.kind === 'activity') {
+        const existing = entry.activity.description?.trim();
+        updateActivityMutation.mutate(
+          {
+            id: entry.activity.id,
+            updates: {
+              completed: true,
+              description: existing ? `${existing}\n${note}` : note,
+            },
+          },
+          {
+            onSuccess: () => showToast('Ligação registrada', 'success'),
+            onError: (mutationError: Error) => {
+              showToast(`Erro ao registrar ligação: ${mutationError.message}`, 'error');
+            },
+          }
+        );
+        return;
+      }
+      const existing = entry.task.note?.trim();
+      updateTaskMutation.mutate(
+        {
+          id: entry.task.id,
+          updates: {
+            status: 'done',
+            note: existing ? `${existing}\n${note}` : note,
+          },
+        },
+        {
+          onSuccess: () => showToast('Ligação registrada', 'success'),
+          onError: (mutationError: Error) => {
+            showToast(`Erro ao registrar ligação: ${mutationError.message}`, 'error');
+          },
+        }
+      );
+    },
+    [now, showToast, updateActivityMutation, updateTaskMutation]
+  );
+
   return {
     buckets,
     totalPending,
@@ -117,5 +167,25 @@ export const useCallListController = (now: Date = new Date()) => {
     openCall,
     closeCall,
     handleMarkDone,
+    handleSaveCallResult,
   };
+};
+
+const CALL_OUTCOME_LABELS: Record<CallLogData['outcome'], string> = {
+  connected: 'Atendeu',
+  no_answer: 'Não atendeu',
+  voicemail: 'Caixa postal',
+  busy: 'Ocupado',
+};
+
+/** Linha única e legível pra description/note: resultado + duração + notas. */
+export const buildCallResultNote = (log: CallLogData, when: Date): string => {
+  const parts = [`[Ligação ${when.toLocaleDateString('pt-BR')}] ${CALL_OUTCOME_LABELS[log.outcome]}`];
+  if (log.duration > 0) {
+    const minutes = Math.floor(log.duration / 60);
+    const seconds = log.duration % 60;
+    parts.push(minutes > 0 ? `${minutes}min${seconds > 0 ? ` ${seconds}s` : ''}` : `${seconds}s`);
+  }
+  if (log.notes.trim()) parts.push(log.notes.trim());
+  return parts.join(' · ');
 };

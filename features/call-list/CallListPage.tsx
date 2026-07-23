@@ -16,8 +16,9 @@ interface CallListPageProps {
  * Deriva client-side das activities (type 'CALL', !completed) + tasks do N2
  * vencendo hoje; contatos whatsapp_only ficam FORA da lista de ligar. Reusa o
  * CallModal já testado para registrar o resultado da ligação. Ao salvar o log,
- * a pendência é concluída (handleMarkDone) — o sistema NÃO move o deal no
- * funil automaticamente (guardrail do playbook).
+ * a pendência é concluída E o resultado persiste (handleSaveCallResult:
+ * outcome/duração/notas na activity.description ou task.note) — o sistema NÃO
+ * move o deal no funil automaticamente (guardrail do playbook).
  */
 export const CallListPage: React.FC<CallListPageProps> = ({ now }) => {
   const {
@@ -30,6 +31,7 @@ export const CallListPage: React.FC<CallListPageProps> = ({ now }) => {
     openCall,
     closeCall,
     handleMarkDone,
+    handleSaveCallResult,
   } = useCallListController(now);
 
   const activeTitle =
@@ -66,9 +68,10 @@ export const CallListPage: React.FC<CallListPageProps> = ({ now }) => {
       <CallModal
         isOpen={isCallModalOpen}
         onClose={closeCall}
-        onSave={() => {
+        onSave={(log) => {
+          // parecer §5.2: o resultado do modal agora PERSISTE (outcome/duração/notas)
           if (activeEntry) {
-            handleMarkDone(activeEntry);
+            handleSaveCallResult(activeEntry, log);
           }
           closeCall();
         }}

@@ -105,18 +105,6 @@ export const requiredDate = (field: string) =>
     .min(1, msg('DATE_REQUIRED', { field }))
     .max(30, 'Data inválida');
 
-// ============ CONTACT SCHEMAS ============
-
-export const contactFormSchema = z.object({
-  name: requiredString('Nome', MAX_LENGTHS.NAME),
-  email: emailSchema,
-  phone: phoneSchema,
-  role: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
-  companyName: optionalString.pipe(z.string().max(MAX_LENGTHS.COMPANY_NAME)),
-});
-
-export type ContactFormData = z.infer<typeof contactFormSchema>;
-
 // ============ COMPANY SCHEMAS ============
 
 export const companyFormSchema = z.object({
@@ -137,23 +125,6 @@ export const companyFormSchema = z.object({
 
 export type CompanyFormData = z.infer<typeof companyFormSchema>;
 
-// ============ DEAL SCHEMAS ============
-
-export const dealFormSchema = z.object({
-  title: requiredString('Nome do negócio', MAX_LENGTHS.TITLE),
-  companyName: requiredString('Empresa', MAX_LENGTHS.COMPANY_NAME),
-  value: currencySchema,
-  contactName: optionalString.pipe(z.string().max(MAX_LENGTHS.NAME)),
-  email: z.string()
-    .max(MAX_LENGTHS.EMAIL, `Email deve ter no máximo ${MAX_LENGTHS.EMAIL} caracteres`)
-    .email(msg('EMAIL_INVALID'))
-    .optional()
-    .or(z.literal('')),
-  phone: phoneSchema,
-});
-
-export type DealFormData = z.infer<typeof dealFormSchema>;
-
 // ============ ACTIVITY SCHEMAS ============
 
 export const activityTypeSchema = z.enum([
@@ -164,21 +135,6 @@ export const activityTypeSchema = z.enum([
   'NOTE',
   'STATUS_CHANGE',
 ]);
-
-export const activityFormTypeSchema = z.enum(['CALL', 'MEETING', 'EMAIL', 'TASK'], {
-  message: msg('SELECTION_INVALID'),
-});
-
-export const activityFormSchema = z.object({
-  title: requiredString('Título', MAX_LENGTHS.TITLE),
-  type: activityFormTypeSchema,
-  date: requiredDate('Data'),
-  time: requiredString('Hora', 10),
-  description: z.string().max(MAX_LENGTHS.DESCRIPTION).default(''),
-  dealId: requiredSelect('Negócio'),
-});
-
-export type ActivityFormData = z.infer<typeof activityFormSchema>;
 
 // ============ ATENDIMENTO SCHEMAS ============
 

@@ -62,12 +62,14 @@ const boardsFixture = [
 ];
 
 const toggleMutate = vi.fn();
+const updateActivityMutate = vi.fn();
 const updateTaskMutate = vi.fn();
 const showToast = vi.fn();
 
 vi.mock('@/lib/query/hooks/useActivitiesQuery', () => ({
   useActivities: () => ({ data: activitiesFixture, isLoading: false, error: null }),
   useToggleActivity: () => ({ mutate: toggleMutate, isPending: false }),
+  useUpdateActivity: () => ({ mutate: updateActivityMutate, isPending: false }),
 }));
 
 vi.mock('@/lib/query/hooks/useTasksQuery', () => ({
@@ -100,8 +102,53 @@ import { useCallListController } from './useCallListController';
 describe('useCallListController', () => {
   beforeEach(() => {
     toggleMutate.mockClear();
+    updateActivityMutate.mockClear();
     updateTaskMutate.mockClear();
     showToast.mockClear();
+  });
+
+  // Regressão do parecer do pente fino §5.2: o resultado do CallModal era
+  // DESCARTADO — agora precisa persistir (outcome/duração/notas).
+  it('handleSaveCallResult de activity persiste completed + resultado na description', () => {
+    const { result } = renderHook(() => useCallListController(new Date('2026-06-10T12:00:00')));
+
+    act(() => {
+      result.current.handleSaveCallResult(result.current.buckets.today[1], {
+        outcome: 'connected',
+        duration: 95,
+        notes: 'quer remarcar pra sexta',
+        title: 'Ligação',
+      });
+    });
+
+    expect(updateActivityMutate).toHaveBeenCalledTimes(1);
+    const [payload] = updateActivityMutate.mock.calls[0];
+    expect(payload.id).toBe('a-today');
+    expect(payload.updates.completed).toBe(true);
+    expect(payload.updates.description).toContain('Atendeu');
+    expect(payload.updates.description).toContain('1min 35s');
+    expect(payload.updates.description).toContain('quer remarcar pra sexta');
+    expect(updateTaskMutate).not.toHaveBeenCalled();
+  });
+
+  it('handleSaveCallResult de task persiste status done + resultado na note', () => {
+    const { result } = renderHook(() => useCallListController(new Date('2026-06-10T12:00:00')));
+
+    act(() => {
+      result.current.handleSaveCallResult(result.current.buckets.today[0], {
+        outcome: 'no_answer',
+        duration: 0,
+        notes: '',
+        title: 'Ligação',
+      });
+    });
+
+    expect(updateTaskMutate).toHaveBeenCalledTimes(1);
+    const [payload] = updateTaskMutate.mock.calls[0];
+    expect(payload.id).toBe('t-hoje');
+    expect(payload.updates.status).toBe('done');
+    expect(payload.updates.note).toContain('Não atendeu');
+    expect(updateActivityMutate).not.toHaveBeenCalled();
   });
 
   it('compõe activities + tasks + contacts em buckets ordenados', () => {
