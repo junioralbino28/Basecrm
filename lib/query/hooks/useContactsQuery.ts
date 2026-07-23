@@ -215,14 +215,12 @@ export const useContactStageCounts = () => {
   return useQuery({
     queryKey: [...queryKeys.contacts.stageCounts(), organizationId],
     queryFn: async () => {
-      const { data, error } = await contactsService.getAll(organizationId);
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const contact of data || []) {
-        const stage = contact.stage || 'UNKNOWN';
-        counts[stage] = (counts[stage] || 0) + 1;
+      if (!organizationId) {
+        throw new Error('Organização não selecionada');
       }
-      return counts;
+      const { data, error } = await contactsService.getStageCounts(organizationId);
+      if (error) throw error;
+      return data || {};
     },
     staleTime: 30 * 1000, // 30 seconds - counts can be slightly stale
     enabled: !authLoading && !tenantLoading && !!user && !!organizationId,

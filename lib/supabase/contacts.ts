@@ -196,23 +196,30 @@ export const contactsService = {
    * Busca contagens de contatos por estágio do funil.
    * Usa RPC para query eficiente no servidor.
    * 
+   * @param organizationId - Organização obrigatória usada pela RPC tenantizada.
    * @returns Promise com objeto de contagens por estágio.
    * 
    * @example
    * ```typescript
-   * const { data } = await contactsService.getStageCounts();
+   * const { data } = await contactsService.getStageCounts(organizationId);
    * // data = { LEAD: 1500, MQL: 2041, PROSPECT: 800, ... }
    * ```
    */
-  async getStageCounts(organizationId?: string | null): Promise<{ data: Record<string, number> | null; error: Error | null }> {
+  async getStageCounts(organizationId: OrganizationId): Promise<{ data: Record<string, number> | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       const normalizedOrganizationId = sanitizeUUID(organizationId);
-      const { data, error } = normalizedOrganizationId
-        ? await supabase.rpc('get_contact_stage_counts', { org_id: normalizedOrganizationId } as any)
-        : await supabase.rpc('get_contact_stage_counts');
+      if (!normalizedOrganizationId) {
+        return {
+          data: null,
+          error: new Error('Informe uma organização válida para contar os contatos'),
+        };
+      }
+      const { data, error } = await supabase.rpc('get_contact_stage_counts', {
+        p_organization_id: normalizedOrganizationId,
+      });
 
       if (error) return { data: null, error };
 
@@ -220,7 +227,7 @@ export const contactsService = {
       const counts: Record<string, number> = {};
       if (data) {
         for (const row of data as Array<{ stage: string; count: number }>) {
-          counts[row.stage] = row.count;
+          counts[row.stage] = Number(row.count);
         }
       }
 
