@@ -37,6 +37,7 @@ import {
   moveAutomationStep,
   removeAutomationStep,
 } from './automationGraphMove';
+import { toFriendlyAutomationError } from './automationErrorMessages';
 import {
   addAutomationSwitchCase,
   moveAutomationSwitchCase,
@@ -426,7 +427,9 @@ export function AutomationBuilderPage(props: {
     } catch (error) {
       setFeedback({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'Falha ao salvar rascunho.',
+        text: toFriendlyAutomationError(
+          error instanceof Error ? error.message : 'Falha ao salvar rascunho.',
+        ),
       });
       return null;
     } finally {
@@ -468,7 +471,9 @@ export function AutomationBuilderPage(props: {
     } catch (error) {
       setFeedback({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'Falha ao publicar.',
+        text: toFriendlyAutomationError(
+          error instanceof Error ? error.message : 'Falha ao publicar.',
+        ),
       });
     } finally {
       setBusy(null);
