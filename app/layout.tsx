@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Fraunces } from 'next/font/google'
 import './globals.css'
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister'
 import { InstallBanner } from '@/components/pwa/InstallBanner'
+import { StaleChunkGuard } from '@/components/pwa/StaleChunkGuard'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-[var(--color-bg)] text-[var(--color-text-primary)]">
         <ServiceWorkerRegister />
         <InstallBanner />
+        <StaleChunkGuard />
         {children}
       </body>
     </html>
