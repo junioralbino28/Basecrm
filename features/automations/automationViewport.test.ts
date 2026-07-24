@@ -29,7 +29,7 @@ describe('automationViewport', () => {
     expect(zoomed).toEqual({ x: -70, y: -10, scale: 1.5 });
   });
 
-  it('respeita o piso de 70% e o teto de 200%', () => {
+  it('respeita o piso de 30% e o teto de 200%', () => {
     expect(zoomAutomationViewportAt(
       { x: 0, y: 0, scale: 1 },
       0.1,
@@ -42,15 +42,16 @@ describe('automationViewport', () => {
     ).scale).toBe(AUTOMATION_MAX_ZOOM);
   });
 
-  it('ajusta e centraliza sem espremer um fluxo grande abaixo de 70%', () => {
+  it('ajusta um fluxo grande pra caber inteiro e centralizado', () => {
     const fitted = fitAutomationViewport(
       { width: 800, height: 500 },
       { width: 1600, height: 900 },
     );
 
-    expect(fitted.scale).toBe(0.7);
-    expect(fitted.x).toBe(-160);
-    expect(fitted.y).toBe(-65);
+    // available 732x432 → escala limitada pela largura: 732/1600
+    expect(fitted.scale).toBe(0.4575);
+    expect(fitted.x).toBe(34);
+    expect(fitted.y).toBe(44.125);
   });
 
   it('move o mapa pela diferença entre início e cursor', () => {

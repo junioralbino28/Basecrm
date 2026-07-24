@@ -1,4 +1,6 @@
-export const AUTOMATION_MIN_ZOOM = 0.7;
+// 30%: piso baixo o bastante pra enxergar um fluxo longo inteiro (o de 70%
+// travava o overview — report do Junior no C2C, 2026-07-24).
+export const AUTOMATION_MIN_ZOOM = 0.3;
 export const AUTOMATION_MAX_ZOOM = 2;
 export const AUTOMATION_VIEWPORT_PADDING = 68;
 
