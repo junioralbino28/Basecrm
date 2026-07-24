@@ -681,7 +681,10 @@ export function AutomationBuilderPage(props: {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+    // h-full + flex: o construtor ocupa TODO o espaço que o shell dá; nada de
+    // calc(100vh-N) chutado — era isso que cortava o painel e criava scroll
+    // duplo em janelas menores (report do Junior, 24/07).
+    <div className="flex h-full w-full flex-col gap-3 px-4 py-3 sm:px-6">
       {/* Cabeçalho compacto: a tela é de trabalho, o espaço vertical vale mais
           para o mapa e a doca do que para título grande (pedido do Junior). */}
       <header className="flex flex-col gap-2 border-b border-slate-200 pb-2.5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
@@ -722,8 +725,8 @@ export function AutomationBuilderPage(props: {
         </div>
       ) : null}
 
-      <div className="min-h-[650px]">
-        <main>
+      <div className="min-h-0 flex-1">
+        <main className="flex h-full min-h-0 flex-col">
           {!draft ? (
             <div className="flex h-full min-h-[500px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center dark:border-white/10 dark:bg-card">
               <div>
@@ -737,7 +740,7 @@ export function AutomationBuilderPage(props: {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="flex h-full min-h-0 flex-col gap-3">
               <AutomationFlowToolbar
                 automations={workspace?.automations ?? [draft]}
                 selected={draft}
@@ -796,7 +799,7 @@ export function AutomationBuilderPage(props: {
                 )}
               />
 
-              <div className="flex h-[calc(100vh-190px)] min-h-[520px] flex-col overflow-hidden rounded-2xl border border-white/10">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10">
               <AutomationFlowMap
                 steps={draft.steps}
                 edges={draft.edges}
