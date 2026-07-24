@@ -43,6 +43,8 @@ type AutomationFlowMapProps = {
   edges: AutomationBuilderEdge[];
   canEdit: boolean;
   selectedStepKey: string | null;
+  /** Identidade da automação exibida — trocar no seletor re-enquadra o mapa. */
+  fitKey?: string | null;
   onStepActivate: (stepKey: string) => void;
   onBackgroundActivate?: () => void;
   onAddAfter: (stepKey: string) => void;
@@ -152,6 +154,7 @@ export function AutomationFlowMap({
   edges,
   canEdit,
   selectedStepKey,
+  fitKey,
   onStepActivate,
   onBackgroundActivate,
   onAddAfter,
@@ -257,6 +260,15 @@ export function AutomationFlowMap({
   React.useEffect(() => {
     if (selectedStepKey) centerRef.current(selectedStepKey);
   }, [selectedStepKey]);
+
+  // Trocar de automação no seletor: o mapa fica montado, então o fit da
+  // montagem não roda de novo — re-enquadra o fluxo novo (Reforma 1).
+  const fitRef = React.useRef(fitMap);
+  React.useEffect(() => { fitRef.current = fitMap; });
+  React.useEffect(() => {
+    if (!didFitRef.current) return; // a montagem já vai enquadrar
+    fitRef.current();
+  }, [fitKey]);
 
   React.useEffect(() => () => {
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);

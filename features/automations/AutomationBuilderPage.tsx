@@ -799,11 +799,15 @@ export function AutomationBuilderPage(props: {
                 )}
               />
 
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10">
+              {/* Reforma 1 (pesquisa PESQUISA-UX-FLOW-BUILDERS.md): edição em
+                  painel LATERAL direito — nenhum builder de referência usa dock
+                  inferior; o mapa fica com a altura inteira da tela. */}
+              <div className="flex min-h-0 flex-1 flex-row overflow-hidden rounded-2xl border border-white/10">
               <AutomationFlowMap
                 steps={draft.steps}
                 edges={draft.edges}
                 canEdit={canEdit}
+                fitKey={draft.id}
                 selectedStepKey={selectedStepKey}
                 onStepActivate={setSelectedStepKey}
                 onBackgroundActivate={() => setSelectedStepKey(null)}

@@ -101,20 +101,16 @@ export function AutomationStepDock({
   };
 
   return (
+    // Reforma 1 (PESQUISA-UX-FLOW-BUILDERS.md, padrão dominante nº 2): painel
+    // LATERAL direito de altura inteira — dock inferior roubava o eixo
+    // vertical da tela e nenhum builder de referência o usa.
     <section
       aria-label="Edição do passo"
       data-dock-size={isMessage || isSwitch ? 'tall' : 'compact'}
       className={[
-        'relative flex-none overflow-hidden border-t border-white/10',
+        'relative flex h-full flex-none flex-col overflow-hidden border-l border-white/10',
         'bg-[#0B100F] text-slate-100 shadow-2xl backdrop-blur',
-        // Altura proporcional ao painel (não fixa): em tela grande a edição
-        // respira, em tela pequena o mínimo garante que não vire uma fresta.
-        // O "divide caminho" pede mais espaço porque lista N caminhos.
-        isMessage
-          ? 'grid h-[42%] min-h-[248px] md:grid-cols-2'
-          : isSwitch
-            ? 'h-[52%] min-h-[320px]'
-            : 'h-[160px]',
+        'w-[380px] max-w-[85vw] lg:w-[430px]',
       ].join(' ')}
     >
       <button
@@ -128,7 +124,7 @@ export function AutomationStepDock({
 
       {/* pb maior: sem ele a última linha do editor encosta na borda e o
           painel parece "cortado" (report do Junior no C2C). */}
-      <div className="overflow-auto px-5 pb-10 pt-4">
+      <div className="min-h-0 flex-1 overflow-auto px-5 pb-10 pt-4">
         <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
           Passo selecionado
         </div>
@@ -366,7 +362,7 @@ export function AutomationStepDock({
       </div>
 
       {isMessage ? (
-        <div className="overflow-auto border-t border-white/10 px-5 py-4 md:border-l md:border-t-0">
+        <div className="max-h-[45%] flex-none overflow-auto border-t border-white/10 px-5 py-4">
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4 text-teal-400" />
             <h3 className="text-sm font-semibold">Biblioteca de mensagens</h3>
