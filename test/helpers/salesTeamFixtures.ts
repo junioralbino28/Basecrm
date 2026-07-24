@@ -504,17 +504,27 @@ export async function cleanupSalesTeamFixtures(fx: SalesTeamFixtureBundle): Prom
     }
   }
 
-  // 2) Contatos: apaga tanto os IDs criados no fixture quanto quaisquer contatos com o runId no email
-  // (ex.: createContact tool cria contatos extras durante o teste).
-  if (fx.created.contactIds.length) {
-    await supabase.from('contacts').delete().eq('organization_id', fx.organizationId).in('id', fx.created.contactIds);
-  }
+  // 2) Contatos e tarefas: as tools criam contatos extras com o runId só no NOME
+  // (create_contact gera email próprio sem runId) e tarefas (create_task) que
+  // nenhuma lista explícita cobre — era o furo que deixava "Contato Novo ..."
+  // acumulando na org semeada a cada rodada da suíte. Coleta todo contato do
+  // run (ids do fixture + email OU nome contendo runId), apaga primeiro as
+  // tasks que apontam pra eles, depois os contatos.
+  const contactIdsToDelete = new Set<string>(fx.created.contactIds);
   if (fx.runId) {
-    await supabase
+    const { data: extraContacts } = await supabase
       .from('contacts')
-      .delete()
+      .select('id')
       .eq('organization_id', fx.organizationId)
-      .ilike('email', `%${fx.runId}%`);
+      .or(`email.ilike.%${fx.runId}%,name.ilike.%${fx.runId}%`);
+    for (const row of (extraContacts as Array<{ id: string }> | null) || []) {
+      contactIdsToDelete.add(row.id);
+    }
+  }
+  const contactIdList = [...contactIdsToDelete];
+  if (contactIdList.length) {
+    await supabase.from('tasks').delete().eq('organization_id', fx.organizationId).in('contact_id', contactIdList);
+    await supabase.from('contacts').delete().eq('organization_id', fx.organizationId).in('id', contactIdList);
   }
 
   // 3) Stages + boards criados no fixture
