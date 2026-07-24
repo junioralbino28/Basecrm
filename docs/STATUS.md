@@ -73,5 +73,5 @@
 
 ## Baseline de qualidade
 
-`test:local` = **932/932** (2026-07-23, pós-hotfix de segurança: 890 + 42 novos) · lint `--max-warnings 0` · tsc strict.
+`test:local` = **941/941** (2026-07-25, pós-C2C: 932 + 9 testes novos do dia — excluir passo, tradutor de erros, etc.) · lint `--max-warnings 0` · tsc strict.
 Histórico em [operacao/testes-e-gates.md](./operacao/testes-e-gates.md).
