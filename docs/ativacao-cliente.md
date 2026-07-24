@@ -33,6 +33,11 @@ Em ordem de ativação:
 
 1. **Criar o tenant** — Plataforma → Nova Clínica (provisioning wizard, edição
    `clinic`, branding, domínio se houver).
+1b. **Definir a cara do cliente** — Plataforma → Branding: nome de exibição,
+   cor da marca, logo, tema. ⚠️ A tela e o `branding_config` JÁ existem;
+   a APLICAÇÃO visual (cor/logo pintando a UI do tenant) entra pós-C2D
+   (decisão 2026-07-24 em `decisoes.md`, precedida da pesquisa
+   `PESQUISA-BRANDING-CRMS.md`).
 2. **Convidar os usuários** com cargo + permissões (E1/E2 — os toggles bloqueiam
    de verdade).
 3. **Conectar o WhatsApp** — Conexões → nova conexão → QR no celular do número
@@ -67,6 +72,7 @@ Em ordem de dependência — cada item aponta onde já está planejado:
 | 8 | **Correções do pente fino** (bug `get_contact_stage_counts`, RLS origens no deploy, código morto) | confiabilidade | `PEDIDO-OPINIAO-PENTE-FINO.md` (com o Codex) |
 | 9 | (Aceito, não urgente) personalização self-service (cores, ordem de menu) | escalar sem dev | backlog do Junior |
 | 10 | (Aceito, DEPOIS de 1–7) **CRM próprio da agência** — leads de anúncio/prospecção e funções agência-only; hoje `/platform` é só administração | a agência se vender com o próprio produto | decisão do Junior 2026-07-23, em `decisoes.md` |
+| 11 | **Branding por cliente — última milha**: `branding_config` (cor/logo/nome/tema) já se salva na tela Plataforma→Branding, mas a UI do tenant NÃO aplica cor nem logo (só o nome). Aplicar = injetar a escala `brand-*` por org + logo no menu/login. Pós-C2D, ~1-2 dias, precedido de pesquisa de mercado | ativar cliente com a cara dele; percepção de valor na venda | decisão do Junior 2026-07-24, em `decisoes.md` |
 
 **Fora do produto (decisão consciente):** escrever DENTRO da planilha do cliente
 (Sheets API/OAuth). A direção é o contrário — o Financeiro do CRM substitui a
