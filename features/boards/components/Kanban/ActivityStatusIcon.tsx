@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Phone, Mail, Calendar, ChevronRight, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 
 interface ActivityStatusIconProps {
@@ -35,6 +36,43 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
     onMoveToStage
 }) => {
     const Icon = type === 'CALL' ? Phone : type === 'EMAIL' ? Mail : type === 'MEETING' ? Calendar : ChevronRight;
+
+    // O menu era `absolute` dentro do card e a coluna do kanban (overflow) o
+    // CORTAVA (report do Junior, 24/07). Portal + posição fixa medida a partir
+    // do botão: o menu flutua por cima de tudo, nunca é cortado.
+    const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+    const [menuPos, setMenuPos] = React.useState<{ left: number; top: number; openUp: boolean } | null>(null);
+    const MENU_WIDTH = 192; // w-48
+    const MENU_EST_HEIGHT = 240;
+
+    React.useLayoutEffect(() => {
+        if (!isOpen) { setMenuPos(null); return; }
+        const rect = buttonRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const openUp = rect.top > MENU_EST_HEIGHT + 16;
+        setMenuPos({
+            left: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+            top: openUp ? rect.top - 8 : rect.bottom + 8,
+            openUp,
+        });
+    }, [isOpen]);
+
+    // Rolagem/resize com o menu aberto: fecha (menu fixo descolaria do botão).
+    // Armado com atraso: o clique que ABRE dá foco no botão e o navegador pode
+    // disparar um micro-scroll na coluna — sem o atraso, o menu fecha no nascimento.
+    React.useEffect(() => {
+        if (!isOpen || !onRequestClose) return;
+        let armed = false;
+        const armTimer = setTimeout(() => { armed = true; }, 250);
+        const close = () => { if (armed) onRequestClose(); };
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('resize', close);
+        return () => {
+            clearTimeout(armTimer);
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
+        };
+    }, [isOpen, onRequestClose]);
 
     // Get accessible status description
     const getStatusLabel = () => {
@@ -83,8 +121,9 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
 
     return (
         <div className="relative">
-            <button 
+            <button
                 type="button"
+                ref={buttonRef}
                 onClick={onToggle}
                 aria-label={`${getStatusLabel()}. Clique para agendar atividade`}
                 aria-expanded={isOpen}
@@ -94,11 +133,17 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
                 {content}
             </button>
 
-            {isOpen && dealId && (
+            {isOpen && dealId && menuPos && typeof document !== 'undefined' && createPortal(
                 <div
                     role="menu"
                     aria-label="Agendar atividade rápida"
-                    className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-surface rounded-lg shadow-xl border border-slate-200 dark:border-white/10 z-50 overflow-hidden animate-in zoom-in-95 duration-100"
+                    style={{
+                        position: 'fixed',
+                        left: menuPos.left,
+                        top: menuPos.top,
+                        transform: menuPos.openUp ? 'translateY(-100%)' : undefined,
+                    }}
+                    className="w-48 bg-white dark:bg-surface rounded-lg shadow-xl border border-slate-200 dark:border-white/10 z-[80] overflow-hidden animate-in zoom-in-95 duration-100"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-2 border-b border-slate-100 dark:border-white/5">
@@ -158,7 +203,8 @@ export const ActivityStatusIcon: React.FC<ActivityStatusIconProps> = ({
                             <Calendar size={14} className="text-orange-500" aria-hidden="true" /> Reunião amanhã
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
         </div>
     );
