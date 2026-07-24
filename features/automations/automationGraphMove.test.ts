@@ -6,7 +6,9 @@ import type {
 import {
   eligibleAutomationMoveTargets,
   getAutomationMoveBlock,
+  getAutomationRemoveBlock,
   moveAutomationStep,
+  removeAutomationStep,
 } from './automationGraphMove';
 
 function step(
@@ -175,5 +177,64 @@ describe('movimentação pura do grafo da automação', () => {
 
     expect(moved.steps).toEqual(steps);
     expect(moved.edges).toEqual([edge('x', 'n'), edge('n', 'y')]);
+  });
+});
+
+describe('exclusão pura do grafo da automação', () => {
+  it('remove um passo do meio e religa o anterior no sucessor', () => {
+    const steps = ['a', 'b', 'c'].map((key) => step(key));
+    const edges = [edge('a', 'b'), edge('b', 'c')];
+
+    const result = removeAutomationStep({ stepKey: 'b', steps, edges });
+
+    expect(result.steps.map((s) => s.stepKey)).toEqual(['a', 'c']);
+    expect(result.edges).toEqual([edge('a', 'c')]);
+  });
+
+  it('remove o último passo de uma linha reta encerrando o caminho no anterior', () => {
+    const steps = ['a', 'b'].map((key) => step(key));
+    const edges = [edge('a', 'b')];
+
+    const result = removeAutomationStep({ stepKey: 'b', steps, edges });
+
+    expect(result.steps.map((s) => s.stepKey)).toEqual(['a']);
+    expect(result.edges).toEqual([]);
+  });
+
+  it('permite remover o primeiro passo — o sucessor vira a nova entrada', () => {
+    const steps = ['a', 'b'].map((key) => step(key));
+    const edges = [edge('a', 'b')];
+
+    const result = removeAutomationStep({ stepKey: 'a', steps, edges });
+
+    expect(result.steps.map((s) => s.stepKey)).toEqual(['b']);
+    expect(result.edges).toEqual([]);
+  });
+
+  it('bloqueia excluir um passo que divide caminhos', () => {
+    const steps = ['a', 'b', 'c', 'd'].map((key) => step(key));
+    const edges = [edge('a', 'b'), edge('b', 'c', 'answered'), edge('b', 'd', 'timeout', 1)];
+
+    expect(getAutomationRemoveBlock('b', steps, edges)).toBe(
+      'Um passo que divide caminhos não pode ser excluído — exclua ou mova antes os passos dos caminhos dele.',
+    );
+    expect(() => removeAutomationStep({ stepKey: 'b', steps, edges })).toThrow();
+  });
+
+  it('bloqueia excluir o único passo de um caminho ramificado', () => {
+    const steps = ['a', 'b', 'c'].map((key) => step(key));
+    const edges = [edge('a', 'b', 'answered'), edge('a', 'c', 'timeout', 1)];
+
+    expect(getAutomationRemoveBlock('b', steps, edges)).toBe(
+      'Este é o único passo deste caminho — cada caminho precisa de pelo menos um. Edite este passo ou remova o caminho no passo que divide.',
+    );
+  });
+
+  it('bloqueia excluir o último passo da automação', () => {
+    const steps = [step('a')];
+
+    expect(getAutomationRemoveBlock('a', steps, [])).toBe(
+      'A automação precisa de pelo menos um passo.',
+    );
   });
 });

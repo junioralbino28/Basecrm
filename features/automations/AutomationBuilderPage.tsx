@@ -33,7 +33,9 @@ import { AutomationStepDock } from './AutomationStepDock';
 import {
   eligibleAutomationMoveTargets,
   getAutomationMoveBlock,
+  getAutomationRemoveBlock,
   moveAutomationStep,
+  removeAutomationStep,
 } from './automationGraphMove';
 import {
   addAutomationSwitchCase,
@@ -302,6 +304,7 @@ export function AutomationBuilderPage(props: {
   const [templateBody, setTemplateBody] = React.useState('');
   const [testOpen, setTestOpen] = React.useState(false);
   const [testTargetId, setTestTargetId] = React.useState('');
+  const [publishConfirmOpen, setPublishConfirmOpen] = React.useState(false);
 
   const canEdit = props.canEdit || Boolean(workspace?.access?.canEdit);
   const canOperate = props.canOperate || Boolean(workspace?.access?.canOperate);
@@ -583,6 +586,9 @@ export function AutomationBuilderPage(props: {
   const moveBlockedMessage = draft && selectedStepKey
     ? getAutomationMoveBlock(selectedStepKey, draft.steps, draft.edges)
     : null;
+  const removeBlockedMessage = draft && selectedStepKey
+    ? getAutomationRemoveBlock(selectedStepKey, draft.steps, draft.edges)
+    : null;
   const moveTargets = draft && selectedStepKey && !moveBlockedMessage
     ? eligibleAutomationMoveTargets(selectedStepKey, draft.steps, draft.edges).map((edge) => {
         const from = draft.steps.find((step) => step.stepKey === edge.fromStepKey);
@@ -595,6 +601,25 @@ export function AutomationBuilderPage(props: {
         };
       })
     : [];
+
+  const applyStepRemove = (stepKey: string) => {
+    if (!draft) return;
+    try {
+      const removed = removeAutomationStep({
+        stepKey,
+        steps: draft.steps,
+        edges: draft.edges,
+      });
+      setDraft({ ...draft, ...removed });
+      setSelectedStepKey(null);
+      setFeedback({ tone: 'success', text: 'Passo excluído do rascunho. Salve para manter.' });
+    } catch (error) {
+      setFeedback({
+        tone: 'warning',
+        text: error instanceof Error ? error.message : 'Não foi possível excluir este passo.',
+      });
+    }
+  };
 
   const applyStepMove = (
     stepKey: string,
@@ -662,7 +687,7 @@ export function AutomationBuilderPage(props: {
             {tenantName}
           </span>
           <p className="w-full text-xs text-slate-500 dark:text-slate-400 lg:w-auto">
-            Publicar cria uma versão; testar nunca envia ao contato.
+            Publicar cria a versão; o Testar roda a versão publicada — nunca envia ao contato.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -737,18 +762,24 @@ export function AutomationBuilderPage(props: {
                     {busy === 'save' ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
                     Salvar
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setTestOpen(true)}
-                    disabled={!canOperate || draft.lifecycleStatus !== 'published' || Boolean(busy)}
+                  <span
+                    title={draft.lifecycleStatus !== 'published'
+                      ? 'Publique primeiro: o Testar roda a versão publicada (sempre em simulação).'
+                      : undefined}
                   >
-                    <FlaskConical size={16} className="mr-2" />
-                    Testar
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setTestOpen(true)}
+                      disabled={!canOperate || draft.lifecycleStatus !== 'published' || Boolean(busy)}
+                    >
+                      <FlaskConical size={16} className="mr-2" />
+                      Testar
+                    </Button>
+                  </span>
                   <Button
                     type="button"
-                    onClick={() => void publish()}
+                    onClick={() => setPublishConfirmOpen(true)}
                     disabled={!canEdit || Boolean(busy)}
                   >
                     {busy === 'publish' ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Send size={16} className="mr-2" />}
@@ -783,6 +814,10 @@ export function AutomationBuilderPage(props: {
                 templateBusy={busy === 'template'}
                 moveTargets={moveTargets}
                 moveBlockedMessage={moveBlockedMessage}
+                removeBlockedMessage={removeBlockedMessage}
+                onRemove={() => {
+                  if (selectedStepKey) applyStepRemove(selectedStepKey);
+                }}
                 onMove={(targetEdge) => {
                   if (selectedStepKey) applyStepMove(selectedStepKey, targetEdge);
                 }}
@@ -813,6 +848,42 @@ export function AutomationBuilderPage(props: {
           )}
         </main>
       </div>
+
+      <Modal
+        isOpen={publishConfirmOpen}
+        onClose={() => setPublishConfirmOpen(false)}
+        title="Publicar esta automação?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Publicar <strong>congela uma versão oficial</strong> do fluxo — nada é
+            enviado a ninguém ao publicar. Depois de publicada, o botão
+            <strong> Testar</strong> destrava e roda a simulação dessa versão.
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Precisa mudar algo depois? Continue editando: as mudanças viram um novo
+            rascunho e você publica de novo quando quiser.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPublishConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setPublishConfirmOpen(false);
+                void publish();
+              }}
+            >
+              Publicar agora
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={createOpen}

@@ -32,6 +32,8 @@ type AutomationStepDockProps = {
   onConfig: (config: Record<string, unknown>) => void;
   moveTargets: Array<{ edge: AutomationBuilderEdge; label: string }>;
   moveBlockedMessage: string | null;
+  removeBlockedMessage: string | null;
+  onRemove: () => void;
   onMove: (edge: AutomationBuilderEdge) => void;
   onAddSwitchCase: () => string | null;
   onRemoveSwitchCase: (caseId: string) => string | null;
@@ -59,6 +61,8 @@ export function AutomationStepDock({
   onConfig,
   moveTargets,
   moveBlockedMessage,
+  removeBlockedMessage,
+  onRemove,
   onMove,
   onAddSwitchCase,
   onRemoveSwitchCase,
@@ -70,9 +74,11 @@ export function AutomationStepDock({
   onCreateTemplate,
 }: AutomationStepDockProps) {
   const [moveTargetIndex, setMoveTargetIndex] = React.useState('');
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
 
   React.useEffect(() => {
     setMoveTargetIndex('');
+    setConfirmRemove(false);
   }, [step?.stepKey]);
 
   React.useEffect(() => {
@@ -306,6 +312,50 @@ export function AutomationStepDock({
             <p className="mt-1.5 text-xs text-slate-500">
               Não há outra linha disponível fora deste caminho.
             </p>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Excluir passo
+          </div>
+          {removeBlockedMessage ? (
+            <p className="mt-1.5 text-xs text-amber-300">{removeBlockedMessage}</p>
+          ) : (
+            <div className="mt-2 flex items-center gap-2">
+              {confirmRemove ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={!canEdit}
+                    onClick={onRemove}
+                  >
+                    Confirmar exclusão
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setConfirmRemove(false)}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200"
+                  disabled={!canEdit}
+                  onClick={() => setConfirmRemove(true)}
+                >
+                  Excluir passo
+                </Button>
+              )}
+              <span className="text-[11px] text-slate-500">
+                O passo anterior liga direto no seguinte. Salve para manter.
+              </span>
+            </div>
           )}
         </div>
       </div>

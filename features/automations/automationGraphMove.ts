@@ -65,6 +65,72 @@ export function eligibleAutomationMoveTargets(
   ));
 }
 
+const BRANCH_REMOVE_MESSAGE =
+  'Um passo que divide caminhos não pode ser excluído — exclua ou mova antes os passos dos caminhos dele.';
+const LAST_STEP_MESSAGE = 'A automação precisa de pelo menos um passo.';
+const LAST_OF_BRANCH_MESSAGE =
+  'Este é o único passo deste caminho — cada caminho precisa de pelo menos um. Edite este passo ou remova o caminho no passo que divide.';
+
+export function getAutomationRemoveBlock(
+  stepKey: string,
+  steps: AutomationBuilderStep[],
+  edges: AutomationBuilderEdge[],
+): string | null {
+  if (!steps.some((step) => step.stepKey === stepKey)) {
+    return 'Este passo não existe mais no rascunho.';
+  }
+  if (steps.length === 1) return LAST_STEP_MESSAGE;
+
+  const outgoing = edges.filter((edge) => edge.fromStepKey === stepKey);
+  if (outgoing.length > 1) return BRANCH_REMOVE_MESSAGE;
+
+  // Sem sucessor E pai com 2+ saídas = único passo de um caminho ramificado;
+  // excluir deixaria o caminho pendurado (o publish recusaria depois, pior UX).
+  if (outgoing.length === 0) {
+    const incoming = edges.filter((edge) => edge.toStepKey === stepKey);
+    for (const edge of incoming) {
+      const parentBranchCount = edges.filter(
+        (candidate) => candidate.fromStepKey === edge.fromStepKey,
+      ).length;
+      if (parentBranchCount > 1) return LAST_OF_BRANCH_MESSAGE;
+    }
+  }
+
+  return null;
+}
+
+export function removeAutomationStep({
+  stepKey,
+  steps,
+  edges,
+}: {
+  stepKey: string;
+  steps: AutomationBuilderStep[];
+  edges: AutomationBuilderEdge[];
+}): { steps: AutomationBuilderStep[]; edges: AutomationBuilderEdge[] } {
+  const blocked = getAutomationRemoveBlock(stepKey, steps, edges);
+  if (blocked) throw new Error(blocked);
+
+  const outgoing = edges.find((edge) => edge.fromStepKey === stepKey) ?? null;
+  const nextEdges: AutomationBuilderEdge[] = [];
+  for (const edge of edges) {
+    if (edge.fromStepKey === stepKey) continue;
+    if (edge.toStepKey === stepKey) {
+      // Religa quem apontava pro passo excluído no sucessor dele; num fim de
+      // linha (sem sucessor), o caminho passa a terminar no passo anterior.
+      if (outgoing) nextEdges.push({ ...edge, toStepKey: outgoing.toStepKey });
+      continue;
+    }
+    nextEdges.push({ ...edge });
+  }
+
+  const nextSteps = steps
+    .filter((step) => step.stepKey !== stepKey)
+    .map((step, index) => ({ ...step, sortKey: index, config: { ...step.config } }));
+
+  return { steps: nextSteps, edges: nextEdges };
+}
+
 export function moveAutomationStep({
   stepKey,
   targetEdge,
