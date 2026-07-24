@@ -29,9 +29,22 @@ const ENTITY_OPERATORS = PHONE_OPERATORS.filter(([operator]) => (
   operator === 'equals' || operator === 'not_equals' || operator === 'exists'
 ));
 
+export type AutomationBoardOption = {
+  id: string;
+  name: string;
+  stages: Array<{ id: string; label: string }>;
+};
+
+const FIELD_HINTS: Record<string, string> = {
+  'contact.phone': 'Compara o telefone do contato com o texto que você digitar (ex.: "contém 11").',
+  'deal.stage_id': 'Compara em qual COLUNA do funil o lead está — escolha a etapa na lista.',
+  'deal.board_id': 'Compara em qual FUNIL o lead está — escolha o funil na lista.',
+};
+
 export function AutomationSwitchEditor({
   step,
   canEdit,
+  boards = [],
   onConfig,
   onAddCase,
   onRemoveCase,
@@ -39,6 +52,7 @@ export function AutomationSwitchEditor({
 }: {
   step: AutomationBuilderStep;
   canEdit: boolean;
+  boards?: AutomationBoardOption[];
   onConfig: (config: Record<string, unknown>) => void;
   onAddCase: () => string | null;
   onRemoveCase: (caseId: string) => string | null;
@@ -99,6 +113,9 @@ export function AutomationSwitchEditor({
           <option value="deal.board_id">Funil do negócio</option>
         </select>
       </label>
+      {FIELD_HINTS[field] ? (
+        <p className="text-[11px] text-slate-400">{FIELD_HINTS[field]}</p>
+      ) : null}
 
       {field === 'deal.tags' ? (
         <div
@@ -189,7 +206,43 @@ export function AutomationSwitchEditor({
                     ))}
                   </select>
                 </label>
-                {field !== 'deal.tags' && item.operator !== 'exists' ? (
+                {field === 'deal.board_id' && item.operator !== 'exists' ? (
+                  <label className="space-y-1 text-[11px] text-slate-400">
+                    Qual funil?
+                    <select
+                      aria-label={`Funil do caminho ${index + 1}`}
+                      className={FIELD_CLASS}
+                      value={String(item.value ?? '')}
+                      onChange={(event) => updateCase(item.case_id, { value: event.target.value })}
+                      disabled={!canEdit}
+                    >
+                      <option value="">Escolha o funil...</option>
+                      {boards.map((board) => (
+                        <option key={board.id} value={board.id}>{board.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : field === 'deal.stage_id' && item.operator !== 'exists' ? (
+                  <label className="space-y-1 text-[11px] text-slate-400">
+                    Qual etapa?
+                    <select
+                      aria-label={`Etapa do caminho ${index + 1}`}
+                      className={FIELD_CLASS}
+                      value={String(item.value ?? '')}
+                      onChange={(event) => updateCase(item.case_id, { value: event.target.value })}
+                      disabled={!canEdit}
+                    >
+                      <option value="">Escolha a etapa...</option>
+                      {boards.map((board) => (
+                        <optgroup key={board.id} label={board.name}>
+                          {board.stages.map((stage) => (
+                            <option key={stage.id} value={stage.id}>{stage.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                ) : field !== 'deal.tags' && item.operator !== 'exists' ? (
                   <label className="space-y-1 text-[11px] text-slate-400">
                     Valor
                     <input
@@ -243,6 +296,11 @@ export function AutomationSwitchEditor({
       {notice ? (
         <p role="status" className="text-xs text-amber-300">{notice}</p>
       ) : null}
+      <p className="text-[11px] text-slate-500">
+        O que você muda aqui já vale no rascunho e aparece no mapa na hora — o
+        botão <span className="font-semibold text-slate-300">Salvar</span> lá em
+        cima é o que grava de verdade.
+      </p>
     </div>
   );
 }

@@ -38,6 +38,7 @@ import {
   removeAutomationStep,
 } from './automationGraphMove';
 import { toFriendlyAutomationError } from './automationErrorMessages';
+import type { AutomationBoardOption } from './AutomationSwitchEditor';
 import {
   addAutomationSwitchCase,
   moveAutomationSwitchCase,
@@ -63,6 +64,7 @@ type WorkspaceResponse = {
   automations: AutomationWorkspaceItem[];
   templates: MessageTemplate[];
   testTargets: TestTarget[];
+  boards?: AutomationBoardOption[];
   safeMode: { liveEnabled: boolean };
   access?: { canEdit?: boolean; canOperate?: boolean };
 };
@@ -813,6 +815,7 @@ export function AutomationBuilderPage(props: {
               <AutomationStepDock
                 step={selectedStep}
                 canEdit={canEdit}
+                boards={workspace?.boards ?? []}
                 templates={workspace?.templates ?? []}
                 templateName={templateName}
                 templateBody={templateBody}

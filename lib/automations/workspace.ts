@@ -18,7 +18,7 @@ export async function loadAutomationWorkspace(
   db: SupabaseClient,
   organizationId: string,
 ) {
-  const [automations, steps, edges, templates, targets, settings] = await Promise.all([
+  const [automations, steps, edges, templates, targets, settings, boards, boardStages] = await Promise.all([
     db
       .from('automations')
       .select(
@@ -58,9 +58,21 @@ export async function loadAutomationWorkspace(
       .select('automation_live_enabled')
       .eq('organization_id', organizationId)
       .single(),
+    // Pro "Dividir caminho": comparar funil/etapa exige UUID — a UI mostra
+    // nomes e envia o id, em vez de deixar o usuário digitar texto livre.
+    db
+      .from('boards')
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .order('name', { ascending: true }),
+    db
+      .from('board_stages')
+      .select('id, board_id, name, label')
+      .eq('organization_id', organizationId)
+      .order('order', { ascending: true }),
   ]);
 
-  for (const result of [automations, steps, edges, templates, targets, settings]) {
+  for (const result of [automations, steps, edges, templates, targets, settings, boards, boardStages]) {
     if (result.error) throw new Error(result.error.message);
   }
 
@@ -113,6 +125,16 @@ export async function loadAutomationWorkspace(
       threadId: target.id,
       label: target.contact_name || target.title || target.contact_phone || 'Conversa sem nome',
       detail: target.contact_phone || target.title || '',
+    })),
+    boards: (boards.data ?? []).map((board) => ({
+      id: board.id as string,
+      name: board.name as string,
+      stages: (boardStages.data ?? [])
+        .filter((stage) => stage.board_id === board.id)
+        .map((stage) => ({
+          id: stage.id as string,
+          label: (stage.label || stage.name || 'Etapa') as string,
+        })),
     })),
     safeMode: {
       liveEnabled: settings.data?.automation_live_enabled === true,

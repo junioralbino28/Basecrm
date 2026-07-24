@@ -11,7 +11,7 @@ import {
   automationStepKind,
   automationStepName,
 } from './AutomationFlowMap';
-import { AutomationSwitchEditor } from './AutomationSwitchEditor';
+import { AutomationSwitchEditor, type AutomationBoardOption } from './AutomationSwitchEditor';
 
 export type AutomationMessageTemplate = {
   id: string;
@@ -25,6 +25,7 @@ export type AutomationMessageTemplate = {
 type AutomationStepDockProps = {
   step: AutomationBuilderStep | null;
   canEdit: boolean;
+  boards: AutomationBoardOption[];
   templates: AutomationMessageTemplate[];
   templateName: string;
   templateBody: string;
@@ -54,6 +55,7 @@ const FIELD_CLASS =
 export function AutomationStepDock({
   step,
   canEdit,
+  boards,
   templates,
   templateName,
   templateBody,
@@ -124,7 +126,9 @@ export function AutomationStepDock({
         <X className="h-4 w-4" />
       </button>
 
-      <div className="overflow-auto px-5 py-4">
+      {/* pb maior: sem ele a última linha do editor encosta na borda e o
+          painel parece "cortado" (report do Junior no C2C). */}
+      <div className="overflow-auto px-5 pb-10 pt-4">
         <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
           Passo selecionado
         </div>
@@ -264,6 +268,7 @@ export function AutomationStepDock({
           <AutomationSwitchEditor
             step={step}
             canEdit={canEdit}
+            boards={boards}
             onConfig={onConfig}
             onAddCase={onAddSwitchCase}
             onRemoveCase={onRemoveSwitchCase}
