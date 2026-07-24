@@ -62,7 +62,7 @@ export const MoveToStageModal: React.FC<MoveToStageModalProps> = ({
         {/* Current deal info */}
         <div className="p-3 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10">
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Movendo o paciente:
+            Movendo o lead:
           </p>
           <p className="font-bold text-slate-900 dark:text-white">
             {deal.title}

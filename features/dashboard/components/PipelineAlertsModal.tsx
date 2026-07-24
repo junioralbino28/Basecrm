@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatBRL } from '@/lib/utils';
 import { X, AlertTriangle, Clock, Calendar, TrendingUp, ChevronRight } from 'lucide-react';
 import { Deal } from '@/types';
 
@@ -54,7 +55,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
   // Deals ativos (não ganhos nem perdidos)
   const activeDeals = deals.filter(d => !d.isWon && !d.isLost);
 
-  // 1. Pacientes Estagnados - sem mudança de etapa há mais de 10 dias
+  // 1. Leads Estagnados - sem mudança de etapa há mais de 10 dias
   const stagnantDeals = activeDeals.filter(deal => {
     const lastChangeTs = deal.lastStageChangeDate
       ? Date.parse(deal.lastStageChangeDate)
@@ -85,7 +86,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
   const alerts: PipelineAlert[] = [
     {
       type: 'stagnant',
-      title: 'Pacientes Estagnados',
+      title: 'Leads Estagnados',
       description: 'Sem mudança de etapa há mais de 10 dias',
       deals: stagnantDeals,
       color: 'text-red-500 bg-red-500/10',
@@ -187,7 +188,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
                           {deal.title}
                         </p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          ${deal.value.toLocaleString()} • {deal.probability}% probabilidade
+                          {formatBRL(deal.value)} • {deal.probability}% probabilidade
                         </p>
                       </div>
                       <ChevronRight 

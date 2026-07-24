@@ -109,7 +109,7 @@ const DashboardPage: React.FC = () => {
             Visão Geral
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            O pulso do seu paciente em tempo real.
+            O pulso do seu funil em tempo real.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ const DashboardPage: React.FC = () => {
           comparisonLabel={COMPARISON_LABELS[period]}
         />
         <StatCard
-          title="Pacientes Ativos"
+          title="Leads Ativos"
           value={`${deals.length - wonDeals.length}`}
           subtext={dealsChangeInfo.text}
           subtextPositive={dealsChangeInfo.isPositive}
@@ -248,7 +248,7 @@ const DashboardPage: React.FC = () => {
             onClick={() => setShowPipelineAlerts(true)}
           >
             <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
-              Pacientes Parados
+              Leads Parados
             </h3>
             <div className="flex items-end gap-2">
               <span className="text-2xl font-bold text-slate-900 dark:text-white">

@@ -29,10 +29,10 @@ const baseProps = {
 };
 
 describe('TaskFormDrawer (mockup drawer-task)', () => {
-  it('renderiza os campos do mockup: paciente, tipo, motivo, nota, data, hora, toggle Julia', () => {
+  it('renderiza os campos do mockup: lead, tipo, motivo, nota, data, hora, toggle Julia', () => {
     render(<TaskFormDrawer {...baseProps} />);
     expect(screen.getByText(/nova tarefa \/ lembrete/i)).toBeTruthy();
-    expect(screen.getByLabelText(/paciente/i)).toBeTruthy();
+    expect(screen.getByLabelText(/lead/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /ligação/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /lembrete/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /mensagem/i })).toBeTruthy();

@@ -90,7 +90,7 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
               <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                 <p className="text-amber-800 dark:text-amber-200 text-sm">
                   O funil <strong>"{boardName}"</strong> possui{' '}
-                  <strong>{dealCount} paciente{dealCount > 1 ? 's' : ''}</strong>.
+                  <strong>{dealCount} lead{dealCount > 1 ? 's' : ''}</strong>.
                 </p>
               </div>
 
@@ -98,7 +98,7 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
                 <>
                   <div className="space-y-3">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      O que fazer com os pacientes?
+                      O que fazer com os leads?
                     </label>
                     
                     {/* Opções de destino */}
@@ -147,7 +147,7 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
                             ? 'text-red-700 dark:text-red-300 font-medium'
                             : 'text-slate-700 dark:text-slate-300'
                         }`}>
-                          Excluir pacientes também
+                          Excluir leads também
                         </span>
                       </button>
                     </div>
@@ -155,13 +155,13 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
 
                   {selectedTargetBoardId && selectedTargetBoardId !== '__DELETE__' && (
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Os pacientes serão movidos para o primeiro etapa do funil selecionado.
+                      Os leads serão movidos para o primeiro etapa do funil selecionado.
                     </p>
                   )}
                   
                   {selectedTargetBoardId === '__DELETE__' && (
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      ⚠️ Isso vai excluir permanentemente todos os pacientes!
+                      ⚠️ Isso vai excluir permanentemente todos os leads!
                     </p>
                   )}
                 </>
@@ -169,7 +169,7 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
                 // Só tem 1 board - oferece apenas excluir os deals
                 <>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Este é o único funil. Para excluí-lo, os pacientes também serão removidos.
+                    Este é o único funil. Para excluí-lo, os leads também serão removidos.
                   </p>
                   <button
                     onClick={() => onSelectTargetBoard('__DELETE__')}
@@ -180,7 +180,7 @@ export const DeleteBoardModal: React.FC<DeleteBoardModalProps> = ({
                     }`}
                   >
                     <Trash2 className="w-4 h-4" />
-                    Excluir pacientes junto com o funil
+                    Excluir leads junto com o funil
                   </button>
                 </>
               )}

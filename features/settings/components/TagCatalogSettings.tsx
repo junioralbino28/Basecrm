@@ -187,7 +187,7 @@ export const TagCatalogSettings: React.FC = () => {
 
         {categories.length === 0 ? (
           <p className="text-sm text-slate-500 italic">
-            Nenhuma categoria ainda. Comece por &quot;Procedimentos&quot; (o que o paciente quer).
+            Nenhuma categoria ainda. Comece por &quot;Procedimentos&quot; (o que o cliente quer).
           </p>
         ) : (
           <ul className="space-y-4">

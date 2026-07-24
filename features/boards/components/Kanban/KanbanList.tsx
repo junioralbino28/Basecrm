@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { formatBRL } from '@/lib/utils';
 import Image from 'next/image';
 import { DealView, CustomFieldDefinition, BoardStage } from '@/types';
 import { ActivityStatusIcon } from './ActivityStatusIcon';
@@ -93,7 +94,7 @@ const KanbanListRow = React.memo(function KanbanListRow({
           )}
         </td>
         <td className="px-6 py-3 font-mono text-slate-700 dark:text-slate-200">
-          ${deal.value.toLocaleString()}
+          {formatBRL(deal.value)}
         </td>
         <td className="px-6 py-3">
           <div className="flex items-center gap-2">
@@ -216,7 +217,7 @@ export const KanbanList: React.FC<KanbanListProps> = ({
             <tr>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider w-10"></th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Paciente
+                Lead
               </th>
               <th className="px-6 py-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Empresa

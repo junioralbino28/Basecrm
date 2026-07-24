@@ -1094,7 +1094,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                         {/* Deal Info Card */}
                         <div className="p-4 border-b border-dark-border">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Paciente</span>
+                                <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Lead</span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${deal.priority === 'high' ? 'bg-red-500/10 text-red-400' :
                                     deal.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-400' :
                                         'bg-slate-500/10 text-slate-400'

@@ -23,6 +23,7 @@
 | Ordem do menu lateral: **Conversas logo abaixo de Contatos**; **Automações antes de Configurações**. | pedido do Junior, 2026-07-22 |
 | **Backlog aceito, não é agora:** tela de personalização self-service do CRM (cores, ordem de menus) — só depois de 100% funcional. | pedido do Junior, 2026-07-22 |
 | **Backlog aceito, não é agora: CRM próprio da AGÊNCIA.** A agência passa a usar o produto para si — receber leads de anúncios e prospecção, funil de fechamento de clientes e funções agência-only. Hoje `/platform` é administração de tenants, não CRM. **Prioridade explícita: só DEPOIS de finalizar o lado clínicas/clientes** (lacunas 1–7 de `ativacao-cliente.md`). | decisão do Junior, 2026-07-23 |
+| **Nomenclatura NEUTRA e leiga em todo o CRM genérico — "lead" fica (revoga o "paciente" no lugar de lead).** Termos simples que qualquer leigo entende E que servem a qualquer nicho (não prender o produto a clínicas): negócio no funil = **lead** · pessoa no cadastro = **contato** · lifecycle = Lead → Qualificado (nunca "MQL") → Oportunidade → **Cliente** → Outros/Perdidos. Exceção: módulos do vertical clínico (**Atendimentos, Agenda**) continuam dizendo "paciente" — ali é o domínio. Jargão técnico de marketing (MQL, SQL, pipeline em inglês) não aparece em tela. | decisão do Junior, 2026-07-24 |
 
 ## Arquitetura
 

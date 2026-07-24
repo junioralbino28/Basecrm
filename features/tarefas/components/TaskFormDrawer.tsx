@@ -20,7 +20,7 @@ const TYPE_OPTIONS: { value: TaskType; label: string; icon: React.ComponentType<
 
 /**
  * Drawer "Nova tarefa / lembrete" — espelho do mockup `drawer-task`.
- * Paciente opcional ("tarefa geral da recepção") · tipo (ligação/lembrete/
+ * Lead opcional ("tarefa geral da recepção") · tipo (ligação/lembrete/
  * mensagem) · motivo · nota · data · hora opcional · toggle "Julia avisa
  * primeiro no WhatsApp" (v1 só persiste `julia_first` — automação é posterior).
  */
@@ -82,14 +82,14 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
 
         <form id="task-form" onSubmit={onSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 pb-[calc(1.25rem+var(--app-safe-area-bottom,0px))]">
           <div>
-            <label htmlFor="task-paciente" className={labelClass}>Paciente</label>
+            <label htmlFor="task-paciente" className={labelClass}>Lead</label>
             <select
               id="task-paciente"
               className={inputClass}
               value={formData.contactId}
               onChange={e => setFormData({ ...formData, contactId: e.target.value })}
             >
-              <option value="">Sem paciente</option>
+              <option value="">Sem lead</option>
               {contacts.map(contact => (
                 <option key={contact.id} value={contact.id}>
                   {contact.name}
@@ -186,7 +186,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
               </span>
             </label>
             <p className="text-xs text-muted mt-2 leading-relaxed pl-7">
-              Na data, a Julia manda a mensagem pro paciente.{' '}
+              Na data, a Julia manda a mensagem pro lead.{' '}
               <b>Se ele não responder em 24h, vira tarefa de ligação</b> na sua lista —
               ninguém fica esquecido.
             </p>

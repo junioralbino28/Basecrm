@@ -69,7 +69,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
             'LEAD': 'Lead',
             'MQL': 'Qualificado',
             'PROSPECT': 'Em proposta',
-            'CUSTOMER': 'Paciente'
+            'CUSTOMER': 'Cliente'
         };
         
         // Se ainda é UUID e não encontrou, mostra fallback amigável
@@ -97,7 +97,9 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                 </span>
             );
         }
-        if (title === 'Paciente Criado') return 'Paciente criado';
+        // Compara com o título HISTÓRICO gravado no banco ('Paciente Criado');
+        // só o texto exibido vira o termo neutro.
+        if (title === 'Paciente Criado') return 'Lead criado';
         return title;
     };
 

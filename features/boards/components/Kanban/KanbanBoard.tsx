@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { formatBRL } from '@/lib/utils';
 import { DealView, BoardStage } from '@/types';
 import { DealCard } from './DealCard';
 import { isDealRotting, getActivityStatus } from '@/features/boards/hooks/useBoardsController';
@@ -248,7 +249,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <div className="text-xs text-slate-500 dark:text-slate-400 font-medium text-right">
                 Total:{' '}
                 <span className="text-slate-900 dark:text-white font-mono">
-                  ${stageValue.toLocaleString()}
+                  {formatBRL(stageValue)}
                 </span>
               </div>
             </div>
@@ -258,7 +259,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             >
               {stageDeals.length === 0 && !draggingId && (
                 <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm py-8">
-                  Sem pacientes
+                  Sem leads
                 </div>
               )}
               {isOver && stageDeals.length === 0 && (

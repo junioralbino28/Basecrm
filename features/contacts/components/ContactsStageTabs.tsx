@@ -39,7 +39,7 @@ const STAGE_CONFIG = {
       'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-500/30',
   },
   CUSTOMER: {
-    label: 'Pacientes',
+    label: 'Clientes',
     icon: Crown,
     color: 'bg-green-500',
     activeColor:

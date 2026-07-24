@@ -500,7 +500,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   ))}
                 </select>
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Novos pacientes de contatos neste etapa aparecerão automaticamente aqui.
+                  Novos leads de contatos neste etapa aparecerão automaticamente aqui.
                 </p>
               </div>
 
@@ -546,7 +546,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Cria automaticamente um card no próximo funil quando o paciente é ganho.
+                  Cria automaticamente um card no próximo funil quando o lead é ganho.
                 </p>
               </div>
 

@@ -37,7 +37,7 @@ const formatDateChip = (dueDate: string): string => {
 
 /**
  * Linha de tarefa — espelho das linhas do mockup (tela "Tarefas").
- * Tipo (ligação/lembrete/whatsapp) · paciente — motivo · nota · hora/data ·
+ * Tipo (ligação/lembrete/whatsapp) · lead — motivo · nota · hora/data ·
  * ações concluir/adiar/excluir.
  */
 export const TaskRow: React.FC<TaskRowProps> = ({

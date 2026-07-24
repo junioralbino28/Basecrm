@@ -39,6 +39,7 @@ import {
 import { StageProgressBar } from '../StageProgressBar';
 import { ActivityRow } from '@/features/activities/components/ActivityRow';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
+import { formatBRL } from '@/lib/utils';
 
 interface DealDetailModalProps {
   dealId: string | null;
@@ -316,7 +317,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const confirmDeleteDeal = () => {
     if (deleteId) {
       deleteDeal(deleteId);
-      addToast('Paciente excluído com sucesso', 'success');
+      addToast('Lead excluído com sucesso', 'success');
       setDeleteId(null);
       onClose();
     }
@@ -418,7 +419,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     className="text-lg text-brand-600 dark:text-brand-400 font-mono font-bold cursor-pointer hover:underline decoration-dashed underline-offset-4"
                     title="Clique para editar valor"
                   >
-                    ${deal.value.toLocaleString()}
+                    {formatBRL(deal.value)}
                   </p>
                 )}
               </div>
@@ -452,10 +453,16 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                   <>
                     <button
                       onClick={() => {
+                        // UX: ganho some da visão "Em Aberto" (filtro padrão) — sem
+                        // este aviso o usuário acha que nada aconteceu.
+                        const celebrateWin = () =>
+                          addToast('Lead marcado como GANHO 🎉 — veja no filtro "Ganhos".', 'success');
+
                         // Intelligent "Won" Logic:
                         // 0. Check for "Stay in Stage" flag (Archive/Close in place)
                         if (dealBoard?.wonStayInStage) {
                           moveDeal(deal, deal.status, undefined, true, false);
+                          celebrateWin();
                           onClose();
                           return;
                         }
@@ -463,6 +470,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         // 1. Check if board has explicit Won Stage configured
                         if (dealBoard?.wonStageId) {
                           moveDeal(deal, dealBoard.wonStageId);
+                          celebrateWin();
                           onClose();
                           return;
                         }
@@ -482,6 +490,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           // Fallback: just mark as won without moving
                           updateDeal(deal.id, { isWon: true, isLost: false, closedAt: new Date().toISOString() });
                         }
+                        celebrateWin();
                         onClose();
                       }}
                       className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold text-sm shadow-sm flex items-center gap-2"
@@ -515,7 +524,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                 <button
                   onClick={() => setDeleteId(deal.id)}
                   className="ml-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                  title="Excluir Paciente"
+                  title="Excluir Lead"
                 >
                   <Trash2 size={24} />
                 </button>
@@ -554,7 +563,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
               />
             ) : (
               <div className="mt-4 rounded-lg border border-slate-200/60 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                Board não encontrado para este paciente. Algumas ações (mover etapa) podem ficar indisponíveis.
+                Board não encontrado para este lead. Algumas ações (mover etapa) podem ficar indisponíveis.
               </div>
             )}
           </div>
@@ -867,7 +876,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           {!deal.items || deal.items.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic">
-                                Nenhum produto adicionado. O valor do paciente é manual.
+                                Nenhum produto adicionado. O valor do lead é manual.
                               </td>
                             </tr>
                           ) : (
@@ -880,10 +889,10 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                                   {item.quantity}
                                 </td>
                                 <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
-                                  ${item.price.toLocaleString()}
+                                  {formatBRL(item.price)}
                                 </td>
                                 <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">
-                                  ${(item.price * item.quantity).toLocaleString()}
+                                  {formatBRL(item.price * item.quantity)}
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <button
@@ -906,7 +915,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                               Total do Pedido
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-brand-600 dark:text-brand-400 text-lg">
-                              ${deal.value.toLocaleString()}
+                              {formatBRL(deal.value)}
                             </td>
                             <td></td>
                           </tr>
@@ -925,10 +934,10 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900 dark:text-white font-display text-lg">
-                            Insights Gemini
+                            Insights IA
                           </h3>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Inteligência Artificial aplicada ao paciente
+                            Inteligência Artificial aplicada ao lead
                           </p>
                         </div>
                       </div>
@@ -965,7 +974,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           ) : (
                             <BrainCircuit size={16} />
                           )}
-                          Analisar Paciente
+                          Analisar Lead
                         </button>
                         <button
                           onClick={handleDraftEmail}
@@ -1070,8 +1079,8 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
           isOpen={Boolean(deleteId)}
           onClose={() => setDeleteId(null)}
           onConfirm={confirmDeleteDeal}
-          title="Excluir Paciente"
-          message="Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita."
+          title="Excluir Lead"
+          message="Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita."
           confirmText="Excluir"
           variant="danger"
         />
@@ -1127,7 +1136,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
 
   if (isMobile) {
     return (
-      <DealSheet isOpen={isOpen} onClose={onClose} ariaLabel={`Paciente: ${deal.title}`}>
+      <DealSheet isOpen={isOpen} onClose={onClose} ariaLabel={`Lead: ${deal.title}`}>
         <div onKeyDown={handleKeyDown}>{inner}</div>
       </DealSheet>
     );

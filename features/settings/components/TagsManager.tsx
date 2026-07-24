@@ -38,7 +38,7 @@ export const TagsManager: React.FC<TagsManagerProps> = ({
   return (
     <SettingsSection title="Gerenciamento de Tags" icon={Tag}>
       <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
-        Crie tags para categorizar seus pacientes. Elas aparecerão como opções ao criar ou editar pacientes no Pipeline.
+        Crie tags para categorizar seus leads. Elas aparecerão como opções ao criar ou editar leads no Pipeline.
       </p>
 
       <div className="p-4 rounded-xl border bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5 mb-6">

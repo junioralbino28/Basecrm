@@ -21,7 +21,7 @@ const EXPORT_PATH = '/api/reports/export/atendimentos';
 /**
  * Planilhas conectadas (N7). Dois níveis:
  *  - Link automático de TOTAIS (token de planilha isolado → só agregados, nunca PII).
- *  - Export completo de pacientes (Excel), protegido por login.
+ *  - Export completo de contatos (Excel), protegido por login.
  * Só-admin (renderizado dentro do Financeiro, que já é gated por canManageClinicSettings).
  */
 export const PlanilhasSection: React.FC = () => {
@@ -132,18 +132,18 @@ export const PlanilhasSection: React.FC = () => {
       <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 p-4 mb-4">
         <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2">
           <Download className="h-4 w-4" />
-          Lista completa de pacientes (Excel)
+          Lista completa de contatos (Excel)
         </div>
         <div className="text-xs text-slate-600 dark:text-slate-300 mb-3">
           Baixa a planilha com todos os atendimentos — nome, telefone, procedimento e valor. Como tem dado de
-          paciente, o download é só aqui dentro (você logado). Não vira link.
+          contato, o download é só aqui dentro (você logado). Não vira link.
         </div>
         <a
           href={EXPORT_PATH}
           className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold"
         >
           <Download className="h-4 w-4" />
-          Exportar Excel (pacientes)
+          Exportar Excel (contatos)
         </a>
       </div>
 
@@ -155,7 +155,7 @@ export const PlanilhasSection: React.FC = () => {
         </div>
         <div className="text-xs text-slate-600 dark:text-slate-300 mb-3">
           Gera um link que a planilha puxa sozinha e mantém atualizado. Mostra só <span className="font-semibold">totais</span>{' '}
-          (faturamento, nº de leads, agendamentos) — <span className="font-semibold">nunca</span> dado de paciente. Guarde o
+          (faturamento, nº de leads, agendamentos) — <span className="font-semibold">nunca</span> dado de contato. Guarde o
           link como se fosse uma senha; se precisar, é só revogar embaixo.
         </div>
 

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatBRL } from '@/lib/utils';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { TrendingUp, Clock, Target, DollarSign, Trophy, Users, Download, Settings } from 'lucide-react';
@@ -93,9 +94,9 @@ const ReportsPage: React.FC = () => {
   const formatGoalValue = useCallback((value: number) => {
     switch (goalType) {
       case 'currency':
-        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-        return `$${value.toLocaleString()}`;
+        if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+        if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+        return formatBRL(value);
       case 'number':
         return value.toFixed(0);
       case 'percentage':
@@ -133,9 +134,9 @@ const ReportsPage: React.FC = () => {
 
   // Formatador de moeda
   const formatCurrency = useCallback((value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-    return `$${value.toLocaleString()}`;
+    if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+    return formatBRL(value);
   }, []);
 
   const generatedBy = useMemo(() => {

@@ -17,7 +17,7 @@ interface CreateDealModalProps {
 }
 
 /**
- * Modal para criação de um novo paciente (Deal).
+ * Modal para criação de um novo lead (Deal).
  * Permite buscar contatos existentes ou criar novos.
  */
 export const CreateDealModal: React.FC<CreateDealModalProps> = ({
@@ -182,14 +182,14 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
             
             // Se retornou null, houve erro (já logado no console)
             if (result === null) {
-                setError('Já existe um paciente com este título para este contato. Altere o título ou selecione outro contato.');
+                setError('Já existe um lead com este título para este contato. Altere o título ou selecione outro contato.');
                 return;
             }
 
             onClose();
             resetForm();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao criar paciente. Tente novamente.');
+            setError(err instanceof Error ? err.message : 'Erro ao criar lead. Tente novamente.');
         } finally {
             setIsSubmitting(false);
         }
@@ -210,7 +210,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
             >
                 <div className="p-5 border-b border-slate-200 dark:border-white/10 flex justify-between items-center sticky top-0 bg-white dark:bg-dark-card z-10">
                     <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Novo Paciente</h2>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Novo Lead</h2>
                         <DebugFillButton onClick={fillWithFakeData} />
                     </div>
                     <button onClick={() => { onClose(); resetForm(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
@@ -360,13 +360,13 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                         )}
                     </div>
 
-                    {/* Dados do Paciente */}
+                    {/* Dados do Lead */}
                     <div className="pt-3 border-t border-slate-100 dark:border-white/5">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Dados do Paciente</h3>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Dados do Lead</h3>
                         
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Nome do Paciente *</label>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Nome do Lead *</label>
                                 <input
                                     required
                                     type="text"
@@ -409,7 +409,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                 Criando...
                             </>
                         ) : (
-                            'Criar Paciente'
+                            'Criar Lead'
                         )}
                     </button>
                 </form>

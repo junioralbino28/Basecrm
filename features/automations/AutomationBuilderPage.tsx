@@ -662,7 +662,7 @@ export function AutomationBuilderPage(props: {
             {tenantName}
           </span>
           <p className="w-full text-xs text-slate-500 dark:text-slate-400 lg:w-auto">
-            Publicar cria uma versão; testar nunca envia ao paciente.
+            Publicar cria uma versão; testar nunca envia ao contato.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

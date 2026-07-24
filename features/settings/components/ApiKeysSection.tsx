@@ -512,7 +512,7 @@ export const ApiKeysSection: React.FC = () => {
             className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           >
             <option value="create_lead">Criar/Atualizar Lead (Contato)</option>
-            <option value="create_deal">Criar Paciente (Deal)</option>
+            <option value="create_deal">Criar Lead (Deal)</option>
             <option value="move_stage">Mover etapa do Deal</option>
             <option value="create_activity">Criar Atividade (nota/tarefa)</option>
           </select>

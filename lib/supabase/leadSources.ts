@@ -227,13 +227,49 @@ export const leadSourcesService = {
   }): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
+      const organizationId = sanitizeUUID(input.organizationId);
+      const dealId = sanitizeUUID(input.dealId);
+      const sourceId = sanitizeUUID(input.sourceId);
       const { error } = await supabase.rpc('record_lead_source_attribution', {
-        p_organization_id: sanitizeUUID(input.organizationId),
+        p_organization_id: organizationId,
         p_idempotency_key: input.idempotencyKey,
-        p_deal_id: sanitizeUUID(input.dealId),
-        p_source_id: sanitizeUUID(input.sourceId),
+        p_deal_id: dealId,
+        p_source_id: sourceId,
       });
-      return { error: error ?? null };
+      if (error) return { error };
+
+      // Ponte da dívida 7c: o painel "De onde vem o lead" (Visão Geral) ainda
+      // agrupa por contacts.source (texto). Espelha o nome da origem no contato
+      // do negócio pra tela refletir na hora; o histórico auditável continua
+      // sendo lead_source_attributions. Best-effort: falha aqui não desfaz o
+      // registro da atribuição.
+      const [dealRow, sourceRow] = await Promise.all([
+        supabase
+          .from('deals')
+          .select('contact_id')
+          .eq('organization_id', organizationId)
+          .eq('id', dealId)
+          .maybeSingle(),
+        supabase
+          .from('lead_sources')
+          .select('name')
+          .eq('organization_id', organizationId)
+          .eq('id', sourceId)
+          .maybeSingle(),
+      ]);
+      const contactId = (dealRow.data as { contact_id?: string } | null)?.contact_id;
+      const sourceName = (sourceRow.data as { name?: string } | null)?.name;
+      if (contactId && sourceName) {
+        const mirror = await supabase
+          .from('contacts')
+          .update({ source: sourceName })
+          .eq('organization_id', organizationId)
+          .eq('id', contactId);
+        if (mirror.error) {
+          console.warn('[leadSources] atribuição gravada, mas o espelho em contacts.source falhou:', mirror.error.message);
+        }
+      }
+      return { error: null };
     } catch (e) {
       return { error: e as Error };
     }

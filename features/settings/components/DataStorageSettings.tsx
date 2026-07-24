@@ -213,7 +213,7 @@ export const DataStorageSettings: React.FC = () => {
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.deals}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Pacientes</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Leads</div>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-lg text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activities}</div>
@@ -248,7 +248,7 @@ export const DataStorageSettings: React.FC = () => {
                                     <strong>ATENCAO:</strong> Esta acao vai excluir permanentemente:
                                 </p>
                                 <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                                    <li>{stats.deals} pacientes</li>
+                                    <li>{stats.deals} leads</li>
                                     <li>{stats.contacts} contatos</li>
                                     <li>{stats.companies} empresas de clientes</li>
                                     <li>{stats.activities} atividades</li>

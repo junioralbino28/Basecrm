@@ -69,6 +69,7 @@
 | 9 | Módulos sem teste: activities, dashboard, cockpit, decisions, ai-hub, profile | regressão silenciosa | [modulos.md](./modulos.md) |
 | 10 | `products`/`lifecycleStages` com fonte de dado dupla | divergência de estado | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |
 | 11 | Docs da era março defasados (termo antigo, pré-sweep) + candidatos a `docs/arquivo/` | dev novo lê coisa errada | [historia-e-origens.md](./historia-e-origens.md) |
+| 12 | Rename `lifecycle_stages` **MQL→"Qualificado"** aplicado só no banco LOCAL (2026-07-24, decisão de nomenclatura neutra); o deploy precisa da mesma correção via migration de dado (domínio Codex, junto do gate C2) | rótulo técnico volta em produção | [decisoes.md](./decisoes.md) |
 
 ## Baseline de qualidade
 

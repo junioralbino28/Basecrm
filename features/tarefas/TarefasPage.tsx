@@ -34,7 +34,7 @@ export const TarefasPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-ink font-display">Tarefas &amp; lembretes</h1>
           <p className="text-muted text-sm mt-1.5">
-            ligações, retornos e avisos — nada de paciente esquecido
+            ligações, retornos e avisos — nada de lead esquecido
           </p>
         </div>
         <div className="flex items-center gap-3">

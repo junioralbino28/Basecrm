@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatBRL } from '@/lib/utils';
 import Image from 'next/image';
 import { DealView } from '@/types';
 import { Building2, Hourglass, Trophy, XCircle } from 'lucide-react';
@@ -140,7 +141,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
     // Main content
     parts.push(deal.title);
     if (deal.companyName) parts.push(deal.companyName);
-    parts.push(`$${deal.value.toLocaleString()}`);
+    parts.push(formatBRL(deal.value));
 
     // Additional context
     const priority = getPriorityLabel(deal.priority);
@@ -178,7 +179,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {deal.isWon && (
         <div
           className="absolute -top-2 -right-2 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 p-1 rounded-full shadow-sm z-10 flex items-center gap-0.5"
-          aria-label="Paciente ganho"
+          aria-label="Lead ganho"
         >
           <Trophy size={12} aria-hidden="true" />
         </div>
@@ -188,7 +189,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {deal.isLost && (
         <div
           className="absolute -top-2 -right-2 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-200 p-1 rounded-full shadow-sm z-10 flex items-center gap-0.5"
-          aria-label={deal.lossReason ? `Perdido: ${deal.lossReason}` : 'Paciente perdido'}
+          aria-label={deal.lossReason ? `Perdido: ${deal.lossReason}` : 'Lead perdido'}
         >
           <XCircle size={12} aria-hidden="true" />
         </div>
@@ -198,7 +199,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
       {isRotting && !isClosed && (
         <div
           className="absolute -top-2 -right-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 p-1 rounded-full shadow-sm z-10"
-          aria-label="Paciente estagnado, mais de 10 dias sem atualização"
+          aria-label="Lead estagnado, mais de 10 dias sem atualização"
         >
           <Hourglass size={12} aria-hidden="true" />
         </div>
@@ -259,7 +260,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
             )
           )}
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200 font-mono">
-            ${deal.value.toLocaleString()}
+            {formatBRL(deal.value)}
           </span>
         </div>
 

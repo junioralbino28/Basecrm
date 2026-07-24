@@ -560,7 +560,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
       if (finalBoard.confidence < 0.6) {
         setError(
-          'Não consegui entender bem seu paciente. Tente descrever de forma diferente ou escolha um template.'
+          'Não consegui entender bem seu lead. Tente descrever de forma diferente ou escolha um template.'
         );
         setIsGenerating(false);
         setIsProcessingModalOpen(false);
@@ -1418,7 +1418,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                   <div className="flex items-center gap-2 mb-4">
                     <Sparkles size={20} className="text-brand-600 dark:text-brand-400" />
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      Descreva seu paciente em 1 frase:
+                      Descreva seu lead em 1 frase:
                     </h3>
                   </div>
 

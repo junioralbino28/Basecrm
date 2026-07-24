@@ -58,10 +58,11 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
     const contentWidth = pageWidth - margin * 2;
 
     // Helpers
+    // "R$ " manual (sem Intl): o espaço não separável do Intl vira glifo inválido nas fontes padrão do jsPDF.
     const formatCurrency = (value: number) => {
-        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-        return `$${value.toLocaleString('en-US')}`;
+        if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+        if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+        return `R$ ${value.toLocaleString('pt-BR')}`;
     };
 
     // Current date/time
