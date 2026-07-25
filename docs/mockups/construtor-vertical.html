@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Construtor vertical — mockup Reforma 2</title>
+<style>
+  :root{
+    --ground:#0F1614;        /* canvas real do construtor */
+    --panel:#0B100F;         /* painel lateral (Reforma 1) */
+    --card:#0F1A26;          /* slate-900 aprox */
+    --card-hi:#122436;
+    --line:rgba(148,163,184,.35);
+    --teal:#2DD4BF;
+    --teal-600:#14B8A6;
+    --teal-950:rgba(19,78,74,.30);
+    --rose:#FB7185;
+    --amber:#F59E0B;
+    --ink:#E6EDF3;
+    --muted:#7C8B9A;
+    --muted-2:#5A6B7A;
+    --stroke:#26333F;
+    --stroke-hi:#3A4b59;
+    font-synthesis-weight:none;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:#070B0A;
+    color:var(--ink);
+    font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    font-size:14px;
+    line-height:1.5;
+  }
+  .app{display:flex;height:100vh;overflow:hidden}
+
+  /* trilho de navegação só pra dar contexto de app */
+  .rail{
+    width:56px;flex:none;background:#0A0F0E;border-right:1px solid #141d1b;
+    display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;
+  }
+  .rail .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--teal-600),#0d9488);display:grid;place-items:center;color:#04110f;font-weight:800;margin-bottom:10px}
+  .rail button{width:38px;height:38px;border:0;background:transparent;color:#54636f;border-radius:10px;display:grid;place-items:center;cursor:pointer}
+  .rail button.on{background:#12201d;color:var(--teal)}
+  .rail button:hover{color:#8fa1ad}
+
+  .work{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* barra superior do construtor */
+  .topbar{
+    height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:#0B120F;border-bottom:1px solid #16211d;
+  }
+  .crumb{display:flex;align-items:center;gap:9px;min-width:0}
+  .crumb .name{font-weight:650;letter-spacing:-.01em}
+  .badge-draft{font-size:11px;font-weight:650;color:#cfa24a;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.28);padding:2px 9px;border-radius:999px}
+  .save{display:flex;align-items:center;gap:6px;color:#5f9d8f;font-size:12px;font-weight:600}
+  .save .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px rgba(45,212,191,.7)}
+  .spacer{flex:1}
+  .btn{border:1px solid var(--stroke-hi);background:transparent;color:#c6d2dc;height:34px;padding:0 14px;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{background:#ffffff0d}
+  .btn.primary{background:var(--teal-600);border-color:var(--teal-600);color:#04110f}
+  .btn.primary:hover{background:var(--teal)}
+
+  .stage-wrap{flex:1;display:flex;min-height:0}
+
+  /* CANVAS vertical */
+  .canvas{
+    position:relative;flex:1;min-width:0;overflow:auto;
+    background:var(--ground);
+    background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0);
+    background-size:26px 26px;
+  }
+  .flow{display:flex;flex-direction:column;align-items:center;padding:34px 24px 90px;min-width:max-content;margin:0 auto}
+
+  /* conector vertical padrão */
+  .link{width:2px;height:26px;background:var(--line)}
+  .link.short{height:16px}
+
+  /* nó/card */
+  .node{
+    width:210px;background:var(--card);border:1px solid var(--stroke);border-radius:11px;
+    padding:12px 13px;text-align:left;cursor:pointer;transition:border-color .15s, box-shadow .15s;
+    display:flex;flex-direction:column;gap:6px;position:relative;
+  }
+  .node:hover{border-color:var(--stroke-hi)}
+  .node.sel{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal), 0 10px 30px -12px rgba(45,212,191,.5)}
+  .node .kind{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2)}
+  .node .kind svg{width:13px;height:13px}
+  .node .title{font-size:13.5px;font-weight:640;line-height:1.32;color:#dde6ee;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .node .foot{font-size:10.5px;color:rgba(251,113,133,.85);margin-top:1px}
+  .node.send{border-left:3px solid var(--teal-600)}
+  .node.wait{border-style:dashed;background:transparent}
+  .node.decision{border-top:3px solid var(--teal-600);background:var(--teal-950)}
+
+  /* gatilho */
+  .trigger{
+    width:230px;border:1px dashed rgba(245,158,11,.45);background:rgba(245,158,11,.06);
+    border-radius:12px;padding:11px 14px;text-align:left;display:flex;flex-direction:column;gap:5px
+  }
+  .trigger .kind{color:#c99b45}
+  .trigger .kind svg{width:13px;height:13px}
+  .trigger .title{font-size:13.5px;font-weight:640;color:#f0e2c8}
+  .trigger .tag{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;margin-top:2px;font-size:11px;font-weight:650;color:#e8c987;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:999px;padding:2px 9px}
+
+  /* botão adicionar */
+  .add{width:26px;height:26px;border-radius:50%;border:1px dashed var(--stroke-hi);background:#0a1210;color:#6f8290;display:grid;place-items:center;cursor:pointer}
+  .add:hover{border-color:var(--teal);color:var(--teal)}
+  .add svg{width:14px;height:14px}
+
+  /* RAMIFICAÇÃO */
+  .branch{display:flex;flex-direction:column;align-items:center}
+  .bus{position:relative;height:26px;width:2px;background:var(--line)}
+  .cols{display:flex;gap:26px;align-items:flex-start;position:relative;padding-top:0}
+  /* barra horizontal que liga as colunas */
+  .cols::before{
+    content:"";position:absolute;top:-26px;left:var(--busL,80px);right:var(--busR,80px);height:2px;background:var(--line)
+  }
+  .col{display:flex;flex-direction:column;align-items:center;position:relative}
+  .col::before{content:"";position:absolute;top:-26px;width:2px;height:26px;background:var(--line)}
+  .pill{
+    font-size:10.5px;font-weight:700;letter-spacing:.02em;color:#c7d3dd;background:#0c1620;border:1px solid #33424f;
+    border-radius:999px;padding:3px 11px;margin-bottom:14px;white-space:nowrap
+  }
+  .pill.no{color:#e6b3bb;border-color:#5b3742;background:#1a1013}
+  .pill.fail{color:#e8c987;border-color:#5b4a2a;background:#191309}
+
+  /* coluna recolhida */
+  .collapsed{
+    width:210px;border:1px dashed var(--stroke-hi);border-radius:11px;background:#0b1512;
+    padding:12px 13px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:#8a9aa6;cursor:pointer
+  }
+  .collapsed:hover{border-color:var(--teal);color:#b7c4cd}
+  .collapsed .c-left{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:600}
+  .collapsed .count{font-size:10.5px;color:var(--muted-2);font-weight:600}
+  .chev{width:16px;height:16px;color:#6f8290}
+
+  .end{margin-top:4px;font-size:11px;color:var(--muted-2);display:flex;align-items:center;gap:7px}
+  .end .stop{width:9px;height:9px;border-radius:2px;background:#3a4b59}
+
+  /* controle de zoom (decorativo) */
+  .zoom{position:absolute;right:18px;bottom:16px;display:flex;align-items:center;gap:2px;background:#000000a6;border:1px solid var(--stroke);border-radius:999px;padding:4px}
+  .zoom button{width:30px;height:30px;border:0;background:transparent;color:#b8c4ce;border-radius:50%;cursor:pointer;display:grid;place-items:center}
+  .zoom button:hover{background:#ffffff14;color:#fff}
+  .zoom .pct{min-width:42px;text-align:center;font-size:11px;color:#8a9aa6;font-variant-numeric:tabular-nums}
+  .zoom .fit{width:auto;padding:0 12px;gap:6px;font-size:12px;font-weight:600;display:inline-flex;align-items:center}
+  .hint{position:absolute;left:18px;bottom:16px;background:#00000091;color:#5c6b78;font-size:11px;padding:6px 12px;border-radius:999px}
+
+  /* PAINEL LATERAL de edição */
+  .side{width:392px;flex:none;background:var(--panel);border-left:1px solid #16211d;display:flex;flex-direction:column}
+  .side .head{padding:16px 18px 12px;border-bottom:1px solid #16211d}
+  .side .head .kind{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--teal)}
+  .side .head h2{margin:8px 0 0;font-size:16px;font-weight:660;letter-spacing:-.01em}
+  .side .head p{margin:5px 0 0;font-size:12.5px;color:var(--muted)}
+  .side .body{padding:16px 18px;overflow:auto;display:flex;flex-direction:column;gap:16px}
+  .field label{display:block;font-size:12px;font-weight:650;color:#b7c4cd;margin-bottom:7px}
+  .caminho{border:1px solid var(--stroke);border-radius:10px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0c1310}
+  .caminho + .caminho{margin-top:9px}
+  .caminho .c-info{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .caminho .c-name{font-size:13px;font-weight:620;color:#dde6ee}
+  .caminho .c-rule{font-size:11.5px;color:var(--muted)}
+  .trash{display:inline-flex;align-items:center;gap:6px;border:1px solid #4a2b32;background:#180f11;color:#e79aa4;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .trash:hover{background:#221417;border-color:#6a3b44}
+  .trash svg{width:13px;height:13px}
+  .addpath{border:1px dashed var(--stroke-hi);background:transparent;color:#8a9aa6;width:100%;padding:10px;border-radius:9px;font-weight:600;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:11px}
+  .addpath:hover{border-color:var(--teal);color:var(--teal)}
+  .side .foot{margin-top:auto;padding:13px 18px;border-top:1px solid #16211d;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+
+  .note{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#0c1712;border:1px solid #22443b;color:#a7d8c9;font-size:12.5px;padding:9px 16px;border-radius:999px;box-shadow:0 12px 40px -12px #000}
+  .note b{color:#d6f2ea;font-weight:700}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- trilho app (contexto) -->
+  <nav class="rail" aria-label="Navegação">
+    <div class="logo">B</div>
+    <button aria-label="Funil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></button>
+    <button aria-label="Conversas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    <button class="on" aria-label="Automações" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></button>
+    <button aria-label="Configurações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </nav>
+
+  <div class="work">
+    <!-- topo -->
+    <header class="topbar">
+      <div class="crumb">
+        <span class="name">Boas-vindas do lead novo</span>
+        <span class="badge-draft">rascunho</span>
+      </div>
+      <span class="save"><span class="dot"></span> Salvo agora</span>
+      <span class="spacer"></span>
+      <button class="btn">Testar</button>
+      <button class="btn primary">Publicar</button>
+    </header>
+
+    <div class="stage-wrap">
+      <!-- CANVAS vertical -->
+      <main class="canvas" aria-label="Mapa da automação">
+        <div class="flow">
+
+          <!-- gatilho -->
+          <div class="trigger">
+            <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Quando começa</span>
+            <span class="title">Recebe a etiqueta</span>
+            <span class="tag">🏷️ Lead novo — Facetas</span>
+          </div>
+
+          <div class="link"></div>
+          <button class="add" aria-label="Adicionar passo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <div class="link"></div>
+
+          <!-- envia mensagem -->
+          <div class="node send">
+            <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="7" y1="9" x2="15" y2="9"/><line x1="7" y1="13" x2="12" y2="13"/></svg> Envia · WhatsApp</span>
+            <span class="title">Olá! Aqui é da clínica 😊 Vi que você tem interesse nas facetas. Posso te explicar como funciona?</span>
+            <span class="foot">falha encerra</span>
+          </div>
+
+          <div class="link"></div>
+
+          <!-- espera resposta -->
+          <div class="node wait">
+            <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg> Espera resposta</span>
+            <span class="title">Até 2 dias</span>
+          </div>
+
+          <div class="link"></div>
+
+          <!-- divide caminho (selecionado) -->
+          <div class="node decision sel">
+            <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg> Divide caminho</span>
+            <span class="title">Qual caminho seguir?</span>
+          </div>
+
+          <!-- ramificação -->
+          <div class="branch">
+            <div class="bus"></div>
+            <div class="cols" style="--busL:105px;--busR:105px">
+
+              <!-- Respondeu -->
+              <div class="col">
+                <span class="pill">Respondeu</span>
+                <div class="node">
+                  <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Cria tarefa</span>
+                  <span class="title">Ligar para agendar avaliação</span>
+                </div>
+                <div class="link short"></div>
+                <button class="add" aria-label="Adicionar passo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                <div class="end"><span class="stop"></span> fim deste caminho</div>
+              </div>
+
+              <!-- Não respondeu -->
+              <div class="col">
+                <span class="pill no">Não respondeu</span>
+                <div class="node wait">
+                  <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 8 12 12 14 14"/></svg> Espera</span>
+                  <span class="title">1 dia</span>
+                </div>
+                <div class="link short"></div>
+                <div class="node send">
+                  <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Envia · WhatsApp</span>
+                  <span class="title">Passando só pra lembrar 🙌 ainda dá tempo de garantir sua avaliação. Quer que eu reserve um horário?</span>
+                  <span class="foot">falha encerra</span>
+                </div>
+                <div class="link short"></div>
+                <button class="add" aria-label="Adicionar passo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                <div class="end"><span class="stop"></span> fim deste caminho</div>
+              </div>
+
+              <!-- Falhou (recolhido) -->
+              <div class="col">
+                <span class="pill fail">Falhou o envio</span>
+                <div class="collapsed" title="Clique para expandir">
+                  <span class="c-left">
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    Caminho recolhido
+                  </span>
+                  <span class="count">2 passos</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- zoom decorativo -->
+        <div class="zoom" aria-hidden="true">
+          <button aria-label="Afastar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <span class="pct">90%</span>
+          <button aria-label="Aproximar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button class="fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg> Ajustar</button>
+        </div>
+        <div class="hint">Arraste o fundo para mover · role para dar zoom</div>
+      </main>
+
+      <!-- PAINEL LATERAL (edição do passo selecionado) -->
+      <aside class="side" aria-label="Editar passo">
+        <div class="head">
+          <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg> Divide caminho</span>
+          <h2>Qual caminho seguir?</h2>
+          <p>Cada caminho segue sozinho a partir daqui. Quem responde vai por um, quem some vai por outro.</p>
+        </div>
+        <div class="body">
+          <div class="field">
+            <label>Caminhos</label>
+
+            <div class="caminho">
+              <div class="c-info">
+                <span class="c-name">Respondeu</span>
+                <span class="c-rule">quando o lead manda qualquer mensagem</span>
+              </div>
+              <button class="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Excluir caminho</button>
+            </div>
+
+            <div class="caminho">
+              <div class="c-info">
+                <span class="c-name">Não respondeu</span>
+                <span class="c-rule">quando passam 2 dias sem resposta</span>
+              </div>
+              <button class="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Excluir caminho</button>
+            </div>
+
+            <div class="caminho">
+              <div class="c-info">
+                <span class="c-name">Falhou o envio</span>
+                <span class="c-rule">quando o WhatsApp não entrega</span>
+              </div>
+              <button class="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Excluir caminho</button>
+            </div>
+
+            <button class="addpath"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar caminho</button>
+          </div>
+        </div>
+        <div class="foot">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5f9d8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Muda na hora no rascunho · Publicar grava a versão
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="note">Mockup — <b>construtor na vertical</b>. Fluxo desce de cima pra baixo, salva sozinho, cada card mostra a mensagem, ramos podem recolher, lixeira diz “Excluir caminho”.</div>
+</body>
+</html>
