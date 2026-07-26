@@ -22,7 +22,7 @@
 | # | Pacote | Camada | Estado | Parecer |
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
-| 2 | Reforma 2 do construtor (canvas vertical + autosave + preview) | 🟢 UI | _não iniciado_ | — |
+| 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
 | 3 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 4 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 
@@ -58,6 +58,34 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 **Gates que continuam valendo (não reabrir):** `automation_live_enabled=false`, tudo `simulation`, sem push/deploy, produção intacta.
 
 **Prova atual:** `test:local` = 941/941 · lint `--max-warnings 0` · tsc strict.
+
+---
+
+## Pacote 2 — Reforma 2: canvas vertical + botão de trocar direção
+
+**Estado:** PENDENTE (aguardando 29/07)
+**Camada:** 🟢 UI pura — sem migration, sem RPC, sem tocar no motor. Preferência de exibição vive em `localStorage`, não no banco (decisão deliberada: não depender do Codex pra entregar).
+
+**Commits:**
+- `89e7ee6` — fatia 1: canvas na vertical (motor de layout agnóstico de eixo)
+- `0f5bdea` — fatia 2: botão de trocar direção (vertical↔horizontal) com memória no navegador
+
+**Arquivos-chave:**
+- `features/automations/automationTreeLayout.ts` — `layoutAutomationTree` agora exige `orientation`; projeção main/cross + `edgeGeometry` por eixo
+- `features/automations/automationTreeLayout.test.ts` — 6 testes (3 horizontais originais preservados + 3 espelho vertical)
+- `features/automations/AutomationFlowMap.tsx` — props `orientation` / `onToggleOrientation`; botão no controle do mapa
+- `features/automations/AutomationBuilderPage.tsx` — estado + `localStorage['basecrm.automation.builder.orientation']`; `fitKey` inclui a orientação
+
+**O que o Junior conferiu ao vivo:** abriu o construtor, viu o fluxo descendo na vertical, clicou no botão do canto e o mapa virou pro horizontal intacto; refresh reabre na última direção escolhida.
+
+**O que pedir ao Codex (foco adversarial):**
+1. **Equivalência dos eixos** — o horizontal saiu byte-a-byte equivalente ao anterior? O algoritmo girado não introduziu regressão em fluxo profundo/ramificado?
+2. **Hidratação da preferência** — o `ref` anti-sobrescrita cobre todos os caminhos (SSR, primeiro render, troca de automação)? Há risco de gravar `vertical` por cima da escolha do usuário?
+3. **Reenquadramento** — `fitKey` com a orientação embutida re-encaixa sempre, ou existe caso em que o mapa fica fora de vista?
+4. Acessibilidade do botão (rótulo = destino) e comportamento quando `onToggleOrientation` não é passado.
+
+**Encosta em motor?** Não.
+**Prova:** `test:local features/automations` = 62/62 · `typecheck` (tsc strict) limpo · `eslint --max-warnings 0` limpo.
 
 ---
 
