@@ -2,6 +2,8 @@
 
 import React from 'react';
 import {
+  ArrowDownUp,
+  ArrowLeftRight,
   ArrowRightLeft,
   CheckCircle2,
   Clock3,
@@ -46,6 +48,8 @@ type AutomationFlowMapProps = {
   selectedStepKey: string | null;
   /** Direção do fluxo. Padrão vertical (desce); horizontal anda pra direita. */
   orientation?: AutomationOrientation;
+  /** Alterna vertical↔horizontal. Sem callback, o botão de trocar não aparece. */
+  onToggleOrientation?: () => void;
   /** Identidade da automação exibida — trocar no seletor re-enquadra o mapa. */
   fitKey?: string | null;
   onStepActivate: (stepKey: string) => void;
@@ -158,6 +162,7 @@ export function AutomationFlowMap({
   canEdit,
   selectedStepKey,
   orientation = 'vertical',
+  onToggleOrientation,
   fitKey,
   onStepActivate,
   onBackgroundActivate,
@@ -628,6 +633,30 @@ export function AutomationFlowMap({
         data-map-control
         className="absolute bottom-3.5 right-[18px] z-10 flex items-center gap-1 rounded-full border border-slate-700 bg-black/65 p-1 shadow-lg"
       >
+        {onToggleOrientation ? (
+          <>
+            <button
+              type="button"
+              data-map-control
+              aria-label={`Trocar direção do fluxo — ver na ${
+                orientation === 'vertical' ? 'horizontal' : 'vertical'
+              }`}
+              title={`Trocar direção do fluxo — ver na ${
+                orientation === 'vertical' ? 'horizontal' : 'vertical'
+              }`}
+              className="flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-teal-400"
+              onClick={onToggleOrientation}
+            >
+              {orientation === 'vertical' ? (
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDownUp className="h-3.5 w-3.5" />
+              )}
+              {orientation === 'vertical' ? 'Horizontal' : 'Vertical'}
+            </button>
+            <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-slate-700" />
+          </>
+        ) : null}
         <button
           type="button"
           data-map-control

@@ -39,11 +39,16 @@ import {
 } from './automationGraphMove';
 import { toFriendlyAutomationError } from './automationErrorMessages';
 import type { AutomationBoardOption } from './AutomationSwitchEditor';
+import type { AutomationOrientation } from './automationTreeLayout';
 import {
   addAutomationSwitchCase,
   moveAutomationSwitchCase,
   removeAutomationSwitchCase,
 } from './automationSwitchDraft';
+
+// Preferência de visualização do mapa (vertical/horizontal) — mora NO NAVEGADOR,
+// não no banco: é gosto de exibição, não dado do tenant, e não depende de migration.
+const AUTOMATION_ORIENTATION_STORAGE_KEY = 'basecrm.automation.builder.orientation';
 
 type MessageTemplate = {
   id: string;
@@ -308,6 +313,20 @@ export function AutomationBuilderPage(props: {
   const [testOpen, setTestOpen] = React.useState(false);
   const [testTargetId, setTestTargetId] = React.useState('');
   const [publishConfirmOpen, setPublishConfirmOpen] = React.useState(false);
+  const [orientation, setOrientation] = React.useState<AutomationOrientation>('vertical');
+
+  // Lê a direção salva uma vez na montagem; só grava depois, em mudança do
+  // usuário (o ref evita que o primeiro render sobrescreva a preferência).
+  const orientationHydrated = React.useRef(false);
+  React.useEffect(() => {
+    const saved = window.localStorage.getItem(AUTOMATION_ORIENTATION_STORAGE_KEY);
+    if (saved === 'horizontal' || saved === 'vertical') setOrientation(saved);
+    orientationHydrated.current = true;
+  }, []);
+  React.useEffect(() => {
+    if (!orientationHydrated.current) return;
+    window.localStorage.setItem(AUTOMATION_ORIENTATION_STORAGE_KEY, orientation);
+  }, [orientation]);
 
   const canEdit = props.canEdit || Boolean(workspace?.access?.canEdit);
   const canOperate = props.canOperate || Boolean(workspace?.access?.canOperate);
@@ -807,7 +826,13 @@ export function AutomationBuilderPage(props: {
                 steps={draft.steps}
                 edges={draft.edges}
                 canEdit={canEdit}
-                fitKey={draft.id}
+                orientation={orientation}
+                onToggleOrientation={() =>
+                  setOrientation((current) =>
+                    current === 'vertical' ? 'horizontal' : 'vertical',
+                  )
+                }
+                fitKey={`${draft.id}:${orientation}`}
                 selectedStepKey={selectedStepKey}
                 onStepActivate={setSelectedStepKey}
                 onBackgroundActivate={() => setSelectedStepKey(null)}

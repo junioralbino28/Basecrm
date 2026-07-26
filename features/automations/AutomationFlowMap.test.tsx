@@ -300,6 +300,43 @@ describe('AutomationFlowMap', () => {
     expect(onMoveStep).not.toHaveBeenCalled();
   });
 
+  it('mostra o botão de trocar direção e dispara o callback ao clicar', () => {
+    const onToggleOrientation = vi.fn();
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        orientation="vertical"
+        onToggleOrientation={onToggleOrientation}
+        onStepActivate={vi.fn()}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    const toggle = screen.getByRole('button', {
+      name: /Trocar direção do fluxo — ver na horizontal/i,
+    });
+    fireEvent.click(toggle);
+    expect(onToggleOrientation).toHaveBeenCalledTimes(1);
+  });
+
+  it('esconde o botão de trocar direção quando não há callback', () => {
+    render(
+      <AutomationFlowMap
+        steps={steps}
+        edges={edges}
+        canEdit
+        selectedStepKey={null}
+        onStepActivate={vi.fn()}
+        onAddAfter={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /Trocar direção do fluxo/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it('move somente pelo fundo e informa clique vazio', () => {
     const onBackgroundActivate = vi.fn();
     render(
