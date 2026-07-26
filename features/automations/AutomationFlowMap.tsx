@@ -19,6 +19,7 @@ import type {
 import {
   AUTOMATION_NODE_HEIGHT,
   AUTOMATION_NODE_WIDTH,
+  type AutomationOrientation,
   layoutAutomationTree,
 } from './automationTreeLayout';
 import {
@@ -43,6 +44,8 @@ type AutomationFlowMapProps = {
   edges: AutomationBuilderEdge[];
   canEdit: boolean;
   selectedStepKey: string | null;
+  /** Direção do fluxo. Padrão vertical (desce); horizontal anda pra direita. */
+  orientation?: AutomationOrientation;
   /** Identidade da automação exibida — trocar no seletor re-enquadra o mapa. */
   fitKey?: string | null;
   onStepActivate: (stepKey: string) => void;
@@ -154,13 +157,17 @@ export function AutomationFlowMap({
   edges,
   canEdit,
   selectedStepKey,
+  orientation = 'vertical',
   fitKey,
   onStepActivate,
   onBackgroundActivate,
   onAddAfter,
   onMoveStep,
 }: AutomationFlowMapProps) {
-  const layout = React.useMemo(() => layoutAutomationTree(steps, edges), [edges, steps]);
+  const layout = React.useMemo(
+    () => layoutAutomationTree(steps, edges, orientation),
+    [edges, orientation, steps],
+  );
   const outgoingKeys = React.useMemo(
     () => new Set(edges.map((edge) => edge.fromStepKey)),
     [edges],
@@ -537,7 +544,9 @@ export function AutomationFlowMap({
                       ? 'border-teal-400 ring-1 ring-teal-400'
                       : 'border-slate-700 hover:border-slate-500',
                     step.stepType === 'send_message'
-                      ? 'border-l-[3px] border-l-teal-500'
+                      ? (orientation === 'vertical'
+                          ? 'border-t-[3px] border-t-teal-500'
+                          : 'border-l-[3px] border-l-teal-500')
                       : '',
                     isDecision(step)
                       ? 'border-t-[3px] border-t-teal-500 bg-teal-950/30'
@@ -585,10 +594,17 @@ export function AutomationFlowMap({
                     data-map-control
                     aria-label={`Adicionar passo após ${name}`}
                     className="absolute grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-600 bg-slate-950 text-slate-400 transition hover:border-teal-400 hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-teal-400 disabled:opacity-40"
-                    style={{
-                      left: x + AUTOMATION_NODE_WIDTH + 18,
-                      top: y + AUTOMATION_NODE_HEIGHT / 2 - 12,
-                    }}
+                    style={
+                      orientation === 'vertical'
+                        ? {
+                            left: x + AUTOMATION_NODE_WIDTH / 2 - 12,
+                            top: y + AUTOMATION_NODE_HEIGHT + 18,
+                          }
+                        : {
+                            left: x + AUTOMATION_NODE_WIDTH + 18,
+                            top: y + AUTOMATION_NODE_HEIGHT / 2 - 12,
+                          }
+                    }
                     disabled={!canEdit}
                     onClick={() => onAddAfter(step.stepKey)}
                   >

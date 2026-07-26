@@ -5,9 +5,18 @@ import type {
 
 export const AUTOMATION_NODE_WIDTH = 186;
 export const AUTOMATION_NODE_HEIGHT = 96;
-export const AUTOMATION_COLUMN_GAP = 124;
-export const AUTOMATION_ROW_GAP = 20;
+// Respiro entre NÍVEIS (profundidade) e entre IRMÃOS (espalhamento). Cada eixo
+// tem o seu porque a largura e a altura do card são diferentes: no horizontal o
+// fluxo espalha na vertical (cards baixos, gap pequeno); no vertical o fluxo
+// espalha na horizontal (cards largos, gap maior pra não colar as colunas).
+export const AUTOMATION_LEVEL_GAP_H = 124;
+export const AUTOMATION_LEVEL_GAP_V = 72;
+export const AUTOMATION_SIBLING_GAP_H = 20;
+export const AUTOMATION_SIBLING_GAP_V = 40;
 const AUTOMATION_TREE_PADDING = 40;
+
+/** Direção do fluxo no mapa. Vertical = desce; horizontal = anda pra direita. */
+export type AutomationOrientation = 'vertical' | 'horizontal';
 
 export type AutomationTreeNode = {
   step: AutomationBuilderStep;
@@ -31,6 +40,71 @@ export type AutomationTreeLayout = {
   width: number;
   height: number;
 };
+
+// O algoritmo de árvore é o MESMO nos dois sentidos — só troca qual eixo carrega
+// a profundidade (main) e qual carrega o espalhamento dos irmãos (cross). Esta
+// projeção é a única coisa que sabe "vertical" ou "horizontal"; o resto opera em
+// coordenadas abstratas e é espelhado de graça.
+type AutomationAxis = {
+  levelStep: number;
+  crossSize: number;
+  siblingGap: number;
+  project: (main: number, cross: number) => { x: number; y: number };
+};
+
+function axisFor(orientation: AutomationOrientation): AutomationAxis {
+  if (orientation === 'vertical') {
+    return {
+      levelStep: AUTOMATION_NODE_HEIGHT + AUTOMATION_LEVEL_GAP_V,
+      crossSize: AUTOMATION_NODE_WIDTH,
+      siblingGap: AUTOMATION_SIBLING_GAP_V,
+      project: (main, cross) => ({ x: cross, y: main }),
+    };
+  }
+  return {
+    levelStep: AUTOMATION_NODE_WIDTH + AUTOMATION_LEVEL_GAP_H,
+    crossSize: AUTOMATION_NODE_HEIGHT,
+    siblingGap: AUTOMATION_SIBLING_GAP_H,
+    project: (main, cross) => ({ x: main, y: cross }),
+  };
+}
+
+// Geometria da aresta (ponto de saída/entrada, curva e âncora do rótulo) também
+// espelhada por eixo: no horizontal a linha sai pela lateral direita e curva em
+// X; no vertical sai por baixo e curva em Y.
+function edgeGeometry(
+  orientation: AutomationOrientation,
+  source: AutomationTreeNode,
+  target: AutomationTreeNode,
+) {
+  if (orientation === 'vertical') {
+    const x1 = source.x + AUTOMATION_NODE_WIDTH / 2;
+    const y1 = source.y + AUTOMATION_NODE_HEIGHT;
+    const x2 = target.x + AUTOMATION_NODE_WIDTH / 2;
+    const y2 = target.y;
+    const controlY = (y1 + y2) / 2;
+    const midpointX = (x1 + x2) / 2;
+    return {
+      path: `M${x1} ${y1} C${x1} ${controlY}, ${x2} ${controlY}, ${x2} ${y2}`,
+      labelX: midpointX - 52,
+      labelY: controlY,
+      midpointX,
+      midpointY: controlY,
+    };
+  }
+  const x1 = source.x + AUTOMATION_NODE_WIDTH;
+  const y1 = source.y + AUTOMATION_NODE_HEIGHT / 2;
+  const x2 = target.x;
+  const y2 = target.y + AUTOMATION_NODE_HEIGHT / 2;
+  const controlX = (x1 + x2) / 2;
+  return {
+    path: `M${x1} ${y1} C${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}`,
+    labelX: x1 + 8,
+    labelY: (y1 + y2) / 2,
+    midpointX: controlX,
+    midpointY: (y1 + y2) / 2,
+  };
+}
 
 function compareSteps(left: AutomationBuilderStep, right: AutomationBuilderStep) {
   return left.sortKey - right.sortKey || left.stepKey.localeCompare(right.stepKey);
@@ -85,11 +159,13 @@ export function automationEdgeLabel(
 export function layoutAutomationTree(
   inputSteps: AutomationBuilderStep[],
   inputEdges: AutomationBuilderEdge[],
+  orientation: AutomationOrientation,
 ): AutomationTreeLayout {
   if (!inputSteps.length) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
+  const axis = axisFor(orientation);
   const orderedSteps = [...inputSteps].sort(compareSteps);
   const stepsByKey = new Map(orderedSteps.map((step) => [step.stepKey, step]));
   const outgoing = new Map<string, AutomationBuilderEdge[]>();
@@ -106,33 +182,30 @@ export function layoutAutomationTree(
     ));
   }
 
-  const positions = new Map<string, Omit<AutomationTreeNode, 'step'>>();
+  const positions = new Map<string, { depth: number; cross: number; x: number; y: number }>();
   const visited = new Set<string>();
-  const cursor = { y: 0 };
+  const cursor = { cross: 0 };
 
   const measure = (stepKey: string, depth: number): number => {
     const existing = positions.get(stepKey);
-    if (existing) return existing.y;
+    if (existing) return existing.cross;
     visited.add(stepKey);
 
     const children = (outgoing.get(stepKey) ?? [])
       .map((edge) => edge.toStepKey)
       .filter((childKey) => !visited.has(childKey));
-    let y: number;
+    let cross: number;
     if (!children.length) {
-      y = cursor.y;
-      cursor.y += AUTOMATION_NODE_HEIGHT + AUTOMATION_ROW_GAP;
+      cross = cursor.cross;
+      cursor.cross += axis.crossSize + axis.siblingGap;
     } else {
-      const childYs = children.map((childKey) => measure(childKey, depth + 1));
-      y = (childYs[0] + childYs[childYs.length - 1]) / 2;
+      const childCrosses = children.map((childKey) => measure(childKey, depth + 1));
+      cross = (childCrosses[0] + childCrosses[childCrosses.length - 1]) / 2;
     }
 
-    positions.set(stepKey, {
-      depth,
-      x: depth * (AUTOMATION_NODE_WIDTH + AUTOMATION_COLUMN_GAP),
-      y,
-    });
-    return y;
+    const main = depth * axis.levelStep;
+    positions.set(stepKey, { depth, cross, ...axis.project(main, cross) });
+    return cross;
   };
 
   const roots = orderedSteps.filter((step) => indegree.get(step.stepKey) === 0);
@@ -143,10 +216,10 @@ export function layoutAutomationTree(
     if (!visited.has(step.stepKey)) measure(step.stepKey, 0);
   }
 
-  const nodes = orderedSteps.map((step) => ({
-    step,
-    ...(positions.get(step.stepKey) ?? { depth: 0, x: 0, y: 0 }),
-  }));
+  const nodes = orderedSteps.map((step) => {
+    const position = positions.get(step.stepKey) ?? { depth: 0, x: 0, y: 0 };
+    return { step, depth: position.depth, x: position.x, y: position.y };
+  });
   const nodesByKey = new Map(nodes.map((node) => [node.step.stepKey, node]));
   const edges = inputEdges
     .filter((edge) => nodesByKey.has(edge.fromStepKey) && nodesByKey.has(edge.toStepKey))
@@ -160,19 +233,11 @@ export function layoutAutomationTree(
     .map((edge): AutomationTreeEdge => {
       const source = nodesByKey.get(edge.fromStepKey)!;
       const target = nodesByKey.get(edge.toStepKey)!;
-      const x1 = source.x + AUTOMATION_NODE_WIDTH;
-      const y1 = source.y + AUTOMATION_NODE_HEIGHT / 2;
-      const x2 = target.x;
-      const y2 = target.y + AUTOMATION_NODE_HEIGHT / 2;
-      const controlX = (x1 + x2) / 2;
+      const geometry = edgeGeometry(orientation, source, target);
       return {
         ...edge,
         label: automationEdgeLabel(edge, source.step),
-        path: `M${x1} ${y1} C${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}`,
-        labelX: x1 + 8,
-        labelY: (y1 + y2) / 2,
-        midpointX: controlX,
-        midpointY: (y1 + y2) / 2,
+        ...geometry,
       };
     });
 
