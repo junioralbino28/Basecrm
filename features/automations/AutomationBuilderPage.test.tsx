@@ -199,3 +199,107 @@ describe('AutomationBuilderPage — percurso manual', () => {
       ].sort());
   });
 });
+
+describe('AutomationBuilderPage — salvamento automático', () => {
+  const existing = {
+    id: AUTOMATION_ID,
+    name: 'Boas-vindas',
+    lifecycleStatus: 'draft',
+    deliveryMode: 'simulation',
+    draftRevision: 1,
+    triggerConfig: { tag_id: null },
+    steps: [{
+      stepKey: STEP_ID,
+      stepType: 'send_message',
+      sortKey: 0,
+      config: {
+        link_mode: 'copied',
+        body_local: 'Oi',
+        message_kind: 'text',
+        channel: 'whatsapp',
+      },
+    }],
+    edges: [],
+  };
+
+  function stubWorkspace(onPatch: (body: Record<string, unknown>) => void) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/automations') && (!init?.method || init.method === 'GET')) {
+        return jsonResponse({
+          automations: [existing],
+          templates: [],
+          testTargets: [],
+          safeMode: { liveEnabled: false },
+        });
+      }
+      if (url.endsWith(`/automations/${AUTOMATION_ID}`) && init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        onPatch(body);
+        return jsonResponse({
+          automation: { ...existing, ...body, draftRevision: 2 },
+        });
+      }
+      throw new Error(`fetch inesperado: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('não salva nada só por abrir a automação', async () => {
+    const patches: Record<string, unknown>[] = [];
+    stubWorkspace((body) => patches.push(body));
+
+    render(
+      <AutomationBuilderPage
+        tenantId={TENANT_ID}
+        tenantName="Conta demonstração"
+        canEdit
+        canOperate
+      />,
+    );
+
+    expect(await screen.findByLabelText('Automação')).toHaveValue(AUTOMATION_ID);
+    // Passa do tempo do autosave sem nenhuma edição: nada pode ter sido gravado.
+    await new Promise((resolve) => setTimeout(resolve, 1_600));
+    expect(patches).toHaveLength(0);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('grava sozinho depois da edição e mostra o selo Salvo', async () => {
+    const patches: Record<string, unknown>[] = [];
+    stubWorkspace((body) => patches.push(body));
+
+    render(
+      <AutomationBuilderPage
+        tenantId={TENANT_ID}
+        tenantName="Conta demonstração"
+        canEdit
+        canOperate
+      />,
+    );
+
+    expect(await screen.findByLabelText('Automação')).toHaveValue(AUTOMATION_ID);
+    const map = screen.getByRole('region', { name: 'Mapa da automação' });
+    const messageStep = screen.getByRole('button', {
+      name: /Envia · WhatsApp: Oi/i,
+    });
+    fireEvent.pointerDown(messageStep, { pointerId: 1, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: 10, clientY: 10 });
+
+    fireEvent.change(screen.getByLabelText('Mensagem'), {
+      target: { value: 'Oi, tudo bem?' },
+    });
+
+    // Enquanto não passa o tempo, avisa que ainda não guardou.
+    expect(await screen.findByText('Alterações não salvas')).toBeInTheDocument();
+
+    await waitFor(
+      () => expect(patches).toHaveLength(1),
+      { timeout: 4_000 },
+    );
+    expect((patches[0].steps as { config: { body_local: string } }[])[0].config.body_local)
+      .toBe('Oi, tudo bem?');
+    expect(await screen.findByText('Salvo')).toBeInTheDocument();
+  }, 10_000);
+});

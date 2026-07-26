@@ -50,6 +50,29 @@ import {
 // não no banco: é gosto de exibição, não dado do tenant, e não depende de migration.
 const AUTOMATION_ORIENTATION_STORAGE_KEY = 'basecrm.automation.builder.orientation';
 
+// Espera depois da última tecla antes de salvar sozinho. Curto o bastante para
+// não dar medo de perder, longo o bastante para não salvar a cada letra.
+const AUTOMATION_AUTOSAVE_DELAY_MS = 1_200;
+
+/** Estado do salvamento automático mostrado no selo ao lado do Salvar. */
+type AutosaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+
+// Retrato do que de fato vai pro servidor. Comparar retratos (e não objetos)
+// diz se o rascunho mudou de verdade — é o que dispara o salvamento sozinho.
+function automationDraftSignature(item: {
+  name: string;
+  triggerConfig: unknown;
+  steps: unknown;
+  edges: unknown;
+}) {
+  return JSON.stringify({
+    name: item.name,
+    triggerConfig: item.triggerConfig,
+    steps: item.steps,
+    edges: item.edges,
+  });
+}
+
 type MessageTemplate = {
   id: string;
   name: string;
@@ -314,6 +337,10 @@ export function AutomationBuilderPage(props: {
   const [testTargetId, setTestTargetId] = React.useState('');
   const [publishConfirmOpen, setPublishConfirmOpen] = React.useState(false);
   const [orientation, setOrientation] = React.useState<AutomationOrientation>('vertical');
+  const [autosave, setAutosave] = React.useState<AutosaveState>('idle');
+  // Retrato do último rascunho JÁ gravado; enquanto o atual for igual, nada a fazer.
+  const savedSignatureRef = React.useRef<string | null>(null);
+  const autosaveInFlightRef = React.useRef(false);
 
   // Lê a direção salva uma vez na montagem; só grava depois, em mudança do
   // usuário (o ref evita que o primeiro render sobrescreva a preferência).
@@ -413,10 +440,22 @@ export function AutomationBuilderPage(props: {
     }
   };
 
-  const saveDraft = async () => {
+  const saveDraft = async (options?: { silent?: boolean }) => {
     if (!draft) return null;
-    setBusy('save');
-    setFeedback(null);
+    // silent = salvamento automático: não prende a tela nem enche de aviso.
+    const silent = options?.silent === true;
+    if (silent) {
+      if (autosaveInFlightRef.current) return null;
+      autosaveInFlightRef.current = true;
+      setAutosave('saving');
+    } else {
+      setBusy('save');
+      setFeedback(null);
+    }
+    // Retrato do que está sendo enviado AGORA. Se o usuário digitar durante a
+    // ida ao servidor, o retrato atual passa a diferir deste e um novo
+    // salvamento é agendado — nada do que ele escreveu se perde.
+    const sentSignature = automationDraftSignature(draft);
     try {
       const response = await fetch(
         `/api/platform/tenants/${tenantId}/automations/${draft.id}`,
@@ -436,16 +475,31 @@ export function AutomationBuilderPage(props: {
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error || 'Falha ao salvar rascunho.');
       const saved = payload.automation as AutomationWorkspaceItem;
-      setDraft(saved);
+      savedSignatureRef.current = sentSignature;
+      if (silent) {
+        // Só absorve o número da revisão. Trocar o rascunho inteiro pela
+        // resposta do servidor apagaria o que o usuário digitou enquanto a
+        // requisição ia e voltava.
+        setDraft((current) => (current && current.id === saved.id
+          ? { ...current, draftRevision: saved.draftRevision }
+          : current));
+      } else {
+        setDraft(saved);
+      }
       setWorkspace((current) => current ? {
         ...current,
         automations: current.automations.map(
           (item) => item.id === saved.id ? saved : item,
         ),
       } : current);
-      setFeedback({ tone: 'success', text: 'Rascunho salvo.' });
+      if (silent) setAutosave('saved');
+      else setFeedback({ tone: 'success', text: 'Rascunho salvo.' });
       return saved;
     } catch (error) {
+      if (silent) {
+        setAutosave('error');
+        return null;
+      }
       setFeedback({
         tone: 'error',
         text: toFriendlyAutomationError(
@@ -454,9 +508,38 @@ export function AutomationBuilderPage(props: {
       });
       return null;
     } finally {
-      setBusy(null);
+      if (silent) autosaveInFlightRef.current = false;
+      else setBusy(null);
     }
   };
+
+  // Salvamento automático: o rascunho grava sozinho pouco depois da última
+  // mexida. O botão Salvar continua existindo para quem quer gravar na hora.
+  const saveDraftRef = React.useRef(saveDraft);
+  React.useEffect(() => { saveDraftRef.current = saveDraft; });
+
+  const draftId = draft?.id ?? null;
+  const draftSignature = draft ? automationDraftSignature(draft) : null;
+  const lastDraftIdRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!draftId || draftSignature === null) return;
+    // Automação recém-aberta (ou troca no seletor): este é o ponto de partida,
+    // não uma edição — senão o mapa salvaria sozinho só por ter sido aberto.
+    if (lastDraftIdRef.current !== draftId) {
+      lastDraftIdRef.current = draftId;
+      savedSignatureRef.current = draftSignature;
+      setAutosave('idle');
+      return;
+    }
+    if (!canEdit) return;
+    if (draftSignature === savedSignatureRef.current) return;
+    setAutosave('pending');
+    const timer = setTimeout(() => {
+      void saveDraftRef.current({ silent: true });
+    }, AUTOMATION_AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [canEdit, draftId, draftSignature]);
 
   const publish = async () => {
     const saved = await saveDraft();
@@ -782,6 +865,36 @@ export function AutomationBuilderPage(props: {
                 }}
                 actions={(
                   <>
+                  {/* Selo do salvamento automático: o usuário precisa VER que o
+                      trabalho dele está guardado (dor relatada no C2C). */}
+                  {autosave !== 'idle' ? (
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      title={autosave === 'error'
+                        ? 'O que você escreveu continua aqui na tela. Clique em Salvar para tentar de novo.'
+                        : undefined}
+                      className={[
+                        'flex items-center gap-1.5 text-xs font-semibold',
+                        autosave === 'saved' ? 'text-teal-300' : '',
+                        autosave === 'saving' ? 'text-slate-400' : '',
+                        autosave === 'pending' ? 'text-amber-300' : '',
+                        autosave === 'error' ? 'text-rose-300' : '',
+                      ].join(' ')}
+                    >
+                      {autosave === 'saving' ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : autosave === 'saved' ? (
+                        <CheckCircle2 size={13} />
+                      ) : (
+                        <AlertTriangle size={13} />
+                      )}
+                      {autosave === 'saving' ? 'Salvando…'
+                        : autosave === 'saved' ? 'Salvo'
+                        : autosave === 'pending' ? 'Alterações não salvas'
+                        : 'Não consegui salvar'}
+                    </span>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"

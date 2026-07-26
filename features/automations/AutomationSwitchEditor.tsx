@@ -162,14 +162,23 @@ export function AutomationSwitchEditor({
                   >
                     <ArrowDown className="h-3.5 w-3.5" />
                   </button>
+                  {/* Era só o ícone da lixeira: o Junior criou um 3º caminho e
+                      não achou como excluir (24/07). Rótulo visível + motivo em
+                      linguagem leiga quando está bloqueado. */}
                   <button
                     type="button"
-                    aria-label={`Remover caminho ${index + 1}`}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-30"
+                    aria-label={`Excluir caminho ${index + 1}`}
+                    title={
+                      cases.length <= 1
+                        ? 'Este é o único caminho — se excluir, a divisão fica sem para onde mandar. Adicione outro antes.'
+                        : `Excluir o caminho ${index + 1}`
+                    }
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11.5px] font-semibold text-slate-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-30"
                     disabled={!canEdit || cases.length <= 1}
                     onClick={() => setNotice(onRemoveCase(item.case_id))}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
+                    Excluir caminho
                   </button>
                 </div>
               </div>

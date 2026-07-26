@@ -209,7 +209,7 @@ describe('AutomationStepDock', () => {
       )),
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover caminho 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir caminho 1' }));
     expect(screen.getByRole('status')).toHaveTextContent(
       'Este caminho tem passos abaixo. Mova ou remova esses passos antes de apagar o caminho.',
     );
