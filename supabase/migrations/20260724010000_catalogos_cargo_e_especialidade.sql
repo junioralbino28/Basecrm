@@ -75,6 +75,14 @@ BEGIN
   END LOOP;
 END $$;
 
+-- ⚠️ RLS NÃO concede acesso — só restringe. Sem o GRANT abaixo o Postgres
+-- devolve "permission denied for table job_roles" antes mesmo de olhar a policy
+-- (foi o que aconteceu na primeira versão desta migration).
+-- Damos SÓ para `authenticated` e `service_role`: as policies são TO authenticated,
+-- então grant para `anon` seria peso morto — e a tabela é configuração da clínica.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.job_roles TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.specialties TO authenticated, service_role;
+
 COMMENT ON TABLE public.job_roles IS
   'Cargos da equipe (dentista, secretária, comercial…). Lista configurável — a '
   'tela de Profissionais SELECIONA daqui, nunca aceita texto livre.';
