@@ -23,7 +23,7 @@
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
 | 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
-| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos | 🔴 **MOTOR** (2 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
+| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades | 🔴 **MOTOR** (3 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 
@@ -93,11 +93,11 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 ## Pacote 3 — Remuneração da equipe: cargo/pagamento, comissão por vigência, catálogos
 
 **Estado:** PENDENTE (aguardando 29/07) · **PRIORIDADE 1 da revisão**
-**Camada:** 🔴 **MOTOR** — 2 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
+**Camada:** 🔴 **MOTOR** — 3 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
 
 **Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
 
-**Commits (8 de código, `7e5d5a5` → `40e455d`):**
+**Commits (9 de código, `7e5d5a5` → `87f7029`):**
 
 | SHA | O que faz |
 |---|---|
