@@ -446,9 +446,13 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       sem_profissional: { atendimentos: number; faturamento: number };
     };
 
-    expect(report.por_profissional).toHaveLength(1);
-    const linha = report.por_profissional[0];
-    expect(linha.professional_id).toBe(professionalAId);
+    // Desde 2026-07-24 o relatório parte de `professionals` (LEFT JOIN): quem
+    // não produziu no período TAMBÉM aparece, zerado (pedido do Adel — antes
+    // o profissional sumia da tela). Por isso buscamos a linha pelo id.
+    const linha = report.por_profissional.find(
+      (item) => item.professional_id === professionalAId,
+    )!;
+    expect(linha).toBeDefined();
     // 30% de 1400 = 420 (se somasse as duas regras seria 1120 — dupla contagem)
     expect(Number(linha.comissao)).toBeCloseTo(420, 2);
     // base SÓ dos atendimentos COM dentista (A1 900 + A3 500) — o A4 sem
@@ -481,9 +485,12 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     const report = res.data as {
       por_profissional: Array<{ professional_id: string; comissao: number; faturamento_base: number }>;
     };
-    expect(report.por_profissional).toHaveLength(1);
-    const carla = report.por_profissional[0];
-    expect(carla.professional_id).toBe(professionalCId);
+    // LEFT JOIN desde 2026-07-24: quem não produziu aparece zerado, então a
+    // linha da dentista é buscada pelo id (ver comentário no teste acima).
+    const carla = report.por_profissional.find(
+      (item) => item.professional_id === professionalCId,
+    )!;
+    expect(carla).toBeDefined();
     // 40% (regra que casa 'ortodontia' = especialidade da dentista) e NÃO 20%
     // (coringa sem especialidade): 40% de 1000 = 400.
     expect(Number(carla.comissao)).toBeCloseTo(400, 2);
@@ -566,6 +573,126 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
 
     expect(res.error).not.toBeNull();
     expect(res.data).toBeNull();
+
+    await client.auth.signOut();
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2026-07-24 — funcionário + comissão por período de vigência
+  // ---------------------------------------------------------------------------
+
+  it('quem NÃO produziu no período aparece na lista, zerado (pedido do Adel)', async ctx => {
+    if (rpcMissing) return ctx.skip();
+    const admin = getSupabaseAdminClient();
+    const prof = await admin
+      .from('professionals')
+      .insert({
+        organization_id: orgAId,
+        name: `Dra. Sem Producao ${runId}`,
+        specialty: 'implante',
+        role: 'Dentista',
+        active: true,
+      })
+      .select('id')
+      .single();
+    const semProducaoId = requireSupabaseData(prof, 'insert professional sem producao').id;
+
+    const client = createUserClient();
+    expect((await client.auth.signInWithPassword({ email: adminEmail, password })).error).toBeNull();
+
+    const res = await client.rpc('get_commission_report', { p_start: P_START, p_end: P_END });
+    expect(res.error).toBeNull();
+
+    const report = res.data as {
+      por_profissional: Array<{ professional_id: string; atendimentos: number; comissao: number }>;
+    };
+    // Antes de 24/07 o relatório partia de `atendimentos` (INNER join) e esta
+    // pessoa simplesmente SUMIA da tela.
+    const linha = report.por_profissional.find((i) => i.professional_id === semProducaoId);
+    expect(linha).toBeDefined();
+    expect(Number(linha!.atendimentos)).toBe(0);
+    expect(Number(linha!.comissao)).toBe(0);
+
+    await client.auth.signOut();
+  });
+
+  it('comissão em VALOR FIXO por procedimento; mudar a regra hoje NÃO reescreve o passado', async ctx => {
+    if (rpcMissing) return ctx.skip();
+    const admin = getSupabaseAdminClient();
+    const prof = await admin
+      .from('professionals')
+      .insert({
+        organization_id: orgAId,
+        name: `Dr. Vigencia ${runId}`,
+        specialty: 'clinica',
+        role: 'Dentista',
+        pay_type: 'both',
+        fixed_amount: 1000,
+        active: true,
+      })
+      .select('id')
+      .single();
+    const profId = requireSupabaseData(prof, 'insert professional vigencia').id;
+
+    // Dois atendimentos IDÊNTICOS, em dias diferentes de abril.
+    assertNoSupabaseError(
+      await admin.from('atendimentos').insert([
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          valor: 100, desconto: 0, recebido: true,
+          paid_at: '2026-04-10T12:00:00-03:00', performed_at: '2026-04-10T12:00:00-03:00',
+        },
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          valor: 100, desconto: 0, recebido: true,
+          paid_at: '2026-04-20T12:00:00-03:00', performed_at: '2026-04-20T12:00:00-03:00',
+        },
+      ]),
+      'insert atendimentos vigencia',
+    );
+
+    // Regra antiga: R$ 30 fixos. ADENDO: R$ 50 a partir de 15/04 — a regra
+    // anterior NÃO é editada, nasce um período novo (decisão do Junior).
+    assertNoSupabaseError(
+      await admin.from('commission_rules').insert([
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          amount_type: 'fixed', amount: 30, percent: 0, valid_from: '2020-01-01',
+        },
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          amount_type: 'fixed', amount: 50, percent: 0, valid_from: '2026-04-15',
+        },
+      ]),
+      'insert commission_rules vigencia',
+    );
+
+    const client = createUserClient();
+    expect((await client.auth.signInWithPassword({ email: adminEmail, password })).error).toBeNull();
+
+    const res = await client.rpc('get_commission_report', {
+      p_start: '2026-04-01T00:00:00-03:00',
+      p_end: '2026-04-30T23:59:59.999-03:00',
+    });
+    expect(res.error).toBeNull();
+
+    const report = res.data as {
+      por_profissional: Array<{
+        professional_id: string; comissao: number; atendimentos: number;
+        role: string | null; pay_type: string; fixed_amount: number;
+      }>;
+    };
+    const linha = report.por_profissional.find((i) => i.professional_id === profId)!;
+    expect(linha).toBeDefined();
+    expect(Number(linha.atendimentos)).toBe(2);
+    // 10/04 cai na regra antiga (30) e 20/04 na nova (50) → 80.
+    // Se a mudança reescrevesse o passado, sairia 100. É ESTE o número que
+    // prova o critério que o Junior pediu.
+    expect(Number(linha.comissao)).toBeCloseTo(80, 2);
+    // O cadastro de funcionário viaja junto (cargo + como a pessoa ganha).
+    expect(linha.role).toBe('Dentista');
+    expect(linha.pay_type).toBe('both');
+    expect(Number(linha.fixed_amount)).toBe(1000);
 
     await client.auth.signOut();
   });
