@@ -41,7 +41,7 @@ async function getCurrentOrganizationId(): Promise<string | null> {
 }
 
 const COLUMNS =
-  'id, organization_id, professional_id, specialty, percent, owner_id, created_at, updated_at';
+  'id, organization_id, professional_id, specialty, procedimento, amount_type, amount, valid_from, percent, owner_id, created_at, updated_at';
 
 type DbCommissionRule = {
   id: string;
@@ -49,6 +49,10 @@ type DbCommissionRule = {
   professional_id: string | null;
   specialty: string | null;
   percent: number;
+  procedimento?: string | null;
+  amount_type?: string | null;
+  amount?: number | string | null;
+  valid_from?: string | null;
   owner_id: string | null;
   created_at: string;
   updated_at: string;
@@ -61,6 +65,10 @@ function transformCommissionRule(db: DbCommissionRule): CommissionRule {
     professionalId: db.professional_id || undefined,
     specialty: db.specialty || undefined,
     percent: Number(db.percent ?? 0),
+    procedimento: db.procedimento || undefined,
+    amountType: (db.amount_type as 'percent' | 'fixed') || 'percent',
+    amount: Number(db.amount ?? db.percent ?? 0),
+    validFrom: db.valid_from || '1900-01-01',
   };
 }
 
@@ -92,7 +100,13 @@ export const commissionRulesService = {
   async create(input: {
     professionalId?: string;
     specialty?: string;
-    percent: number;
+    procedimento?: string;
+    amountType?: 'percent' | 'fixed';
+    amount?: number;
+    /** @deprecated use `amount` com amountType='percent'. Mantido pra compat. */
+    percent?: number;
+    /** Dia em que passa a valer. Padrão: HOJE (decisão do Junior, 24/07). */
+    validFrom?: string;
     organizationId?: string | null;
   }): Promise<{ data: CommissionRule | null; error: Error | null }> {
     try {
@@ -106,7 +120,15 @@ export const commissionRulesService = {
         .insert({
           professional_id: sanitizeUUID(input.professionalId),
           specialty: input.specialty || null,
-          percent: input.percent,
+          procedimento: input.procedimento || null,
+          amount_type: input.amountType || 'percent',
+          amount: input.amount ?? input.percent ?? 0,
+          // Sem data escolhida = passa a valer HOJE. Não existe data de fim: o
+          // valor vale até que outra alteração o substitua.
+          valid_from: input.validFrom || new Date().toISOString().slice(0, 10),
+          percent: (input.amountType || 'percent') === 'percent'
+            ? (input.amount ?? input.percent ?? 0)
+            : 0,
           owner_id: sanitizeUUID(user?.id),
           organization_id: organizationId,
         })

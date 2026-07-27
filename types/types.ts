@@ -361,11 +361,26 @@ export interface PaymentMethodFee {
 }
 
 /** Regra de comissão por dentista × especialidade (config financeira — só clinic_admin). */
+/** Comissão em percentual sobre a base, ou em valor fixo por atendimento. */
+export type CommissionAmountType = 'percent' | 'fixed';
+
 export interface CommissionRule {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   professionalId?: string;
   specialty?: string;
+  /** Escopo mais específico: casa com o procedimento do atendimento. */
+  procedimento?: string;
+  amountType: CommissionAmountType;
+  /** % quando amountType='percent'; R$ por atendimento quando 'fixed'. */
+  amount: number;
+  /**
+   * Dia em que este valor passou a valer. Uma alteração NUNCA edita a regra
+   * anterior — cria outra com a data de hoje. Cada atendimento é calculado
+   * pela regra vigente NO DIA DELE, então mudar hoje não mexe no passado.
+   */
+  validFrom: string;
+  /** Espelho legado de `amount` quando amountType='percent'. */
   percent: number;
 }
 

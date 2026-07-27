@@ -12,7 +12,7 @@ import { queryKeys } from '../queryKeys';
 import { commissionRulesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
-import type { CommissionRule } from '@/types';
+import type { CommissionAmountType, CommissionRule } from '@/types';
 
 // ============ QUERY HOOKS ============
 
@@ -41,7 +41,12 @@ export const useCommissionRules = () => {
 interface CreateCommissionRuleParams {
   professionalId?: string;
   specialty?: string;
-  percent: number;
+  /** Escopo mais específico: casa com o procedimento do atendimento. */
+  procedimento?: string;
+  amountType?: CommissionAmountType;
+  amount?: number;
+  /** @deprecated use `amount` com amountType='percent'. */
+  percent?: number;
 }
 
 /**
@@ -66,12 +71,18 @@ export const useCreateCommissionRule = () => {
       const listKey = [...queryKeys.commissionRules.lists(), organizationId];
       const previous = queryClient.getQueryData<CommissionRule[]>(listKey);
 
+      const valor = input.amount ?? input.percent ?? 0;
+      const tipo: CommissionAmountType = input.amountType ?? 'percent';
       const temp: CommissionRule = {
         id: `temp-${Date.now()}`,
         organizationId: organizationId || undefined,
         professionalId: input.professionalId,
         specialty: input.specialty,
-        percent: input.percent,
+        procedimento: input.procedimento,
+        amountType: tipo,
+        amount: valor,
+        validFrom: new Date().toISOString().slice(0, 10),
+        percent: tipo === 'percent' ? valor : 0,
       };
 
       queryClient.setQueryData<CommissionRule[]>(listKey, (old = []) => [temp, ...old]);

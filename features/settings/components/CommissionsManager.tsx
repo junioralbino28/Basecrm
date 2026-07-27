@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Percent, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
-import type { CommissionRule } from '@/types';
+import type { CommissionAmountType, CommissionRule } from '@/types';
+import { formatBRL } from '@/lib/utils';
 import {
   useCommissionRules,
   useCreateCommissionRule,
@@ -32,6 +33,8 @@ export const CommissionsManager: React.FC = () => {
   const [professionalId, setProfessionalId] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [percent, setPercent] = useState<string>('0');
+  const [procedimento, setProcedimento] = useState('');
+  const [amountType, setAmountType] = useState<CommissionAmountType>('percent');
 
   const canCreate = professionalId.trim().length > 0;
 
@@ -56,7 +59,9 @@ export const CommissionsManager: React.FC = () => {
     const parsed = commissionRuleFormSchema.safeParse({
       professionalId,
       specialty: specialty.trim(),
-      percent,
+      // O schema valida 0–100; em valor fixo o teto não se aplica, então
+      // validamos só o formato aqui e o valor vai direto.
+      percent: amountType === 'percent' ? percent : '0',
     });
     if (!parsed.success) {
       showToast(parsed.error.issues[0]?.message || 'Dados da comissão inválidos', 'error');
@@ -67,11 +72,15 @@ export const CommissionsManager: React.FC = () => {
       await createMutation.mutateAsync({
         professionalId: parsed.data.professionalId,
         specialty: parsed.data.specialty || undefined,
-        percent: parsed.data.percent,
+        procedimento: procedimento.trim() || undefined,
+        amountType,
+        amount: Number(percent.replace(',', '.')) || 0,
       });
       setProfessionalId('');
       setSpecialty('');
       setPercent('0');
+      setProcedimento('');
+      setAmountType('percent');
     } catch (e) {
       showToast(`Erro ao criar regra de comissão: ${(e as Error).message}`, 'error');
     }
@@ -79,7 +88,7 @@ export const CommissionsManager: React.FC = () => {
 
   const startEdit = (r: CommissionRule) => {
     setEditingId(r.id);
-    setEditPercent(String(r.percent ?? 0));
+    setEditPercent(String(r.amount ?? r.percent ?? 0));
   };
 
   const cancelEdit = () => {
@@ -89,17 +98,32 @@ export const CommissionsManager: React.FC = () => {
 
   const saveEdit = async () => {
     if (!editingId) return;
-    const parsed = percentSchema.safeParse(editPercent);
-    if (!parsed.success) {
-      showToast(parsed.error.issues[0]?.message || 'Percentual inválido', 'error');
+    const base = rules.find((r) => r.id === editingId);
+    if (!base) return;
+    const novoValor = Number(editPercent.replace(',', '.'));
+    if (!Number.isFinite(novoValor) || novoValor < 0) {
+      showToast('Valor inválido.', 'error');
+      return;
+    }
+    if (base.amountType === 'percent' && novoValor > 100) {
+      showToast('Percentual não pode passar de 100.', 'error');
       return;
     }
     try {
-      // Edição parcial: SÓ percent — profissional/especialidade ficam intocados.
-      await updateMutation.mutateAsync({ id: editingId, updates: { percent: parsed.data } });
+      // ⚠️ NÃO edita a regra anterior — CRIA outra com a data de HOJE.
+      // É isso que faz o passado continuar valendo o que já foi pago
+      // (decisão do Junior, 24/07). Sem data de fim: vale até a próxima.
+      await createMutation.mutateAsync({
+        professionalId: base.professionalId,
+        specialty: base.specialty || undefined,
+        procedimento: base.procedimento || undefined,
+        amountType: base.amountType,
+        amount: novoValor,
+      });
+      showToast('Novo valor vale de hoje em diante. O que já passou não muda.', 'success');
       cancelEdit();
     } catch (e) {
-      showToast(`Erro ao atualizar comissão: ${(e as Error).message}`, 'error');
+      showToast(`Erro ao alterar comissão: ${(e as Error).message}`, 'error');
     }
   };
 
@@ -130,7 +154,9 @@ export const CommissionsManager: React.FC = () => {
               <Percent className="h-5 w-5" /> Comissões
             </h3>
             <p className="text-sm text-muted">
-              Percentual de comissão por profissional e especialidade. Usado no relatório de comissões.
+              Quanto cada pessoa ganha por atendimento — em porcentagem ou em valor fixo.
+              Ao alterar, o novo valor passa a valer <strong>de hoje em diante</strong>;
+              o que já passou continua como foi pago.
             </p>
           </div>
         </div>
@@ -166,8 +192,33 @@ export const CommissionsManager: React.FC = () => {
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
             />
           </div>
+          <div className="lg:col-span-5">
+            <label className="block text-xs font-semibold text-muted mb-1">
+              Só para um procedimento (opcional)
+            </label>
+            <input
+              value={procedimento}
+              onChange={(e) => setProcedimento(e.target.value)}
+              placeholder="Deixe vazio para valer em todos"
+              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <label className="block text-xs font-semibold text-muted mb-1">Tipo</label>
+            <select
+              aria-label="Tipo da comissão"
+              value={amountType}
+              onChange={(e) => setAmountType(e.target.value as CommissionAmountType)}
+              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            >
+              <option value="percent">Porcentagem (%)</option>
+              <option value="fixed">Valor fixo (R$)</option>
+            </select>
+          </div>
           <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-muted mb-1">Comissão (%)</label>
+            <label className="block text-xs font-semibold text-muted mb-1">
+              {amountType === 'fixed' ? 'Valor (R$)' : 'Comissão (%)'}
+            </label>
             <input
               value={percent}
               onChange={(e) => setPercent(e.target.value)}
@@ -210,7 +261,20 @@ export const CommissionsManager: React.FC = () => {
                         {professionalName(r.professionalId)}
                       </div>
                       <div className="text-xs text-muted mt-0.5 truncate">
-                        {r.specialty ? `${r.specialty} • ` : ''}{isEditing ? '' : `${r.percent}%`}
+                        {r.procedimento ? `${r.procedimento} • ` : ''}
+                        {r.specialty ? `${r.specialty} • ` : ''}
+                        {isEditing ? '' : (
+                          <span className="font-semibold text-ink">
+                            {r.amountType === 'fixed'
+                              ? `${formatBRL(r.amount)} por atendimento`
+                              : `${r.amount}%`}
+                          </span>
+                        )}
+                        {!isEditing && r.validFrom && r.validFrom > '1900-01-01' && (
+                          <span className="ml-2">
+                            vale desde {new Date(`${r.validFrom}T12:00:00`).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -220,7 +284,7 @@ export const CommissionsManager: React.FC = () => {
                             value={editPercent}
                             onChange={(e) => setEditPercent(e.target.value)}
                             inputMode="decimal"
-                            aria-label="Editar comissão (%)"
+                            aria-label="Novo valor da comissão"
                             className="w-20 px-2 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                           />
                           <button
