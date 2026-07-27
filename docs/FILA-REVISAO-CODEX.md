@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **956/956**
+Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **961/961**
 
 ---
 
@@ -160,7 +160,7 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 11. Cargo e especialidade agora são `<select>` dos catálogos — sobrou algum ponto de **texto livre** que volte a permitir "Ortodontia" × "ortodontia"?
 
 **Encosta em motor?** **Sim.** Nenhuma fatia nova se apoia neste pacote até o parecer.
-**Prova:** `test:local` = **956/956** (205 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
+**Prova:** `test:local` = **961/961** (206 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
 **Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts` conta leads da tabela morta `leads` (local: `leads = 0`, `contacts = 95`) — mostraria "Leads: 0" pra sempre. Documentado, ainda não corrigido.
 **Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
 
