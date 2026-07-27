@@ -53,14 +53,38 @@ type DbProfessional = {
   owner_id: string | null;
   created_at: string;
   updated_at: string;
+  professional_specialties?: Array<{
+    specialty_id: string;
+    // O PostgREST devolve OBJETO no vínculo um-para-um, mas o tipo gerado diz
+    // array. Aceitamos as duas formas e normalizamos — o dado real manda.
+    specialties: { name: string } | Array<{ name: string }> | null;
+  }> | null;
 };
 
+function nomeDaEspecialidade(v: { name: string } | Array<{ name: string }> | null): string {
+  if (!v) return '';
+  return Array.isArray(v) ? (v[0]?.name || '') : v.name;
+}
+
+// Uma pessoa faz vários procedimentos, então tem várias especialidades (Junior,
+// 2026-07-27). A coluna `specialty` virou espelho legado de UMA delas — a lista
+// de verdade vem da tabela de ligação, nunca de uma string com vírgulas (foi
+// assim que o catálogo nasceu sujo).
+const SELECT_COLUMNS =
+  'id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at, professional_specialties(specialty_id, specialties(name))';
+
 function transformProfessional(db: DbProfessional): Professional {
+  const vinculos = (db.professional_specialties || [])
+    .map((v) => ({ id: v.specialty_id, name: nomeDaEspecialidade(v.specialties) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     id: db.id,
     organizationId: db.organization_id || undefined,
     name: db.name,
     specialty: db.specialty || undefined,
+    specialtyIds: vinculos.map((v) => v.id),
+    specialtyNames: vinculos.map((v) => v.name).filter(Boolean),
     role: db.role || undefined,
     payType: (db.pay_type as Professional['payType']) || 'commission',
     fixedAmount: Number(db.fixed_amount ?? 0),
@@ -72,6 +96,53 @@ function transformProfessional(db: DbProfessional): Professional {
   };
 }
 
+/**
+ * Deixa as ligações da pessoa iguais à lista escolhida na tela e devolve o
+ * ESPELHO LEGADO (`professionals.specialty`) — a primeira especialidade em ordem
+ * alfabética, ou `null` se não houver nenhuma.
+ *
+ * O espelho existe pela lição de `commission_rules.amount` (24/07): coluna nova
+ * sem par legado deixa quem ainda lê a antiga vendo dado errado em silêncio.
+ */
+async function syncSpecialties(
+  professionalId: string,
+  organizationId: string | null,
+  specialtyIds: string[],
+): Promise<{ mirror: string | null; error: Error | null }> {
+  if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
+
+  const ids = [...new Set(specialtyIds.map((id) => sanitizeUUID(id)).filter(Boolean))] as string[];
+
+  const { error: delError } = await supabase
+    .from('professional_specialties')
+    .delete()
+    .eq('professional_id', sanitizeUUID(professionalId));
+  if (delError) return { mirror: null, error: delError };
+
+  if (ids.length === 0) return { mirror: null, error: null };
+
+  const { data: nomes, error: nomesError } = await supabase
+    .from('specialties')
+    .select('id, name')
+    .in('id', ids);
+  if (nomesError) return { mirror: null, error: nomesError };
+
+  const { error: insError } = await supabase
+    .from('professional_specialties')
+    .insert(ids.map((specialty_id) => ({
+      professional_id: sanitizeUUID(professionalId),
+      specialty_id,
+      organization_id: organizationId,
+    })));
+  if (insError) return { mirror: null, error: insError };
+
+  const mirror = (nomes || [])
+    .map((n) => String((n as { name: string }).name))
+    .sort((a, b) => a.localeCompare(b))[0] || null;
+
+  return { mirror, error: null };
+}
+
 export const professionalsService = {
   async getAll(organizationId?: string | null): Promise<{ data: Professional[]; error: Error | null }> {
     try {
@@ -79,7 +150,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
+        .select(SELECT_COLUMNS)
         .order('created_at', { ascending: false });
 
       if (organizationId) {
@@ -103,7 +174,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
+        .select(SELECT_COLUMNS)
         .eq('active', true)
         .order('created_at', { ascending: false });
 
@@ -125,6 +196,7 @@ export const professionalsService = {
   async create(input: {
     name: string;
     specialty?: string;
+    specialtyIds?: string[];
     role?: string;
     payType?: 'fixed' | 'commission' | 'both';
     fixedAmount?: number;
@@ -149,11 +221,31 @@ export const professionalsService = {
           owner_id: sanitizeUUID(user?.id),
           organization_id: organizationId,
         })
-        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
+        .select(SELECT_COLUMNS)
         .single();
 
       if (error) return { data: null, error };
-      return { data: transformProfessional(data as DbProfessional), error: null };
+
+      const criado = transformProfessional(data as DbProfessional);
+
+      if (input.specialtyIds && input.specialtyIds.length > 0) {
+        const { mirror, error: syncError } = await syncSpecialties(
+          criado.id,
+          organizationId,
+          input.specialtyIds,
+        );
+        // A pessoa já foi criada: não desfaz o cadastro por causa das
+        // especialidades — devolve o erro pra tela avisar e ele reeditar.
+        if (syncError) return { data: criado, error: syncError };
+        if (mirror) {
+          await supabase.from('professionals').update({ specialty: mirror }).eq('id', criado.id);
+        }
+        const { data: recarregado } = await supabase
+          .from('professionals').select(SELECT_COLUMNS).eq('id', criado.id).single();
+        if (recarregado) return { data: transformProfessional(recarregado as DbProfessional), error: null };
+      }
+
+      return { data: criado, error: null };
     } catch (e) {
       return { data: null, error: e as Error };
     }
@@ -162,6 +254,7 @@ export const professionalsService = {
   async update(id: string, updates: Partial<{
     name: string;
     specialty?: string;
+    specialtyIds: string[];
     role?: string;
     payType: 'fixed' | 'commission' | 'both';
     fixedAmount: number;
@@ -178,6 +271,19 @@ export const professionalsService = {
       if (updates.fixedAmount !== undefined) payload.fixed_amount = updates.fixedAmount;
       if (updates.active !== undefined) payload.active = updates.active;
       payload.updated_at = new Date().toISOString();
+
+      // As especialidades vêm antes: o espelho legado sai delas.
+      if (updates.specialtyIds !== undefined) {
+        const { data: atual } = await supabase
+          .from('professionals').select('organization_id').eq('id', sanitizeUUID(id)).single();
+        const { mirror, error: syncError } = await syncSpecialties(
+          id,
+          (atual as { organization_id: string | null } | null)?.organization_id ?? null,
+          updates.specialtyIds,
+        );
+        if (syncError) return { error: syncError };
+        payload.specialty = mirror;
+      }
 
       const { error } = await supabase
         .from('professionals')

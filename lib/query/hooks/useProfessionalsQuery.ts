@@ -40,7 +40,10 @@ export const useProfessionals = () => {
 
 interface CreateProfessionalParams {
   name: string;
+  /** Espelho legado — preenchido a partir de `specialtyIds` pelo serviço. */
   specialty?: string;
+  /** Especialidades da pessoa (ids do catálogo). Uma pessoa faz vários procedimentos. */
+  specialtyIds?: string[];
   /** Cargo — agrupa a listagem do admin. */
   role?: string;
   /** fixo | comissionado | os dois. */
@@ -77,6 +80,7 @@ export const useCreateProfessional = () => {
         organizationId: organizationId || undefined,
         name: input.name,
         specialty: input.specialty,
+        specialtyIds: input.specialtyIds,
         role: input.role,
         payType: input.payType ?? 'commission',
         fixedAmount: input.fixedAmount ?? 0,
@@ -114,7 +118,7 @@ export const useUpdateProfessional = () => {
   const organizationId = tenant?.organizationId || null;
 
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<{ name: string; specialty?: string; role?: string; payType: ProfessionalPayType; fixedAmount: number; active: boolean }> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<{ name: string; specialty?: string; specialtyIds: string[]; role?: string; payType: ProfessionalPayType; fixedAmount: number; active: boolean }> }) => {
       const { error } = await professionalsService.update(id, updates);
       if (error) throw error;
       return { id, updates };

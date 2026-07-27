@@ -11,6 +11,53 @@ import {
 } from '@/lib/query/hooks/useProfessionalsQuery';
 
 /**
+ * Escolha de VÁRIAS especialidades (Junior, 2026-07-27: "pode colocar mais de uma
+ * especialidade por funcionário, pois ele pode fazer vários procedimentos").
+ *
+ * Deliberadamente em pastilhas de ligar/desligar, não em `<select multiple>`: o
+ * select múltiplo exige segurar Ctrl pra marcar mais de um — ninguém que não é
+ * técnico descobre isso sozinho.
+ */
+const SeletorEspecialidades: React.FC<{
+  opcoes: TeamCatalogItem[];
+  selecionadas: string[];
+  onChange: (ids: string[]) => void;
+  idPrefixo: string;
+}> = ({ opcoes, selecionadas, onChange, idPrefixo }) => {
+  if (opcoes.length === 0) {
+    return (
+      <p className="text-xs text-muted">
+        Nenhuma especialidade cadastrada. Cadastre na aba Especialidades.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {opcoes.map((o) => {
+        const marcada = selecionadas.includes(o.id);
+        return (
+          <button
+            key={`${idPrefixo}-${o.id}`}
+            type="button"
+            aria-pressed={marcada}
+            onClick={() => onChange(
+              marcada ? selecionadas.filter((id) => id !== o.id) : [...selecionadas, o.id],
+            )}
+            className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+              marcada
+                ? 'border-brand-500 bg-brand-600/15 text-brand-600 dark:text-brand-400'
+                : 'border-line bg-card text-muted hover:bg-surface'
+            }`}
+          >
+            {o.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
  * Componente React `ProfessionalsManager`.
  * Gestão de profissionais (dentistas). Só clinic_admin/agency_admin enxerga esta tela
  * (gate canManageSettings no SettingsPage); a RLS bloqueia mutação de clinic_staff.
@@ -26,7 +73,7 @@ export const ProfessionalsManager: React.FC = () => {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [specialty, setSpecialty] = useState('');
+  const [specialtyIds, setSpecialtyIds] = useState<string[]>([]);
   const [role, setRole] = useState('');
   const [payType, setPayType] = useState<ProfessionalPayType>('commission');
   const [fixedAmount, setFixedAmount] = useState('0');
@@ -35,7 +82,7 @@ export const ProfessionalsManager: React.FC = () => {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editSpecialty, setEditSpecialty] = useState('');
+  const [editSpecialtyIds, setEditSpecialtyIds] = useState<string[]>([]);
   const [editRole, setEditRole] = useState('');
   const [editPayType, setEditPayType] = useState<ProfessionalPayType>('commission');
   const [editFixedAmount, setEditFixedAmount] = useState('0');
@@ -83,14 +130,14 @@ export const ProfessionalsManager: React.FC = () => {
     try {
       await createMutation.mutateAsync({
         name: name.trim(),
-        specialty: specialty.trim() || undefined,
+        specialtyIds,
         role: role.trim() || undefined,
         payType,
         fixedAmount: Number(fixedAmount.replace(',', '.')) || 0,
         active: true,
       });
       setName('');
-      setSpecialty('');
+      setSpecialtyIds([]);
       setRole('');
       setPayType('commission');
       setFixedAmount('0');
@@ -111,7 +158,7 @@ export const ProfessionalsManager: React.FC = () => {
   const startEdit = (p: Professional) => {
     setEditingId(p.id);
     setEditName(p.name || '');
-    setEditSpecialty(p.specialty || '');
+    setEditSpecialtyIds(p.specialtyIds ?? []);
     setEditRole(p.role || '');
     setEditPayType(p.payType || 'commission');
     setEditFixedAmount(String(p.fixedAmount ?? 0));
@@ -120,7 +167,7 @@ export const ProfessionalsManager: React.FC = () => {
   const cancelEdit = () => {
     setEditingId(null);
     setEditName('');
-    setEditSpecialty('');
+    setEditSpecialtyIds([]);
     setEditRole('');
     setEditPayType('commission');
     setEditFixedAmount('0');
@@ -139,7 +186,7 @@ export const ProfessionalsManager: React.FC = () => {
         id: editingId,
         updates: {
           name: nextName,
-          specialty: editSpecialty.trim() || undefined,
+          specialtyIds: editSpecialtyIds,
           role: editRole.trim() || undefined,
           payType: editPayType,
           fixedAmount: Number(editFixedAmount.replace(',', '.')) || 0,
@@ -210,18 +257,15 @@ export const ProfessionalsManager: React.FC = () => {
             </select>
           </div>
           <div className="lg:col-span-3">
-            <label htmlFor="nova-especialidade" className="block text-xs font-semibold text-muted mb-1">
-              Especialidade (opcional)
-            </label>
-            <select
-              id="nova-especialidade"
-              value={specialty}
-              onChange={(e) => setSpecialty(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            >
-              <option value="">Sem especialidade</option>
-              {especialidades.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
+            <span className="block text-xs font-semibold text-muted mb-1">
+              Especialidades (pode marcar várias)
+            </span>
+            <SeletorEspecialidades
+              opcoes={especialidades}
+              selecionadas={specialtyIds}
+              onChange={setSpecialtyIds}
+              idPrefixo="nova"
+            />
           </div>
           <div className="lg:col-span-2">
             <button
@@ -299,19 +343,15 @@ export const ProfessionalsManager: React.FC = () => {
                             />
                           </div>
                           <div className="sm:col-span-6">
-                            <label className="block text-[11px] font-semibold text-muted mb-1">Especialidade</label>
-                            <select
-                              aria-label="Especialidade"
-                              value={editSpecialty}
-                              onChange={(e) => setEditSpecialty(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                            >
-                              <option value="">Sem especialidade</option>
-                              {especialidades.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                              {editSpecialty && !especialidades.some((c) => c.name === editSpecialty) && (
-                                <option value={editSpecialty}>{editSpecialty} (fora da lista)</option>
-                              )}
-                            </select>
+                            <span className="block text-[11px] font-semibold text-muted mb-1">
+                              Especialidades (pode marcar várias)
+                            </span>
+                            <SeletorEspecialidades
+                              opcoes={especialidades}
+                              selecionadas={editSpecialtyIds}
+                              onChange={setEditSpecialtyIds}
+                              idPrefixo={`edit-${p.id}`}
+                            />
                           </div>
                           <div className="sm:col-span-4">
                             <label className="block text-[11px] font-semibold text-muted mb-1">Cargo</label>
@@ -374,7 +414,9 @@ export const ProfessionalsManager: React.FC = () => {
                                 {formatBRL(Number(p.fixedAmount))}/mês
                               </span>
                             )}
-                            {p.specialty ? p.specialty : 'Sem especialidade'}
+                            {p.specialtyNames && p.specialtyNames.length > 0
+                              ? p.specialtyNames.join(' · ')
+                              : (p.specialty || 'Sem especialidade')}
                           </div>
                         </>
                       )}

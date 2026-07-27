@@ -13,6 +13,12 @@ type Props = {
   /** Rótulo no singular, usado nos textos ("Nova especialidade"). */
   singular: string;
   placeholder: string;
+  /**
+   * O que acontece com quem já está marcado, dito em linguagem de leigo.
+   * Muda por catálogo: cargo é texto na ficha da pessoa e sobrevive; especialidade
+   * é ligação e some da ficha junto (ON DELETE CASCADE).
+   */
+  avisoExclusao?: string;
 };
 
 /**
@@ -24,7 +30,7 @@ type Props = {
  * (apontado pelo Junior, 2026-07-24).
  */
 export const TeamCatalogManager: React.FC<Props> = ({
-  kind, titulo, descricao, singular, placeholder,
+  kind, titulo, descricao, singular, placeholder, avisoExclusao,
 }) => {
   const [itens, setItens] = React.useState<TeamCatalogItem[]>([]);
   const [carregando, setCarregando] = React.useState(true);
@@ -71,8 +77,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
 
   const remover = async (item: TeamCatalogItem) => {
     const ok = window.confirm(
-      `Excluir "${item.name}"? Quem já está cadastrado com isso mantém o registro, `
-      + 'mas o nome deixa de aparecer na lista.',
+      `Excluir "${item.name}"? ${avisoExclusao
+        || 'Quem já está cadastrado com isso mantém o registro, mas o nome deixa de aparecer na lista.'}`,
     );
     if (!ok) return;
     setOcupado(true);

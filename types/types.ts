@@ -288,7 +288,15 @@ export interface Professional {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   name: string;
+  /**
+   * ESPELHO LEGADO — uma das especialidades. Continua preenchida pra não quebrar
+   * quem ainda lê este campo. A verdade completa está em `specialtyIds`/`specialtyNames`.
+   */
   specialty?: string;
+  /** Especialidades da pessoa (ids do catálogo). Uma pessoa faz vários procedimentos. */
+  specialtyIds?: string[];
+  /** Nomes das especialidades, na ordem alfabética — só pra exibição. */
+  specialtyNames?: string[];
   /** Cargo (dentista, secretária, comercial…). Agrupa a listagem do admin. */
   role?: string;
   /** fixo | comissionado | os dois. */
