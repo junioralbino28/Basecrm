@@ -1,34 +1,39 @@
 import React, { useMemo, useState } from 'react';
-import { Percent, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { Percent, Save, Trash2, X } from 'lucide-react';
 import type { CommissionAmountType, CommissionRule } from '@/types';
 import { formatBRL } from '@/lib/utils';
 import {
   useCommissionRules,
   useCreateCommissionRule,
-  useUpdateCommissionRule,
   useDeleteCommissionRule,
 } from '@/lib/query/hooks/useCommissionRulesQuery';
 import { useProfessionals } from '@/lib/query/hooks/useProfessionalsQuery';
 import { useProducts } from '@/lib/query/hooks/useProductsQuery';
-import { commissionRuleFormSchema, percentSchema } from '@/lib/validations/schemas';
 import { useToast } from '@/context/ToastContext';
 
 /**
- * Componente React `CommissionsManager`.
- * Regras de comissão por dentista × especialidade (config financeira). Só
+ * Comissão por funcionário × procedimento (config financeira). Só
  * clinic_admin/agency_admin enxerga (gate canManageSettings); a RLS
  * can_configure bloqueia SELECT e mutação de clinic_staff.
- * @returns {Element} Retorna um valor do tipo `Element`.
+ *
+ * FORMATO (redesenho 2026-07-24): **mestre-detalhe**. Escolhe-se a pessoa e
+ * aparece a TABELA de procedimentos dela — procedimento, valor e comissão numa
+ * linha só. Antes era lista plana em que cada regra repetia o nome do
+ * profissional (89 cartões "Ana Clara Ofrante"), ilegível.
+ *
+ * Referência: o próprio Clinicorp (PMS que a clínica usa) organiza
+ * `tabela de preços → especialidade → procedimento`, nunca lista plana —
+ * verificado ao vivo em `GET /procedures/list` (3 tabelas: 65/294/4 itens,
+ * agrupados em Cirurgia, Prótese, Ortodontia, Endodontia…).
  */
 export const CommissionsManager: React.FC = () => {
   const { data, isLoading, error } = useCommissionRules();
   const { data: professionalsData, isLoading: professionalsLoading } = useProfessionals();
   // A comissão é POR PROCEDIMENTO (Junior, 24/07) — a lista vem do catálogo em
-  // Configurações → Produtos/Serviços, nunca digitada à mão (evita erro de grafia
-  // que faria a regra nunca casar com o atendimento).
+  // Configurações → Produtos/Serviços, nunca digitada à mão (erro de grafia
+  // faria a regra nunca casar com o atendimento).
   const { data: productsData } = useProducts();
   const createMutation = useCreateCommissionRule();
-  const updateMutation = useUpdateCommissionRule();
   const deleteMutation = useDeleteCommissionRule();
   const { showToast } = useToast();
 
@@ -36,135 +41,119 @@ export const CommissionsManager: React.FC = () => {
   const professionals = useMemo(() => professionalsData ?? [], [professionalsData]);
   const products = useMemo(() => productsData ?? [], [productsData]);
 
-  const [professionalId, setProfessionalId] = useState('');
-  const [specialty, setSpecialty] = useState('');
-  const [percent, setPercent] = useState<string>('0');
-  const [procedimento, setProcedimento] = useState('');
-  const [amountType, setAmountType] = useState<CommissionAmountType>('percent');
+  const [selectedId, setSelectedId] = useState('');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editType, setEditType] = useState<CommissionAmountType>('fixed');
+  const [editValue, setEditValue] = useState('0');
 
-  const canCreate = professionalId.trim().length > 0;
+  const selected = professionals.find((p) => p.id === selectedId) || null;
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editPercent, setEditPercent] = useState<string>('0');
+  /** Regra vigente = a de `validFrom` mais recente para aquele escopo. */
+  const maisRecente = (lista: CommissionRule[]): CommissionRule | null =>
+    lista.length
+      ? [...lista].sort((a, b) => (b.validFrom || '').localeCompare(a.validFrom || ''))[0]
+      : null;
 
-  const professionalName = (id?: string) =>
-    professionals.find((p) => p.id === id)?.name ?? 'Profissional';
+  const regraGeral = useMemo(
+    () => (selectedId
+      ? maisRecente(rules.filter(
+          (r) => r.professionalId === selectedId && !r.procedimento,
+        ))
+      : null),
+    [rules, selectedId],
+  );
 
-  const sorted = useMemo(() => {
-    const list = [...rules];
-    list.sort((a, b) =>
-      professionalName(a.professionalId).localeCompare(professionalName(b.professionalId))
-    );
-    return list;
-  }, [rules, professionals]);
+  /** Uma linha por procedimento do catálogo + a comissão vigente dele. */
+  const linhas = useMemo(() => {
+    if (!selectedId) return [];
+    return [...products]
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map((prod) => ({
+        prod,
+        regra: maisRecente(rules.filter(
+          (r) => r.professionalId === selectedId && r.procedimento === prod.name,
+        )),
+      }));
+  }, [products, rules, selectedId]);
 
-  const create = async () => {
-    if (!canCreate) return;
-
-    // Valida (e coage percent) com o schema ANTES de montar o payload.
-    const parsed = commissionRuleFormSchema.safeParse({
-      professionalId,
-      specialty: specialty.trim(),
-      // O schema valida 0–100; em valor fixo o teto não se aplica, então
-      // validamos só o formato aqui e o valor vai direto.
-      percent: amountType === 'percent' ? percent : '0',
-    });
-    if (!parsed.success) {
-      showToast(parsed.error.issues[0]?.message || 'Dados da comissão inválidos', 'error');
-      return;
+  const contagemPorPessoa = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of rules) {
+      if (!r.professionalId) continue;
+      map.set(r.professionalId, (map.get(r.professionalId) ?? 0) + 1);
     }
+    return map;
+  }, [rules]);
 
-    try {
-      await createMutation.mutateAsync({
-        professionalId: parsed.data.professionalId,
-        specialty: parsed.data.specialty || undefined,
-        procedimento: procedimento.trim() || undefined,
-        amountType,
-        amount: Number(percent.replace(',', '.')) || 0,
-      });
-      setProfessionalId('');
-      setSpecialty('');
-      setPercent('0');
-      setProcedimento('');
-      setAmountType('percent');
-    } catch (e) {
-      showToast(`Erro ao criar regra de comissão: ${(e as Error).message}`, 'error');
-    }
-  };
-
-  const startEdit = (r: CommissionRule) => {
-    setEditingId(r.id);
-    setEditPercent(String(r.amount ?? r.percent ?? 0));
+  const startEdit = (key: string, regra: CommissionRule | null) => {
+    setEditingKey(key);
+    setEditType(regra?.amountType ?? 'fixed');
+    setEditValue(String(regra?.amount ?? 0));
   };
 
   const cancelEdit = () => {
-    setEditingId(null);
-    setEditPercent('0');
+    setEditingKey(null);
+    setEditValue('0');
   };
 
-  const saveEdit = async () => {
-    if (!editingId) return;
-    const base = rules.find((r) => r.id === editingId);
-    if (!base) return;
-    const novoValor = Number(editPercent.replace(',', '.'));
-    if (!Number.isFinite(novoValor) || novoValor < 0) {
+  const salvar = async (procedimento: string | null) => {
+    const valor = Number(editValue.replace(',', '.'));
+    if (!Number.isFinite(valor) || valor < 0) {
       showToast('Valor inválido.', 'error');
       return;
     }
-    if (base.amountType === 'percent' && novoValor > 100) {
+    if (editType === 'percent' && valor > 100) {
       showToast('Percentual não pode passar de 100.', 'error');
       return;
     }
     try {
-      // ⚠️ NÃO edita a regra anterior — CRIA outra com a data de HOJE.
-      // É isso que faz o passado continuar valendo o que já foi pago
-      // (decisão do Junior, 24/07). Sem data de fim: vale até a próxima.
+      // ⚠️ NUNCA edita a regra anterior — CRIA outra valendo de HOJE. É isso que
+      // faz o mês já pago continuar valendo o que valia (decisão do Junior).
       await createMutation.mutateAsync({
-        professionalId: base.professionalId,
-        specialty: base.specialty || undefined,
-        procedimento: base.procedimento || undefined,
-        amountType: base.amountType,
-        amount: novoValor,
+        professionalId: selectedId,
+        procedimento: procedimento || undefined,
+        amountType: editType,
+        amount: valor,
       });
-      showToast('Novo valor vale de hoje em diante. O que já passou não muda.', 'success');
+      showToast('Vale de hoje em diante. O que já passou não muda.', 'success');
       cancelEdit();
     } catch (e) {
-      showToast(`Erro ao alterar comissão: ${(e as Error).message}`, 'error');
+      showToast(`Erro ao salvar comissão: ${(e as Error).message}`, 'error');
     }
   };
 
-  const remove = async (r: CommissionRule) => {
-    const ok = window.confirm(`Excluir a regra de comissão de "${professionalName(r.professionalId)}"?`);
+  const remover = async (r: CommissionRule) => {
+    const ok = window.confirm(
+      'Apagar esta comissão? Use só para corrigir um valor lançado errado — '
+      + 'para mudar o valor daqui pra frente, basta salvar o novo.',
+    );
     if (!ok) return;
     try {
       await deleteMutation.mutateAsync(r.id);
     } catch (e) {
-      showToast(`Erro ao excluir regra de comissão: ${(e as Error).message}`, 'error');
+      showToast(`Erro ao apagar: ${(e as Error).message}`, 'error');
     }
   };
 
-  const busy =
-    isLoading ||
-    professionalsLoading ||
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    deleteMutation.isPending;
+  const busy = isLoading || professionalsLoading
+    || createMutation.isPending || deleteMutation.isPending;
   const loadError = error ? (error as Error).message : null;
+
+  const mostraValor = (r: CommissionRule) =>
+    r.amountType === 'fixed' ? formatBRL(r.amount) : `${r.amount}%`;
 
   return (
     <div className="mb-12">
       <div className="bg-card border border-line rounded-2xl p-6">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0">
-            <h3 className="text-lg font-semibold text-ink mb-1 flex items-center gap-2">
-              <Percent className="h-5 w-5" /> Comissões
-            </h3>
-            <p className="text-sm text-muted">
-              Quanto cada pessoa ganha por atendimento — em porcentagem ou em valor fixo.
-              Ao alterar, o novo valor passa a valer <strong>de hoje em diante</strong>;
-              o que já passou continua como foi pago.
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold text-ink mb-1 flex items-center gap-2">
+            <Percent className="h-5 w-5" /> Comissões
+          </h3>
+          <p className="text-sm text-muted">
+            Escolha a pessoa e defina quanto ela ganha em cada procedimento — em valor
+            ou em porcentagem. Ao salvar, o novo valor vale <strong>de hoje em diante</strong>;
+            o que já passou continua como foi pago.
+          </p>
         </div>
 
         {loadError && (
@@ -173,187 +162,212 @@ export const CommissionsManager: React.FC = () => {
           </div>
         )}
 
-        {/* Create */}
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-          <div className="lg:col-span-5">
-            <label className="block text-xs font-semibold text-muted mb-1">Profissional</label>
-            <select
-              aria-label="Profissional"
-              value={professionalId}
-              onChange={(e) => setProfessionalId(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            >
-              <option value="">Selecione…</option>
-              {professionals.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="lg:col-span-4">
-            <label className="block text-xs font-semibold text-muted mb-1">Especialidade (opcional)</label>
-            <input
-              value={specialty}
-              onChange={(e) => setSpecialty(e.target.value)}
-              placeholder="Ex.: Ortodontia"
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            />
-          </div>
-          <div className="lg:col-span-5">
-            <label className="block text-xs font-semibold text-muted mb-1">
-              Só para um procedimento (opcional)
-            </label>
-            <select
-              aria-label="Procedimento da comissão"
-              value={procedimento}
-              onChange={(e) => setProcedimento(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            >
-              <option value="">Vale para todos os procedimentos</option>
-              {products.map((prod) => (
-                <option key={prod.id} value={prod.name}>{prod.name}</option>
-              ))}
-            </select>
-            {products.length === 0 && (
-              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                Nenhum procedimento cadastrado ainda — cadastre em Produtos/Serviços.
-              </p>
-            )}
-          </div>
-          <div className="lg:col-span-3">
-            <label className="block text-xs font-semibold text-muted mb-1">Tipo</label>
-            <select
-              aria-label="Tipo da comissão"
-              value={amountType}
-              onChange={(e) => setAmountType(e.target.value as CommissionAmountType)}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            >
-              <option value="percent">Porcentagem (%)</option>
-              <option value="fixed">Valor fixo (R$)</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-muted mb-1">
-              {amountType === 'fixed' ? 'Valor (R$)' : 'Comissão (%)'}
-            </label>
-            <input
-              value={percent}
-              onChange={(e) => setPercent(e.target.value)}
-              inputMode="decimal"
-              aria-label="Comissão (%)"
-              className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            />
-          </div>
-          <div className="lg:col-span-1">
-            <button
-              type="button"
-              onClick={create}
-              disabled={busy || !canCreate}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Criar regra"
-            >
-              <Plus className="h-4 w-4" />
-              Criar
-            </button>
-          </div>
+        {/* Mestre: quem */}
+        <div className="mt-5 max-w-md">
+          <label htmlFor="comissao-pessoa" className="block text-xs font-semibold text-muted mb-1">
+            Pessoa
+          </label>
+          <select
+            id="comissao-pessoa"
+            value={selectedId}
+            onChange={(e) => { setSelectedId(e.target.value); cancelEdit(); }}
+            className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          >
+            <option value="">Selecione uma pessoa…</option>
+            {professionals.map((p) => {
+              const n = contagemPorPessoa.get(p.id) ?? 0;
+              return (
+                <option key={p.id} value={p.id}>
+                  {p.name}{p.role ? ` — ${p.role}` : ''}
+                  {n > 0 ? ` (${n} comissões)` : ' (sem comissão)'}
+                </option>
+              );
+            })}
+          </select>
         </div>
 
-        {/* List */}
-        <div className="mt-6 border-t border-line pt-4">
-          {sorted.length === 0 ? (
-            <div className="text-sm text-muted py-6">
-              Nenhuma regra de comissão cadastrada ainda.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {sorted.map((r) => {
-                const isEditing = editingId === r.id;
-                return (
-                  <div
-                    key={r.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface/60 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-semibold text-ink truncate">
-                        {professionalName(r.professionalId)}
-                      </div>
-                      <div className="text-xs text-muted mt-0.5 truncate">
-                        {r.procedimento ? `${r.procedimento} • ` : ''}
-                        {r.specialty ? `${r.specialty} • ` : ''}
-                        {isEditing ? '' : (
-                          <span className="font-semibold text-ink">
-                            {r.amountType === 'fixed'
-                              ? `${formatBRL(r.amount)} por atendimento`
-                              : `${r.amount}%`}
-                          </span>
-                        )}
-                        {!isEditing && r.validFrom && r.validFrom > '1900-01-01' && (
-                          <span className="ml-2">
-                            vale desde {new Date(`${r.validFrom}T12:00:00`).toLocaleDateString('pt-BR')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {isEditing ? (
-                        <>
-                          <input
-                            value={editPercent}
-                            onChange={(e) => setEditPercent(e.target.value)}
-                            inputMode="decimal"
-                            aria-label="Novo valor da comissão"
-                            className="w-20 px-2 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                          />
-                          <button
-                            type="button"
-                            onClick={saveEdit}
-                            className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-surface"
-                            title="Salvar"
-                            aria-label="Salvar comissão"
-                            disabled={busy}
-                          >
-                            <Save className="h-4 w-4 text-brand-600" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEdit}
-                            className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-surface"
-                            title="Cancelar"
-                            aria-label="Cancelar edição"
-                            disabled={busy}
-                          >
-                            <X className="h-4 w-4 text-muted" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEdit(r)}
-                          className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-surface"
-                          title="Editar"
-                          aria-label="Editar comissão"
-                          disabled={busy}
-                        >
-                          <Pencil className="h-4 w-4 text-muted" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => remove(r)}
-                        className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-red-50 dark:hover:bg-red-900/20"
-                        title="Excluir"
-                        aria-label="Excluir comissão"
-                        disabled={busy}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </button>
-                    </div>
+        {!selectedId ? (
+          <div className="mt-6 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+            Escolha uma pessoa acima para ver e definir as comissões dela.
+          </div>
+        ) : products.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+            Nenhum procedimento cadastrado ainda — cadastre em Produtos/Serviços.
+          </div>
+        ) : (
+          <>
+            {/* Regra que vale pra tudo */}
+            <div className="mt-6 rounded-xl border border-line bg-surface/60 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-ink">
+                    Comissão padrão de {selected?.name}
                   </div>
-                );
-              })}
+                  <div className="text-xs text-muted mt-0.5">
+                    Vale para todo procedimento que não tiver valor próprio na tabela abaixo.
+                  </div>
+                </div>
+                {editingKey === '__geral__' ? (
+                  <EditorValor
+                    tipo={editType}
+                    valor={editValue}
+                    onTipo={setEditType}
+                    onValor={setEditValue}
+                    onSalvar={() => salvar(null)}
+                    onCancelar={cancelEdit}
+                    busy={busy}
+                    rotulo="Comissão padrão"
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-semibold text-ink">
+                      {regraGeral ? mostraValor(regraGeral) : 'não definida'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => startEdit('__geral__', regraGeral)}
+                      disabled={busy}
+                      className="px-3 py-1.5 rounded-lg border border-line bg-card text-xs font-semibold text-ink hover:bg-surface disabled:opacity-50"
+                    >
+                      {regraGeral ? 'Alterar' : 'Definir'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Detalhe: tabela de procedimentos da pessoa */}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left">
+                    <th scope="col" className="py-2 pr-3 font-semibold text-muted text-xs uppercase tracking-wider">
+                      Procedimento
+                    </th>
+                    <th scope="col" className="py-2 px-3 font-semibold text-muted text-xs uppercase tracking-wider text-right">
+                      Valor
+                    </th>
+                    <th scope="col" className="py-2 px-3 font-semibold text-muted text-xs uppercase tracking-wider text-right">
+                      Comissão
+                    </th>
+                    <th scope="col" className="py-2 pl-3 text-right">
+                      <span className="sr-only">Ações</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linhas.map(({ prod, regra }) => {
+                    const isEditing = editingKey === prod.id;
+                    return (
+                      <tr key={prod.id} className="border-b border-line/60">
+                        <td className="py-2.5 pr-3 text-ink">{prod.name}</td>
+                        <td className="py-2.5 px-3 text-right text-muted tabular-nums">
+                          {formatBRL(prod.price)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {isEditing ? null : regra ? (
+                            <span className="font-semibold text-ink tabular-nums">
+                              {mostraValor(regra)}
+                            </span>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pl-3">
+                          {isEditing ? (
+                            <EditorValor
+                              tipo={editType}
+                              valor={editValue}
+                              onTipo={setEditType}
+                              onValor={setEditValue}
+                              onSalvar={() => salvar(prod.name)}
+                              onCancelar={cancelEdit}
+                              busy={busy}
+                              rotulo={`Comissão de ${prod.name}`}
+                            />
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => startEdit(prod.id, regra)}
+                                disabled={busy}
+                                className="px-3 py-1.5 rounded-lg border border-line bg-card text-xs font-semibold text-ink hover:bg-surface disabled:opacity-50"
+                              >
+                                {regra ? 'Alterar' : 'Definir'}
+                              </button>
+                              {regra && (
+                                <button
+                                  type="button"
+                                  onClick={() => remover(regra)}
+                                  disabled={busy}
+                                  className="px-2 py-1.5 rounded-lg border border-line bg-card hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                                  aria-label={`Apagar comissão de ${prod.name}`}
+                                  title="Apagar (só para corrigir lançamento errado)"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
+
+/** Editor inline de valor: tipo (R$ ou %) + campo + salvar/cancelar. */
+const EditorValor: React.FC<{
+  tipo: CommissionAmountType;
+  valor: string;
+  onTipo: (t: CommissionAmountType) => void;
+  onValor: (v: string) => void;
+  onSalvar: () => void;
+  onCancelar: () => void;
+  busy: boolean;
+  rotulo: string;
+}> = ({ tipo, valor, onTipo, onValor, onSalvar, onCancelar, busy, rotulo }) => (
+  <div className="flex items-center justify-end gap-1.5">
+    <select
+      aria-label={`Tipo da ${rotulo}`}
+      value={tipo}
+      onChange={(e) => onTipo(e.target.value as CommissionAmountType)}
+      className="px-2 py-1.5 rounded-lg border border-line bg-card text-ink text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+    >
+      <option value="fixed">R$</option>
+      <option value="percent">%</option>
+    </select>
+    <input
+      aria-label={rotulo}
+      value={valor}
+      onChange={(e) => onValor(e.target.value)}
+      inputMode="decimal"
+      className="w-24 px-2 py-1.5 rounded-lg border border-line bg-card text-ink text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+    />
+    <button
+      type="button"
+      onClick={onSalvar}
+      disabled={busy}
+      className="px-2 py-1.5 rounded-lg border border-line bg-card hover:bg-surface disabled:opacity-50"
+      aria-label="Salvar"
+      title="Salvar — vale de hoje em diante"
+    >
+      <Save className="h-3.5 w-3.5 text-brand-500" />
+    </button>
+    <button
+      type="button"
+      onClick={onCancelar}
+      className="px-2 py-1.5 rounded-lg border border-line bg-card hover:bg-surface"
+      aria-label="Cancelar"
+    >
+      <X className="h-3.5 w-3.5 text-muted" />
+    </button>
+  </div>
+);

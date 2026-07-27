@@ -51,10 +51,14 @@ describe('CommissionsManager', () => {
     updateSpy.mockReset();
   });
 
-  it('renderiza título e estado vazio', () => {
+  it('começa pedindo a pessoa (mestre-detalhe), sem despejar todas as regras', () => {
+    regras = [REGRA_EXISTENTE];
     render(<CommissionsManager />);
     expect(screen.getByRole('heading', { name: /Comissões/i })).toBeInTheDocument();
-    expect(screen.getByText(/Nenhuma regra de comissão cadastrada ainda/i)).toBeInTheDocument();
+    expect(screen.getByText(/Escolha uma pessoa acima/i)).toBeInTheDocument();
+    // O nome do profissional NÃO se repete em cartão nenhum antes de escolher
+    // (o formato antigo repetia o nome em cada uma das 89 regras).
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('lista os profissionais no select', () => {
@@ -68,12 +72,25 @@ describe('CommissionsManager', () => {
     expect(results).toHaveNoViolations();
   });
 
+  it('ao escolher a pessoa, mostra a TABELA de procedimentos dela com valor e comissão', () => {
+    regras = [REGRA_EXISTENTE];
+    render(<CommissionsManager />);
+    fireEvent.change(screen.getByLabelText('Pessoa'), { target: { value: 'prof-1' } });
+
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Procedimento/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /^Valor$/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Comissão/i })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Consulta' })).toBeInTheDocument();
+  });
+
   it('alterar o valor CRIA um período novo (não edita o antigo) — o passado não muda', async () => {
     regras = [REGRA_EXISTENTE];
     render(<CommissionsManager />);
+    fireEvent.change(screen.getByLabelText('Pessoa'), { target: { value: 'prof-1' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Editar/i }));
-    const campo = screen.getByLabelText(/Novo valor da comissão/i);
+    fireEvent.click(screen.getByRole('button', { name: /^Alterar$/i }));
+    const campo = screen.getByLabelText('Comissão de Consulta');
     fireEvent.change(campo, { target: { value: '50' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar/i }));
 
