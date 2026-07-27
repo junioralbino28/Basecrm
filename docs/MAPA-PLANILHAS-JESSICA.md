@@ -23,6 +23,14 @@ que o CRM já separa — `atendimentos` e `contacts`/funil.
 
 ## 1.1 O que a atendente preenche (aba do dia)
 
+> **Regra que o Adel deu e eu confirmei no arquivo:** o que ela mexe são as
+> **células destravadas** (cinzas). A aba tem proteção ativa. Lista exata lida do
+> arquivo: **B, D, E, F, G, H, N, O, Q, R, S** em cada linha de atendimento,
+> **+ W nas linhas 6–8** (o Vale — a exceção que ele citou).
+> ⚠️ **`H` (Descontar) e `O` (Valor Dr(a)) estão DESTRAVADOS**: vêm preenchidos por
+> fórmula mas podem ser sobrescritos — coerente com "o custo varia de caso para caso"
+> (Invisalign). *Aguardando o Adel confirmar que é intencional.*
+
 | Col | Campo | Como preenche | Vira o quê no CRM |
 |---|---|---|---|
 | Q | **Nome do Paciente** | digita | `contacts.name` |
@@ -41,17 +49,39 @@ Soma Dr(a) (P). Há **27 colunas ocultas** por aba só de apoio ao cálculo.
 
 ## 1.2 Catálogos (viram cadastros do CRM)
 
+> ⚠️ **Duas coisas diferentes que eu tinha misturado** (confusão apontada pelo Adel):
+> **Tipo de procedimento** são só 4 (é a *categoria*, coluna N). O **catálogo** é a
+> lista de tratamentos, que é **por dentista** e tem dezenas de itens.
+
 - **Formas de pagamento (6):** Crédito · Débito · Pix · Dinheiro · Boleto · **Pix Direto**
 - **Bandeiras (6):** Master · Visa · Hiper · AMEX · Elo · Diners
-- **Tipo de procedimento (4):** Clínico · Espec. · Harmo. · Lente
+- **Tipo de procedimento — a CATEGORIA (4):** Clínico · Espec. · Harmo. · Lente
 - **Parcelas:** 1 a 12
 - **Profissionais (7):** Jéssica Barros · Letícia Pires · Leonel Carvalho ·
   Manuela Gonzalez · Felipe Bueno · Paula Almeida · Ana Clara Ofrante
-- **Procedimentos: um catálogo POR DENTISTA** (blocos nas colunas ocultas da `Mensal`),
-  cada linha com **Procedimento · Valor · Desconto · Comissão**. Ex.: Jéssica ≈ 32
-  procedimentos (ortodontia: aparelhos, manutenções, contenções…); Ana Clara ≈ 15
-  (clínica geral: raspagem, profilaxia, restaurações, clareamentos…).
-  Ao escolher o dentista na `Mensal`, a lista de procedimentos do dia passa a ser a dele.
+
+### O catálogo de tratamentos — `Mensal` Y31:BH102
+
+**9 blocos de 4 colunas**, um por dentista (7 preenchidos + **2 slots vazios** que o Adel
+deixou pra dentista novo). Cada bloco: **Tratamento · Valor tratamento · Desconto · Comissão**.
+
+| Bloco | Dentista | Especialidade (pelo catálogo) |
+|---|---|---|
+| Y:AB | Jéssica Barros | ortodontia (~32 itens) |
+| AC:AF | Letícia Pires | endodontia |
+| AG:AJ | Felipe Bueno | — |
+| AK:AN | Leonel Carvalho | — |
+| AO:AR | Manuela Gonzalez | — |
+| AS:AV | Paula Almeida | — |
+| AW:AZ | Ana Clara Ofrante | clínica geral (~15 itens) |
+| BA:BD · BE:BH | *(vazios — slots)* | |
+
+Ao escolher o dentista na `Mensal`, a lista de tratamentos do dia passa a ser a dele.
+
+**Exemplos reais (Jéssica):** Consulta Inicial → valor 120, comissão **42** ·
+Manutenção Ap. Metálico → 160, comissão **56** · Aparelho Autoligado → 950,
+**desconto 230**, comissão **160** · Aparelho Estético → 2400, **desconto 800**, comissão **450**.
+→ **A comissão é VALOR FIXO por procedimento**, não percentual (confirmado pelo Adel).
 
 ## 1.3 A regra de dinheiro (é isto que o CRM precisa reproduzir)
 
@@ -68,9 +98,35 @@ Soma Dr(a) (P). Há **27 colunas ocultas** por aba só de apoio ao cálculo.
 Fórmula do dia: `Valor a receber = Valor pago × multiplicador(bandeira, parcelas)`,
 com desvio por forma de pagamento (`crédito` × `débito` × dinheiro/pix sem taxa).
 
-**Consolidação mensal** (aba `Mensal`, uma linha por dia): Bruto · Saldo Bruto acumulado ·
-Ticket Médio · Desconto · Soma Valor Diário · **Vale** · **Pix Direto** · Soma Vale ·
-**Crédito** (= o que entra **no mês seguinte** — a "previsão de recebimento").
+### 🔴 "Desconto" NÃO é desconto ao paciente — é CUSTO (correção do Adel, 24/07)
+
+Este foi o meu erro mais grave de leitura. Na planilha, **Desconto = o gasto extra de
+material/produto daquele procedimento** — ex.: o alinhador do **Invisalign, ~R$ 9 mil**,
+que varia caso a caso. Não é abatimento dado ao paciente.
+
+**Por que importa:** esse custo é **retirado ANTES de totalizar o valor do consultório**,
+e é a base de **duas comissões**:
+1. a **comissão do dentista**;
+2. a **comissão da ATENDENTE** — *"não tem como o consultório pagar comissão pro atendente
+   em cima desse valor também"* (Adel).
+
+> ⚠️ **Choque semântico com o CRM:** hoje `atendimentos.desconto` significa *desconto
+> concedido ao paciente*. São conceitos diferentes e **não podem ocupar o mesmo campo** —
+> o CRM precisa de **custo do procedimento** separado de **desconto comercial**.
+> **E não existe hoje nenhuma comissão de atendente no CRM.**
+
+### Consolidação mensal (`Mensal`, uma linha por dia)
+
+Bruto · Saldo Bruto acumulado · Ticket Médio · Desconto · **Soma Valor Diário (G)** ·
+**Vale (H)** · **Pix Direto (I)** · **Soma Vale (J)** · **Crédito (K)**.
+
+**A conta do acerto com o dentista** (lida das fórmulas, *a confirmar com o Adel*):
+- **G** acumula o que o dentista **gerou** (`SUM(dia!P50)` — P = "Soma Dr(a)");
+- **Vale (H)** = `dia!W6 + dia!W7` → **pagamento/adiantamento feito ao dentista** naquele dia;
+- **Pix Direto (I)** = `dia!Z12` → pagamento que **não passou pela conta da clínica**
+  (o paciente pagou direto ao dentista ou ao Adel; ou troca de serviço);
+- **J** acumula tudo que já foi pago (Vale + Pix Direto);
+- **Crédito (K) = G − J** → **saldo que o dentista ainda tem a receber**, pago no **mês seguinte**.
 
 ---
 
@@ -137,12 +193,15 @@ financeiro e por profissional · export comercial e financeiro separados.
 |---|---|---|---|
 | 1 | **Bandeira do cartão** | Mapa col. F | sem ela não dá pra calcular a taxa |
 | 2 | **Matriz de taxa `bandeira × parcela`** | Mapa BQ:CD | é a conta que faz o número bater com o dele |
-| 3 | **Previsão de recebimento** ("Crédito" do mês seguinte) | Mensal col. K | é como ele enxerga caixa futuro |
-| 4 | **Catálogo de procedimento POR profissional** (valor/desconto/comissão diferentes por dentista) | blocos ocultos | hoje o catálogo do CRM não é por profissional |
-| 5 | **Campanha** e **Engajamento** do lead | LEAD col. G, H | atribuição fina de marketing |
-| 6 | **Resultado por toque** (F1–F9) como métrica | LEAD J:R | "conversão por toque" é o KPI do Adel |
-| 7 | **Vale / Pix Direto** como categorias de caixa | Mensal H, I | fecha o caixa do dia |
-| 8 | **Remarcou** e **Continuidade** | LEAD U, W | qualidade do agendamento |
+| 3 | **🔴 CUSTO do procedimento** (o "Desconto" da planilha), separado de desconto comercial | catálogo, col. Desconto | base das DUAS comissões; hoje o CRM só tem desconto ao paciente |
+| 4 | **🔴 Comissão da ATENDENTE** (sobre o valor já sem o custo) | regra do Adel, 24/07 | não existe nada disso no CRM |
+| 5 | **Comissão FIXA por procedimento e por dentista** | catálogo Y31:BH102 | hoje a comissão do CRM é do profissional, não por procedimento |
+| 6 | **Catálogo de tratamentos POR profissional** | 9 blocos na `Mensal` | hoje o catálogo do CRM não é por profissional |
+| 7 | **Conta-corrente do dentista** — gerado × pago (Vale, Pix Direto) × **Crédito a receber** | Mensal G/H/I/J/K | é o acerto mensal com cada dentista |
+| 8 | **Pix Direto** como pagamento fora do caixa da clínica | Mensal col. I | senão o caixa não fecha |
+| 9 | **Campanha** e **Engajamento** do lead | LEAD col. G, H | atribuição de marketing + leitura de interesse |
+| 10 | **Resultado por toque** (F1–F9) como métrica | LEAD J:R | "conversão por toque" é o KPI do Adel |
+| 11 | **Remarcou** e **Continuidade** | LEAD U, W | qualidade do agendamento |
 
 ## 🐞 Bug encontrado (não relacionado às planilhas, mas afeta o relatório do Adel)
 `lib/reports/summaryCsv.ts` conta leads na tabela **`leads`** (legada, **0 linhas**) em vez
@@ -151,12 +210,22 @@ de **`contacts`** (viva, 95 linhas no banco local). O link de totais mostraria
 
 ---
 
-# 4. Perguntas para o Adel (o que a leitura não respondeu)
+# 4. Perguntas ao Adel — ✅ RESPONDIDAS em 24/07
 
-1. **"Vale"** — é vale-adiantamento pro dentista, ou vale de desconto pro paciente?
-2. **"Pix Direto"** × **"Pix"** — a diferença é a conta que recebe (PJ × pessoal)?
-3. **Desconto** no catálogo por dentista — é desconto máximo autorizado ou desconto padrão?
-4. **Comissão** — % ou valor fixo? Incide sobre o bruto ou sobre o líquido pós-taxa?
-5. Uma planilha Mapa **por dentista**: quer que o CRM continue separando por profissional,
-   ou prefere um lugar só com filtro por profissional?
-6. **Engajamento** (col. H do LEAD) — quais são os níveis e o que cada um significa?
+| # | Pergunta | Resposta dele |
+|---|---|---|
+| 1 | O que é **"Vale"**? | **Valor pago ao dentista** (a comissão dele). |
+| 2 | **"Pix Direto"** × Pix | Pix que o paciente faz **direto ao dentista ou ao Adel** — não passa pela conta da clínica. Também cobre troca de serviço. |
+| 3 | **Desconto** do catálogo | **Custo extra de material** do procedimento (Invisalign ≈ R$ 9 mil, varia por caso). **Não** é desconto ao paciente. |
+| 4 | **Comissão** | **Valor FIXO por procedimento**, na tabela `Mensal` Y31:BH102. |
+| 5 | Visão por dentista × filtro | **Em aberto** — ele pediu explicação. Respondido: no CRM os dois convivem (dado entra uma vez, a tela filtra). A escolha real é só se a atendente abre **já travada** num dentista ou escolhe na hora. |
+| 6 | **Engajamento** | Campo do LEAD, pra **a atendente classificar o que o lead quer** e o Adel enxergar o interesse — *"a maioria clica no link e nem responde"*. |
+
+## Ainda em aberto
+
+1. **`H` (Descontar) e `O` (Valor Dr(a)) destravados** — sobrescrever é intencional?
+2. **Confirmar a conta do acerto:** `Crédito (K) = gerado (G) − pago (Vale + Pix Direto)`
+   = saldo do dentista pro mês seguinte. É isso?
+3. **Comissão da atendente** — qual o critério (% do total pós-custo? valor por
+   atendimento? por agendamento?).
+4. A atendente abre **travada num dentista** ou escolhe na hora?
