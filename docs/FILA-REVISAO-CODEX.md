@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-24 · branch `feat/funil-construtor`
+Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **956/956**
 
 ---
 
@@ -23,8 +23,9 @@
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
 | 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
-| 3 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
-| 4 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
+| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos | 🔴 **MOTOR** (2 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
+| 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
+| 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 
 ---
 
@@ -86,6 +87,73 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 
 **Encosta em motor?** Não.
 **Prova:** `test:local features/automations` = 62/62 · `typecheck` (tsc strict) limpo · `eslint --max-warnings 0` limpo.
+
+---
+
+## Pacote 3 — Remuneração da equipe: cargo/pagamento, comissão por vigência, catálogos
+
+**Estado:** PENDENTE (aguardando 29/07) · **PRIORIDADE 1 da revisão**
+**Camada:** 🔴 **MOTOR** — 2 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
+
+**Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
+
+**Commits (8 de código, `7e5d5a5` → `40e455d`):**
+
+| SHA | O que faz |
+|---|---|
+| `7e5d5a5` | migration: `professionals` ganha `role`/`pay_type`/`fixed_amount`; `commission_rules` ganha `amount_type`/`amount`/`procedimento`/`valid_from`; **reescrita de `get_commission_report`** |
+| `c5e405f` | 🚨 correção de segurança — restaura o gate original da RPC (ver "erro 1" abaixo) |
+| `2d6f285` | tela de funcionário: cargo + forma de pagamento, lista agrupada por cargo |
+| `0bee7e1` | tela de comissão: valor fixo **ou** percentual, escopo por procedimento, e alterar **cria período novo** |
+| `508944c` | Planilhas vira aba de topo (saiu de dentro de Financeiro) e comissão puxa procedimento do catálogo |
+| `2619583` | comissão vira **mestre-detalhe** (escolhe a pessoa → vê a tabela dela), referência: API do Clinicorp |
+| `a09172c` | migration: `job_roles` + `specialties` — cargo e especialidade viram lista configurável |
+| `40e455d` | 🚨 correção de segurança — `GRANT` faltando nas duas tabelas novas (ver "erro 3") |
+
+Docs de contexto (decodificação das planilhas do Adel): `f20f9a1`, `0f8cf9d`, `f167bea` → `docs/MAPA-PLANILHAS-JESSICA.md`.
+
+**Arquivos-chave:**
+- `supabase/migrations/20260724000000_funcionarios_remuneracao_e_comissao_por_periodo.sql`
+- `supabase/migrations/20260724010000_catalogos_cargo_e_especialidade.sql`
+- `lib/supabase/teamCatalogs.ts` · `lib/supabase/commissionRules.ts` · `lib/supabase/professionals.ts`
+- `features/settings/components/CommissionsManager.tsx` (reescrita) · `ProfessionalsManager.tsx` · `TeamCatalogManager.tsx` · `SettingsPage.tsx`
+- `test/teamCatalogs.local.test.ts` (novo, 4 testes reais autenticados) · `test/financeReportsRpcs.multiTenant.test.ts` (2 atualizados + 2 novos)
+
+**Decisão travada (não reabrir):** comissão **nunca** é editada por cima. Alterar hoje cria um período novo que vale de hoje em diante, até alterar de novo, **sem data de fim** (o Junior recusou vigência com prazo). Cada atendimento usa a regra válida **na data dele** — o passado nunca é reescrito. Provado em teste: dois atendimentos iguais em 10/04 e 20/04, regra R$ 30 + adendo R$ 50 a partir de 15/04 → abril soma **80**, não 100.
+
+**O que o Junior conferiu ao vivo:** cadastrou funcionário escolhendo cargo e forma de pagamento; abriu Comissões, escolheu a pessoa e viu a tabela `Procedimento | Valor | Comissão`; criou cargo e especialidade nas abas novas (foi aqui que o `permission denied` apareceu, e foi corrigido).
+
+### 🚨 Três defeitos MEUS neste pacote — comece a revisão por eles
+
+O Codex deve tratar estes como **prova de que a área é escorregadia**, não como assunto encerrado:
+
+1. **Cabeçalho de segurança perdido em silêncio** (corrigido em `c5e405f`). Ao reescrever `get_commission_report` a partir do corpo, troquei `SECURITY DEFINER`→invoker, `SET search_path = ''`→`public`, perdi `STABLE` e troquei o gate `can_access_organization + has_permission('reports.professionals')` por `can_configure_organization`. Efeito: `clinic_staff` **com** a permissão liberada passaria a levar 42501 — arrombando o modelo de permissão granular do E2. Quem pegou: `test/e2ServerIsolation.local.test.ts`, só na **suíte completa** (o arquivo da própria feature deu 10/10 e não acusou nada).
+2. **Coluna nova sem espelho do par legado.** Criei `commission_rules.amount`, mas a tela existente gravava só `percent` → toda regra criada pela tela sairia com comissão **zero**. Remendado com o gatilho `sync_commission_rule_amount` + fallback `coalesce(nullif(regra.amount,0), regra.percent, 0)`.
+3. **`GRANT` esquecido** (corrigido em `40e455d`). RLS só **restringe**; sem grant o Postgres nega antes de olhar a policy. As duas abas novas nasceram mortas. Quem pegou: o Junior, na tela.
+
+### O que pedir ao Codex (foco adversarial)
+
+**Na RPC `get_commission_report`:**
+1. **Cabeçalho de segurança** — conferir campo a campo contra a versão de `20260635000000_e2_server_permission_enforcement.sql`. Sobrou alguma diferença além das que restaurei?
+2. **Precedência da regra** — a ordenação (pessoa+procedimento > pessoa+especialidade > pessoa > coringa por especialidade > `valid_from DESC` > `created_at DESC`) resolve todo empate? Existe combinação em que duas regras diferentes empatam e o resultado vira não-determinístico?
+3. **Duplo remendo do percentual** — gatilho **e** `coalesce` no cálculo. Há caso em que os dois discordam? Ex.: `amount_type='percent'` com `amount` e `percent` ambos > 0 e **diferentes** (o gatilho não sincroniza; o cálculo prefere `amount`). E o que acontece ao mudar uma regra de `fixed` de volta pra `percent`?
+4. **`LEFT JOIN` + `LATERAL`** — quem não produziu aparece zerado, mas conferir que o `LATERAL` com `a.paid_at` nulo não gera linha fantasma nem infla `atendimentos` (`count(a.id)` é proposital).
+5. **Fuso** — o corte usa `AT TIME ZONE 'America/Sao_Paulo'` na comparação com `valid_from`, mas o range do período vem em `timestamptz`. Atendimento pago perto da virada do dia cai no período certo?
+6. **Sem restrição de unicidade em `commission_rules`** — nada impede dois períodos idênticos (mesmo escopo, mesmo `valid_from`). Isso é aceitável ou precisa de índice? A tela lista/esconde os períodos antigos de forma compreensível pra um leigo?
+
+**Nas migrations:**
+7. **Idempotência e ordem** — `ADD COLUMN IF NOT EXISTS` + `DO $$` checando `pg_constraint`: roda duas vezes sem quebrar? Roda numa base que **já tem** dados de produção sem travar tabela por tempo demais?
+8. **`DEFAULT 'commission'` em `pay_type` e `valid_from DEFAULT 1900-01-01`** — os defaults escolhidos para as linhas legadas mudam o resultado de algum relatório já emitido?
+9. **`job_roles`/`specialties`** — RLS + GRANT conferidos contra uma tabela irmã que já funciona (`lead_sources`); o `anon` ficou de fora **de propósito**.
+
+**Na UI:**
+10. **`CommissionsManager.salvar()` chama sempre `createMutation`, nunca update** — é a materialização da decisão de vigência. Confirmar que não existe caminho na tela que ainda faça `update` numa regra antiga (seria reescrever o passado).
+11. Cargo e especialidade agora são `<select>` dos catálogos — sobrou algum ponto de **texto livre** que volte a permitir "Ortodontia" × "ortodontia"?
+
+**Encosta em motor?** **Sim.** Nenhuma fatia nova se apoia neste pacote até o parecer.
+**Prova:** `test:local` = **956/956** (205 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
+**Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts` conta leads da tabela morta `leads` (local: `leads = 0`, `contacts = 95`) — mostraria "Leads: 0" pra sempre. Documentado, ainda não corrigido.
+**Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
 
 ---
 
