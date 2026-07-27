@@ -191,11 +191,11 @@ financeiro e por profissional · export comercial e financeiro separados.
 
 | # | Lacuna | Vem de | Impacto |
 |---|---|---|---|
-| 1 | **Bandeira do cartão** | Mapa col. F | sem ela não dá pra calcular a taxa |
+| ~~1~~ | ~~**Bandeira do cartão**~~ | — | ✅ **NÃO É LACUNA** — `atendimentos.card_brand` **já existe** no schema (verificado 24/07) |
 | 2 | **Matriz de taxa `bandeira × parcela`** | Mapa BQ:CD | é a conta que faz o número bater com o dele |
-| 3 | **🔴 CUSTO do procedimento** (o "Desconto" da planilha), separado de desconto comercial | catálogo, col. Desconto | base das DUAS comissões; hoje o CRM só tem desconto ao paciente |
+| 3 | **🔴 CUSTO do procedimento** (o "Desconto" da planilha), separado de desconto comercial | catálogo, col. Desconto | ⚠️ **a MATEMÁTICA já está certa** — `get_commission_report` calcula `(valor − desconto) × percent`, ou seja **já retira o custo antes da comissão**. O problema é **só o nome/semântica** do campo: `desconto` no CRM significa abatimento ao paciente. Falta separar os dois conceitos. |
 | 4 | **🔴 Comissão da ATENDENTE** (sobre o valor já sem o custo) | regra do Adel, 24/07 | não existe nada disso no CRM |
-| 5 | **Comissão FIXA por procedimento e por dentista** | catálogo Y31:BH102 | hoje a comissão do CRM é do profissional, não por procedimento |
+| 5 | **Comissão FIXA por procedimento e por dentista** | catálogo Y31:BH102 | ⚠️ **medido 24/07:** `commission_rules` só tem `percent` (0–100), por profissional **ou** por especialidade. **Nenhum percentual único reproduz a tabela do Adel** — nos procedimentos simples a taxa é exatamente **35%** (120→42, 160→56, 190→66,5), mas nos grandes ele quebra de propósito: Ap. Autoligado 950→160 (**≈17%**), Ap. Estético 2400→450 (**≈19%**). Precisa de valor fixo por procedimento. |
 | 6 | **Catálogo de tratamentos POR profissional** | 9 blocos na `Mensal` | hoje o catálogo do CRM não é por profissional |
 | 7 | **Conta-corrente do dentista** — gerado × pago (Vale, Pix Direto) × **Crédito a receber** | Mensal G/H/I/J/K | é o acerto mensal com cada dentista |
 | 8 | **Pix Direto** como pagamento fora do caixa da clínica | Mensal col. I | senão o caixa não fecha |
@@ -221,11 +221,31 @@ de **`contacts`** (viva, 95 linhas no banco local). O link de totais mostraria
 | 5 | Visão por dentista × filtro | **Em aberto** — ele pediu explicação. Respondido: no CRM os dois convivem (dado entra uma vez, a tela filtra). A escolha real é só se a atendente abre **já travada** num dentista ou escolhe na hora. |
 | 6 | **Engajamento** | Campo do LEAD, pra **a atendente classificar o que o lead quer** e o Adel enxergar o interesse — *"a maioria clica no link e nem responde"*. |
 
-## Ainda em aberto
+## Rodada 2 — ✅ também respondido pelo Adel (24/07)
 
-1. **`H` (Descontar) e `O` (Valor Dr(a)) destravados** — sobrescrever é intencional?
-2. **Confirmar a conta do acerto:** `Crédito (K) = gerado (G) − pago (Vale + Pix Direto)`
-   = saldo do dentista pro mês seguinte. É isso?
-3. **Comissão da atendente** — qual o critério (% do total pós-custo? valor por
-   atendimento? por agendamento?).
-4. A atendente abre **travada num dentista** ou escolhe na hora?
+| Pergunta | Resposta |
+|---|---|
+| `H` e `O` destravados | **Sim, é intencional** (o custo varia caso a caso). |
+| Conta do acerto `Crédito (K) = G − (Vale + Pix Direto)` | **"Exato"** — confirmado. |
+| Base da **comissão da atendente** | **`Mensal` C33** = acumulado da coluna **L** ("Valor total **c/ desconto**") → ou seja, **o total do mês já líquido do custo de material**. |
+| Atendente travada num dentista? | **Dentista fixado, com campo de troca** (alguém pode pegar um intervalo). Hoje é **1 cadeira**; no futuro, clínica com vários atendendo ao mesmo tempo — precisa que os atendentes preencham sem se confundir nem sobrescrever o que cada dentista fez. |
+
+### Especialidades reais (ditas pelo Adel)
+
+| Profissional | Especialidade |
+|---|---|
+| Jéssica Barros | Clínica geral, Ortodontia, Lentes em resina, Harmonização orofacial |
+| Ana Clara Ofrante | Ortodontia |
+| Paula Almeida | Clínica geral |
+| Letícia Pires | Endodontia (raro: clínica geral) |
+| Leonel Carvalho | Bucomaxilofacial — cirurgias, extração de siso |
+| Manuela Gonzalez | Próteses |
+| Felipe Bueno | Implantes |
+
+> ⚠️ **Divergência a resolver:** o Adel diz **Ana Clara = Ortodontia**, mas o bloco dela no
+> catálogo (AW) lista raspagem, profilaxia, restaurações e clareamentos = **clínica geral**.
+> Catálogo desatualizado ou ela faz as duas coisas?
+
+## Ainda em aberto
+1. A divergência da Ana Clara (acima).
+2. **Qual o critério** da comissão da atendente sobre a base C33 (percentual? faixa?).
