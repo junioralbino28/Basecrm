@@ -91,10 +91,33 @@ com um cliente-sombra (tenant de ensaio) antes de valer para cliente pagante.
 
 ## Pendências específicas do piloto (Jéssica) hoje
 
-1. **Número de WhatsApp definitivo** — falar com o Adel (chip dedicado; decidir
-   se 1 ou 2 números). Hoje roda em número TEMP da agência.
-2. **Link de totais na planilha do Adel** — gerar report token e colar quando
-   ele indicar a aba (não precisa de mais nada dele).
+1. **Número de WhatsApp definitivo** — ✅ **RESPONDIDO PELO ADEL (2026-07-24):**
+   chip **dedicado**; **2 números** (um humano, um IA); celular e número **em
+   mãos**; número **novo, começando do zero, sem histórico** (não há migração
+   de conversa/etiqueta a fazer). Falta só parear (QR) no CRM de produção.
+   ⚠️ Dois cuidados registrados: (a) **chip zerado tem limite/confiança baixos
+   no WhatsApp** — disparo de cadência logo no início é o perfil clássico de
+   ban; aquecer antes de ligar envio real; (b) **ao parear, o número fica
+   vivo** — se a IA de conversa estiver ligada naquela conexão ela responde de
+   verdade (chave própria, fora da trava do funil — dívida 2).
+2. **Planilha do Adel** — ⚠️ **ESCOPO MUDOU (2026-07-24).** A proposta dele não
+   é o link de totais: é **espelhamento direto de TODAS as colunas** que a
+   planilha tiver (se é atendimento, tudo de atendimento; se é faturamento,
+   tudo de faturamento). O que o CRM tem e a planilha não tem, não envia; o que
+   a planilha tem e o CRM não mapeia, **vira evolução do CRM** ("nosso CRM
+   crescendo e adaptando a um caso real" — Junior). Método acordado: **primeiro
+   LER** como o CRM está montado hoje e como a planilha dele funciona, alinhar,
+   **só depois subir pro CRM real**.
+   🔴 **Bifurcação de segurança em aberto (decisão do Junior):** espelhar tudo
+   inclui **nome e telefone de paciente**, e o link automático (`=IMPORTDATA`)
+   carrega o token **na URL** — quem tiver o link vê tudo, sem login. Opções na
+   mesa: (A) automático só agregados + export autenticado pro detalhe; (B)
+   espelhar tudo assumindo o risco do link; (C) **recomendada** — espelhar
+   todas as colunas **menos identificadores diretos** (código do paciente no
+   lugar de nome/telefone): estrutura e valores batem, vazamento não expõe
+   paciente.
+   **Falta:** a planilha do Adel (arquivo, CSV ou prints com cabeçalhos) pra
+   montar o mapa coluna-a-coluna.
 3. Clinicorp: **já conectado** (config no banco). Nada a pedir.
 4. Cadência F1–F9: as versões .md vigentes são **texto-only** — a decisão
    registrada em `02-followup/README.md` é "sem vídeo nos follows" (os
