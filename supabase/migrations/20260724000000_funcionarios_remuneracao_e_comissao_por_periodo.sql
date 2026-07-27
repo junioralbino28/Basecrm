@@ -138,8 +138,9 @@ CREATE OR REPLACE FUNCTION public.get_commission_report(
 )
 RETURNS json
 LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = public
+STABLE
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   v_org uuid;
@@ -148,11 +149,17 @@ DECLARE
   result json;
 BEGIN
   v_org := coalesce(p_organization_id, public.current_profile_organization_id());
-  IF v_org IS NULL THEN
-    RAISE EXCEPTION 'organização não resolvida' USING ERRCODE = '42501';
-  END IF;
-  IF NOT public.can_configure_organization(v_org) THEN
-    RAISE EXCEPTION 'acesso negado' USING ERRCODE = '42501';
+
+  -- ⚠️ GATE PRESERVADO DE `20260635000000_e2_server_permission_enforcement.sql`.
+  -- NÃO trocar por can_configure_organization: staff COM a permissão
+  -- `reports.professionals` precisa continuar lendo (há teste de isolamento
+  -- cobrindo isso — `e2ServerIsolation.local.test.ts`).
+  IF v_org IS NULL
+    OR NOT public.can_access_organization(v_org)
+    OR NOT public.has_permission('reports.professionals') THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '42501',
+      MESSAGE = 'acesso negado';
   END IF;
 
   v_period_start := to_char(p_start AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM');
