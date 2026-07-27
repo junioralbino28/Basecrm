@@ -109,6 +109,7 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 | `2619583` | comissão vira **mestre-detalhe** (escolhe a pessoa → vê a tabela dela), referência: API do Clinicorp |
 | `a09172c` | migration: `job_roles` + `specialties` — cargo e especialidade viram lista configurável |
 | `40e455d` | 🚨 correção de segurança — `GRANT` faltando nas duas tabelas novas (ver "erro 3") |
+| `87f7029` | **várias especialidades por funcionário** (`professional_specialties`) + desmembra as entradas coladas do catálogo + coringa da comissão casa com qualquer especialidade |
 
 Docs de contexto (decodificação das planilhas do Adel): `f20f9a1`, `0f8cf9d`, `f167bea` → `docs/MAPA-PLANILHAS-JESSICA.md`.
 
@@ -140,6 +141,14 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 4. **`LEFT JOIN` + `LATERAL`** — quem não produziu aparece zerado, mas conferir que o `LATERAL` com `a.paid_at` nulo não gera linha fantasma nem infla `atendimentos` (`count(a.id)` é proposital).
 5. **Fuso** — o corte usa `AT TIME ZONE 'America/Sao_Paulo'` na comparação com `valid_from`, mas o range do período vem em `timestamptz`. Atendimento pago perto da virada do dia cai no período certo?
 6. **Sem restrição de unicidade em `commission_rules`** — nada impede dois períodos idênticos (mesmo escopo, mesmo `valid_from`). Isso é aceitável ou precisa de índice? A tela lista/esconde os períodos antigos de forma compreensível pra um leigo?
+
+**Nas várias especialidades por funcionário (`20260727000000`, commit `87f7029`):**
+- **Desmembramento das entradas coladas** — a migration quebra `name` que contém vírgula em várias entradas e apaga a original. Existe nome legítimo de cargo/especialidade com vírgula que seria destruído? A guarda hoje é "toda parte tem ≥ 2 caracteres"; é suficiente?
+- **Espelho legado** — `professionals.specialty` agora guarda a **primeira em ordem alfabética**. Algum leitor da coluna antiga assume que ela é *a* especialidade da pessoa e passa a mostrar/decidir errado?
+- **`professional_has_specialty`** — é `SECURITY INVOKER` chamada de dentro de uma `SECURITY DEFINER`. Isso vaza leitura de outra clínica em algum caminho? O fallback "se a pessoa não tem nenhuma ligação, olha a coluna antiga" pode mascarar uma ligação perdida?
+- **Custo** — a função é chamada 3× por linha do `LATERAL` (2 no `WHERE`, 1 no `ORDER BY`). Numa clínica com muitos atendimentos isso vira problema de desempenho?
+- **`ON DELETE CASCADE` em `specialty_id`** — apagar uma especialidade do catálogo remove a marcação de todo mundo. A tela avisa isso em linguagem de leigo; é o comportamento desejado ou deveria bloquear a exclusão quando há gente marcada?
+- **Sincronização apaga e reinsere** (`syncSpecialties`) — não é transacional. Se o insert falhar depois do delete, a pessoa fica **sem nenhuma** especialidade. Vale mover pra uma RPC transacional?
 
 **Nas migrations:**
 7. **Idempotência e ordem** — `ADD COLUMN IF NOT EXISTS` + `DO $$` checando `pg_constraint`: roda duas vezes sem quebrar? Roda numa base que **já tem** dados de produção sem travar tabela por tempo demais?
