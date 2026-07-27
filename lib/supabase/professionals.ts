@@ -45,6 +45,9 @@ type DbProfessional = {
   organization_id: string | null;
   name: string;
   specialty: string | null;
+  role: string | null;
+  pay_type: string | null;
+  fixed_amount: number | string | null;
   active: boolean | null;
   external_id: string | null;
   owner_id: string | null;
@@ -58,6 +61,9 @@ function transformProfessional(db: DbProfessional): Professional {
     organizationId: db.organization_id || undefined,
     name: db.name,
     specialty: db.specialty || undefined,
+    role: db.role || undefined,
+    payType: (db.pay_type as Professional['payType']) || 'commission',
+    fixedAmount: Number(db.fixed_amount ?? 0),
     active: db.active ?? true,
     externalId: db.external_id || undefined,
     ownerId: db.owner_id || undefined,
@@ -73,7 +79,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (organizationId) {
@@ -97,7 +103,7 @@ export const professionalsService = {
 
       let query = supabase
         .from('professionals')
-        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
         .eq('active', true)
         .order('created_at', { ascending: false });
 
@@ -116,7 +122,15 @@ export const professionalsService = {
     }
   },
 
-  async create(input: { name: string; specialty?: string; active?: boolean; organizationId?: string | null }): Promise<{ data: Professional | null; error: Error | null }> {
+  async create(input: {
+    name: string;
+    specialty?: string;
+    role?: string;
+    payType?: 'fixed' | 'commission' | 'both';
+    fixedAmount?: number;
+    active?: boolean;
+    organizationId?: string | null;
+  }): Promise<{ data: Professional | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
 
@@ -128,11 +142,14 @@ export const professionalsService = {
         .insert({
           name: input.name,
           specialty: input.specialty || null,
+          role: input.role || null,
+          pay_type: input.payType || 'commission',
+          fixed_amount: input.fixedAmount ?? 0,
           active: input.active ?? true,
           owner_id: sanitizeUUID(user?.id),
           organization_id: organizationId,
         })
-        .select('id, organization_id, name, specialty, active, external_id, owner_id, created_at, updated_at')
+        .select('id, organization_id, name, specialty, role, pay_type, fixed_amount, active, external_id, owner_id, created_at, updated_at')
         .single();
 
       if (error) return { data: null, error };
@@ -142,13 +159,23 @@ export const professionalsService = {
     }
   },
 
-  async update(id: string, updates: Partial<{ name: string; specialty?: string; active: boolean }>): Promise<{ error: Error | null }> {
+  async update(id: string, updates: Partial<{
+    name: string;
+    specialty?: string;
+    role?: string;
+    payType: 'fixed' | 'commission' | 'both';
+    fixedAmount: number;
+    active: boolean;
+  }>): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
 
       const payload: Record<string, unknown> = {};
       if (updates.name !== undefined) payload.name = updates.name;
       if (updates.specialty !== undefined) payload.specialty = updates.specialty || null;
+      if (updates.role !== undefined) payload.role = updates.role || null;
+      if (updates.payType !== undefined) payload.pay_type = updates.payType;
+      if (updates.fixedAmount !== undefined) payload.fixed_amount = updates.fixedAmount;
       if (updates.active !== undefined) payload.active = updates.active;
       payload.updated_at = new Date().toISOString();
 

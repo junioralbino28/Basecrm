@@ -11,7 +11,7 @@ import { queryKeys } from '../index';
 import { professionalsService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
-import type { Professional } from '@/types';
+import type { Professional, ProfessionalPayType } from '@/types';
 
 // ============ QUERY HOOKS ============
 
@@ -41,6 +41,11 @@ export const useProfessionals = () => {
 interface CreateProfessionalParams {
   name: string;
   specialty?: string;
+  /** Cargo — agrupa a listagem do admin. */
+  role?: string;
+  /** fixo | comissionado | os dois. */
+  payType?: ProfessionalPayType;
+  fixedAmount?: number;
   active?: boolean;
 }
 
@@ -72,6 +77,9 @@ export const useCreateProfessional = () => {
         organizationId: organizationId || undefined,
         name: input.name,
         specialty: input.specialty,
+        role: input.role,
+        payType: input.payType ?? 'commission',
+        fixedAmount: input.fixedAmount ?? 0,
         active: input.active ?? true,
       };
 
@@ -106,7 +114,7 @@ export const useUpdateProfessional = () => {
   const organizationId = tenant?.organizationId || null;
 
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<{ name: string; specialty?: string; active: boolean }> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<{ name: string; specialty?: string; role?: string; payType: ProfessionalPayType; fixedAmount: number; active: boolean }> }) => {
       const { error } = await professionalsService.update(id, updates);
       if (error) throw error;
       return { id, updates };

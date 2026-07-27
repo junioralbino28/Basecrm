@@ -22,7 +22,7 @@ describe('ProfessionalsManager', () => {
   it('renderiza título e estado vazio', () => {
     render(<ProfessionalsManager />);
     expect(screen.getByRole('heading', { name: /Profissionais/i })).toBeInTheDocument();
-    expect(screen.getByText(/Nenhum profissional cadastrado ainda/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ninguém cadastrado ainda/i)).toBeInTheDocument();
   });
 
   it('não tem violações de acessibilidade', async () => {

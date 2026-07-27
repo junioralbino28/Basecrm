@@ -281,11 +281,20 @@ export interface DealTagAssignment {
 }
 
 // ITEM CLÍNICO: Profissionais (dentistas)
+/** Como o funcionário é remunerado. Editável (promoção, novo acordo, reajuste). */
+export type ProfessionalPayType = 'fixed' | 'commission' | 'both';
+
 export interface Professional {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   name: string;
   specialty?: string;
+  /** Cargo (dentista, secretária, comercial…). Agrupa a listagem do admin. */
+  role?: string;
+  /** fixo | comissionado | os dois. */
+  payType?: ProfessionalPayType;
+  /** Valor fixo do período quando payType é 'fixed' ou 'both'. */
+  fixedAmount?: number;
   active: boolean;
   ownerId?: string;
   /** Mapa pro motor externo (Clinicorp Dentist_PersonId). Populado via sync da agenda. */
