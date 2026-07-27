@@ -13,6 +13,7 @@ import { CardFeesManager } from './components/CardFeesManager';
 import { CommissionsManager } from './components/CommissionsManager';
 import { FixedCostsManager } from './components/FixedCostsManager';
 import { PlanilhasSection } from './components/PlanilhasSection';
+import { TeamCatalogManager } from './components/TeamCatalogManager';
 import { AICenterSettings } from './AICenterSettings';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
@@ -107,9 +108,56 @@ const ProductsSettings: React.FC = () => {
 };
 
 const ProfessionalsSettings: React.FC = () => {
+  // Sub-abas espelhando o Financeiro (mesma linguagem de navegação). Cargos e
+  // Especialidades ganham lugar próprio porque a tela de equipe passa a
+  // SELECIONAR dessas listas em vez de aceitar texto livre (Junior, 24/07).
+  type ProfSubTab = 'equipe' | 'cargos' | 'especialidades';
+  const [subTab, setSubTab] = useState<ProfSubTab>('equipe');
   return (
     <div className="pb-10">
-      <ProfessionalsManager />
+      <div className="flex items-center gap-2 mb-6">
+        {([
+          { id: 'equipe' as const, label: 'Equipe' },
+          { id: 'cargos' as const, label: 'Cargos' },
+          { id: 'especialidades' as const, label: 'Especialidades' },
+        ] as const).map((t) => {
+          const active = subTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSubTab(t.id)}
+              className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                active
+                  ? 'border-brand-500/50 bg-brand-500/10 text-brand-700 dark:text-brand-300'
+                  : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {subTab === 'equipe' && <ProfessionalsManager />}
+      {subTab === 'cargos' && (
+        <TeamCatalogManager
+          kind="job_roles"
+          titulo="Cargos"
+          descricao="A lista que aparece no cadastro da equipe. Cadastre aqui uma vez para ninguém digitar errado depois."
+          singular="Novo cargo"
+          placeholder="Ex.: Secretária"
+        />
+      )}
+      {subTab === 'especialidades' && (
+        <TeamCatalogManager
+          kind="specialties"
+          titulo="Especialidades"
+          descricao="A lista que aparece no cadastro da equipe. Cadastre aqui uma vez para ninguém digitar errado depois."
+          singular="Nova especialidade"
+          placeholder="Ex.: Ortodontia"
+        />
+      )}
     </div>
   );
 };

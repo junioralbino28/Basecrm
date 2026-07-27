@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Stethoscope, Pencil, Plus, Save, Trash2, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import type { Professional, ProfessionalPayType } from '@/types';
 import { formatBRL } from '@/lib/utils';
+import { teamCatalogsService, type TeamCatalogItem } from '@/lib/supabase/teamCatalogs';
 import {
   useProfessionals,
   useCreateProfessional,
@@ -40,6 +41,16 @@ export const ProfessionalsManager: React.FC = () => {
   const [editFixedAmount, setEditFixedAmount] = useState('0');
 
   const SEM_CARGO = 'Sem cargo definido';
+
+  // Cargo e especialidade vêm de LISTA (Configurações → Profissionais → Cargos /
+  // Especialidades). Antes eram texto livre e "Ortodontia" × "ortodontia" viravam
+  // duas coisas, quebrando agrupamento e relatório em silêncio (Junior, 24/07).
+  const [cargos, setCargos] = useState<TeamCatalogItem[]>([]);
+  const [especialidades, setEspecialidades] = useState<TeamCatalogItem[]>([]);
+  useEffect(() => {
+    void teamCatalogsService.list('job_roles').then(({ data }) => setCargos(data));
+    void teamCatalogsService.list('specialties').then(({ data }) => setEspecialidades(data));
+  }, []);
 
   // Agrupado por CARGO (decisão do Junior, 24/07): as secretárias juntas, os
   // dentistas juntos, os vendedores juntos. Inativos vão pro fim de cada grupo.
@@ -187,22 +198,30 @@ export const ProfessionalsManager: React.FC = () => {
             />
           </div>
           <div className="lg:col-span-3">
-            <label className="block text-xs font-semibold text-muted mb-1">Cargo</label>
-            <input
+            <label htmlFor="novo-cargo" className="block text-xs font-semibold text-muted mb-1">Cargo</label>
+            <select
+              id="novo-cargo"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              placeholder="Ex.: Secretária"
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            />
+            >
+              <option value="">Sem cargo</option>
+              {cargos.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
           </div>
           <div className="lg:col-span-3">
-            <label className="block text-xs font-semibold text-muted mb-1">Especialidade (opcional)</label>
-            <input
+            <label htmlFor="nova-especialidade" className="block text-xs font-semibold text-muted mb-1">
+              Especialidade (opcional)
+            </label>
+            <select
+              id="nova-especialidade"
               value={specialty}
               onChange={(e) => setSpecialty(e.target.value)}
-              placeholder="Ex.: Ortodontia"
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            />
+            >
+              <option value="">Sem especialidade</option>
+              {especialidades.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
           </div>
           <div className="lg:col-span-2">
             <button
@@ -281,20 +300,33 @@ export const ProfessionalsManager: React.FC = () => {
                           </div>
                           <div className="sm:col-span-6">
                             <label className="block text-[11px] font-semibold text-muted mb-1">Especialidade</label>
-                            <input
+                            <select
+                              aria-label="Especialidade"
                               value={editSpecialty}
                               onChange={(e) => setEditSpecialty(e.target.value)}
                               className="w-full px-3 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                            />
+                            >
+                              <option value="">Sem especialidade</option>
+                              {especialidades.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                              {editSpecialty && !especialidades.some((c) => c.name === editSpecialty) && (
+                                <option value={editSpecialty}>{editSpecialty} (fora da lista)</option>
+                              )}
+                            </select>
                           </div>
                           <div className="sm:col-span-4">
                             <label className="block text-[11px] font-semibold text-muted mb-1">Cargo</label>
-                            <input
+                            <select
+                              aria-label="Cargo"
                               value={editRole}
                               onChange={(e) => setEditRole(e.target.value)}
-                              placeholder="Ex.: Dentista"
                               className="w-full px-3 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                            />
+                            >
+                              <option value="">Sem cargo</option>
+                              {cargos.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                              {editRole && !cargos.some((c) => c.name === editRole) && (
+                                <option value={editRole}>{editRole} (fora da lista)</option>
+                              )}
+                            </select>
                           </div>
                           <div className="sm:col-span-4">
                             <label className="block text-[11px] font-semibold text-muted mb-1">Como ganha</label>
