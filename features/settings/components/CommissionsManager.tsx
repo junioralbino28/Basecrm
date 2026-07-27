@@ -9,6 +9,7 @@ import {
   useDeleteCommissionRule,
 } from '@/lib/query/hooks/useCommissionRulesQuery';
 import { useProfessionals } from '@/lib/query/hooks/useProfessionalsQuery';
+import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { commissionRuleFormSchema, percentSchema } from '@/lib/validations/schemas';
 import { useToast } from '@/context/ToastContext';
 
@@ -22,6 +23,10 @@ import { useToast } from '@/context/ToastContext';
 export const CommissionsManager: React.FC = () => {
   const { data, isLoading, error } = useCommissionRules();
   const { data: professionalsData, isLoading: professionalsLoading } = useProfessionals();
+  // A comissão é POR PROCEDIMENTO (Junior, 24/07) — a lista vem do catálogo em
+  // Configurações → Produtos/Serviços, nunca digitada à mão (evita erro de grafia
+  // que faria a regra nunca casar com o atendimento).
+  const { data: productsData } = useProducts();
   const createMutation = useCreateCommissionRule();
   const updateMutation = useUpdateCommissionRule();
   const deleteMutation = useDeleteCommissionRule();
@@ -29,6 +34,7 @@ export const CommissionsManager: React.FC = () => {
 
   const rules = useMemo(() => data ?? [], [data]);
   const professionals = useMemo(() => professionalsData ?? [], [professionalsData]);
+  const products = useMemo(() => productsData ?? [], [productsData]);
 
   const [professionalId, setProfessionalId] = useState('');
   const [specialty, setSpecialty] = useState('');
@@ -196,12 +202,22 @@ export const CommissionsManager: React.FC = () => {
             <label className="block text-xs font-semibold text-muted mb-1">
               Só para um procedimento (opcional)
             </label>
-            <input
+            <select
+              aria-label="Procedimento da comissão"
               value={procedimento}
               onChange={(e) => setProcedimento(e.target.value)}
-              placeholder="Deixe vazio para valer em todos"
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            />
+            >
+              <option value="">Vale para todos os procedimentos</option>
+              {products.map((prod) => (
+                <option key={prod.id} value={prod.name}>{prod.name}</option>
+              ))}
+            </select>
+            {products.length === 0 && (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                Nenhum procedimento cadastrado ainda — cadastre em Produtos/Serviços.
+              </p>
+            )}
           </div>
           <div className="lg:col-span-3">
             <label className="block text-xs font-semibold text-muted mb-1">Tipo</label>

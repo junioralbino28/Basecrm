@@ -26,6 +26,14 @@ vi.mock('@/lib/query/hooks/useCommissionRulesQuery', () => ({
   useDeleteCommissionRule: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+vi.mock('@/lib/query/hooks/useProductsQuery', () => ({
+  useProducts: () => ({
+    data: [{ id: 'prod-1', name: 'Consulta', price: 120, active: true }],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock('@/lib/query/hooks/useProfessionalsQuery', () => ({
   useProfessionals: () => ({
     data: [{ id: 'prof-1', name: 'Dra. Jéssica', specialty: 'Ortodontia', active: true }],

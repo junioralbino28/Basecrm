@@ -21,9 +21,9 @@ import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
 import { isAgencyRole } from '@/lib/auth/scope';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign, Tag as TagIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign, FileSpreadsheet, Tag as TagIcon } from 'lucide-react';
 
-type SettingsTab = 'general' | 'products' | 'tags' | 'professionals' | 'financeiro' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'tags' | 'professionals' | 'financeiro' | 'planilhas' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -175,13 +175,13 @@ const IntegrationsSettings: React.FC = () => {
 };
 
 const FinanceiroSettings: React.FC = () => {
-  type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas' | 'planilhas';
+  type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas';
   const [subTab, setSubTab] = useState<FinanceiroSubTab>('taxas');
 
   useEffect(() => {
     const syncFromHash = () => {
       const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-      if (h === 'taxas' || h === 'comissoes' || h === 'contas' || h === 'planilhas') setSubTab(h as FinanceiroSubTab);
+      if (h === 'taxas' || h === 'comissoes' || h === 'contas') setSubTab(h as FinanceiroSubTab);
     };
 
     syncFromHash();
@@ -208,7 +208,6 @@ const FinanceiroSettings: React.FC = () => {
           { id: 'taxas' as const, label: 'Taxas' },
           { id: 'comissoes' as const, label: 'Comissões' },
           { id: 'contas' as const, label: 'Contas' },
-          { id: 'planilhas' as const, label: 'Planilhas' },
         ] as const).map((t) => {
           const active = subTab === t.id;
           return (
@@ -231,7 +230,6 @@ const FinanceiroSettings: React.FC = () => {
       {subTab === 'taxas' && <CardFeesManager />}
       {subTab === 'comissoes' && <CommissionsManager />}
       {subTab === 'contas' && <FixedCostsManager />}
-      {subTab === 'planilhas' && <PlanilhasSection />}
     </div>
   );
 };
@@ -288,6 +286,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     ...(canManageTags === true ? [{ id: 'tags' as SettingsTab, name: 'Etiquetas', icon: TagIcon }] : []),
     ...(canViewProfessionals === true ? [{ id: 'professionals' as SettingsTab, name: 'Profissionais', icon: Stethoscope }] : []),
     ...(canViewFinance === true ? [{ id: 'financeiro' as SettingsTab, name: 'Financeiro', icon: DollarSign }] : []),
+    // Planilhas NÃO é só do Financeiro: serve pra leads, atendimentos e números
+    // do negócio. Por isso sai do Financeiro e vira aba própria (Junior, 24/07).
+    ...(canViewFinance === true ? [{ id: 'planilhas' as SettingsTab, name: 'Planilhas', icon: FileSpreadsheet }] : []),
     ...(canViewIntegrations === true ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     ...(canConfigureAi === true ? [{ id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles }] : []),
     ...(canViewData === true ? [{ id: 'data' as SettingsTab, name: 'Dados', icon: Database }] : []),
@@ -300,6 +301,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     tags: canManageTags,
     professionals: canViewProfessionals,
     financeiro: canViewFinance,
+    planilhas: canViewFinance,
     integrations: canViewIntegrations,
     ai: canConfigureAi,
     data: canViewData,
@@ -321,6 +323,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
         return <ProfessionalsSettings />;
       case 'financeiro':
         return <FinanceiroSettings />;
+      case 'planilhas':
+        return <PlanilhasSection />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':
