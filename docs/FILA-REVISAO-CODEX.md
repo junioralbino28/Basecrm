@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **961/961**
+Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **966/966**
 
 ---
 
@@ -23,7 +23,7 @@
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
 | 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
-| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades | 🔴 **MOTOR** (3 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
+| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** (4 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 
@@ -93,11 +93,11 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 ## Pacote 3 — Remuneração da equipe: cargo/pagamento, comissão por vigência, catálogos
 
 **Estado:** PENDENTE (aguardando 29/07) · **PRIORIDADE 1 da revisão**
-**Camada:** 🔴 **MOTOR** — 3 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
+**Camada:** 🔴 **MOTOR** — 4 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
 
 **Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
 
-**Commits (9 de código, `7e5d5a5` → `87f7029`):**
+**Commits (12 de código, `7e5d5a5` → `5998f5e`):**
 
 | SHA | O que faz |
 |---|---|
@@ -109,6 +109,9 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 | `2619583` | comissão vira **mestre-detalhe** (escolhe a pessoa → vê a tabela dela), referência: API do Clinicorp |
 | `a09172c` | migration: `job_roles` + `specialties` — cargo e especialidade viram lista configurável |
 | `40e455d` | 🚨 correção de segurança — `GRANT` faltando nas duas tabelas novas (ver "erro 3") |
+| `970429f` | **comissão migra pra dentro da ficha da pessoa** (`CommissionsManager` em modo embutido; Financeiro vira só o caminho) |
+| `174f81f` | 🚨 guarda de permissão — quem tem Financeiro sem Profissionais recebe instrução, não botão que nega |
+| `5998f5e` | **procedimento por especialidade + o que cada pessoa faz** (derivado + exceções; migration `20260727010000`) |
 | `87f7029` | **várias especialidades por funcionário** (`professional_specialties`) + desmembra as entradas coladas do catálogo + coringa da comissão casa com qualquer especialidade |
 
 Docs de contexto (decodificação das planilhas do Adel): `f20f9a1`, `0f8cf9d`, `f167bea` → `docs/MAPA-PLANILHAS-JESSICA.md`.
@@ -150,6 +153,13 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 - **`ON DELETE CASCADE` em `specialty_id`** — apagar uma especialidade do catálogo remove a marcação de todo mundo. A tela avisa isso em linguagem de leigo; é o comportamento desejado ou deveria bloquear a exclusão quando há gente marcada?
 - **Sincronização apaga e reinsere** (`syncSpecialties`) — não é transacional. Se o insert falhar depois do delete, a pessoa fica **sem nenhuma** especialidade. Vale mover pra uma RPC transacional?
 
+**Na unificação do cadastro (`970429f`, `174f81f`, `5998f5e`) — MOTOR na terceira:**
+- **Derivado + exceções** (`professional_does_product`): a exceção manda; sem exceção, vale a especialidade. O serviço **apaga** a exceção quando a escolha volta a coincidir com o padrão — há caminho em que isso perde uma escolha deliberada do usuário?
+- **Custo**: a tela da ficha carrega TODOS os vínculos da clínica (`specialty_products.list()`) e filtra no cliente. Com 294 procedimentos × N especialidades isso escala?
+- **Otimismo na marcação** (`SpecialtyProductsPicker`): o estado muda antes da resposta e desfaz no erro. Dois cliques rápidos no mesmo item podem gravar o inverso?
+- **Separação comissão × "faz"**: são deliberadamente independentes. Isso deixa buraco (pessoa com comissão num procedimento que ela não faz) que valha barrar?
+- **A comissão sumiu do Financeiro** — conferir que nenhum outro caminho/permissão dependia de editar comissão por lá.
+
 **Nas migrations:**
 7. **Idempotência e ordem** — `ADD COLUMN IF NOT EXISTS` + `DO $$` checando `pg_constraint`: roda duas vezes sem quebrar? Roda numa base que **já tem** dados de produção sem travar tabela por tempo demais?
 8. **`DEFAULT 'commission'` em `pay_type` e `valid_from DEFAULT 1900-01-01`** — os defaults escolhidos para as linhas legadas mudam o resultado de algum relatório já emitido?
@@ -160,7 +170,7 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 11. Cargo e especialidade agora são `<select>` dos catálogos — sobrou algum ponto de **texto livre** que volte a permitir "Ortodontia" × "ortodontia"?
 
 **Encosta em motor?** **Sim.** Nenhuma fatia nova se apoia neste pacote até o parecer.
-**Prova:** `test:local` = **961/961** (206 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
+**Prova:** `test:local` = **966/966** (206 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
 **Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts` conta leads da tabela morta `leads` (local: `leads = 0`, `contacts = 95`) — mostraria "Leads: 0" pra sempre. Documentado, ainda não corrigido.
 **Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
 
