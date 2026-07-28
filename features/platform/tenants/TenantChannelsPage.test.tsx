@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   role: 'clinic_admin',
   pathname: '/platform/tenants/11111111-1111-4111-8111-111111111111/whatsapp',
   reload: vi.fn(async () => undefined),
+  connectionStatus: 'connected' as 'pending' | 'connected' | 'disconnected' | 'error',
 }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
@@ -33,7 +34,7 @@ vi.mock('./useTenantDetail', () => ({
         provider: 'evolution',
         channel_type: 'whatsapp',
         name: 'Comercial Vitória',
-        status: 'connected',
+        get status() { return state.connectionStatus; },
         config: {
           instanceName: 'comercial-vitoria-a1b2c3d4',
           apiUrl: 'https://evolution.example.com',
@@ -91,6 +92,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.role = 'clinic_admin';
   state.pathname = `/platform/tenants/${TENANT}/whatsapp`;
+  state.connectionStatus = 'connected';
 });
 
 afterEach(() => {
@@ -119,6 +121,35 @@ describe('TenantChannelsPage — multi-numero', () => {
     expect(within(dialog).queryByLabelText(/Token/i)).not.toBeInTheDocument();
   });
 
+  it('semáforo: verde pulsando quando conectado, vermelho quando a conexão cai', () => {
+    // Pedido do Junior (28/07): o Adel conectou e a tela dele seguia "Pendente"
+    // num selo neutro — sem luz, ninguém percebe manutenção necessária.
+    const { unmount } = render(<TenantChannelsPage />);
+    const verde = screen.getByRole('status', { name: 'Status da conexao: Conectado' });
+    expect(verde.className).toContain('emerald');
+    unmount();
+
+    state.connectionStatus = 'disconnected';
+    render(<TenantChannelsPage />);
+    const vermelho = screen.getByRole('status', { name: 'Status da conexao: Desconectado' });
+    expect(vermelho.className).toContain('red');
+  });
+
+  it('confere o status sozinha ao abrir: dispara healthcheck e recarrega a lista', async () => {
+    const fetchMock = vi.fn(() => jsonResponse({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TenantChannelsPage />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/platform/tenants/${TENANT}/channels/${CONNECTION}/healthcheck`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
+  });
+
   it('faz POST simples, chama connect e mostra o QR no proprio modal', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -138,6 +169,10 @@ describe('TenantChannelsPage — multi-numero', () => {
           webhook: { configured: true, warning: null },
         });
       }
+      // A conferência automática de status dispara healthcheck no mount.
+      if (url.includes('/healthcheck')) {
+        return jsonResponse({ ok: true });
+      }
       throw new Error(`fetch inesperado: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -153,8 +188,13 @@ describe('TenantChannelsPage — multi-numero', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Gerar QR code' }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const createInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    // Acha o cadastro pelo ENDEREÇO, não pela posição — a conferência automática
+    // de status também usa a rede e a ordem das chamadas deixou de ser fixa.
+    const createCall = () => fetchMock.mock.calls.find(
+      ([input, init]) => String(input).endsWith(`/tenants/${TENANT}/channels`) && init?.method === 'POST',
+    );
+    await waitFor(() => expect(createCall()).toBeTruthy());
+    const createInit = createCall()?.[1] as RequestInit;
     expect(JSON.parse(String(createInit.body))).toEqual({
       provider: 'evolution',
       channel_type: 'whatsapp',

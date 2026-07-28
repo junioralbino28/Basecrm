@@ -79,6 +79,34 @@ const STATUS_LABELS: Record<ChannelFormState['status'], string> = {
   error: 'Erro',
 };
 
+/**
+ * Semáforo pedido pelo Junior (28/07): "luz verde escrito conectado, ficar
+ * vermelho se der erro ou a conexão cair — ajuda na manutenção e administração".
+ * Verde = conectado · âmbar = aguardando pareamento · vermelho = caiu/erro.
+ */
+const STATUS_STYLES: Record<ChannelFormState['status'], { pill: string; dot: string; pulse: boolean }> = {
+  connected: {
+    pill: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
+    dot: 'bg-emerald-500',
+    pulse: true,
+  },
+  pending: {
+    pill: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+    dot: 'bg-amber-500',
+    pulse: false,
+  },
+  disconnected: {
+    pill: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+    dot: 'bg-red-500',
+    pulse: true,
+  },
+  error: {
+    pill: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+    dot: 'bg-red-500',
+    pulse: true,
+  },
+};
+
 function collectPairingCandidates(value: unknown, acc: string[] = []): string[] {
   if (!value) return acc;
 
@@ -214,6 +242,58 @@ export const TenantChannelsPage: React.FC = () => {
       setBrowserOrigin(window.location.origin);
     }
   }, []);
+
+  // O semáforo só é confiável se a tela CONFERIR sozinha: ao abrir e a cada 60s,
+  // pergunta ao servidor como a conexão está de verdade e recarrega a lista.
+  // Silencioso de propósito — sucesso repetido em toast a cada minuto viraria ruído;
+  // erro de rede aqui também não grita (o manual "Atualizar status" continua existindo).
+  const evolutionConnectionsKey = (tenant?.channel_connections || [])
+    .filter((connection) => connection.provider === 'evolution')
+    .map((connection) => connection.id)
+    .join(',');
+
+  // `reload` muda de identidade a cada render; usar direto no efeito re-armaria o
+  // timer sem parar. O ref mantém o timer estável e sempre chama a versão atual.
+  const reloadRef = React.useRef(reload);
+  React.useEffect(() => {
+    reloadRef.current = reload;
+  }, [reload]);
+
+  React.useEffect(() => {
+    if (!tenantId || !evolutionConnectionsKey) return;
+
+    let parou = false;
+    let conferindo = false;
+
+    const conferirStatus = async () => {
+      if (parou || conferindo) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      conferindo = true;
+      try {
+        for (const connectionId of evolutionConnectionsKey.split(',')) {
+          if (parou || !connectionId) break;
+          await fetch(`/api/platform/tenants/${tenantId}/channels/${connectionId}/healthcheck`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { accept: 'application/json' },
+          });
+        }
+        if (!parou) await reloadRef.current();
+      } catch {
+        // Silencioso: a conferência periódica não pode derrubar a tela por
+        // falha de rede pontual — o botão manual continua como caminho de erro visível.
+      } finally {
+        conferindo = false;
+      }
+    };
+
+    void conferirStatus();
+    const timer = setInterval(() => { void conferirStatus(); }, 60_000);
+    return () => {
+      parou = true;
+      clearInterval(timer);
+    };
+  }, [tenantId, evolutionConnectionsKey]);
 
   React.useEffect(() => {
     if (!canManageInfrastructure) return;
@@ -799,7 +879,17 @@ export const TenantChannelsPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white dark:bg-cyan-500/20 dark:text-cyan-200">
+                      <div
+                        role="status"
+                        aria-label={`Status da conexao: ${STATUS_LABELS[connection.status]}`}
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${STATUS_STYLES[connection.status].pill}`}
+                      >
+                        <span className="relative flex h-2 w-2" aria-hidden>
+                          {STATUS_STYLES[connection.status].pulse ? (
+                            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 motion-reduce:hidden ${STATUS_STYLES[connection.status].dot}`} />
+                          ) : null}
+                          <span className={`relative inline-flex h-2 w-2 rounded-full ${STATUS_STYLES[connection.status].dot}`} />
+                        </span>
                         {STATUS_LABELS[connection.status]}
                       </div>
                     </div>
