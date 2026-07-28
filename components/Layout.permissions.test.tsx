@@ -50,7 +50,17 @@ vi.mock('@/components/navigation', () => ({
   MoreMenuSheet: () => null,
 }));
 vi.mock('@/components/navigation/usePlatformTenantWorkspaceNav', () => ({
-  usePlatformTenantWorkspaceNav: () => ({ items: [] }),
+  usePlatformTenantWorkspaceNav: () => ({ items: [], tenantId: null }),
+}));
+// Este teste é sobre PERMISSÕES do menu — o contador/notificação de mensagens
+// (que usa react-query) é neutralizado pra não exigir QueryClientProvider aqui.
+vi.mock('@/components/notificacoes/NotificacoesDeConversa', () => ({
+  NotificacoesDeConversa: () => null,
+  useConversasNaoLidas: () => ({ data: undefined }),
+  usePreferenciasNotificacao: () => ({ ativas: true, som: true }),
+  salvarPreferencias: vi.fn(),
+  pedirPermissaoDeNotificacao: vi.fn(async () => false),
+  formatarHoraBR: () => '',
 }));
 vi.mock('@/components/navigation/useTenantScopedHref', () => ({
   useTenantScopedHrefBuilder: () => (path: string) => path,
