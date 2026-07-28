@@ -399,8 +399,35 @@ export const TenantConversationsPage: React.FC = () => {
     },
     onSuccess: data => {
       updateInboxThread(data.thread);
+      // A bolinha do menu lateral usa outra consulta — derruba na hora, sem
+      // esperar o próximo ciclo de 30s dela.
+      void queryClient.invalidateQueries({ queryKey: ['conversas-nao-lidas', tenantId] });
     },
   });
+
+  // Abrir a conversa MARCA como lida — regra do Junior (28/07): "a cada conversa
+  // que estava sem ser visualizada fosse aberta, deveria ir diminuindo a
+  // quantidade". Antes só existia o botão manual "Marcar lida", e a bolinha
+  // ficava parada mesmo com a conversa escancarada na tela. O gatilho é a
+  // conversa SELECIONADA (as mensagens dela estão visíveis) com não-lidas > 0.
+  const marcandoLidaRef = React.useRef<string | null>(null);
+  // `mutate` muda de identidade a cada render; o ref evita re-armar o efeito.
+  const marcarLidaRef = React.useRef(updateThreadMutation.mutate);
+  React.useEffect(() => {
+    marcarLidaRef.current = updateThreadMutation.mutate;
+  }, [updateThreadMutation.mutate]);
+  const selectedThreadIdAberto = selectedThread?.id ?? null;
+  const selectedThreadNaoLidas = selectedThread?.unread_count ?? 0;
+  React.useEffect(() => {
+    if (!selectedThreadIdAberto || selectedThreadNaoLidas === 0) return;
+    // trava anti-rajada: uma marcação por conversa por vez
+    if (marcandoLidaRef.current === selectedThreadIdAberto) return;
+    marcandoLidaRef.current = selectedThreadIdAberto;
+    marcarLidaRef.current(
+      { threadId: selectedThreadIdAberto, body: { mark_as_read: true } },
+      { onSettled: () => { marcandoLidaRef.current = null; } },
+    );
+  }, [selectedThreadIdAberto, selectedThreadNaoLidas]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {

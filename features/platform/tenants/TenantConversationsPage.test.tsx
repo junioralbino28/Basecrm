@@ -1,16 +1,27 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Espião compartilhado de TODAS as mutations da página (uma só basta pra
+// afirmar o payload de mark_as_read do auto-marcar-lida).
+const mutateSpy = vi.hoisted(() => vi.fn());
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const RECEPTION = '22222222-2222-4222-8222-222222222222';
 const COMMERCIAL = '33333333-3333-4333-8333-333333333333';
 
-const threads = [
-  thread('thread-reception', 'Paciente Recepção', RECEPTION),
-  thread('thread-commercial', 'Paciente Comercial', COMMERCIAL),
-  thread('thread-removed', 'Paciente Histórico', null),
-];
+const threads: ReturnType<typeof thread>[] = [];
+function resetThreads(overrides?: { firstUnread?: number }) {
+  threads.length = 0;
+  const primeiro = thread('thread-reception', 'Paciente Recepção', RECEPTION);
+  primeiro.unread_count = overrides?.firstUnread ?? 0;
+  threads.push(
+    primeiro,
+    thread('thread-commercial', 'Paciente Comercial', COMMERCIAL),
+    thread('thread-removed', 'Paciente Histórico', null),
+  );
+}
+resetThreads();
 const profile = { role: 'clinic_staff', first_name: 'Ana' };
 const tenant = {
   id: TENANT,
@@ -84,7 +95,13 @@ vi.mock('@tanstack/react-query', () => ({
             refetch: vi.fn(),
           };
     },
-    useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+    useMutation: () => ({
+      mutate: (vars: unknown, opts?: { onSettled?: () => void }) => {
+        mutateSpy(vars);
+        opts?.onSettled?.();
+      },
+      isPending: false,
+    }),
     useQueryClient: () => ({
       getQueryData: vi.fn(),
       setQueryData: vi.fn(),
@@ -129,7 +146,35 @@ vi.mock('@/components/ConfirmModal', () => ({ default: () => null }));
 
 import { TenantConversationsPage } from './TenantConversationsPage';
 
+beforeEach(() => {
+  mutateSpy.mockClear();
+  resetThreads();
+});
+
 describe('TenantConversationsPage — caixa unificada', () => {
+  it('abrir conversa com não-lidas MARCA como lida sozinha (regra do Junior 28/07)', async () => {
+    // Antes só existia o botão manual "Marcar lida" — a bolinha do menu ficava
+    // parada mesmo com a conversa escancarada na tela.
+    resetThreads({ firstUnread: 2 });
+    render(<TenantConversationsPage />);
+
+    await waitFor(() => {
+      expect(mutateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: 'thread-reception',
+          body: { mark_as_read: true },
+        }),
+      );
+    });
+  });
+
+  it('conversa aberta SEM não-lidas não dispara marcação nenhuma', () => {
+    render(<TenantConversationsPage />);
+    expect(mutateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: { mark_as_read: true } }),
+    );
+  });
+
   it('mostra todos os números, identifica a origem e filtra sem reutilizar o pareamento', () => {
     render(<TenantConversationsPage />);
 
