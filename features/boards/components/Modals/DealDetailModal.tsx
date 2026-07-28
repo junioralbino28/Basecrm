@@ -35,7 +35,9 @@ import {
   Sword,
   CheckCircle2,
   Bot,
+  ClipboardPlus,
 } from 'lucide-react';
+import { RegistrarAtendimentoDoLead } from '@/features/atendimentos/components/RegistrarAtendimentoDoLead';
 import { StageProgressBar } from '../StageProgressBar';
 import { ActivityRow } from '@/features/activities/components/ActivityRow';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
@@ -114,6 +116,10 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [newNote, setNewNote] = useState('');
   const [activeTab, setActiveTab] = useState<'timeline' | 'products' | 'info'>('timeline');
+  // Porta do atendimento no card (Junior, 28/07): registrar sem sair pro menu.
+  // Montada SÓ quando aberta — o drawer carrega as consultas da tela de
+  // Atendimentos e não faz sentido pagá-las com a porta fechada.
+  const [isRegistrarAtendimentoOpen, setIsRegistrarAtendimentoOpen] = useState(false);
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [objection, setObjection] = useState('');
@@ -720,6 +726,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     IA Insights
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRegistrarAtendimentoOpen(true)}
+                  className="ml-auto inline-flex items-center gap-2 rounded-xl bg-brand-600 hover:bg-brand-500 px-3 py-2 text-xs font-bold text-white transition-all active:scale-[0.98]"
+                >
+                  <ClipboardPlus size={14} />
+                  Registrar atendimento
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 dark:bg-black/10">
@@ -1084,6 +1098,13 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
           confirmText="Excluir"
           variant="danger"
         />
+
+        {isRegistrarAtendimentoOpen && dealId ? (
+          <RegistrarAtendimentoDoLead
+            dealId={dealId}
+            onClose={() => setIsRegistrarAtendimentoOpen(false)}
+          />
+        ) : null}
 
         <LossReasonModal
           isOpen={showLossReasonModal}

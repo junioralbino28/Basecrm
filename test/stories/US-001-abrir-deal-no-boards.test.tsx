@@ -74,6 +74,7 @@ vi.mock('@/lib/ai/tasksClient', () => ({
 }));
 
 vi.mock('lucide-react', () => ({
+  ClipboardPlus: Icon,
   BrainCircuit: Icon,
   Mail: Icon,
   Phone: Icon,

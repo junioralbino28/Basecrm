@@ -73,6 +73,7 @@ vi.mock('@/lib/ai/tasksClient', () => ({
 }));
 
 vi.mock('lucide-react', () => ({
+  ClipboardPlus: Icon,
   BrainCircuit: Icon,
   Mail: Icon,
   Phone: Icon,
@@ -148,6 +149,12 @@ vi.mock('@/context/CRMContext', () => ({
       lifecycleStages: [],
     };
   },
+}));
+
+// A porta "registrar atendimento" usa react-query via controller — neutralizada
+// aqui (o foco deste teste é ordem de hooks e seletores de tag).
+vi.mock('@/features/atendimentos/components/RegistrarAtendimentoDoLead', () => ({
+  RegistrarAtendimentoDoLead: () => null,
 }));
 
 describe('DealDetailModal', () => {

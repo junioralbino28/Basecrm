@@ -29,7 +29,8 @@ export interface AtendimentoFormState {
   recebido: boolean;
 }
 
-const emptyForm: AtendimentoFormState = {
+/** Form zerado — exportado pra porta "registrar do card do lead" pré-preencher sem duplicar. */
+export const formVazioDeAtendimento: AtendimentoFormState = {
   procedimento: '',
   productId: '',
   valor: '',
@@ -66,7 +67,7 @@ export const useAtendimentosController = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Atendimento | null>(null);
-  const [formData, setFormData] = useState<AtendimentoFormState>(emptyForm);
+  const [formData, setFormData] = useState<AtendimentoFormState>(formVazioDeAtendimento);
 
   const isLoading =
     atendimentosLoading ||
@@ -86,7 +87,7 @@ export const useAtendimentosController = () => {
 
   const handleNew = () => {
     setEditing(null);
-    setFormData(emptyForm);
+    setFormData(formVazioDeAtendimento);
     setIsModalOpen(true);
   };
 
