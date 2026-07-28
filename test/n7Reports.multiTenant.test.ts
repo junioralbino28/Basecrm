@@ -108,8 +108,10 @@ describeSupabase('N7 — planilhas conectadas AO VIVO (token de planilha isolado
         paid_at: new Date().toISOString(), performed_at: new Date().toISOString(),
       }), 'atendimento B');
 
-    assertNoSupabaseError(await admin.from('leads').insert({ organization_id: orgAId, name: `Lead A ${runId}`, status: 'NEW' }), 'lead A');
-    assertNoSupabaseError(await admin.from('leads').insert({ organization_id: orgBId, name: `Lead B ${runId}`, status: 'NEW' }), 'lead B');
+    // Leads: NADA a semear — o CSV conta de `contacts`, e a fixture mínima já
+    // cria exatamente 1 contato por org. (Antes este teste inseria na tabela
+    // LEGADA `leads` só pra contagem não dar zero — sustentava o bug do CSV
+    // apontar pra tabela morta em vez de pegá-lo.)
 
     // token de PLANILHA (report_tokens) — espaço isolado
     reportToken = `rpt_test_${runId}`;
@@ -137,13 +139,11 @@ describeSupabase('N7 — planilhas conectadas AO VIVO (token de planilha isolado
     const admin = getSupabaseAdminClient();
     if (orgAId) {
       await admin.from('atendimentos').delete().eq('organization_id', orgAId);
-      await admin.from('leads').delete().eq('organization_id', orgAId);
       await admin.from('report_tokens').delete().eq('organization_id', orgAId);
       await admin.from('api_keys').delete().eq('organization_id', orgAId);
     }
     if (orgBId) {
       await admin.from('atendimentos').delete().eq('organization_id', orgBId);
-      await admin.from('leads').delete().eq('organization_id', orgBId);
     }
     if (adminAId) await admin.auth.admin.deleteUser(adminAId);
     if (staffAId) await admin.auth.admin.deleteUser(staffAId);
@@ -154,7 +154,10 @@ describeSupabase('N7 — planilhas conectadas AO VIVO (token de planilha isolado
     const admin = getSupabaseAdminClient();
     const csv = await buildSummaryCsv(admin, orgAId);
     expect(csv).toContain('Faturamento (total),250.00'); // só org A (999 da B não entra)
+    // 1 = o contato da fixture da org A, contado de `contacts` (tabela VIVA).
+    // O da org B não entra — prova de isolamento também na contagem de leads.
     expect(csv).toContain('Leads (total),1');
+    expect(csv).toContain('Leads (mês),1'); // criado agora → cai no mês corrente
     expect(csv).not.toContain(phoneA);
     expect(csv).not.toContain(`Limpeza ${runId}`);
   });

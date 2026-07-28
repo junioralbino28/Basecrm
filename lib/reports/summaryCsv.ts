@@ -29,13 +29,15 @@ export async function buildSummaryCsv(admin: any, organizationId: string): Promi
     if (r.paid_at && r.paid_at >= monthStart) fatMes += liq;
   }
 
-  // Leads (contagem, sem trazer linhas).
+  // Leads (contagem, sem trazer linhas). Fonte = `contacts`: é onde o CRM grava
+  // todo lead que entra. A tabela `leads` é LEGADA e está vazia — contar dela
+  // mostraria "Leads: 0" pra sempre na planilha conectada.
   const { count: leadsTotal } = await admin
-    .from('leads')
+    .from('contacts')
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', organizationId);
   const { count: leadsMes } = await admin
-    .from('leads')
+    .from('contacts')
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', organizationId)
     .gte('created_at', monthStart);
