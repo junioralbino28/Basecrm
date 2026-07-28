@@ -103,6 +103,14 @@ function transformProfessional(db: DbProfessional): Professional {
  *
  * O espelho existe pela lição de `commission_rules.amount` (24/07): coluna nova
  * sem par legado deixa quem ainda lê a antiga vendo dado errado em silêncio.
+ *
+ * TIRAR E RECOLOCAR A ESPECIALIDADE VOLTA AO PADRÃO (Junior, 2026-07-27:
+ * "quando eu tiro algum procedimento de algum profissional, ele só volta se eu
+ * adicionar manualmente; tirando a especialidade e adicionando de novo, que ela
+ * volte"). Ao ADICIONAR uma especialidade, as exceções da pessoa nos
+ * procedimentos daquela especialidade são apagadas — é o "recomeçar do zero"
+ * que ele espera. Ao REMOVER não se apaga nada: um procedimento que ele ligou
+ * na mão foi uma escolha deliberada e continua ligado.
  */
 async function syncSpecialties(
   professionalId: string,
@@ -112,12 +120,55 @@ async function syncSpecialties(
   if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
 
   const ids = [...new Set(specialtyIds.map((id) => sanitizeUUID(id)).filter(Boolean))] as string[];
+  const proId = sanitizeUUID(professionalId);
 
-  const { error: delError } = await supabase
+  // Lê o que já existe pra saber o que ENTROU — sem isso não dá pra distinguir
+  // "especialidade nova" de "especialidade que já estava lá".
+  const { data: atuais, error: atuaisError } = await supabase
     .from('professional_specialties')
-    .delete()
-    .eq('professional_id', sanitizeUUID(professionalId));
-  if (delError) return { mirror: null, error: delError };
+    .select('specialty_id')
+    .eq('professional_id', proId);
+  if (atuaisError) return { mirror: null, error: atuaisError };
+
+  const antes = new Set((atuais || []).map((r) => String((r as { specialty_id: string }).specialty_id)));
+  const entraram = ids.filter((id) => !antes.has(id));
+  const sairam = [...antes].filter((id) => !ids.includes(id));
+
+  if (sairam.length > 0) {
+    const { error } = await supabase
+      .from('professional_specialties')
+      .delete()
+      .eq('professional_id', proId)
+      .in('specialty_id', sairam);
+    if (error) return { mirror: null, error };
+  }
+
+  if (entraram.length > 0) {
+    const { error } = await supabase
+      .from('professional_specialties')
+      .insert(entraram.map((specialty_id) => ({
+        professional_id: proId,
+        specialty_id,
+        organization_id: organizationId,
+      })));
+    if (error) return { mirror: null, error };
+
+    // Especialidade que ENTRA limpa as exceções nos procedimentos dela: é o
+    // "tirei e coloquei de novo, voltou ao padrão" que o Junior espera.
+    const { data: procedimentos } = await supabase
+      .from('specialty_products')
+      .select('product_id')
+      .in('specialty_id', entraram);
+    const alvos = [...new Set((procedimentos || [])
+      .map((r) => String((r as { product_id: string }).product_id)))];
+    if (alvos.length > 0) {
+      await supabase
+        .from('professional_product_overrides')
+        .delete()
+        .eq('professional_id', proId)
+        .in('product_id', alvos);
+    }
+  }
 
   if (ids.length === 0) return { mirror: null, error: null };
 
@@ -126,15 +177,6 @@ async function syncSpecialties(
     .select('id, name')
     .in('id', ids);
   if (nomesError) return { mirror: null, error: nomesError };
-
-  const { error: insError } = await supabase
-    .from('professional_specialties')
-    .insert(ids.map((specialty_id) => ({
-      professional_id: sanitizeUUID(professionalId),
-      specialty_id,
-      organization_id: organizationId,
-    })));
-  if (insError) return { mirror: null, error: insError };
 
   const mirror = (nomes || [])
     .map((n) => String((n as { name: string }).name))

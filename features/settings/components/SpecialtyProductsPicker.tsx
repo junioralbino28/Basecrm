@@ -2,6 +2,7 @@ import React from 'react';
 import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { specialtyProductsService } from '@/lib/supabase/specialtyProducts';
 import { formatBRL } from '@/lib/utils';
+import { AcoesEmMassa } from './AcoesEmMassa';
 
 /**
  * Quais procedimentos cabem nesta especialidade.
@@ -67,6 +68,25 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       .filter((p) => !termo || (p.name || '').toLowerCase().includes(termo));
   }, [produtos, busca]);
 
+  /**
+   * Marca/desmarca os que estão À VISTA. Com busca ativa, agir sobre os 294 do
+   * catálogo quando a pessoa filtrou 5 seria uma surpresa desagradável — por
+   * isso o rótulo diz "visíveis" quando há filtro.
+   */
+  const marcarEmMassa = async (marcar: boolean) => {
+    const alvos = visiveis.filter((p) => marcados.has(p.id) !== marcar);
+    if (alvos.length === 0) return;
+    setMarcados((atual) => {
+      const proximo = new Set(atual);
+      for (const p of alvos) { if (marcar) proximo.add(p.id); else proximo.delete(p.id); }
+      return proximo;
+    });
+    for (const p of alvos) {
+      const { error } = await specialtyProductsService.set(specialtyId, p.id, marcar);
+      if (error) { setErro(error.message); break; }
+    }
+  };
+
   if (carregando || carregandoProdutos) {
     return <div className="py-4 text-sm text-muted">Carregando procedimentos…</div>;
   }
@@ -101,10 +121,18 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
         className="w-full max-w-sm mb-3 px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
       />
 
-      <div className="text-xs text-muted mb-2">
-        {marcados.size === 0
-          ? 'Nenhum marcado ainda.'
-          : `${marcados.size} de ${produtos.length} marcados.`}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <span className="text-xs text-muted">
+          {marcados.size === 0
+            ? 'Nenhum marcado ainda.'
+            : `${marcados.size} de ${produtos.length} marcados.`}
+        </span>
+        <AcoesEmMassa
+          onMarcarTodos={() => void marcarEmMassa(true)}
+          onDesmarcarTodos={() => void marcarEmMassa(false)}
+          desabilitado={visiveis.length === 0}
+          escopo={busca.trim() ? `os ${visiveis.length} visíveis` : 'todos'}
+        />
       </div>
 
       <div className="max-h-80 overflow-y-auto rounded-xl border border-line divide-y divide-line/60">

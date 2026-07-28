@@ -9,6 +9,7 @@ import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 import { Loader2, UserPlus, Crown, Briefcase, Mail, Check, X, Sparkles, Clock, RefreshCw, Trash2, Link, Copy, CheckCircle2 } from 'lucide-react';
 import { PERMISSION_DEFINITIONS, getDefaultPermissionMap, type AppPermission } from '@/lib/auth/permissions';
+import { AcoesEmMassa } from './components/AcoesEmMassa';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { getRoleLabel, getRoleOptions, isAgencyAdminRole, normalizeAppUserRole, type AppUserRole } from '@/lib/auth/scope';
 
@@ -306,6 +307,24 @@ export const UsersPage: React.FC = () => {
 
     const handleDeleteUser = (user: Profile) => {
         setUserToDelete(user);
+    };
+
+    /**
+     * Liga/desliga/restaura VÁRIAS permissões de uma vez (Junior, 2026-07-27).
+     * Chama a mesma rota do toggle individual, uma por vez e só no que MUDA —
+     * disparar tudo em paralelo estouraria o rate limit e deixaria o cartão do
+     * membro num estado meio-gravado se uma falhasse.
+     */
+    const aplicarPermissoesEmMassa = async (
+        user: Profile,
+        desejado: (permission: AppPermission) => boolean,
+    ) => {
+        for (const def of PERMISSION_DEFINITIONS) {
+            const atual = Boolean(user.permissions?.[def.key]);
+            const alvo = desejado(def.key);
+            if (atual === alvo) continue;
+            await handlePermissionToggle(user.id, def.key, alvo);
+        }
     };
 
     const handlePermissionToggle = async (userId: string, permission: AppPermission, enabled: boolean) => {
@@ -646,6 +665,21 @@ export const UsersPage: React.FC = () => {
                                 </div>
                             </div>
 
+                            {!isCurrentUser && (
+                                <div className="mt-5">
+                                    <AcoesEmMassa
+                                        onMarcarTodos={() => void aplicarPermissoesEmMassa(user, () => true)}
+                                        onDesmarcarTodos={() => void aplicarPermissoesEmMassa(user, () => false)}
+                                        onRestaurar={() => {
+                                            const padrao = getDefaultPermissionMap(normalizedRole);
+                                            void aplicarPermissoesEmMassa(user, (k) => Boolean(padrao[k]));
+                                        }}
+                                        rotuloRestaurar="Voltar ao padrão do cargo"
+                                        desabilitado={Boolean(permissionLoading)}
+                                    />
+                                </div>
+                            )}
+
                             <div className="mt-5 space-y-4">
                                 {permissionGroups.map(([group, defs]) => (
                                     <div key={group}>
@@ -952,6 +986,18 @@ export const UsersPage: React.FC = () => {
                                     <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                                         O cargo já marca um padrão. Ajuste o que a pessoa pode fazer, área por área.
                                     </p>
+                                    <div className="mb-3">
+                                        <AcoesEmMassa
+                                            onMarcarTodos={() => setInvitePermissions(
+                                                Object.fromEntries(PERMISSION_DEFINITIONS.map((d) => [d.key, true])),
+                                            )}
+                                            onDesmarcarTodos={() => setInvitePermissions(
+                                                Object.fromEntries(PERMISSION_DEFINITIONS.map((d) => [d.key, false])),
+                                            )}
+                                            onRestaurar={() => setInvitePermissions(getDefaultPermissionMap(newUserRole))}
+                                            rotuloRestaurar="Voltar ao padrão do cargo"
+                                        />
+                                    </div>
                                     <div className="space-y-4">
                                         {permissionGroups.map(([group, defs]) => (
                                             <div key={group}>

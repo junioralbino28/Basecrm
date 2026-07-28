@@ -10,6 +10,7 @@ import {
 import { useProfessionals } from '@/lib/query/hooks/useProfessionalsQuery';
 import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useToast } from '@/context/ToastContext';
+import { AcoesEmMassa } from './AcoesEmMassa';
 import {
   specialtyProductsService,
   professionalProductsService,
@@ -152,6 +153,45 @@ export const CommissionsManager: React.FC<{
       selectedId, productId, proximo, padrao,
     );
     if (error) showToast(`Não deu pra salvar: ${error.message}`, 'error');
+  };
+
+  /**
+   * Liga/desliga tudo de uma vez (Junior, 27/07). Grava exceção só onde a
+   * escolha DIFERE do que a especialidade diz — quem já coincide fica sem
+   * exceção nenhuma, e continua acompanhando mudanças futuras da especialidade.
+   */
+  const alternarTodos = async (ligar: boolean) => {
+    const alvos = linhas.map(({ prod }) => prod).filter((prod) => faz(prod.id) !== ligar);
+    if (alvos.length === 0) return;
+    setExcecoes((atual) => {
+      const copia = { ...atual };
+      for (const prod of alvos) {
+        if (ligar === vemDaEspecialidade(prod.id)) delete copia[prod.id];
+        else copia[prod.id] = ligar;
+      }
+      return copia;
+    });
+    for (const prod of alvos) {
+      const { error } = await professionalProductsService.set(
+        selectedId, prod.id, ligar, vemDaEspecialidade(prod.id),
+      );
+      if (error) { showToast(`Não deu pra salvar: ${error.message}`, 'error'); break; }
+    }
+  };
+
+  /** Apaga TODAS as exceções: volta a valer exatamente o que a especialidade diz. */
+  const restaurarPadrao = async () => {
+    const comExcecao = Object.keys(excecoes);
+    if (comExcecao.length === 0) return;
+    setExcecoes({});
+    for (const productId of comExcecao) {
+      const padrao = vemDaEspecialidade(productId);
+      const { error } = await professionalProductsService.set(
+        selectedId, productId, padrao, padrao,
+      );
+      if (error) { showToast(`Não deu pra restaurar: ${error.message}`, 'error'); break; }
+    }
+    showToast('Voltou ao que as especialidades dela dizem.', 'success');
   };
 
   const startEdit = (key: string, regra: CommissionRule | null) => {
@@ -309,8 +349,22 @@ export const CommissionsManager: React.FC<{
               </div>
             </div>
 
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-muted">
+                A chave diz o que essa pessoa faz. O que vem das especialidades
+                dela já abre ligado.
+              </span>
+              <AcoesEmMassa
+                onMarcarTodos={() => void alternarTodos(true)}
+                onDesmarcarTodos={() => void alternarTodos(false)}
+                onRestaurar={() => void restaurarPadrao()}
+                rotuloRestaurar="Voltar ao padrão da especialidade"
+                desabilitado={linhas.length === 0}
+              />
+            </div>
+
             {/* Detalhe: tabela de procedimentos da pessoa */}
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left">
