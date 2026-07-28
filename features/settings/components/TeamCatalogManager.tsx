@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import {
   teamCatalogsService,
   type TeamCatalogItem,
@@ -19,6 +19,14 @@ type Props = {
    * é ligação e some da ficha junto (ON DELETE CASCADE).
    */
   avisoExclusao?: string;
+  /**
+   * Bloco que abre dentro de cada item. Hoje só Especialidades usa (a lista de
+   * procedimentos que cabem nela) — por isso é opcional em vez de virar duas
+   * telas quase iguais.
+   */
+  renderDetalhe?: (item: TeamCatalogItem) => React.ReactNode;
+  /** Rótulo do botão que abre o detalhe. */
+  rotuloDetalhe?: string;
 };
 
 /**
@@ -31,6 +39,7 @@ type Props = {
  */
 export const TeamCatalogManager: React.FC<Props> = ({
   kind, titulo, descricao, singular, placeholder, avisoExclusao,
+  renderDetalhe, rotuloDetalhe,
 }) => {
   const [itens, setItens] = React.useState<TeamCatalogItem[]>([]);
   const [carregando, setCarregando] = React.useState(true);
@@ -39,6 +48,7 @@ export const TeamCatalogManager: React.FC<Props> = ({
   const [editandoId, setEditandoId] = React.useState<string | null>(null);
   const [editNome, setEditNome] = React.useState('');
   const [ocupado, setOcupado] = React.useState(false);
+  const [abertoId, setAbertoId] = React.useState<string | null>(null);
 
   const carregar = React.useCallback(async () => {
     setCarregando(true);
@@ -134,10 +144,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
           ) : (
             <div className="space-y-2">
               {itens.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface/60 px-4 py-2.5"
-                >
+                <div key={item.id} className="rounded-xl border border-line bg-surface/60">
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5">
                   {editandoId === item.id ? (
                     <>
                       <input
@@ -170,6 +178,19 @@ export const TeamCatalogManager: React.FC<Props> = ({
                     <>
                       <span className="font-medium text-ink truncate">{item.name}</span>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {renderDetalhe && (
+                          <button
+                            type="button"
+                            onClick={() => setAbertoId(abertoId === item.id ? null : item.id)}
+                            aria-expanded={abertoId === item.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-line bg-card hover:bg-surface text-xs font-semibold text-ink"
+                          >
+                            {abertoId === item.id
+                              ? <ChevronDown className="h-3.5 w-3.5 text-muted" />
+                              : <ChevronRight className="h-3.5 w-3.5 text-muted" />}
+                            {rotuloDetalhe || 'Detalhes'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => { setEditandoId(item.id); setEditNome(item.name); }}
@@ -190,6 +211,12 @@ export const TeamCatalogManager: React.FC<Props> = ({
                       </div>
                     </>
                   )}
+                </div>
+                {renderDetalhe && abertoId === item.id && (
+                  <div className="border-t border-line px-4 pb-4">
+                    {renderDetalhe(item)}
+                  </div>
+                )}
                 </div>
               ))}
             </div>

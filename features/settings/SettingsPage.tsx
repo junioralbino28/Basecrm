@@ -13,6 +13,7 @@ import { CardFeesManager } from './components/CardFeesManager';
 import { FixedCostsManager } from './components/FixedCostsManager';
 import { PlanilhasSection } from './components/PlanilhasSection';
 import { TeamCatalogManager } from './components/TeamCatalogManager';
+import { SpecialtyProductsPicker } from './components/SpecialtyProductsPicker';
 import { AICenterSettings } from './AICenterSettings';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
@@ -156,6 +157,8 @@ const ProfessionalsSettings: React.FC = () => {
           singular="Nova especialidade"
           placeholder="Ex.: Ortodontia"
           avisoExclusao="Ela sai da lista e some da ficha de quem estava marcado com ela."
+          rotuloDetalhe="Procedimentos"
+          renderDetalhe={(item) => <SpecialtyProductsPicker specialtyId={item.id} />}
         />
       )}
     </div>

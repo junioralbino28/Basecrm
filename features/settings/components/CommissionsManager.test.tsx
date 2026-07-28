@@ -36,10 +36,31 @@ vi.mock('@/lib/query/hooks/useProductsQuery', () => ({
 
 vi.mock('@/lib/query/hooks/useProfessionalsQuery', () => ({
   useProfessionals: () => ({
-    data: [{ id: 'prof-1', name: 'Dra. Jéssica', specialty: 'Ortodontia', active: true }],
+    data: [{
+      id: 'prof-1',
+      name: 'Dra. Jéssica',
+      specialty: 'Ortodontia',
+      specialtyIds: ['esp-orto'],
+      active: true,
+    }],
     isLoading: false,
     error: null,
   }),
+}))
+
+// Sem este mock a tela sai buscando na rede durante o teste (e o teardown do
+// happy-dom aborta a chamada no meio, poluindo a saída).
+const setFazSpy = vi.fn(async () => ({ error: null }))
+let vinculosDaEspecialidade: Array<{ specialtyId: string; productId: string }> = []
+vi.mock('@/lib/supabase/specialtyProducts', () => ({
+  specialtyProductsService: {
+    list: async () => ({ data: vinculosDaEspecialidade, error: null }),
+    set: vi.fn(async () => ({ error: null })),
+  },
+  professionalProductsService: {
+    listOverrides: async () => ({ data: [], error: null }),
+    set: (...args: unknown[]) => setFazSpy(...(args as [])),
+  },
 }));
 
 import { CommissionsManager } from './CommissionsManager';
@@ -47,6 +68,8 @@ import { CommissionsManager } from './CommissionsManager';
 describe('CommissionsManager', () => {
   beforeEach(() => {
     regras = [];
+    vinculosDaEspecialidade = [];
+    setFazSpy.mockClear();
     createSpy.mockReset();
     updateSpy.mockReset();
   });
@@ -75,6 +98,21 @@ describe('CommissionsManager', () => {
   it('embutido na ficha: não repete o seletor de pessoa', () => {
     render(<CommissionsManager professionalId="prof-1" />);
     expect(screen.queryByLabelText(/^Pessoa$/i)).not.toBeInTheDocument();
+  });
+
+  // Pedido do Junior (27/07): o procedimento que cabe na especialidade da pessoa
+  // já abre LIGADO, sem ninguém marcar de novo pessoa por pessoa.
+  it('liga sozinho o procedimento que cabe na especialidade da pessoa', async () => {
+    vinculosDaEspecialidade = [{ specialtyId: 'esp-orto', productId: 'prod-1' }];
+    render(<CommissionsManager professionalId="prof-1" />);
+    const chave = await screen.findByRole('switch', { name: /Consulta.*faz/i });
+    await vi.waitFor(() => expect(chave).toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('procedimento fora das especialidades dela começa desligado', async () => {
+    render(<CommissionsManager professionalId="prof-1" />);
+    const chave = await screen.findByRole('switch', { name: /Consulta.*faz/i });
+    expect(chave).toHaveAttribute('aria-checked', 'false');
   });
 
   it('lista os profissionais no select', () => {

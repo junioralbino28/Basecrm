@@ -10,6 +10,11 @@ import {
 import { useProfessionals } from '@/lib/query/hooks/useProfessionalsQuery';
 import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useToast } from '@/context/ToastContext';
+import {
+  specialtyProductsService,
+  professionalProductsService,
+  type SpecialtyProductLink,
+} from '@/lib/supabase/specialtyProducts';
 
 /**
  * Comissão por funcionário × procedimento (config financeira). Só
@@ -55,6 +60,11 @@ export const CommissionsManager: React.FC<{
   const embutido = Boolean(professionalId);
   const selectedId = professionalId || selecionadoNaTela;
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  // O que a pessoa FAZ é derivado das especialidades dela + exceções gravadas
+  // (Junior, 27/07). A lista inteira continua aparecendo; o que vem da
+  // especialidade já abre ligado.
+  const [vinculos, setVinculos] = useState<SpecialtyProductLink[]>([]);
+  const [excecoes, setExcecoes] = useState<Record<string, boolean>>({});
   const [editType, setEditType] = useState<CommissionAmountType>('fixed');
   const [editValue, setEditValue] = useState('0');
 
@@ -96,6 +106,53 @@ export const CommissionsManager: React.FC<{
     }
     return map;
   }, [rules]);
+
+  React.useEffect(() => {
+    void specialtyProductsService.list().then(({ data }) => setVinculos(data));
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectedId) { setExcecoes({}); return; }
+    let vivo = true;
+    void professionalProductsService.listOverrides(selectedId).then(({ data }) => {
+      if (!vivo) return;
+      setExcecoes(Object.fromEntries(data.map((o) => [o.productId, o.enabled])));
+    });
+    return () => { vivo = false; };
+  }, [selectedId]);
+
+  const especialidadesDaPessoa = useMemo(
+    () => new Set(selected?.specialtyIds ?? []),
+    [selected],
+  );
+
+  const vemDaEspecialidade = React.useCallback(
+    (productId: string) => vinculos.some(
+      (l) => l.productId === productId && especialidadesDaPessoa.has(l.specialtyId),
+    ),
+    [vinculos, especialidadesDaPessoa],
+  );
+
+  const faz = React.useCallback(
+    (productId: string) => excecoes[productId] ?? vemDaEspecialidade(productId),
+    [excecoes, vemDaEspecialidade],
+  );
+
+  const alternarFaz = async (productId: string) => {
+    const proximo = !faz(productId);
+    const padrao = vemDaEspecialidade(productId);
+    setExcecoes((atual) => {
+      const copia = { ...atual };
+      // Voltou a coincidir com a especialidade → a exceção deixa de existir.
+      if (proximo === padrao) delete copia[productId];
+      else copia[productId] = proximo;
+      return copia;
+    });
+    const { error } = await professionalProductsService.set(
+      selectedId, productId, proximo, padrao,
+    );
+    if (error) showToast(`Não deu pra salvar: ${error.message}`, 'error');
+  };
 
   const startEdit = (key: string, regra: CommissionRule | null) => {
     setEditingKey(key);
@@ -257,6 +314,9 @@ export const CommissionsManager: React.FC<{
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left">
+                    <th scope="col" className="py-2 pr-2 font-semibold text-muted text-xs uppercase tracking-wider">
+                      Faz
+                    </th>
                     <th scope="col" className="py-2 pr-3 font-semibold text-muted text-xs uppercase tracking-wider">
                       Procedimento
                     </th>
@@ -276,7 +336,28 @@ export const CommissionsManager: React.FC<{
                     const isEditing = editingKey === prod.id;
                     return (
                       <tr key={prod.id} className="border-b border-line/60">
-                        <td className="py-2.5 pr-3 text-ink">{prod.name}</td>
+                        <td className="py-2.5 pr-2">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={faz(prod.id)}
+                            aria-label={`${prod.name} — esta pessoa faz`}
+                            onClick={() => void alternarFaz(prod.id)}
+                            className={`h-5 w-9 rounded-full transition-colors relative block ${
+                              faz(prod.id) ? 'bg-brand-600' : 'bg-line'
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
+                                faz(prod.id) ? 'left-[1.125rem]' : 'left-0.5'
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        <td className={`py-2.5 pr-3 ${faz(prod.id) ? 'text-ink' : 'text-muted'}`}>
+                          {prod.name}
+                        </td>
                         <td className="py-2.5 px-3 text-right text-muted tabular-nums">
                           {formatBRL(prod.price)}
                         </td>
