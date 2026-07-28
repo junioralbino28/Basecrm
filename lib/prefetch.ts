@@ -13,6 +13,7 @@ const routeImports = {
   settings: () => import('@/features/settings/SettingsPage'),
   activities: () => import('@/features/activities/ActivitiesPage'),
   'call-list': () => import('@/features/call-list/CallListPage'),
+  agenda: () => import('@/features/agenda/AgendaPage'),
   tarefas: () => import('@/features/tarefas/TarefasPage'),
   atendimentos: () => import('@/features/atendimentos/AtendimentosPage'),
   reports: () => import('@/features/reports/ReportsPage'),

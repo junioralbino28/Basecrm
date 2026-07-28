@@ -53,6 +53,7 @@ import {
   Wallet,
   Stethoscope,
   X,
+  CalendarDays,
   BellOff,
   Volume2,
   VolumeX
@@ -377,6 +378,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       badgeTone: 'amber' as const,
       badgeTitle: hojePendentes > 0 ? `${hojePendentes} item${hojePendentes > 1 ? 'ns' : ''} do dia sem resultado` : undefined,
     },
+    // Agenda NOSSA (fatia 1, 28/07): logo abaixo de Hoje — é a tela que a
+    // recepção vive dentro, no padrão de colunas por dentista do Clinicorp.
+    { to: getScopedHref('/agenda'), icon: CalendarDays, label: 'Agenda', prefetch: 'agenda' as const },
     // Visão Geral (N5) = o mês da clínica num olhar (mockup); /dashboard segue acessível por URL.
     { to: getScopedHref('/visao-geral'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
