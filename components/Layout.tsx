@@ -160,7 +160,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useCRM();
   const { user, loading, profile, signOut } = useAuth();
   const canViewFinance = useHasPermission('reports.finance');
-  const canViewProfessionals = useHasPermission('reports.professionals');
   const router = useRouter();
   const pathname = usePathname();
   const { mode } = useResponsiveMode();
@@ -312,9 +311,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
     ...(canViewFinance
       ? [{ to: getScopedHref('/reports/financeiro'), icon: Wallet, label: 'Financeiro', prefetch: 'reports' as const }]
-      : []),
-    ...(canViewProfessionals
-      ? [{ to: getScopedHref('/reports/profissionais'), icon: Stethoscope, label: 'Profissionais', prefetch: 'reports' as const }]
       : []),
     { to: getScopedHref('/settings'), icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
   ];

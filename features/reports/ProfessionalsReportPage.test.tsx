@@ -18,8 +18,12 @@ vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
 }));
 
 const mutateAsync = vi.fn();
+const deleteAsync = vi.fn();
+let pagamentosDoMes: Array<{ id: string; professionalId: string; amount: number; paidAt: string; period: string }> = [];
 vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
   useCreateCommissionPayment: () => ({ mutateAsync, isPending: false }),
+  useDeleteCommissionPayment: () => ({ mutateAsync: deleteAsync, isPending: false }),
+  useCommissionPaymentsByPeriod: () => ({ data: pagamentosDoMes, isLoading: false }),
 }));
 
 const addToast = vi.fn();
@@ -68,6 +72,8 @@ describe('ProfessionalsReportPage', () => {
     useHasPermissionMock.mockReturnValue(true);
     mockReport();
     mutateAsync.mockResolvedValue({ id: 'cp-1' });
+    deleteAsync.mockResolvedValue('cp-1');
+    pagamentosDoMes = [];
   });
 
   it('usuário com reports.professionals vê a tabela por dentista', () => {
@@ -93,7 +99,10 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
 
+    // Agora "pagar" ABRE o campo de valor (pagamento parcial, 27/07) — o
+    // lançamento só acontece no "confirmar".
     fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     const payload = mutateAsync.mock.calls[0][0];
@@ -112,8 +121,55 @@ describe('ProfessionalsReportPage', () => {
     render(<ProfessionalsReportPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     await waitFor(() => expect(addToast).toHaveBeenCalledWith(expect.stringMatching(/erro|falha|não foi/i), 'error'));
+  });
+
+  // Pedido do Junior (27/07): escolher QUANTO está pagando.
+  it('paga só uma parte quando o valor é editado', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '200' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0].amount).toBe(200);
+  });
+
+  it('recusa valor acima do que está em aberto', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '999' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(addToast).toHaveBeenCalledWith(expect.stringMatching(/máximo em aberto/i), 'error');
+  });
+
+  // "Desfazer para caso de erro" — apaga o ÚLTIMO lançamento, não o histórico.
+  it('desfaz o último pagamento lançado', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+    pagamentosDoMes = [
+      { id: 'cp-antigo', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-01T10:00:00Z', period: '2026-07' },
+      { id: 'cp-ultimo', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-20T10:00:00Z', period: '2026-07' },
+    ];
+    window.confirm = vi.fn(() => true);
+
+    render(<ProfessionalsReportPage />);
+    fireEvent.click(screen.getByRole('button', { name: /Desfazer último pagamento de Dr\. Marcos/i }));
+
+    await waitFor(() => expect(deleteAsync).toHaveBeenCalledWith('cp-ultimo'));
   });
 
   it('usuário sem reports.professionals vê acesso restrito e não dispara a query', () => {

@@ -22,6 +22,17 @@ vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
   useNetResult: (...a: unknown[]) => useNetResult(...a),
 }));
 
+// A tabela de comissão por profissional agora é PARTE do Financeiro (27/07),
+// então ela vem junto e precisa de toast e dos hooks de pagamento.
+vi.mock('@/context/ToastContext', () => ({
+  useToast: () => ({ addToast: vi.fn(), showToast: vi.fn() }),
+}));
+vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
+  useCreateCommissionPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteCommissionPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCommissionPaymentsByPeriod: () => ({ data: [], isLoading: false }),
+}));
+
 // Evita carregar recharts/lazy charts reais no teste.
 vi.mock('@/components/charts', () => ({
   LazyRevenueTrendChart: () => <div data-testid="revenue-chart" />,

@@ -80,7 +80,9 @@ beforeEach(() => {
 });
 
 describe('Layout permissions', () => {
-  it('esconde Financeiro e Profissionais quando as permissões estão negadas', () => {
+  // "Profissionais" saiu do menu em 27/07: a tabela de comissão virou parte do
+  // dashboard do Financeiro. A rota segue de pé pra quem tiver o link salvo.
+  it('esconde Financeiro quando a permissão está negada', () => {
     permissions = {
       'reports.finance': false,
       'reports.professionals': false,
@@ -92,13 +94,18 @@ describe('Layout permissions', () => {
     expect(screen.queryByRole('link', { name: 'Profissionais' })).not.toBeInTheDocument();
   });
 
-  it('exibe Financeiro e Profissionais quando as permissões estão concedidas', () => {
+  it('não repete "Profissionais" no menu — ela mora dentro do Financeiro', () => {
+    role = 'clinic_staff';
+    render(<Layout><div>Conteúdo</div></Layout>);
+    expect(screen.queryByRole('link', { name: 'Profissionais' })).not.toBeInTheDocument();
+  });
+
+  it('exibe Financeiro quando a permissão está concedida', () => {
     role = 'clinic_staff';
 
     render(<Layout><div>Conteúdo</div></Layout>);
 
     expect(screen.getByRole('link', { name: 'Financeiro' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Profissionais' })).toBeInTheDocument();
   });
 
   it('mantém o ícone do tema determinístico durante a renderização do servidor', () => {

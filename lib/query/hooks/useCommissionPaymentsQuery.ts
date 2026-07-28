@@ -6,7 +6,7 @@
  * Invalida o relatório de comissão (dashboard.commissionRoot) pra recalcular
  * "Paga"/"A pagar" na hora.
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../queryKeys';
 import { commissionPaymentsService } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
@@ -40,6 +40,43 @@ export const useCreateCommissionPayment = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.commissionPayments.all });
       // "Paga"/"A pagar" derivam do relatório de comissão — recalcular.
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+    },
+  });
+};
+
+/**
+ * Pagamentos de um mês — o desfazer precisa saber qual foi o último de cada
+ * pessoa. `period` vazio desliga a busca (range multi-mês não paga nem desfaz).
+ */
+export const useCommissionPaymentsByPeriod = (period: string) => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+
+  return useQuery({
+    queryKey: [...queryKeys.commissionPayments.lists(), organizationId, period],
+    enabled: Boolean(period),
+    queryFn: async () => {
+      const { data, error } = await commissionPaymentsService.listByPeriod(period);
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30 * 1000,
+  });
+};
+
+/** Apaga um pagamento lançado por engano (o "desfazer" da tela). */
+export const useDeleteCommissionPayment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await commissionPaymentsService.delete(id);
+      if (error) throw error;
+      return id;
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.commissionPayments.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
     },
   });

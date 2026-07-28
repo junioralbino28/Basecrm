@@ -95,6 +95,28 @@ export const commissionPaymentsService = {
     }
   },
 
+  /**
+   * Pagamentos de um mês de competência. Existe pro DESFAZER: pra apagar o
+   * último pagamento é preciso saber quais são e qual foi o último.
+   */
+  async listByPeriod(period: string): Promise<{ data: CommissionPayment[]; error: Error | null }> {
+    try {
+      if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
+      const { data, error } = await supabase
+        .from('commission_payments')
+        .select(COLUMNS)
+        .eq('period', period)
+        .order('paid_at', { ascending: false });
+      if (error) return { data: [], error };
+      return {
+        data: (data as DbCommissionPayment[] || []).map(transformCommissionPayment),
+        error: null,
+      };
+    } catch (e) {
+      return { data: [], error: e as Error };
+    }
+  },
+
   async create(input: {
     professionalId: string;
     amount: number;

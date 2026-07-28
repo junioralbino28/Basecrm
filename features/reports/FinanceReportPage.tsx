@@ -23,6 +23,7 @@ import {
 } from '@/lib/query/hooks/useFinanceReports';
 import { generateFinanceReportPDF } from './utils/generateReportPDF';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
+import { ProfessionalsCommissionTable } from './ProfessionalsReportPage';
 
 /**
  * Formata um valor em reais (BRL).
@@ -36,6 +37,8 @@ const formatBRL = (value: number): string =>
  */
 const FinanceReportContent: React.FC = () => {
   const [period, setPeriod] = useState<PeriodFilter>('this_month');
+  // Quem não tem o relatório por profissional continua sem ver a tabela.
+  const podeVerProfissionais = useHasPermission('reports.professionals') === true;
 
   const { start, end } = useMemo(() => getFinanceDateRange(period), [period]);
 
@@ -320,6 +323,13 @@ const FinanceReportContent: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Comissão por profissional — era um item separado no menu lateral e
+          virou parte do dashboard (Junior, 2026-07-27). Usa o MESMO período do
+          Financeiro: dois filtros na mesma tela dariam números divergentes. */}
+      {podeVerProfissionais ? (
+        <ProfessionalsCommissionTable period={period} embutido />
+      ) : null}
     </div>
   );
 };

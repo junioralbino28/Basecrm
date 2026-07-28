@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Stethoscope, Check } from 'lucide-react';
+import { Stethoscope, Check, Undo2, X } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
@@ -9,7 +9,11 @@ import { PeriodFilter } from '@/features/dashboard/hooks/useDashboardMetrics';
 import { getFinanceDateRange } from './utils/financeDateRange';
 import { periodFromISO, isSingleCompetenceMonth } from './utils/financeMath';
 import { useCommissionReport } from '@/lib/query/hooks/useFinanceReports';
-import { useCreateCommissionPayment } from '@/lib/query/hooks/useCommissionPaymentsQuery';
+import {
+  useCreateCommissionPayment,
+  useCommissionPaymentsByPeriod,
+  useDeleteCommissionPayment,
+} from '@/lib/query/hooks/useCommissionPaymentsQuery';
 import { useToast } from '@/context/ToastContext';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 
@@ -23,14 +27,31 @@ const formatBRL = (value: number): string =>
  * Conteúdo do relatório de profissionais — montado SÓ para quem passa no gate
  * (staff nem dispara a query de comissão).
  */
-const ProfessionalsReportContent: React.FC = () => {
+export const ProfessionalsCommissionTable: React.FC<{
+  /** Quando vem de fora (Financeiro), o período é o da tela hospedeira. */
+  period?: PeriodFilter;
+  /** Some o cabeçalho e o seletor — quem hospeda já tem os dois. */
+  embutido?: boolean;
+}> = ({ period: periodoExterno, embutido }) => {
   const { addToast } = useToast();
-  const [period, setPeriod] = useState<PeriodFilter>('this_month');
+  const [periodoLocal, setPeriodoLocal] = useState<PeriodFilter>('this_month');
+  const period = periodoExterno ?? periodoLocal;
+  const setPeriod = setPeriodoLocal;
   const [payingId, setPayingId] = useState<string | null>(null);
+  // Pedido do Junior (27/07): escolher QUANTO está pagando (pagamento parcial)
+  // e desfazer um lançamento errado.
+  const [abertoId, setAbertoId] = useState<string | null>(null);
+  const [valor, setValor] = useState('');
 
   const { start, end } = useMemo(() => getFinanceDateRange(period), [period]);
   const { data: report, isLoading, isError, isFetching } = useCommissionReport(start, end);
   const createPayment = useCreateCommissionPayment();
+  const deletePayment = useDeleteCommissionPayment();
+  const competencia = useMemo(
+    () => (isSingleCompetenceMonth(start, end) ? periodFromISO(end) : ''),
+    [start, end],
+  );
+  const { data: pagamentos } = useCommissionPaymentsByPeriod(competencia);
 
   const rows = report?.porProfissional ?? [];
 
@@ -39,6 +60,39 @@ const ProfessionalsReportContent: React.FC = () => {
   // grava period = mês do fim e a unique (org, prof, period) no banco rejeitaria
   // dupla gravação. Pagar mês a mês (selecionar "este mês"/"mês passado").
   const pagavel = useMemo(() => isSingleCompetenceMonth(start, end), [start, end]);
+
+  /** Último pagamento lançado pra essa pessoa no mês — é o que o desfazer apaga. */
+  const ultimoPagamento = useCallback(
+    (professionalId: string) => (pagamentos ?? [])
+      .filter((p) => p.professionalId === professionalId)
+      .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || ''))[0] || null,
+    [pagamentos],
+  );
+
+  const abrirPagamento = (professionalId: string, aPagar: number) => {
+    setAbertoId(professionalId);
+    // Já vem preenchido com o total: quem paga tudo só confirma.
+    setValor(String(aPagar.toFixed(2)).replace('.', ','));
+  };
+
+  const handleDesfazer = useCallback(
+    async (professionalId: string, professionalName: string) => {
+      const alvo = ultimoPagamento(professionalId);
+      if (!alvo) return;
+      const ok = window.confirm(
+        `Desfazer o último pagamento de ${professionalName}, de ${formatBRL(alvo.amount)}? `
+        + 'O valor volta para "a pagar".',
+      );
+      if (!ok) return;
+      try {
+        await deletePayment.mutateAsync(alvo.id);
+        addToast(`Pagamento de ${formatBRL(alvo.amount)} desfeito.`, 'success');
+      } catch (e) {
+        addToast(`Não foi possível desfazer: ${(e as Error)?.message || 'erro inesperado'}`, 'error');
+      }
+    },
+    [ultimoPagamento, deletePayment, addToast],
+  );
 
   const handlePagar = useCallback(
     async (professionalId: string, professionalName: string, amount: number) => {
@@ -59,16 +113,13 @@ const ProfessionalsReportContent: React.FC = () => {
           period: periodFromISO(end),
         });
         addToast(`${formatBRL(amount)} marcado como pago a ${professionalName}.`, 'success');
+        setAbertoId(null);
       } catch (e) {
         const message = (e as Error)?.message || '';
-        // Unique parcial (org, prof, period): pagamento já existe nesse mês.
-        const jaPago =
-          (e as { code?: string })?.code === '23505' ||
-          /duplicate key|already exists|uniq_commission_payments/i.test(message);
+        // A trava de "um pagamento por mês" caiu junto com o pagamento parcial
+        // (migration 20260727020000) — várias linhas no mesmo mês são esperadas.
         addToast(
-          jaPago
-            ? `${professionalName} já tem um pagamento registrado neste mês.`
-            : `Não foi possível registrar o pagamento: ${message || 'erro inesperado'}`,
+          `Não foi possível registrar o pagamento: ${message || 'erro inesperado'}`,
           'error'
         );
       } finally {
@@ -80,18 +131,29 @@ const ProfessionalsReportContent: React.FC = () => {
 
   return (
     <div className="flex flex-col space-y-4">
-      {/* Header com Filtros */}
-      <div className="flex justify-between items-center shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-display tracking-tight">
-            Profissionais
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            Quem produziu o quê — e a comissão de cada um.
+      {/* Header com Filtros — no Financeiro quem manda é o filtro de lá */}
+      {embutido ? (
+        <div className="shrink-0">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">
+            Comissão por profissional
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+            Quem produziu o quê — e quanto falta pagar a cada um.
           </p>
         </div>
-        <PeriodFilterSelect value={period} onChange={setPeriod} />
-      </div>
+      ) : (
+        <div className="flex justify-between items-center shrink-0">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-display tracking-tight">
+              Profissionais
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+              Quem produziu o quê — e a comissão de cada um.
+            </p>
+          </div>
+          <PeriodFilterSelect value={period} onChange={setPeriod} />
+        </div>
+      )}
 
       {/* Estado de erro */}
       {isError ? (
@@ -156,7 +218,23 @@ const ProfessionalsReportContent: React.FC = () => {
                     {row.comissao > 0 ? formatBRL(row.comissao) : '—'}
                   </td>
                   <td className="px-3 py-3.5 text-right text-emerald-600 dark:text-emerald-400">
-                    {row.pago > 0 ? formatBRL(row.pago) : '—'}
+                    {row.pago > 0 ? (
+                      <span className="inline-flex items-center gap-2">
+                        {formatBRL(row.pago)}
+                        {ultimoPagamento(row.professionalId) ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDesfazer(row.professionalId, row.professionalName)}
+                            disabled={isFetching || deletePayment.isPending}
+                            title="Desfazer o último pagamento lançado"
+                            aria-label={`Desfazer último pagamento de ${row.professionalName}`}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:text-red-600 hover:border-red-200 disabled:opacity-50 transition"
+                          >
+                            <Undo2 size={12} aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </span>
+                    ) : '—'}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {row.comissao <= 0 ? (
@@ -166,18 +244,61 @@ const ProfessionalsReportContent: React.FC = () => {
                         <span className="font-semibold text-gold-700 dark:text-gold-500">
                           {formatBRL(row.aPagar)}
                         </span>
-                        <button
-                          type="button"
-                          // MEDIUM-5: desabilita fora de mês único, durante o
-                          // pagamento e enquanto o relatório refaz fetch (evita
-                          // clique duplo antes do "a pagar" recalcular).
-                          disabled={!pagavel || isFetching || payingId === row.professionalId}
-                          title={!pagavel ? 'Selecione um único mês para pagar' : undefined}
-                          onClick={() => handlePagar(row.professionalId, row.professionalName, row.aPagar)}
-                          className="h-7 px-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                        >
-                          {payingId === row.professionalId ? 'pagando...' : 'pagar'}
-                        </button>
+                        {abertoId === row.professionalId ? (
+                          <span className="inline-flex items-center gap-1">
+                            <input
+                              aria-label={`Valor a pagar a ${row.professionalName}`}
+                              value={valor}
+                              onChange={(e) => setValor(e.target.value)}
+                              inputMode="decimal"
+                              autoFocus
+                              className="w-24 h-7 px-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-card text-right text-[12px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                            />
+                            <button
+                              type="button"
+                              disabled={isFetching || payingId === row.professionalId}
+                              onClick={() => {
+                                const n = Number(valor.replace(/\./g, '').replace(',', '.'));
+                                if (!Number.isFinite(n) || n <= 0) {
+                                  addToast('Digite um valor maior que zero.', 'error');
+                                  return;
+                                }
+                                if (n > row.aPagar) {
+                                  addToast(
+                                    `O máximo em aberto é ${formatBRL(row.aPagar)}.`,
+                                    'error',
+                                  );
+                                  return;
+                                }
+                                void handlePagar(row.professionalId, row.professionalName, n);
+                              }}
+                              className="h-7 px-2.5 rounded-lg border border-brand-200 bg-brand-50 text-[11px] font-bold text-brand-700 hover:bg-brand-100 disabled:opacity-50 transition"
+                            >
+                              {payingId === row.professionalId ? 'pagando...' : 'confirmar'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAbertoId(null)}
+                              aria-label="Cancelar pagamento"
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 transition"
+                            >
+                              <X size={12} aria-hidden="true" />
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            // MEDIUM-5: desabilita fora de mês único e enquanto o
+                            // relatório refaz fetch (evita clique antes do "a
+                            // pagar" recalcular).
+                            disabled={!pagavel || isFetching}
+                            title={!pagavel ? 'Selecione um único mês para pagar' : undefined}
+                            onClick={() => abrirPagamento(row.professionalId, row.aPagar)}
+                            className="h-7 px-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            pagar
+                          </button>
+                        )}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 rounded-full px-2 py-0.5">
@@ -223,7 +344,7 @@ const ProfessionalsReportPage: React.FC = () => {
     );
   }
 
-  return <ProfessionalsReportContent />;
+  return <ProfessionalsCommissionTable />;
 };
 
 export default ProfessionalsReportPage;
