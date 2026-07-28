@@ -153,6 +153,27 @@ export const commissionPaymentsService = {
     }
   },
 
+  /**
+   * Corrige a DATA de um pagamento (lançamento fora do dia, pagamento antigo
+   * cadastrado depois). Pedido do Junior, 2026-07-27.
+   *
+   * Só mexe em `paid_at` — a COMPETÊNCIA (`period`) fica como está de propósito:
+   * uma comissão de julho paga em 5 de agosto continua sendo de julho, senão o
+   * fechamento do mês mudaria sozinho ao corrigir uma data.
+   */
+  async updatePaidAt(id: string, paidAt: string): Promise<{ error: Error | null }> {
+    try {
+      if (!supabase) return { error: new Error('Supabase não configurado') };
+      const { error } = await supabase
+        .from('commission_payments')
+        .update({ paid_at: paidAt, updated_at: new Date().toISOString() })
+        .eq('id', sanitizeUUID(id));
+      return { error: error ?? null };
+    } catch (e) {
+      return { error: e as Error };
+    }
+  },
+
   async delete(id: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };

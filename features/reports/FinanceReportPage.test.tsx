@@ -30,6 +30,7 @@ vi.mock('@/context/ToastContext', () => ({
 vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
   useCreateCommissionPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteCommissionPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateCommissionPaymentDate: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCommissionPaymentsByPeriod: () => ({ data: [], isLoading: false }),
 }));
 

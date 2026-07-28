@@ -13,6 +13,7 @@ import {
   useCreateCommissionPayment,
   useCommissionPaymentsByPeriod,
   useDeleteCommissionPayment,
+  useUpdateCommissionPaymentDate,
 } from '@/lib/query/hooks/useCommissionPaymentsQuery';
 import { useToast } from '@/context/ToastContext';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
@@ -22,6 +23,25 @@ import { useHasPermission } from '@/lib/auth/useHasPermission';
  */
 const formatBRL = (value: number): string =>
   value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** 'YYYY-MM-DD' pro campo de data (hora local, sem escorregar um dia). */
+const paraCampoData = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+};
+
+/**
+ * 'YYYY-MM-DD' → ISO ao MEIO-DIA local. Meia-noite escorrega de dia quando o
+ * fuso vira, e o pagamento apareceria no dia anterior.
+ */
+const doCampoData = (valor: string): string => {
+  const [ano, mes, dia] = valor.split('-').map(Number);
+  if (!ano || !mes || !dia) return '';
+  return new Date(ano, mes - 1, dia, 12, 0, 0).toISOString();
+};
 
 /** Data curta do pagamento (dd/mm) — o ano já está no período da tela. */
 const formatDiaMes = (iso: string): string => {
@@ -50,11 +70,13 @@ export const ProfessionalsCommissionTable: React.FC<{
   // e desfazer um lançamento errado.
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const [valor, setValor] = useState('');
+  const [dataPagamento, setDataPagamento] = useState('');
 
   const { start, end } = useMemo(() => getFinanceDateRange(period), [period]);
   const { data: report, isLoading, isError, isFetching } = useCommissionReport(start, end);
   const createPayment = useCreateCommissionPayment();
   const deletePayment = useDeleteCommissionPayment();
+  const updateDate = useUpdateCommissionPaymentDate();
   const competencia = useMemo(
     () => (isSingleCompetenceMonth(start, end) ? periodFromISO(end) : ''),
     [start, end],
@@ -87,6 +109,19 @@ export const ProfessionalsCommissionTable: React.FC<{
     setAbertoId(professionalId);
     // Já vem preenchido com o total: quem paga tudo só confirma.
     setValor(String(aPagar.toFixed(2)).replace('.', ','));
+    setDataPagamento(paraCampoData(new Date().toISOString()));
+  };
+
+  /** Corrige a data de um lançamento (pagamento antigo, lançado fora do dia). */
+  const corrigirData = async (id: string, valorCampo: string) => {
+    const iso = doCampoData(valorCampo);
+    if (!iso) return;
+    try {
+      await updateDate.mutateAsync({ id, paidAt: iso });
+      addToast('Data do pagamento corrigida.', 'success');
+    } catch (e) {
+      addToast(`Não foi possível corrigir a data: ${(e as Error)?.message || 'erro'}`, 'error');
+    }
   };
 
   const handleDesfazer = useCallback(
@@ -125,6 +160,8 @@ export const ProfessionalsCommissionTable: React.FC<{
           amount,
           // competência do pagamento = mês do fim do range selecionado
           period: periodFromISO(end),
+          // A data é escolhida na tela: dá pra lançar pagamento de outro dia.
+          paidAt: dataPagamento ? doCampoData(dataPagamento) : undefined,
         });
         addToast(`${formatBRL(amount)} marcado como pago a ${professionalName}.`, 'success');
         setAbertoId(null);
@@ -254,8 +291,16 @@ export const ProfessionalsCommissionTable: React.FC<{
                       {pagamentosDaPessoa(row.professionalId).length > 0 ? (
                         <span className="flex flex-col items-end gap-0.5 text-[10px] font-normal text-slate-400 dark:text-slate-500 tabular-nums">
                           {pagamentosDaPessoa(row.professionalId).map((pg) => (
-                            <span key={pg.id}>
-                              {formatBRL(pg.amount)} · {formatDiaMes(pg.paidAt)}
+                            <span key={pg.id} className="inline-flex items-center gap-1">
+                              {formatBRL(pg.amount)} ·
+                              <input
+                                type="date"
+                                aria-label={`Data do pagamento de ${formatBRL(pg.amount)} a ${row.professionalName}`}
+                                value={paraCampoData(pg.paidAt)}
+                                onChange={(e) => void corrigirData(pg.id, e.target.value)}
+                                disabled={updateDate.isPending}
+                                className="bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-white/20 rounded px-1 py-0 text-[10px] text-slate-400 dark:text-slate-500 focus:outline-none focus:border-brand-400 disabled:opacity-50"
+                              />
                             </span>
                           ))}
                         </span>
@@ -273,6 +318,13 @@ export const ProfessionalsCommissionTable: React.FC<{
                         </span>
                         {abertoId === row.professionalId ? (
                           <span className="inline-flex items-center gap-1">
+                            <input
+                              type="date"
+                              aria-label={`Data do pagamento a ${row.professionalName}`}
+                              value={dataPagamento}
+                              onChange={(e) => setDataPagamento(e.target.value)}
+                              className="h-7 px-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-card text-[11px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                            />
                             <input
                               aria-label={`Valor a pagar a ${row.professionalName}`}
                               value={valor}

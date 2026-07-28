@@ -16,6 +16,8 @@ interface CreateCommissionPaymentParams {
   amount: number;
   /** Período de competência 'YYYY-MM' (CHECK no banco). */
   period: string;
+  /** Quando o dinheiro saiu. Omitido = agora (DEFAULT do banco). */
+  paidAt?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export const useCreateCommissionPayment = () => {
         professionalId: params.professionalId,
         amount: params.amount,
         period: params.period,
+        paidAt: params.paidAt,
         organizationId,
       });
       if (error) throw error;
@@ -72,6 +75,23 @@ export const useDeleteCommissionPayment = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await commissionPaymentsService.delete(id);
+      if (error) throw error;
+      return id;
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.commissionPayments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+    },
+  });
+};
+
+/** Corrige a data de um pagamento já lançado (só `paid_at`, nunca a competência). */
+export const useUpdateCommissionPaymentDate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, paidAt }: { id: string; paidAt: string }) => {
+      const { error } = await commissionPaymentsService.updatePaidAt(id, paidAt);
       if (error) throw error;
       return id;
     },

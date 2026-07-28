@@ -19,10 +19,12 @@ vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
 
 const mutateAsync = vi.fn();
 const deleteAsync = vi.fn();
+const updateDateAsync = vi.fn();
 let pagamentosDoMes: Array<{ id: string; professionalId: string; amount: number; paidAt: string; period: string }> = [];
 vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
   useCreateCommissionPayment: () => ({ mutateAsync, isPending: false }),
   useDeleteCommissionPayment: () => ({ mutateAsync: deleteAsync, isPending: false }),
+  useUpdateCommissionPaymentDate: () => ({ mutateAsync: updateDateAsync, isPending: false }),
   useCommissionPaymentsByPeriod: () => ({ data: pagamentosDoMes, isLoading: false }),
 }));
 
@@ -73,6 +75,7 @@ describe('ProfessionalsReportPage', () => {
     mockReport();
     mutateAsync.mockResolvedValue({ id: 'cp-1' });
     deleteAsync.mockResolvedValue('cp-1');
+    updateDateAsync.mockResolvedValue('cp-1');
     pagamentosDoMes = [];
   });
 
@@ -184,9 +187,34 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
 
-    // Mais recente primeiro, cada um com a sua data.
-    expect(screen.getByText(/R\$ 500,00 · 21\/07/)).toBeInTheDocument();
-    expect(screen.getByText(/R\$ 100,00 · 03\/07/)).toBeInTheDocument();
+    // A data virou campo editável, então o valor mora no input — cada pagamento
+    // tem o SEU, com o dia certo.
+    expect(screen.getByLabelText(/Data do pagamento de R\$ 500,00 a Dr\. Marcos/i))
+      .toHaveValue('2026-07-21');
+    expect(screen.getByLabelText(/Data do pagamento de R\$ 100,00 a Dr\. Marcos/i))
+      .toHaveValue('2026-07-03');
+  });
+
+  // Pedido do Junior (27/07): corrigir a data de um lançamento — pagamento
+  // antigo cadastrado depois, ou lançado fora do dia.
+  it('corrige a data de um pagamento já lançado', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+    pagamentosDoMes = [
+      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07' },
+    ];
+
+    render(<ProfessionalsReportPage />);
+    fireEvent.change(
+      screen.getByLabelText(/Data do pagamento de R\$ 100,00 a Dr\. Marcos/i),
+      { target: { value: '2026-07-15' } },
+    );
+
+    await waitFor(() => expect(updateDateAsync).toHaveBeenCalledTimes(1));
+    expect(updateDateAsync.mock.calls[0][0].id).toBe('cp-1');
+    // Meio-dia local: meia-noite escorregaria de dia ao virar o fuso.
+    expect(new Date(updateDateAsync.mock.calls[0][0].paidAt).getDate()).toBe(15);
   });
 
   it('usuário sem reports.professionals vê acesso restrito e não dispara a query', () => {
