@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **985/985**
+Última atualização: 2026-07-28 · branch `feat/funil-construtor` · baseline `test:local` **991/991** (209 arquivos, verde em `61f1cfa`)
 
 ---
 
@@ -182,8 +182,9 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 11. Cargo e especialidade agora são `<select>` dos catálogos — sobrou algum ponto de **texto livre** que volte a permitir "Ortodontia" × "ortodontia"?
 
 **Encosta em motor?** **Sim.** Nenhuma fatia nova se apoia neste pacote até o parecer.
-**Prova:** `test:local` = **985/985** (208 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
-**Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts` conta leads da tabela morta `leads` (local: `leads = 0`, `contacts = 95`) — mostraria "Leads: 0" pra sempre. Documentado, ainda não corrigido.
+**Prova:** `test:local` = **991/991** (209 arquivos, verde em `61f1cfa` — 28/07) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
+**Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts:33-41` conta leads da **tabela morta `leads`** — mostraria "Leads: 0" pra sempre pra quem linkar o CSV no Excel. Conferido no banco local em 28/07: **`leads` = 0 linhas, `contacts` = 143**.
+**⚠️ Agravante achado em 28/07 — vale como foco de revisão por si só:** o teste que cobre esse CSV (`test/n7Reports.multiTenant.test.ts:111-112`) **insere linhas na tabela morta** só pra o total não dar zero. Ou seja, **o teste sustenta o erro em vez de pegá-lo** — mesmo padrão de "expectativa velha" que já mordeu duas vezes esta semana. Fora esses dois arquivos e `test/rlsHardening.crossTenant.test.ts`, **nenhum outro ponto do código toca em `leads`**. Correção proposta ao Junior (apontar pra `contacts` + reescrever o teste pra provar o número certo) — **fora do motor**, ainda **não executada**.
 **Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
 
 ---
