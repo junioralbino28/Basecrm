@@ -109,8 +109,13 @@ function transformProfessional(db: DbProfessional): Professional {
  * adicionar manualmente; tirando a especialidade e adicionando de novo, que ela
  * volte"). Ao ADICIONAR uma especialidade, as exceções da pessoa nos
  * procedimentos daquela especialidade são apagadas — é o "recomeçar do zero"
- * que ele espera. Ao REMOVER não se apaga nada: um procedimento que ele ligou
- * na mão foi uma escolha deliberada e continua ligado.
+ * que ele espera.
+ *
+ * AO REMOVER, A SIMETRIA (Junior, 2026-07-28: "remove só as da especialidade
+ * removida e mantém as outras manuais"): as exceções nos procedimentos da
+ * especialidade que SAI também são apagadas — MENOS as de procedimento que
+ * continua coberto por outra especialidade da pessoa (essas marcações
+ * pertencem ao contexto que ficou, não ao que saiu).
  */
 async function syncSpecialties(
   professionalId: string,
@@ -141,6 +146,37 @@ async function syncSpecialties(
       .eq('professional_id', proId)
       .in('specialty_id', sairam);
     if (error) return { mirror: null, error };
+
+    // Especialidade que SAI leva embora as exceções nos procedimentos DELA —
+    // menos as de procedimento ainda coberto por especialidade que FICOU
+    // (um procedimento pode caber em várias; a marcação pertence ao contexto
+    // que continua, não ao que saiu).
+    const { data: procsDaQueSaiu } = await supabase
+      .from('specialty_products')
+      .select('product_id')
+      .in('specialty_id', sairam);
+    const candidatos = [...new Set((procsDaQueSaiu || [])
+      .map((r) => String((r as { product_id: string }).product_id)))];
+
+    if (candidatos.length > 0) {
+      let cobertos = new Set<string>();
+      if (ids.length > 0) {
+        const { data: procsQueFicam } = await supabase
+          .from('specialty_products')
+          .select('product_id')
+          .in('specialty_id', ids);
+        cobertos = new Set((procsQueFicam || [])
+          .map((r) => String((r as { product_id: string }).product_id)));
+      }
+      const alvosDaSaida = candidatos.filter((id) => !cobertos.has(id));
+      if (alvosDaSaida.length > 0) {
+        await supabase
+          .from('professional_product_overrides')
+          .delete()
+          .eq('professional_id', proId)
+          .in('product_id', alvosDaSaida);
+      }
+    }
   }
 
   if (entraram.length > 0) {

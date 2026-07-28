@@ -94,3 +94,64 @@ describe('professionalsService.update — especialidade que volta limpa as exce�
     expect(chamadas).not.toContain('specialty_products');
   });
 });
+
+/**
+ * A SIMETRIA DA REMOÇÃO (Junior, 2026-07-28): *"remove só as da especialidade
+ * removida e mantém as outras manuais"*. Especialidade que SAI leva embora as
+ * exceções nos procedimentos dela — MENOS as de procedimento ainda coberto por
+ * especialidade que ficou (a marcação pertence ao contexto que continua).
+ */
+describe('professionalsService.update — especialidade que SAI limpa as marcações dela', () => {
+  const ESP_QUE_SAI = '33333333-3333-4333-8333-333333333333';
+  const ESP_QUE_FICA = ESP_NOVA;
+
+  it('apaga as exceções dos procedimentos da especialidade removida', async () => {
+    const overridesDelete = chain(null);
+    fromMock.mockImplementation((tabela: string) => {
+      switch (tabela) {
+        case 'professional_specialties':
+          return chain([{ specialty_id: ESP_QUE_SAI }]); // tinha só a que sai
+        case 'specialty_products':
+          return chain([{ product_id: 'prod-A' }, { product_id: 'prod-B' }]);
+        case 'professional_product_overrides':
+          return overridesDelete;
+        default:
+          return chain({ organization_id: 'org-1' });
+      }
+    });
+
+    const { error } = await professionalsService.update(PRO, { specialtyIds: [] });
+
+    expect(error).toBeNull();
+    expect(overridesDelete.in).toHaveBeenCalledWith('product_id', ['prod-A', 'prod-B']);
+  });
+
+  it('procedimento ainda coberto por especialidade que FICOU é poupado', async () => {
+    const overridesDelete = chain(null);
+    let consultasDeProcedimento = 0;
+    fromMock.mockImplementation((tabela: string) => {
+      switch (tabela) {
+        case 'professional_specialties':
+          return chain([{ specialty_id: ESP_QUE_SAI }, { specialty_id: ESP_QUE_FICA }]);
+        case 'specialty_products':
+          consultasDeProcedimento += 1;
+          // 1ª consulta = procedimentos da que SAI; 2ª = da que FICA.
+          return consultasDeProcedimento === 1
+            ? chain([{ product_id: 'prod-A' }, { product_id: 'prod-B' }])
+            : chain([{ product_id: 'prod-B' }]);
+        case 'professional_product_overrides':
+          return overridesDelete;
+        case 'specialties':
+          return chain([{ id: ESP_QUE_FICA, name: 'Ortodontia' }]);
+        default:
+          return chain({ organization_id: 'org-1' });
+      }
+    });
+
+    const { error } = await professionalsService.update(PRO, { specialtyIds: [ESP_QUE_FICA] });
+
+    expect(error).toBeNull();
+    // prod-B continua coberto pela que ficou → só prod-A perde a marcação.
+    expect(overridesDelete.in).toHaveBeenCalledWith('product_id', ['prod-A']);
+  });
+});
