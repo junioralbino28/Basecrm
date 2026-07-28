@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getErrorMessage } from '@/lib/utils/errorUtils'
-import { Loader2, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
+import { Loader2, Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 
 /**
  * Componente React `LoginPage`.
@@ -16,8 +16,32 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    // "Esqueci minha senha" (Junior, 2026-07-27): sem isto, quem perde a senha
+    // fica trancado do lado de fora esperando alguém com acesso ao banco.
+    const [modoRecuperar, setModoRecuperar] = useState(false)
+    const [enviado, setEnviado] = useState(false)
     const router = useRouter()
     const supabase = createClient()
+
+    const recuperarSenha = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        setError(null)
+        try {
+            if (!supabase) throw new Error('Supabase não configurado.')
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/redefinir-senha`,
+            })
+            if (error) throw error
+            // Mostra sucesso mesmo se o email não existir: dizer "esse email não
+            // está cadastrado" entregaria a quem tenta invadir quais contas existem.
+            setEnviado(true)
+        } catch (err) {
+            setError(getErrorMessage(err))
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -54,15 +78,34 @@ export default function LoginPage() {
             <div className="max-w-md w-full relative z-10 px-4">
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-slate-900 dark:text-white font-display tracking-tight mb-2">
-                        Bem-vindo de volta
+                        {modoRecuperar ? 'Esqueceu a senha?' : 'Bem-vindo de volta'}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400">
-                        Entre na sua conta para continuar.
+                        {modoRecuperar
+                            ? 'Diga seu email que a gente manda um link para você criar outra.'
+                            : 'Entre na sua conta para continuar.'}
                     </p>
                 </div>
 
                 <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl p-8 backdrop-blur-sm">
-                    <form className="space-y-6" onSubmit={handleSubmit}>
+                    {enviado ? (
+                        <div className="text-center py-4" role="status">
+                            <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
+                            <p className="text-slate-900 dark:text-white font-semibold">Link enviado.</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 mb-5">
+                                Se existir uma conta com <strong>{email}</strong>, o link chega em
+                                instantes. Vale uma olhada no spam.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => { setEnviado(false); setModoRecuperar(false) }}
+                                className="text-sm font-bold text-brand-600 hover:text-brand-500"
+                            >
+                                Voltar para a entrada
+                            </button>
+                        </div>
+                    ) : (
+                    <form className="space-y-6" onSubmit={modoRecuperar ? recuperarSenha : handleSubmit}>
                         <div>
                             <label htmlFor="email-address" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                 Email
@@ -87,6 +130,7 @@ export default function LoginPage() {
                             </div>
                         </div>
 
+                        {!modoRecuperar && (
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                 Senha
@@ -118,6 +162,7 @@ export default function LoginPage() {
                                 </button>
                             </div>
                         </div>
+                        )}
 
                         {error && (
                             <div
@@ -137,6 +182,8 @@ export default function LoginPage() {
                         >
                             {loading ? (
                                 <Loader2 className="animate-spin h-5 w-5" />
+                            ) : modoRecuperar ? (
+                                'Enviar link por email'
                             ) : (
                                 <>
                                     Entrar
@@ -144,7 +191,18 @@ export default function LoginPage() {
                                 </>
                             )}
                         </button>
+
+                        <div className="text-center">
+                            <button
+                                type="button"
+                                onClick={() => { setModoRecuperar((v) => !v); setError(null) }}
+                                className="text-sm font-semibold text-brand-600 hover:text-brand-500"
+                            >
+                                {modoRecuperar ? 'Voltar para a entrada' : 'Esqueci minha senha'}
+                            </button>
+                        </div>
                     </form>
+                    )}
                 </div>
 
                 <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
