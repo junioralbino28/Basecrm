@@ -967,28 +967,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     const aiDebounceMs = 7000;
     const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
 
-    const pendingMetadataUpdate = await admin
-      .from('conversation_threads')
-      .update({
-        updated_at: now,
-        metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
-          provider: 'evolution',
-          direction: parsed.direction,
-          event: parsed.event,
-          preview: content.slice(0, 160),
-          messageType: parsed.messageType,
-          sentAt: parsed.sentAt,
-          authorName: parsed.contactName,
-          incrementUnread: false,
-        }),
-      })
-      .eq('id', threadId)
-      .eq('organization_id', connectionResult.data.organization_id);
-
-    if (pendingMetadataUpdate.error) {
-      return json({ error: pendingMetadataUpdate.error.message }, 500);
-    }
-
+    // 🐛 BUG REAL (28/07/2026): aqui existia um update REDUNDANTE que reconstruía a
+    // metadata a partir de `threadResult.data?.metadata` — a foto lida ANTES do
+    // update que soma o não-lido. Efeito: o unreadCount ia a 1 e milissegundos
+    // depois voltava a 0 — nenhuma conversa com IA ativa acumulava não-vistas, e
+    // o número do menu/notificação nunca aparecia. Todos os campos que ele
+    // gravava (prévia, hora, autor…) já foram gravados acima; o marcador do
+    // debounce abaixo parte de uma leitura FRESCA e preserva o contador.
     const threadMetadataResult = await admin
       .from('conversation_threads')
       .select('metadata, status')
