@@ -62,6 +62,31 @@ describe('createEvolutionInstance', () => {
     });
   });
 
+  it('erro de instancia duplicada expõe o MOTIVO, não o rótulo "Forbidden" (bug real 28/07)', async () => {
+    // Payload literal da Evolution v2 em produção: o motivo vem numa LISTA em
+    // `response.message` e `error` traz só o rótulo genérico. O parser antigo
+    // ignorava listas → a tela do Junior mostrou "Forbidden" sem explicação e o
+    // fallback "já existe → busca o QR" nunca disparava.
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({
+        status: 403,
+        error: 'Forbidden',
+        response: { message: ['This name "whatsapp-ia-4abae75a" is already in use.'] },
+      }),
+    } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      createEvolutionInstance({
+        apiUrl: 'https://evolution.example.com/',
+        apiKey: 'GLOBAL-SECRET',
+        instanceName: 'whatsapp-ia-4abae75a',
+      }),
+    ).rejects.toThrow(/already in use/);
+  });
+
   it('aceita payload flat e usa o nome solicitado quando a resposta nao repete o nome', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,

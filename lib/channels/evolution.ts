@@ -76,10 +76,21 @@ async function parseEvolutionResponse(response: Response) {
     const nestedResponse = objectPayload?.response && typeof objectPayload.response === 'object'
       ? objectPayload.response as Record<string, unknown>
       : null;
+    // A Evolution manda o motivo real como LISTA (`response.message: ["..."]`) e um rótulo
+    // genérico em `error` ("Forbidden"). Aceitar só string fazia o rótulo vencer o motivo —
+    // e o caso "instância já existe" chegava na tela como um "Forbidden" sem explicação.
+    const asText = (value: unknown): string | null => {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (Array.isArray(value)) {
+        const parts = value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+        if (parts.length) return parts.join(' ');
+      }
+      return null;
+    };
     const providerMessage = [
-      objectPayload?.message,
+      asText(objectPayload?.message),
+      asText(nestedResponse?.message),
       typeof objectPayload?.error === 'string' ? objectPayload.error : null,
-      nestedResponse?.message,
     ].find((value): value is string => typeof value === 'string' && Boolean(value.trim()));
     throw new EvolutionHttpError(
       typeof payload === 'string'

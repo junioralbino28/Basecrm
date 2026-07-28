@@ -22,7 +22,11 @@ function json(body: unknown, status = 200) {
 
 function isExistingEvolutionInstanceError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
-  return /(?:instance|instancia).*(?:already exists|already exist|already in use|ja existe|já existe)|already.*(?:instance|instancia)/i.test(message);
+  // A Evolution v2 responde à criação duplicada com `This name "<instancia>" is already
+  // in use.` — sem a palavra "instance" no texto. Por isso o padrão também aceita
+  // "name ... already in use", senão o caso "já existe" (que tem fallback pronto:
+  // buscar o QR da instância existente) viraria erro na tela.
+  return /(?:instance|instancia|name)[^]*?(?:already exists|already exist|already in use|ja existe|já existe)|already.*(?:instance|instancia)/i.test(message);
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {

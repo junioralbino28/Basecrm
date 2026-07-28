@@ -153,6 +153,28 @@ describe('POST connect', () => {
     expect(JSON.stringify(body)).not.toMatch(/apiKey|webhookSecret/i);
   });
 
+  it('reconhece o "ja existe" com a frase REAL da Evolution v2 (name ... already in use)', async () => {
+    // Mensagem literal de produção (28/07): não contém a palavra "instance", só o
+    // nome. O padrão antigo exigia "instance|instancia" e deixava esse caso virar
+    // erro 502 "Forbidden" na tela em vez de buscar o QR da instância existente.
+    createEvolutionInstanceMock.mockRejectedValue(
+      new Error('This name "whatsapp-ia-4abae75a" is already in use.'),
+    );
+    fetchEvolutionPairingCodeMock.mockResolvedValue({
+      raw: { base64: 'iVBOR_REPAIR2', pairingCode: 'PAIR-REPAIR2' },
+      pairingCode: 'PAIR-REPAIR2',
+      code: null,
+      count: 1,
+    });
+
+    const response = await POST(request(), ctx);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(fetchEvolutionPairingCodeMock).toHaveBeenCalledTimes(1);
+    expect(body.pairing).toMatchObject({ pairingCode: 'PAIR-REPAIR2' });
+  });
+
   it('se a instancia ja existe, busca novo pareamento sem falhar', async () => {
     createEvolutionInstanceMock.mockRejectedValue(new Error('Instance already exists'));
     fetchEvolutionPairingCodeMock.mockResolvedValue({
