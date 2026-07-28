@@ -258,3 +258,36 @@ export async function pedirPermissaoDeNotificacao(): Promise<boolean> {
     return false;
   }
 }
+
+export type PermissaoDoNavegador = 'granted' | 'denied' | 'default' | 'unsupported';
+
+/**
+ * A permissão REAL do navegador — separada da nossa chave. Bug de UX pego pelo
+ * Junior (28/07): a chave nasce "Ligada", então ninguém clica, o navegador
+ * nunca pergunta, e o menu fingia que estava tudo pronto enquanto a janela
+ * jamais subiria. O menu agora mostra a verdade e o clique re-pede.
+ */
+export function usePermissaoDeNotificacao(): {
+  permissao: PermissaoDoNavegador;
+  conferir: () => void;
+} {
+  const [permissao, setPermissao] = React.useState<PermissaoDoNavegador>('default');
+
+  const conferir = React.useCallback(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermissao('unsupported');
+      return;
+    }
+    setPermissao(Notification.permission);
+  }, []);
+
+  React.useEffect(() => {
+    conferir();
+    // Voltar pra aba depois de mexer no cadeado do navegador atualiza o estado.
+    const aoVoltar = () => conferir();
+    window.addEventListener('focus', aoVoltar);
+    return () => window.removeEventListener('focus', aoVoltar);
+  }, [conferir]);
+
+  return { permissao, conferir };
+}

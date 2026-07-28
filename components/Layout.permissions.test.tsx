@@ -58,6 +58,7 @@ vi.mock('@/components/notificacoes/NotificacoesDeConversa', () => ({
   NotificacoesDeConversa: () => null,
   useConversasNaoLidas: () => ({ data: undefined }),
   usePreferenciasNotificacao: () => ({ ativas: true, som: true }),
+  usePermissaoDeNotificacao: () => ({ permissao: 'granted', conferir: () => undefined }),
   salvarPreferencias: vi.fn(),
   pedirPermissaoDeNotificacao: vi.fn(async () => false),
   formatarHoraBR: () => '',

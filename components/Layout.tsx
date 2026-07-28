@@ -84,6 +84,7 @@ import {
   NotificacoesDeConversa,
   useConversasNaoLidas,
   usePreferenciasNotificacao,
+  usePermissaoDeNotificacao,
   salvarPreferencias,
   pedirPermissaoDeNotificacao,
   formatarHoraBR,
@@ -329,11 +330,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Só liga quando o item Conversas existe — ele já carrega a permissão junto.
   const temMenuConversas = tenantWorkspaceNav.some((item) => item.id === 'tenant_conversations');
   const { data: resumoNaoLidas } = useConversasNaoLidas(workspaceTenantId, temMenuConversas);
-  const conversasNaoVistas = resumoNaoLidas?.totalConversas ?? 0;
+  // A bolinha conta MENSAGENS não lidas, não conversas — pedido explícito do
+  // Junior (28/07): "o contador ir aumentando a quantidade das mensagens não
+  // lidas" (2ª mensagem do mesmo contato mantinha o número parado e parecia
+  // que nada tinha chegado).
+  const conversasNaoVistas = resumoNaoLidas?.totalMensagens ?? 0;
   const tituloNaoVistas = conversasNaoVistas > 0
-    ? `${conversasNaoVistas} conversa${conversasNaoVistas > 1 ? 's' : ''} sem leitura${resumoNaoLidas?.ultimaHora ? ` · última às ${formatarHoraBR(resumoNaoLidas.ultimaHora)}` : ''}`
+    ? `${conversasNaoVistas} mensagem${conversasNaoVistas > 1 ? 'ns' : ''} não lida${conversasNaoVistas > 1 ? 's' : ''} em ${resumoNaoLidas?.totalConversas ?? 0} conversa${(resumoNaoLidas?.totalConversas ?? 0) > 1 ? 's' : ''}${resumoNaoLidas?.ultimaHora ? ` · última às ${formatarHoraBR(resumoNaoLidas.ultimaHora)}` : ''}`
     : undefined;
   const prefsNotificacao = usePreferenciasNotificacao(user?.id);
+  const { permissao: permissaoNavegador, conferir: conferirPermissao } = usePermissaoDeNotificacao();
   const primarySidebarNav = [
     { to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const },
     // Visão Geral (N5) = o mês da clínica num olhar (mockup); /dashboard segue acessível por URL.
@@ -769,19 +775,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            const ligar = !prefsNotificacao.ativas;
+                            // Chave ligada mas SEM a permissão do navegador: o clique
+                            // pede a permissão em vez de desligar — era o que a pessoa
+                            // queria desde o começo (bug de UX pego pelo Junior 28/07).
+                            const faltaPermissao = prefsNotificacao.ativas && permissaoNavegador === 'default';
+                            const ligar = faltaPermissao ? true : !prefsNotificacao.ativas;
                             salvarPreferencias(user?.id, { ...prefsNotificacao, ativas: ligar });
                             // A permissão do navegador só pode ser pedida num clique.
-                            if (ligar) void pedirPermissaoDeNotificacao();
+                            if (ligar) void pedirPermissaoDeNotificacao().finally(conferirPermissao);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
-                          {prefsNotificacao.ativas
+                          {prefsNotificacao.ativas && permissaoNavegador === 'granted'
                             ? <BellRing className="w-4 h-4 text-emerald-500" />
                             : <BellOff className="w-4 h-4 text-slate-400" />}
                           <span className="flex-1 text-left">Notificação de mensagem</span>
-                          <span className={`text-xs font-semibold ${prefsNotificacao.ativas ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                            {prefsNotificacao.ativas ? 'Ligada' : 'Desligada'}
+                          <span className={`text-xs font-semibold ${!prefsNotificacao.ativas
+                            ? 'text-slate-400'
+                            : permissaoNavegador === 'granted'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : permissaoNavegador === 'denied'
+                                ? 'text-red-500'
+                                : 'text-amber-500'}`}
+                          >
+                            {!prefsNotificacao.ativas
+                              ? 'Desligada'
+                              : permissaoNavegador === 'granted'
+                                ? 'Ligada'
+                                : permissaoNavegador === 'denied'
+                                  ? 'Bloqueada no navegador'
+                                  : permissaoNavegador === 'unsupported'
+                                    ? 'Sem suporte aqui'
+                                    : 'Clique pra permitir'}
                           </span>
                         </button>
                         <button
