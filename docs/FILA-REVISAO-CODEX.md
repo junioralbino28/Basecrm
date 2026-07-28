@@ -26,6 +26,7 @@
 | 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** (4 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
+| 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
 
 ---
 
@@ -186,6 +187,23 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 **Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts:33-41` conta leads da **tabela morta `leads`** — mostraria "Leads: 0" pra sempre pra quem linkar o CSV no Excel. Conferido no banco local em 28/07: **`leads` = 0 linhas, `contacts` = 143**.
 **⚠️ Agravante achado em 28/07 — vale como foco de revisão por si só:** o teste que cobre esse CSV (`test/n7Reports.multiTenant.test.ts:111-112`) **insere linhas na tabela morta** só pra o total não dar zero. Ou seja, **o teste sustenta o erro em vez de pegá-lo** — mesmo padrão de "expectativa velha" que já mordeu duas vezes esta semana. Fora esses dois arquivos e `test/rlsHardening.crossTenant.test.ts`, **nenhum outro ponto do código toca em `leads`**. Correção proposta ao Junior (apontar pra `contacts` + reescrever o teste pra provar o número certo) — **fora do motor**, ainda **não executada**.
 **Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
+
+---
+
+## Pacote 6 — CSV de totais: leads contados da tabela viva
+
+**Estado:** PENDENTE
+**Camada:** 🟢 leitura — 1 função de lib + 1 arquivo de teste; sem migration, sem RPC.
+**Commits:** `8512dca`
+**Arquivos-chave:** `lib/reports/summaryCsv.ts` · `test/n7Reports.multiTenant.test.ts`
+**O que era:** o CSV público de totais (planilha conectada via `=IMPORTDATA`) contava leads da tabela **legada `leads`** (0 linhas) em vez de `contacts` (onde todo lead entra) — mostraria "Leads: 0" pra sempre. Agravante: o teste **inseria linhas na tabela morta** só pra contagem não dar zero — sustentava o bug em vez de pegá-lo.
+**O que o Junior aprovou:** correção direta ("pode fazer a correção"), critério = CSV mostra contagem real de contatos + suíte completa verde.
+**O que pedir ao Codex (foco adversarial):**
+1. `contacts` é mesmo a fonte única de lead? Existe fluxo que cria lead SEM linha em `contacts` (importação, webhook, IA) que agora ficaria de fora da contagem?
+2. O CSV é público-por-token e conta TODOS os contatos da org — inclui gente que não é "lead" (ex.: contato já paciente)? O rótulo "Leads" continua honesto ou deveria filtrar por estágio/etiqueta?
+3. A tabela `leads` segue existindo com RLS testada em `rlsHardening.crossTenant.test.ts` — vale marcar pra remoção formal (migration de drop) ou mantê-la?
+**Encosta em motor?** Não.
+**Prova:** `test:local` = **991/991 (209 arquivos)** verde após a mudança (2ª confirmação do baseline no dia).
 
 ---
 
