@@ -172,6 +172,23 @@ describe('ProfessionalsReportPage', () => {
     await waitFor(() => expect(deleteAsync).toHaveBeenCalledWith('cp-ultimo'));
   });
 
+  // Pedido do Junior (27/07): ver QUANDO cada pagamento foi feito.
+  it('mostra o valor e a data de cada pagamento do mês', () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+    pagamentosDoMes = [
+      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07' },
+      { id: 'cp-2', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-21T12:00:00Z', period: '2026-07' },
+    ];
+
+    render(<ProfessionalsReportPage />);
+
+    // Mais recente primeiro, cada um com a sua data.
+    expect(screen.getByText(/R\$ 500,00 · 21\/07/)).toBeInTheDocument();
+    expect(screen.getByText(/R\$ 100,00 · 03\/07/)).toBeInTheDocument();
+  });
+
   it('usuário sem reports.professionals vê acesso restrito e não dispara a query', () => {
     useHasPermissionMock.mockReturnValue(false);
     useAuthMock.mockReturnValue({

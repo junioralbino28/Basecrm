@@ -23,6 +23,14 @@ import { useHasPermission } from '@/lib/auth/useHasPermission';
 const formatBRL = (value: number): string =>
   value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+/** Data curta do pagamento (dd/mm) — o ano já está no período da tela. */
+const formatDiaMes = (iso: string): string => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
 /**
  * Conteúdo do relatório de profissionais — montado SÓ para quem passa no gate
  * (staff nem dispara a query de comissão).
@@ -61,12 +69,18 @@ export const ProfessionalsCommissionTable: React.FC<{
   // dupla gravação. Pagar mês a mês (selecionar "este mês"/"mês passado").
   const pagavel = useMemo(() => isSingleCompetenceMonth(start, end), [start, end]);
 
-  /** Último pagamento lançado pra essa pessoa no mês — é o que o desfazer apaga. */
-  const ultimoPagamento = useCallback(
+  /** Pagamentos da pessoa no mês, do mais recente pro mais antigo. */
+  const pagamentosDaPessoa = useCallback(
     (professionalId: string) => (pagamentos ?? [])
       .filter((p) => p.professionalId === professionalId)
-      .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || ''))[0] || null,
+      .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || '')),
     [pagamentos],
+  );
+
+  /** Último pagamento lançado pra essa pessoa no mês — é o que o desfazer apaga. */
+  const ultimoPagamento = useCallback(
+    (professionalId: string) => pagamentosDaPessoa(professionalId)[0] || null,
+    [pagamentosDaPessoa],
   );
 
   const abrirPagamento = (professionalId: string, aPagar: number) => {
@@ -217,8 +231,9 @@ export const ProfessionalsCommissionTable: React.FC<{
                   <td className="px-3 py-3.5 text-right text-slate-600 dark:text-slate-300">
                     {row.comissao > 0 ? formatBRL(row.comissao) : '—'}
                   </td>
-                  <td className="px-3 py-3.5 text-right text-emerald-600 dark:text-emerald-400">
+                  <td className="px-3 py-3.5 text-right text-emerald-600 dark:text-emerald-400 align-top">
                     {row.pago > 0 ? (
+                      <span className="inline-flex flex-col items-end gap-1">
                       <span className="inline-flex items-center gap-2">
                         {formatBRL(row.pago)}
                         {ultimoPagamento(row.professionalId) ? (
@@ -233,6 +248,18 @@ export const ProfessionalsCommissionTable: React.FC<{
                             <Undo2 size={12} aria-hidden="true" />
                           </button>
                         ) : null}
+                      </span>
+                      {/* Quando foi pago cada parcela (Junior, 27/07). Um só
+                          pagamento vira uma linha; parcelado vira a lista. */}
+                      {pagamentosDaPessoa(row.professionalId).length > 0 ? (
+                        <span className="flex flex-col items-end gap-0.5 text-[10px] font-normal text-slate-400 dark:text-slate-500 tabular-nums">
+                          {pagamentosDaPessoa(row.professionalId).map((pg) => (
+                            <span key={pg.id}>
+                              {formatBRL(pg.amount)} · {formatDiaMes(pg.paidAt)}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
                       </span>
                     ) : '—'}
                   </td>
