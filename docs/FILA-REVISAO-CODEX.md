@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **966/966**
+Última atualização: 2026-07-27 · branch `feat/funil-construtor` · baseline `test:local` **968/968**
 
 ---
 
@@ -97,7 +97,7 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 
 **Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
 
-**Commits (12 de código, `7e5d5a5` → `5998f5e`):**
+**Commits (14 de código, `7e5d5a5` → `48eab4f`):**
 
 | SHA | O que faz |
 |---|---|
@@ -112,6 +112,8 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 | `970429f` | **comissão migra pra dentro da ficha da pessoa** (`CommissionsManager` em modo embutido; Financeiro vira só o caminho) |
 | `174f81f` | 🚨 guarda de permissão — quem tem Financeiro sem Profissionais recebe instrução, não botão que nega |
 | `5998f5e` | **procedimento por especialidade + o que cada pessoa faz** (derivado + exceções; migration `20260727010000`) |
+| `dbf760e` | chave "Faz" movida pra direita da tabela (pedido na tela) |
+| `48eab4f` | **marcar/desmarcar todos + restaurar padrão** nos 3 lugares com chave; **especialidade que ENTRA apaga as exceções dos procedimentos dela** |
 | `87f7029` | **várias especialidades por funcionário** (`professional_specialties`) + desmembra as entradas coladas do catálogo + coringa da comissão casa com qualquer especialidade |
 
 Docs de contexto (decodificação das planilhas do Adel): `f20f9a1`, `0f8cf9d`, `f167bea` → `docs/MAPA-PLANILHAS-JESSICA.md`.
@@ -158,6 +160,8 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 - **Custo**: a tela da ficha carrega TODOS os vínculos da clínica (`specialty_products.list()`) e filtra no cliente. Com 294 procedimentos × N especialidades isso escala?
 - **Otimismo na marcação** (`SpecialtyProductsPicker`): o estado muda antes da resposta e desfaz no erro. Dois cliques rápidos no mesmo item podem gravar o inverso?
 - **Separação comissão × "faz"**: são deliberadamente independentes. Isso deixa buraco (pessoa com comissão num procedimento que ela não faz) que valha barrar?
+- **Reset ao recolocar a especialidade** (`syncSpecialties`): entrar apaga as exceções dos procedimentos daquela especialidade; sair não apaga nada. Assimetria deliberada — ela surpreende em algum caminho? E a leitura-antes-de-escrever abriu janela de corrida se duas abas salvarem a mesma pessoa?
+- **Ações em massa**: gravam item a item, em série, só no que muda. Se falhar no meio, o estado da tela fica adiantado em relação ao banco — vale transação/RPC?
 - **A comissão sumiu do Financeiro** — conferir que nenhum outro caminho/permissão dependia de editar comissão por lá.
 
 **Nas migrations:**
@@ -170,7 +174,7 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 11. Cargo e especialidade agora são `<select>` dos catálogos — sobrou algum ponto de **texto livre** que volte a permitir "Ortodontia" × "ortodontia"?
 
 **Encosta em motor?** **Sim.** Nenhuma fatia nova se apoia neste pacote até o parecer.
-**Prova:** `test:local` = **966/966** (206 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
+**Prova:** `test:local` = **968/968** (207 arquivos) · `eslint --max-warnings 0` limpo · `tsc` strict limpo.
 **Pendência conhecida (não é bug deste pacote):** `lib/reports/summaryCsv.ts` conta leads da tabela morta `leads` (local: `leads = 0`, `contacts = 95`) — mostraria "Leads: 0" pra sempre. Documentado, ainda não corrigido.
 **Decisão em aberto pro Junior:** profissional com **várias especialidades** (a Jéssica tem 4; o cadastro aceita uma). Ou escolhe a principal, ou vira tabela de ligação + seleção múltipla — e aí mexe de novo na precedência da regra.
 

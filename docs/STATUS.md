@@ -73,5 +73,5 @@
 
 ## Baseline de qualidade
 
-`test:local` = **966/966** (206 arquivos, 2026-07-27 — inclui Reforma 2 do construtor, módulo de remuneração por vigência, catálogos de cargo/especialidade, várias especialidades por funcionário, comissão dentro da ficha da pessoa e procedimento por especialidade) · lint `--max-warnings 0` · tsc strict.
+`test:local` = **968/968** (207 arquivos, 2026-07-27 — inclui Reforma 2 do construtor, módulo de remuneração por vigência, catálogos de cargo/especialidade, várias especialidades por funcionário, comissão dentro da ficha da pessoa, procedimento por especialidade e ações em massa nas chaves) · lint `--max-warnings 0` · tsc strict.
 Histórico em [operacao/testes-e-gates.md](./operacao/testes-e-gates.md).
