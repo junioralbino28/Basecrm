@@ -63,6 +63,11 @@ vi.mock('@/components/notificacoes/NotificacoesDeConversa', () => ({
   pedirPermissaoDeNotificacao: vi.fn(async () => false),
   formatarHoraBR: () => '',
 }));
+// As bolinhas de pendencia (Hoje/Tarefas) usam react-query — neutralizadas aqui
+// pelo mesmo motivo do modulo de notificacoes (sem QueryClientProvider).
+vi.mock('@/lib/query/hooks/useTasksQuery', () => ({ useTasks: () => ({ data: [] }) }));
+vi.mock('@/lib/query/hooks/useActivitiesQuery', () => ({ useActivities: () => ({ data: [] }) }));
+vi.mock('@/lib/query/hooks/useContactsQuery', () => ({ useContacts: () => ({ data: [] }) }));
 vi.mock('@/components/navigation/useTenantScopedHref', () => ({
   useTenantScopedHrefBuilder: () => (path: string) => path,
 }));

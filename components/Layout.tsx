@@ -80,6 +80,11 @@ import { UIChat } from './ai/UIChat';
 import { NotificationPopover } from './notifications/NotificationPopover';
 import PageLoader from '@/components/PageLoader';
 import { TaskNudge } from '@/features/tarefas/components/TaskNudge';
+import { useTasks } from '@/lib/query/hooks/useTasksQuery';
+import { useActivities } from '@/lib/query/hooks/useActivitiesQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { splitTasks, localTodayIso } from '@/features/tarefas/hooks/useTarefasController';
+import { buildCallList } from '@/lib/utils/callList';
 import {
   NotificacoesDeConversa,
   useConversasNaoLidas,
@@ -131,6 +136,7 @@ const NavItem = ({
   prefetch,
   badge,
   badgeTitle,
+  badgeTone,
 }: {
   to: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -139,6 +145,8 @@ const NavItem = ({
   /** Contador de não-vistas (mostrado só quando > 0). */
   badge?: number;
   badgeTitle?: string;
+  /** verde = chegou coisa nova (mensagem) · âmbar = trabalho pendente (Hoje/Tarefas). */
+  badgeTone?: 'emerald' | 'amber';
 }) => {
   const pathname = usePathname();
   const isActive = isSidebarRouteActive(pathname, to);
@@ -161,7 +169,7 @@ const NavItem = ({
         <span
           title={badgeTitle}
           aria-label={badgeTitle || `${badge} sem leitura`}
-          className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white"
+          className={`ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white ${badgeTone === 'amber' ? 'bg-amber-500' : 'bg-emerald-500'}`}
         >
           {badge > 99 ? '99+' : badge}
         </span>
@@ -340,14 +348,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : undefined;
   const prefsNotificacao = usePreferenciasNotificacao(user?.id);
   const { permissao: permissaoNavegador, conferir: conferirPermissao } = usePermissaoDeNotificacao();
+  // Bolinhas de pendência em "Hoje" e "Tarefas" (pedido do Junior, 28/07):
+  // ÂMBAR = trabalho pendente (a verde fica pra mensagem nova). Mesmos números
+  // das telas — Tarefas usa o cálculo do lembrete dourado (de hoje em aberto,
+  // atrasadas inclusas); Hoje conta a lista do dia (atrasados + de hoje; o
+  // futuro fica fora do número). Sem janela de notificação: pendência acumulada
+  // apitando popup viraria ruído.
+  const { data: tarefasTodas = [] } = useTasks();
+  const { data: atividadesTodas = [] } = useActivities();
+  const { data: contatosTodos = [] } = useContacts();
+  const tarefasPendentesHoje = React.useMemo(
+    () => splitTasks(tarefasTodas, localTodayIso()).dueToday.length,
+    [tarefasTodas]
+  );
+  const hojePendentes = React.useMemo(() => {
+    const buckets = buildCallList(
+      // O rótulo de etapa não muda a CONTAGEM — o mapa vazio evita puxar boards/deals só pra bolinha.
+      { activities: atividadesTodas, tasks: tarefasTodas, contacts: contatosTodos, dealStageLabelById: new Map() },
+      new Date()
+    );
+    return buckets.overdue.length + buckets.today.length;
+  }, [atividadesTodas, tarefasTodas, contatosTodos]);
+
   const primarySidebarNav = [
-    { to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const },
+    {
+      to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const,
+      badge: hojePendentes,
+      badgeTone: 'amber' as const,
+      badgeTitle: hojePendentes > 0 ? `${hojePendentes} item${hojePendentes > 1 ? 'ns' : ''} do dia sem resultado` : undefined,
+    },
     // Visão Geral (N5) = o mês da clínica num olhar (mockup); /dashboard segue acessível por URL.
     { to: getScopedHref('/visao-geral'), icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
     { to: getScopedHref('/boards'), icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
     { to: getScopedHref('/contacts'), icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
     { to: getScopedHref('/activities'), icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
-    { to: getScopedHref('/tarefas'), icon: ListChecks, label: 'Tarefas', prefetch: 'tarefas' as const },
+    {
+      to: getScopedHref('/tarefas'), icon: ListChecks, label: 'Tarefas', prefetch: 'tarefas' as const,
+      badge: tarefasPendentesHoje,
+      badgeTone: 'amber' as const,
+      badgeTitle: tarefasPendentesHoje > 0 ? `${tarefasPendentesHoje} tarefa${tarefasPendentesHoje > 1 ? 's' : ''} de hoje em aberto (atrasadas inclusas)` : undefined,
+    },
     { to: getScopedHref('/atendimentos'), icon: ClipboardPlus, label: 'Atendimentos', prefetch: 'atendimentos' as const },
     { to: getScopedHref('/reports'), icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
     ...(canViewFinance
@@ -623,7 +663,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       >
                         <item.icon size={20} />
                         {'badge' in item && item.badge ? (
-                          <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                          <span className={`absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${('badgeTone' in item && item.badgeTone === 'amber') ? 'bg-amber-500' : 'bg-emerald-500'}`}>
                             {item.badge > 99 ? '99+' : item.badge}
                           </span>
                         ) : null}
@@ -640,6 +680,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       prefetch={item.prefetch}
                       badge={'badge' in item ? item.badge : undefined}
                       badgeTitle={'badgeTitle' in item ? item.badgeTitle : undefined}
+                      badgeTone={'badgeTone' in item ? item.badgeTone : undefined}
                     />
                   );
                 })}
