@@ -111,6 +111,31 @@ describe('updateSession (Proxy/Supabase)', () => {
     expect(res).toMatchObject({ kind: 'next' })
   })
 
+  // Junior clicou no link do email de recuperação e caiu no /login (27/07).
+  // Causa: a rota era tratada como área interna. Pior que barrar — o código de
+  // recuperação viaja na ÂNCORA da URL, que o servidor não enxerga, então o
+  // redirect DESTRÓI o código.
+  it('permite /redefinir-senha SEM sessão — quem vem do email ainda não entrou', async () => {
+    const req = makeRequest('/redefinir-senha')
+
+    const res = await updateSession(req)
+
+    expect(mocks.nextResponseMock.redirect).not.toHaveBeenCalled()
+    expect(res).toMatchObject({ kind: 'next' })
+  })
+
+  it('NÃO expulsa pro dashboard quem já tem sessão em /redefinir-senha', async () => {
+    // O próprio link cria uma sessão de recuperação; mandar pro dashboard
+    // tiraria a pessoa da tela antes de ela escolher a senha nova.
+    mocks.state.currentUser = { id: 'user-recuperando' }
+    const req = makeRequest('/redefinir-senha')
+
+    const res = await updateSession(req)
+
+    expect(mocks.nextResponseMock.redirect).not.toHaveBeenCalled()
+    expect(res).toMatchObject({ kind: 'next' })
+  })
+
   it('permite /auth/callback sem autenticação (sem redirect)', async () => {
     const req = makeRequest('/auth/callback')
 

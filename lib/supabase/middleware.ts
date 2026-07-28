@@ -87,8 +87,16 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Protected routes - redirect to login if not authenticated
+    //
+    // `/redefinir-senha` PRECISA ser pública: quem chega ali veio do link do
+    // email e AINDA NÃO tem sessão. Pior, o código de recuperação viaja na
+    // ÂNCORA da URL (#access_token=…), que o servidor nunca enxerga — então
+    // mandar pro /login não só barra a pessoa como DESTRÓI o código no caminho.
+    // (Junior, 2026-07-27: clicou no link do email e caiu no login.)
+    const isRecoveryRoute = pathname.startsWith('/redefinir-senha')
     const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth')
-    const isPublicRoute = pathname === '/' || pathname.startsWith('/join') || isSetupRoute || isInstallRoute
+    const isPublicRoute = pathname === '/' || pathname.startsWith('/join')
+        || isSetupRoute || isInstallRoute || isRecoveryRoute
 
     if (!user && !isAuthRoute && !isPublicRoute) {
         const url = request.nextUrl.clone()
@@ -96,8 +104,11 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
-    // Redirect authenticated users away from login
-    if (user && isAuthRoute) {
+    // Redirect authenticated users away from login.
+    // A recuperação fica de fora: a sessão criada pelo link é justamente o que
+    // permite trocar a senha — expulsar pro dashboard tiraria a pessoa da tela
+    // antes de ela escolher a senha nova.
+    if (user && isAuthRoute && !isRecoveryRoute) {
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
         return NextResponse.redirect(url)
