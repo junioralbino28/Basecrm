@@ -56,7 +56,18 @@ vi.mock('@/components/navigation/usePlatformTenantWorkspaceNav', () => ({
       { id: 'tenant_conversations', label: 'Conversas', href: '/platform/tenants/org-1/conversations', icon: MessagesSquare },
       { id: 'tenant_whatsapp', label: 'Conexoes', href: '/platform/tenants/org-1/whatsapp', icon: MessageCircle },
     ],
+    tenantId: 'org-1',
   }),
+}));
+// Este teste é só sobre a ORDEM do menu — o contador/notificação de mensagens
+// (que usa react-query) é neutralizado pra não exigir QueryClientProvider aqui.
+vi.mock('@/components/notificacoes/NotificacoesDeConversa', () => ({
+  NotificacoesDeConversa: () => null,
+  useConversasNaoLidas: () => ({ data: undefined }),
+  usePreferenciasNotificacao: () => ({ ativas: true, som: true }),
+  salvarPreferencias: vi.fn(),
+  pedirPermissaoDeNotificacao: vi.fn(async () => false),
+  formatarHoraBR: () => '',
 }));
 vi.mock('@/components/navigation/useTenantScopedHref', () => ({
   useTenantScopedHrefBuilder: () => (path: string) => path,

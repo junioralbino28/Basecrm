@@ -52,7 +52,10 @@ import {
   Camera,
   Wallet,
   Stethoscope,
-  X
+  X,
+  BellOff,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
 import { useAuth } from '../context/AuthContext';
@@ -77,6 +80,14 @@ import { UIChat } from './ai/UIChat';
 import { NotificationPopover } from './notifications/NotificationPopover';
 import PageLoader from '@/components/PageLoader';
 import { TaskNudge } from '@/features/tarefas/components/TaskNudge';
+import {
+  NotificacoesDeConversa,
+  useConversasNaoLidas,
+  usePreferenciasNotificacao,
+  salvarPreferencias,
+  pedirPermissaoDeNotificacao,
+  formatarHoraBR,
+} from '@/components/notificacoes/NotificacoesDeConversa';
 
 /**
  * Props do componente Layout
@@ -117,11 +128,16 @@ const NavItem = ({
   icon: Icon,
   label,
   prefetch,
+  badge,
+  badgeTitle,
 }: {
   to: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   prefetch?: RouteName;
+  /** Contador de não-vistas (mostrado só quando > 0). */
+  badge?: number;
+  badgeTitle?: string;
 }) => {
   const pathname = usePathname();
   const isActive = isSidebarRouteActive(pathname, to);
@@ -139,7 +155,16 @@ const NavItem = ({
         }`}
     >
       <Icon size={20} className={isActive ? 'text-brand-700 dark:text-brand-300' : ''} aria-hidden="true" />
-      <span className="font-display tracking-wide">{label}</span>
+      <span className="font-display tracking-wide flex-1 min-w-0 truncate">{label}</span>
+      {badge && badge > 0 ? (
+        <span
+          title={badgeTitle}
+          aria-label={badgeTitle || `${badge} sem leitura`}
+          className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white"
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      ) : null}
     </Link>
   );
 };
@@ -298,7 +323,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const brandName = isAdmin
     ? (isClientMounted ? agencyDisplayName.trim() : '') || 'Agencia'
     : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Base CRM');
-  const { items: tenantWorkspaceNav } = usePlatformTenantWorkspaceNav();
+  const { items: tenantWorkspaceNav, tenantId: workspaceTenantId } = usePlatformTenantWorkspaceNav();
+
+  // Não-vistas no menu + notificação de mensagem (pedido do Junior, 28/07).
+  // Só liga quando o item Conversas existe — ele já carrega a permissão junto.
+  const temMenuConversas = tenantWorkspaceNav.some((item) => item.id === 'tenant_conversations');
+  const { data: resumoNaoLidas } = useConversasNaoLidas(workspaceTenantId, temMenuConversas);
+  const conversasNaoVistas = resumoNaoLidas?.totalConversas ?? 0;
+  const tituloNaoVistas = conversasNaoVistas > 0
+    ? `${conversasNaoVistas} conversa${conversasNaoVistas > 1 ? 's' : ''} sem leitura${resumoNaoLidas?.ultimaHora ? ` · última às ${formatarHoraBR(resumoNaoLidas.ultimaHora)}` : ''}`
+    : undefined;
+  const prefsNotificacao = usePreferenciasNotificacao(user?.id);
   const primarySidebarNav = [
     { to: getScopedHref('/call-list'), icon: BellRing, label: 'Hoje', prefetch: 'call-list' as const },
     // Visão Geral (N5) = o mês da clínica num olhar (mockup); /dashboard segue acessível por URL.
@@ -324,10 +359,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     icon: item.icon,
     label: item.label,
     prefetch: 'dashboard' as const,
+    badge: undefined as number | undefined,
+    badgeTitle: undefined as string | undefined,
   });
   const conversationsNav = tenantWorkspaceNav
     .filter((item) => item.id === 'tenant_conversations')
-    .map(toNavEntry);
+    .map((item) => ({
+      ...toNavEntry(item),
+      badge: conversasNaoVistas,
+      badgeTitle: tituloNaoVistas,
+    }));
   const workspaceTailNav = tenantWorkspaceNav
     .filter((item) => item.id !== 'tenant_conversations')
     .map(toNavEntry);
@@ -567,14 +608,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         onClick={() => dispatchSidebarNavigationIntent(item.to)}
                         className={(() => {
                           const isActive = isSidebarRouteActive(pathname, item.to);
-                          return `w-10 h-10 rounded-lg flex items-center justify-center ${isActive
+                          return `relative w-10 h-10 rounded-lg flex items-center justify-center ${isActive
                             ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
                             : 'text-muted hover:bg-surface hover:text-ink'
                             }`;
                         })()}
-                        title={item.label}
+                        title={('badgeTitle' in item && item.badgeTitle) || item.label}
                       >
                         <item.icon size={20} />
+                        {'badge' in item && item.badge ? (
+                          <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </span>
+                        ) : null}
                       </Link>
                     );
                   }
@@ -586,6 +632,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       icon={item.icon}
                       label={item.label}
                       prefetch={item.prefetch}
+                      badge={'badge' in item ? item.badge : undefined}
+                      badgeTitle={'badgeTitle' in item ? item.badgeTitle : undefined}
                     />
                   );
                 })}
@@ -715,6 +763,42 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       <User className="w-4 h-4 text-slate-400" />
                       Editar Perfil
                     </Link>
+                    {temMenuConversas ? (
+                      <>
+                        <div className="my-1 h-px bg-slate-200 dark:bg-surface" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ligar = !prefsNotificacao.ativas;
+                            salvarPreferencias(user?.id, { ...prefsNotificacao, ativas: ligar });
+                            // A permissão do navegador só pode ser pedida num clique.
+                            if (ligar) void pedirPermissaoDeNotificacao();
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          {prefsNotificacao.ativas
+                            ? <BellRing className="w-4 h-4 text-emerald-500" />
+                            : <BellOff className="w-4 h-4 text-slate-400" />}
+                          <span className="flex-1 text-left">Notificação de mensagem</span>
+                          <span className={`text-xs font-semibold ${prefsNotificacao.ativas ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                            {prefsNotificacao.ativas ? 'Ligada' : 'Desligada'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => salvarPreferencias(user?.id, { ...prefsNotificacao, som: !prefsNotificacao.som })}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
+                        >
+                          {prefsNotificacao.som
+                            ? <Volume2 className="w-4 h-4 text-emerald-500" />
+                            : <VolumeX className="w-4 h-4 text-slate-400" />}
+                          <span className="flex-1 text-left">Som da notificação</span>
+                          <span className={`text-xs font-semibold ${prefsNotificacao.som ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                            {prefsNotificacao.som ? 'Ligado' : 'Desligado'}
+                          </span>
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
@@ -921,6 +1005,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Nudge de tarefas (N3): SÓ no workspace clínica — agência fora dele
           (rotas /platform) não vê o pop-up. Intervalo vem da org (null = off). */}
       {isClinicWorkspaceActive ? <TaskNudge /> : null}
+      <NotificacoesDeConversa
+        tenantId={workspaceTenantId}
+        userId={user?.id}
+        habilitado={temMenuConversas}
+      />
 
       {/* Mobile app shell */}
       <BottomNav onOpenMore={() => setIsMoreOpen(true)} />
