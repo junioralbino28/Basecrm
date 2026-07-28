@@ -27,6 +27,7 @@
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 | 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
+| 7 | WhatsApp ao vivo: notificação de mensagem + 2 bugs reais no caminho (chave velha do QR · webhook esmagava o não-lido) | 🟡 UI + 🔴 **MOTOR** (webhook) | **PENDENTE** | bloco abaixo |
 
 ---
 
@@ -204,6 +205,34 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 3. A tabela `leads` segue existindo com RLS testada em `rlsHardening.crossTenant.test.ts` — vale marcar pra remoção formal (migration de drop) ou mantê-la?
 **Encosta em motor?** Não.
 **Prova:** `test:local` = **991/991 (209 arquivos)** verde após a mudança (2ª confirmação do baseline no dia).
+
+---
+
+## Pacote 7 — WhatsApp ao vivo: notificação de mensagem + 2 bugs reais
+
+**Estado:** PENDENTE
+**Camada:** 🟡 UI (semáforo + badge + notificação) e 🔴 **MOTOR** no último commit (webhook de recebimento).
+**Contexto:** 28/07 o número da IA foi CONECTADO de verdade (Evolution, produção da Jéssica) e o uso ao vivo do Junior/Adel expôs bugs que nenhum teste pegava.
+**Commits:** `1724793` · `ec51965` · `61b582a` · `576c2b7` · `35b1ef8`
+
+| SHA | O que faz |
+|---|---|
+| `1724793` | 🐛 "Reparear" caía em "Forbidden": o parser de erro da Evolution só aceitava motivo string (o real vem em LISTA) e o regex do fallback "já existe→busca QR" exigia a palavra "instance" que a frase real não tem |
+| `ec51965` | semáforo de conexão (verde/âmbar/vermelho) + a tela confere o status sozinha (healthcheck no mount e a cada 60s) |
+| `61b582a` | não-vistas no menu (badge) + notificação do sistema estilo WhatsApp + som + toggles por usuário. ⚠️ **subiu com 4 testes quebrados e mensagem afirmando verde** — leitura da suíte e commit estavam encadeados num comando só (erro de processo, regra nova adotada) |
+| `576c2b7` | correção do arnês: `Layout.permissions.test` neutraliza o módulo novo (QueryClientProvider) |
+| `35b1ef8` | 🔴 **MOTOR** — 🐛 bug ANTIGO: no ramo `inbound && ai_active` do webhook, um update redundante reconstruía a metadata da foto lida ANTES do incremento e **esmagava o `unreadCount` com 0** milissegundos depois. Não-lidas NUNCA acumularam em conversa com IA ativa. Fix = remover o bloco (campos todos já gravados pelo update anterior) |
+
+**O que pedir ao Codex (foco adversarial):**
+1. **A remoção do bloco no webhook é segura?** Conferir campo a campo que o update anterior grava TUDO que o bloco removido gravava, em todos os caminhos (thread nova × existente; `resolved` reaberto). Existe algum caminho onde o bloco era a única gravação?
+2. **Corrida restante:** o marcador do debounce (spread da leitura fresca) ainda pode perder um incremento se DUAS mensagens chegarem no intervalo entre a leitura e o update? Vale mover o incremento pra SQL atômico (`jsonb_set` com coalesce) em vez de read-modify-write?
+3. **`processDeferredAIReply`** zera `unreadCount` ao responder — com a IA DESLIGADA (flag off), confirmar que nenhum caminho desse fluxo ainda toca a metadata.
+4. **Poll de 30s da tela** (`useConversasNaoLidas`): a rota devolve a lista INTEIRA de threads — numa clínica com centenas de conversas isso escala? Vale endpoint só de resumo?
+5. **Duas threads pro MESMO contato** apareceram em produção (16h24 e 16h56, mesmo telefone) — o webhook deveria ter reutilizado a primeira? Investigar o matching de thread por telefone.
+6. Parser de erro da Evolution: a reordenação (motivo detalhado > rótulo) muda alguma mensagem exibida em outro fluxo (envio, desconexão)?
+
+**Encosta em motor?** **Sim** (`35b1ef8`, webhook). Nenhuma fatia nova se apoia nele até o parecer.
+**Prova:** `test:local` = **1003/1003 (211 arquivos)** · lint `--max-warnings 0` · tsc strict. Fixado ao vivo: instância `open`, "oi" do Junior dentro do CRM, IA muda (flag `ai_conversation_auto_reply=false` gravada explícita — o default do código "ausente/erro = LIGADO" em `lib/ai/features/server.ts` é candidato a G24).
 
 ---
 
