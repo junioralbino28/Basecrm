@@ -314,9 +314,6 @@ export const CommissionsManager: React.FC<{
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left">
-                    <th scope="col" className="py-2 pr-2 font-semibold text-muted text-xs uppercase tracking-wider">
-                      Faz
-                    </th>
                     <th scope="col" className="py-2 pr-3 font-semibold text-muted text-xs uppercase tracking-wider">
                       Procedimento
                     </th>
@@ -325,6 +322,9 @@ export const CommissionsManager: React.FC<{
                     </th>
                     <th scope="col" className="py-2 px-3 font-semibold text-muted text-xs uppercase tracking-wider text-right">
                       Comissão
+                    </th>
+                    <th scope="col" className="py-2 px-3 font-semibold text-muted text-xs uppercase tracking-wider text-right">
+                      Faz
                     </th>
                     <th scope="col" className="py-2 pl-3 text-right">
                       <span className="sr-only">Ações</span>
@@ -336,25 +336,6 @@ export const CommissionsManager: React.FC<{
                     const isEditing = editingKey === prod.id;
                     return (
                       <tr key={prod.id} className="border-b border-line/60">
-                        <td className="py-2.5 pr-2">
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={faz(prod.id)}
-                            aria-label={`${prod.name} — esta pessoa faz`}
-                            onClick={() => void alternarFaz(prod.id)}
-                            className={`h-5 w-9 rounded-full transition-colors relative block ${
-                              faz(prod.id) ? 'bg-brand-600' : 'bg-line'
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
-                                faz(prod.id) ? 'left-[1.125rem]' : 'left-0.5'
-                              }`}
-                            />
-                          </button>
-                        </td>
                         <td className={`py-2.5 pr-3 ${faz(prod.id) ? 'text-ink' : 'text-muted'}`}>
                           {prod.name}
                         </td>
@@ -369,6 +350,27 @@ export const CommissionsManager: React.FC<{
                           ) : (
                             <span className="text-muted">—</span>
                           )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={faz(prod.id)}
+                              aria-label={`${prod.name} — esta pessoa faz`}
+                              onClick={() => void alternarFaz(prod.id)}
+                              className={`h-5 w-9 rounded-full transition-colors relative block ${
+                                faz(prod.id) ? 'bg-brand-600' : 'bg-line'
+                              }`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
+                                  faz(prod.id) ? 'left-[1.125rem]' : 'left-0.5'
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </td>
                         <td className="py-2.5 pl-3">
                           {isEditing ? (
