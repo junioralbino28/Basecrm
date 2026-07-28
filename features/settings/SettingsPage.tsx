@@ -222,7 +222,11 @@ const IntegrationsSettings: React.FC = () => {
   );
 };
 
-const FinanceiroSettings: React.FC<{ onIrParaProfissionais: () => void }> = ({ onIrParaProfissionais }) => {
+const FinanceiroSettings: React.FC<{
+  onIrParaProfissionais: () => void;
+  /** Nem todo cargo com acesso ao Financeiro tem acesso a Profissionais. */
+  podeAbrirProfissionais: boolean;
+}> = ({ onIrParaProfissionais, podeAbrirProfissionais }) => {
   type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas';
   const [subTab, setSubTab] = useState<FinanceiroSubTab>('taxas');
 
@@ -288,14 +292,23 @@ const FinanceiroSettings: React.FC<{ onIrParaProfissionais: () => void }> = ({ o
               <strong> Profissionais → Equipe</strong> e clique em <strong>Comissões</strong> na linha dela.
               Assim você cadastra a pessoa e o quanto ela ganha sem trocar de menu.
             </p>
-            <button
-              type="button"
-              onClick={onIrParaProfissionais}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500"
-            >
-              <Stethoscope className="h-4 w-4" />
-              Ir para Profissionais
-            </button>
+            {podeAbrirProfissionais ? (
+              <button
+                type="button"
+                onClick={onIrParaProfissionais}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500"
+              >
+                <Stethoscope className="h-4 w-4" />
+                Ir para Profissionais
+              </button>
+            ) : (
+              // Sem o botão a pessoa clicaria e cairia num "acesso negado" sem
+              // entender por quê. Melhor dizer o que fazer.
+              <p className="mt-4 text-sm text-muted">
+                O seu acesso não abre a tela de Profissionais. Peça a um
+                administrador para definir as comissões.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -392,7 +405,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       case 'professionals':
         return <ProfessionalsSettings />;
       case 'financeiro':
-        return <FinanceiroSettings onIrParaProfissionais={() => setActiveTab('professionals')} />;
+        return (
+          <FinanceiroSettings
+            onIrParaProfissionais={() => setActiveTab('professionals')}
+            podeAbrirProfissionais={canViewProfessionals === true}
+          />
+        );
       case 'planilhas':
         return <PlanilhasSection />;
       case 'integrations':

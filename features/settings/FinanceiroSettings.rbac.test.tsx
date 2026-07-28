@@ -58,9 +58,6 @@ vi.mock('./components/McpSection', () => ({ McpSection: () => <div>MCP</div> }))
 vi.mock('./components/CardFeesManager', () => ({
   CardFeesManager: () => <h3>Taxas de Pagamento</h3>,
 }))
-vi.mock('./components/CommissionsManager', () => ({
-  CommissionsManager: () => <h3>Comissões</h3>,
-}))
 vi.mock('./components/FixedCostsManager', () => ({
   FixedCostsManager: () => <h3>Contas Fixas</h3>,
 }))
@@ -94,11 +91,28 @@ describe('SettingsPage RBAC — aba financeiro (gate do Adel)', () => {
     // Default sub-tab: Taxas
     expect(await screen.findByRole('heading', { name: /^Taxas de Pagamento$/i })).toBeInTheDocument()
 
+    // A comissão MUDOU DE LUGAR (27/07): saiu do Financeiro e foi pra ficha da
+    // pessoa, em Profissionais → Equipe. A sub-tab continua existindo só para
+    // mostrar o caminho — quem procurar aqui não fica no vazio.
     fireEvent.click(screen.getByRole('button', { name: /^Comissões$/i }))
-    expect(await screen.findByRole('heading', { name: /^Comissões$/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /mudaram de lugar/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^Contas$/i }))
     expect(await screen.findByRole('heading', { name: /^Contas Fixas$/i })).toBeInTheDocument()
+  })
+
+  // Nem todo cargo com Financeiro tem Profissionais. Sem esta guarda, a pessoa
+  // clicaria no botão e cairia num "acesso negado" sem entender o motivo.
+  it('quem não tem acesso a Profissionais recebe instrução, não um botão que nega', async () => {
+    useAuthMock.mockReturnValue({ profile: { role: 'clinic_staff' } } as any)
+    useHasPermissionMock.mockImplementation((p: unknown) => p !== 'settings.professionals')
+    render(<SettingsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /financeiro/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Comissões$/i }))
+
+    expect(await screen.findByText(/Peça a um administrador/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ir para Profissionais/i })).not.toBeInTheDocument()
   })
 
 })
