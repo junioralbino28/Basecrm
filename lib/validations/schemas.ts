@@ -255,7 +255,10 @@ export const paymentTypeSchema = z.enum(['credito', 'debito', 'pix', 'dinheiro']
 });
 
 export const paymentMethodFeeFormSchema = z.object({
-  label: requiredString('Descrição', MAX_LENGTHS.SHORT_TEXT),
+  // Descrição deixou de ser obrigatória (Junior, 2026-07-27): quando vem vazia,
+  // a tela monta o nome a partir de tipo + bandeira + parcelas, que é o que a
+  // pessoa escreveria à mão de qualquer jeito.
+  label: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   paymentType: paymentTypeSchema,
   cardBrand: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   installments: z.coerce

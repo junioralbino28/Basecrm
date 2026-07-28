@@ -10,6 +10,7 @@ import {
   useUpdateProfessional,
   useDeleteProfessional,
 } from '@/lib/query/hooks/useProfessionalsQuery';
+import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 
 /**
  * Escolha de VÁRIAS especialidades (Junior, 2026-07-27: "pode colocar mais de uma
@@ -77,7 +78,8 @@ export const ProfessionalsManager: React.FC = () => {
   const [specialtyIds, setSpecialtyIds] = useState<string[]>([]);
   const [role, setRole] = useState('');
   const [payType, setPayType] = useState<ProfessionalPayType>('commission');
-  const [fixedAmount, setFixedAmount] = useState('0');
+  // Começa vazio: o placeholder aparece e ninguém precisa apagar um zero.
+  const [fixedAmount, setFixedAmount] = useState('');
 
   const canCreate = name.trim().length > 1;
 
@@ -89,7 +91,7 @@ export const ProfessionalsManager: React.FC = () => {
   const [editSpecialtyIds, setEditSpecialtyIds] = useState<string[]>([]);
   const [editRole, setEditRole] = useState('');
   const [editPayType, setEditPayType] = useState<ProfessionalPayType>('commission');
-  const [editFixedAmount, setEditFixedAmount] = useState('0');
+  const [editFixedAmount, setEditFixedAmount] = useState('');
 
   const SEM_CARGO = 'Sem cargo definido';
 
@@ -137,14 +139,14 @@ export const ProfessionalsManager: React.FC = () => {
         specialtyIds,
         role: role.trim() || undefined,
         payType,
-        fixedAmount: Number(fixedAmount.replace(',', '.')) || 0,
+        fixedAmount: paraNumeroBR(fixedAmount),
         active: true,
       });
       setName('');
       setSpecialtyIds([]);
       setRole('');
       setPayType('commission');
-      setFixedAmount('0');
+      setFixedAmount('');
     } catch (e) {
       setFormError((e as Error).message);
     }
@@ -165,7 +167,7 @@ export const ProfessionalsManager: React.FC = () => {
     setEditSpecialtyIds(p.specialtyIds ?? []);
     setEditRole(p.role || '');
     setEditPayType(p.payType || 'commission');
-    setEditFixedAmount(String(p.fixedAmount ?? 0));
+    setEditFixedAmount(paraCampoMoedaBR(p.fixedAmount));
   };
 
   const cancelEdit = () => {
@@ -174,7 +176,7 @@ export const ProfessionalsManager: React.FC = () => {
     setEditSpecialtyIds([]);
     setEditRole('');
     setEditPayType('commission');
-    setEditFixedAmount('0');
+    setEditFixedAmount('');
   };
 
   const saveEdit = async () => {
@@ -193,7 +195,7 @@ export const ProfessionalsManager: React.FC = () => {
           specialtyIds: editSpecialtyIds,
           role: editRole.trim() || undefined,
           payType: editPayType,
-          fixedAmount: Number(editFixedAmount.replace(',', '.')) || 0,
+          fixedAmount: paraNumeroBR(editFixedAmount),
         },
       });
       cancelEdit();
@@ -303,7 +305,7 @@ export const ProfessionalsManager: React.FC = () => {
               <input
                 inputMode="decimal"
                 value={fixedAmount}
-                onChange={(e) => setFixedAmount(e.target.value)}
+                onChange={(e) => setFixedAmount(mascararMoedaBR(e.target.value))}
                 placeholder="0"
                 className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
               />
@@ -390,7 +392,7 @@ export const ProfessionalsManager: React.FC = () => {
                               <input
                                 inputMode="decimal"
                                 value={editFixedAmount}
-                                onChange={(e) => setEditFixedAmount(e.target.value)}
+                                onChange={(e) => setEditFixedAmount(mascararMoedaBR(e.target.value))}
                                 className="w-full px-3 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                               />
                             </div>

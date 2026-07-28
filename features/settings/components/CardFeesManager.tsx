@@ -48,7 +48,19 @@ export const CardFeesManager: React.FC = () => {
   const [installments, setInstallments] = useState<string>('1');
   const [feePercent, setFeePercent] = useState<string>('0');
 
-  const canCreate = label.trim().length > 1;
+  // Sem descrição obrigatória (Junior, 27/07). O que a taxa PRECISA é do
+  // percentual e do meio de pagamento; o nome a tela monta sozinha.
+  const canCreate = true;
+
+  /** "Crédito · Visa · 3x" — o nome que a pessoa escreveria à mão. */
+  const nomeAutomatico = (): string => {
+    const partes = [paymentType === 'credito' ? 'Crédito'
+      : paymentType === 'debito' ? 'Débito'
+      : paymentType];
+    if (cardBrand.trim()) partes.push(cardBrand.trim());
+    if (isCardPayment(paymentType) && Number(installments) > 1) partes.push(`${installments}x`);
+    return partes.join(' · ');
+  };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFeePercent, setEditFeePercent] = useState<string>('0');
@@ -73,7 +85,7 @@ export const CardFeesManager: React.FC = () => {
 
     // Valida (e coage parcelas/taxa) com o schema ANTES de montar o payload.
     const parsed = paymentMethodFeeFormSchema.safeParse({
-      label: label.trim(),
+      label: label.trim() || nomeAutomatico(),
       paymentType,
       cardBrand: cardBrand.trim(),
       installments,
@@ -166,7 +178,9 @@ export const CardFeesManager: React.FC = () => {
         {/* Create */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
           <div className="lg:col-span-3">
-            <label className="block text-xs font-semibold text-muted mb-1">Descrição</label>
+            <label className="block text-xs font-semibold text-muted mb-1">
+              Descrição <span className="font-normal text-muted/70">(opcional)</span>
+            </label>
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}

@@ -145,7 +145,8 @@ describe('CommissionsManager', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Alterar$/i }));
     const campo = screen.getByLabelText('Comissão de Consulta');
-    fireEvent.change(campo, { target: { value: '50' } });
+    // Centavos entram pela direita (Junior, 27/07): "5000" = R$ 50,00.
+    fireEvent.change(campo, { target: { value: '5000' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar/i }));
 
     // A regra antiga NÃO pode ser tocada — senão o relatório do mês passado mudava.

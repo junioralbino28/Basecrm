@@ -9,6 +9,7 @@ import {
 } from '@/lib/query/hooks/useFixedCostsQuery';
 import { fixedCostFormSchema, currencySchema } from '@/lib/validations/schemas';
 import { useToast } from '@/context/ToastContext';
+import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 
 function formatBRL(v: number) {
   try {
@@ -35,7 +36,8 @@ export const FixedCostsManager: React.FC = () => {
   const costs = useMemo(() => data ?? [], [data]);
 
   const [name, setName] = useState('');
-  const [amount, setAmount] = useState<string>('0');
+  // Vazio, não '0': o placeholder aparece e ninguém apaga zero pra digitar.
+  const [amount, setAmount] = useState<string>('');
   const [dueDay, setDueDay] = useState<string>('');
 
   const canCreate = name.trim().length > 1;
@@ -60,7 +62,8 @@ export const FixedCostsManager: React.FC = () => {
     // Valida (e coage valor/dia) com o schema ANTES de montar o payload.
     const parsed = fixedCostFormSchema.safeParse({
       name: name.trim(),
-      amount,
+      // O campo é brasileiro ("1.234,56") — o schema espera número.
+      amount: paraNumeroBR(amount),
       dueDay: dueDay.trim() ? dueDay : undefined,
     });
     if (!parsed.success) {
@@ -75,7 +78,7 @@ export const FixedCostsManager: React.FC = () => {
         dueDay: parsed.data.dueDay,
       });
       setName('');
-      setAmount('0');
+      setAmount('');
       setDueDay('');
     } catch (e) {
       showToast(`Erro ao criar conta fixa: ${(e as Error).message}`, 'error');
@@ -93,17 +96,17 @@ export const FixedCostsManager: React.FC = () => {
 
   const startEdit = (c: FixedCost) => {
     setEditingId(c.id);
-    setEditAmount(String(c.amount ?? 0));
+    setEditAmount(paraCampoMoedaBR(c.amount));
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditAmount('0');
+    setEditAmount('');
   };
 
   const saveEdit = async () => {
     if (!editingId) return;
-    const parsed = currencySchema.safeParse(editAmount);
+    const parsed = currencySchema.safeParse(paraNumeroBR(editAmount));
     if (!parsed.success) {
       showToast(parsed.error.issues[0]?.message || 'Valor inválido', 'error');
       return;
@@ -165,7 +168,7 @@ export const FixedCostsManager: React.FC = () => {
             <label className="block text-xs font-semibold text-muted mb-1">Valor (R$)</label>
             <input
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(mascararMoedaBR(e.target.value))}
               inputMode="decimal"
               aria-label="Valor (R$)"
               className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
@@ -230,7 +233,7 @@ export const FixedCostsManager: React.FC = () => {
                         <>
                           <input
                             value={editAmount}
-                            onChange={(e) => setEditAmount(e.target.value)}
+                            onChange={(e) => setEditAmount(mascararMoedaBR(e.target.value))}
                             inputMode="decimal"
                             aria-label="Editar valor (R$)"
                             className="w-24 px-2 py-2 rounded-lg border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"

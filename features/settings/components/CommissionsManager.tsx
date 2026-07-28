@@ -16,6 +16,7 @@ import {
   professionalProductsService,
   type SpecialtyProductLink,
 } from '@/lib/supabase/specialtyProducts';
+import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 
 /**
  * Comissão por funcionário × procedimento (config financeira). Só
@@ -67,7 +68,7 @@ export const CommissionsManager: React.FC<{
   const [vinculos, setVinculos] = useState<SpecialtyProductLink[]>([]);
   const [excecoes, setExcecoes] = useState<Record<string, boolean>>({});
   const [editType, setEditType] = useState<CommissionAmountType>('fixed');
-  const [editValue, setEditValue] = useState('0');
+  const [editValue, setEditValue] = useState('');
 
   const selected = professionals.find((p) => p.id === selectedId) || null;
 
@@ -197,16 +198,18 @@ export const CommissionsManager: React.FC<{
   const startEdit = (key: string, regra: CommissionRule | null) => {
     setEditingKey(key);
     setEditType(regra?.amountType ?? 'fixed');
-    setEditValue(String(regra?.amount ?? 0));
+    setEditValue(regra ? (regra.amountType === 'percent'
+      ? String(regra.amount).replace('.', ',')
+      : paraCampoMoedaBR(regra.amount)) : '');
   };
 
   const cancelEdit = () => {
     setEditingKey(null);
-    setEditValue('0');
+    setEditValue('');
   };
 
   const salvar = async (procedimento: string | null) => {
-    const valor = Number(editValue.replace(',', '.'));
+    const valor = paraNumeroBR(editValue);
     if (!Number.isFinite(valor) || valor < 0) {
       showToast('Valor inválido.', 'error');
       return;
@@ -506,7 +509,11 @@ const EditorValor: React.FC<{
     <input
       aria-label={rotulo}
       value={valor}
-      onChange={(e) => onValor(e.target.value)}
+      // Em R$ os centavos entram pela direita; em % isso atrapalharia (35 viraria
+      // 0,35), então só se troca ponto por vírgula.
+      onChange={(e) => onValor(
+        tipo === 'fixed' ? mascararMoedaBR(e.target.value) : e.target.value.replace('.', ','),
+      )}
       inputMode="decimal"
       className="w-24 px-2 py-1.5 rounded-lg border border-line bg-card text-ink text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand-500/40"
     />

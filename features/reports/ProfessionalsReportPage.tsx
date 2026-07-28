@@ -17,6 +17,7 @@ import {
 } from '@/lib/query/hooks/useCommissionPaymentsQuery';
 import { useToast } from '@/context/ToastContext';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
+import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 
 /**
  * Formata um valor em reais (BRL).
@@ -108,7 +109,7 @@ export const ProfessionalsCommissionTable: React.FC<{
   const abrirPagamento = (professionalId: string, aPagar: number) => {
     setAbertoId(professionalId);
     // Já vem preenchido com o total: quem paga tudo só confirma.
-    setValor(String(aPagar.toFixed(2)).replace('.', ','));
+    setValor(paraCampoMoedaBR(aPagar));
     setDataPagamento(paraCampoData(new Date().toISOString()));
   };
 
@@ -328,7 +329,7 @@ export const ProfessionalsCommissionTable: React.FC<{
                             <input
                               aria-label={`Valor a pagar a ${row.professionalName}`}
                               value={valor}
-                              onChange={(e) => setValor(e.target.value)}
+                              onChange={(e) => setValor(mascararMoedaBR(e.target.value))}
                               inputMode="decimal"
                               autoFocus
                               className="w-24 h-7 px-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-card text-right text-[12px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
@@ -337,7 +338,7 @@ export const ProfessionalsCommissionTable: React.FC<{
                               type="button"
                               disabled={isFetching || payingId === row.professionalId}
                               onClick={() => {
-                                const n = Number(valor.replace(/\./g, '').replace(',', '.'));
+                                const n = paraNumeroBR(valor);
                                 if (!Number.isFinite(n) || n <= 0) {
                                   addToast('Digite um valor maior que zero.', 'error');
                                   return;

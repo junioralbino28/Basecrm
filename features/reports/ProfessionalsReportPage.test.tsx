@@ -137,7 +137,8 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
     fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
-    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '200' } });
+    // Centavos pela direita: "20000" = R$ 200,00.
+    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '20000' } });
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
@@ -151,7 +152,7 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
     fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
-    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '999' } });
+    fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '99900' } });
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     expect(mutateAsync).not.toHaveBeenCalled();
