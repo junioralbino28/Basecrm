@@ -61,6 +61,22 @@ describe('CommissionsManager', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  // MODO EMBUTIDO — a comissão passou a morar dentro da ficha do funcionário
+  // (Junior, 27/07: "3 menus pra cadastrar uma pessoa"). Se alguém voltar a
+  // exigir o seletor de pessoa aqui, estes dois testes caem.
+  it('embutido na ficha: já mostra a tabela da pessoa, sem pedir pra escolher', () => {
+    regras = [REGRA_EXISTENTE];
+    render(<CommissionsManager professionalId="prof-1" />);
+    expect(screen.queryByText(/Escolha uma pessoa acima/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByText('Consulta')).toBeInTheDocument();
+  });
+
+  it('embutido na ficha: não repete o seletor de pessoa', () => {
+    render(<CommissionsManager professionalId="prof-1" />);
+    expect(screen.queryByLabelText(/^Pessoa$/i)).not.toBeInTheDocument();
+  });
+
   it('lista os profissionais no select', () => {
     render(<CommissionsManager />);
     expect(screen.getByRole('option', { name: /Dra\. Jéssica/i })).toBeInTheDocument();

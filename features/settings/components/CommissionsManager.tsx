@@ -25,8 +25,18 @@ import { useToast } from '@/context/ToastContext';
  * `tabela de preços → especialidade → procedimento`, nunca lista plana —
  * verificado ao vivo em `GET /procedures/list` (3 tabelas: 65/294/4 itens,
  * agrupados em Cirurgia, Prótese, Ortodontia, Endodontia…).
+ *
+ * MODO EMBUTIDO (2026-07-27): com `professionalId`, a tela some o seletor de
+ * pessoa e o cartão externo, e vira um bloco dentro da ficha do funcionário.
+ * É o pedido do Junior: *"pra cadastrar certo profissional, especialidade,
+ * serviço e comissão preciso ir em 3 menus"* — a comissão passa a morar onde a
+ * pessoa mora. Mesmo componente nos dois lugares, de propósito: duplicar tela
+ * seria espaguete e as duas versões divergiriam na primeira correção.
  */
-export const CommissionsManager: React.FC = () => {
+export const CommissionsManager: React.FC<{
+  /** Fixa a pessoa e esconde o seletor — usado dentro da ficha do funcionário. */
+  professionalId?: string;
+}> = ({ professionalId }) => {
   const { data, isLoading, error } = useCommissionRules();
   const { data: professionalsData, isLoading: professionalsLoading } = useProfessionals();
   // A comissão é POR PROCEDIMENTO (Junior, 24/07) — a lista vem do catálogo em
@@ -41,7 +51,9 @@ export const CommissionsManager: React.FC = () => {
   const professionals = useMemo(() => professionalsData ?? [], [professionalsData]);
   const products = useMemo(() => productsData ?? [], [productsData]);
 
-  const [selectedId, setSelectedId] = useState('');
+  const [selecionadoNaTela, setSelecionadoNaTela] = useState('');
+  const embutido = Boolean(professionalId);
+  const selectedId = professionalId || selecionadoNaTela;
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editType, setEditType] = useState<CommissionAmountType>('fixed');
   const [editValue, setEditValue] = useState('0');
@@ -142,17 +154,19 @@ export const CommissionsManager: React.FC = () => {
   const mostraValor = (r: CommissionRule) =>
     r.amountType === 'fixed' ? formatBRL(r.amount) : `${r.amount}%`;
 
-  return (
-    <div className="mb-12">
-      <div className="bg-card border border-line rounded-2xl p-6">
+  // Sem componente de moldura declarado aqui dentro: componente definido no
+  // corpo de outro remonta a árvore a cada render (e o lint barra).
+  const conteudo = (
+    <>
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold text-ink mb-1 flex items-center gap-2">
-            <Percent className="h-5 w-5" /> Comissões
+          <h3 className={`font-semibold text-ink mb-1 flex items-center gap-2 ${embutido ? 'text-sm' : 'text-lg'}`}>
+            <Percent className={embutido ? 'h-4 w-4' : 'h-5 w-5'} />
+            {embutido ? 'Quanto essa pessoa ganha em cada procedimento' : 'Comissões'}
           </h3>
-          <p className="text-sm text-muted">
-            Escolha a pessoa e defina quanto ela ganha em cada procedimento — em valor
-            ou em porcentagem. Ao salvar, o novo valor vale <strong>de hoje em diante</strong>;
-            o que já passou continua como foi pago.
+          <p className="text-xs text-muted">
+            {embutido
+              ? <>Defina em valor ou porcentagem. O novo valor vale <strong>de hoje em diante</strong>; o que já passou continua como foi pago.</>
+              : <>Escolha a pessoa e defina quanto ela ganha em cada procedimento — em valor ou em porcentagem. Ao salvar, o novo valor vale <strong>de hoje em diante</strong>; o que já passou continua como foi pago.</>}
           </p>
         </div>
 
@@ -162,7 +176,8 @@ export const CommissionsManager: React.FC = () => {
           </div>
         )}
 
-        {/* Mestre: quem */}
+        {/* Mestre: quem — só na tela cheia; embutido a pessoa já é o dono da ficha */}
+        {!embutido && (
         <div className="mt-5 max-w-md">
           <label htmlFor="comissao-pessoa" className="block text-xs font-semibold text-muted mb-1">
             Pessoa
@@ -170,7 +185,7 @@ export const CommissionsManager: React.FC = () => {
           <select
             id="comissao-pessoa"
             value={selectedId}
-            onChange={(e) => { setSelectedId(e.target.value); cancelEdit(); }}
+            onChange={(e) => { setSelecionadoNaTela(e.target.value); cancelEdit(); }}
             className="w-full px-3 py-2 rounded-xl border border-line bg-card text-ink text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
           >
             <option value="">Selecione uma pessoa…</option>
@@ -185,6 +200,7 @@ export const CommissionsManager: React.FC = () => {
             })}
           </select>
         </div>
+        )}
 
         {!selectedId ? (
           <div className="mt-6 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
@@ -201,7 +217,7 @@ export const CommissionsManager: React.FC = () => {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-ink">
-                    Comissão padrão de {selected?.name}
+                    {embutido ? 'Comissão padrão' : `Comissão padrão de ${selected?.name}`}
                   </div>
                   <div className="text-xs text-muted mt-0.5">
                     Vale para todo procedimento que não tiver valor próprio na tabela abaixo.
@@ -318,7 +334,13 @@ export const CommissionsManager: React.FC = () => {
             </div>
           </>
         )}
-      </div>
+    </>
+  );
+
+  if (embutido) return <div className="mt-3">{conteudo}</div>;
+  return (
+    <div className="mb-12">
+      <div className="bg-card border border-line rounded-2xl p-6">{conteudo}</div>
     </div>
   );
 };

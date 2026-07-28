@@ -10,7 +10,6 @@ import { DataStorageSettings } from './components/DataStorageSettings';
 import { ProductsCatalogManager } from './components/ProductsCatalogManager';
 import { ProfessionalsManager } from './components/ProfessionalsManager';
 import { CardFeesManager } from './components/CardFeesManager';
-import { CommissionsManager } from './components/CommissionsManager';
 import { FixedCostsManager } from './components/FixedCostsManager';
 import { PlanilhasSection } from './components/PlanilhasSection';
 import { TeamCatalogManager } from './components/TeamCatalogManager';
@@ -223,7 +222,7 @@ const IntegrationsSettings: React.FC = () => {
   );
 };
 
-const FinanceiroSettings: React.FC = () => {
+const FinanceiroSettings: React.FC<{ onIrParaProfissionais: () => void }> = ({ onIrParaProfissionais }) => {
   type FinanceiroSubTab = 'taxas' | 'comissoes' | 'contas';
   const [subTab, setSubTab] = useState<FinanceiroSubTab>('taxas');
 
@@ -277,7 +276,29 @@ const FinanceiroSettings: React.FC = () => {
       </div>
 
       {subTab === 'taxas' && <CardFeesManager />}
-      {subTab === 'comissoes' && <CommissionsManager />}
+      {/* A comissão MUDOU DE LUGAR (Junior, 27/07): ela é atributo de quem
+          trabalha, não da contabilidade. Fica na ficha da pessoa, em
+          Profissionais → Equipe. Aqui sobra só o caminho, pra ninguém procurar. */}
+      {subTab === 'comissoes' && (
+        <div className="mb-12">
+          <div className="bg-card border border-line rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-ink mb-1">Comissões mudaram de lugar</h3>
+            <p className="text-sm text-muted">
+              Agora cada comissão fica na ficha da própria pessoa: abra
+              <strong> Profissionais → Equipe</strong> e clique em <strong>Comissões</strong> na linha dela.
+              Assim você cadastra a pessoa e o quanto ela ganha sem trocar de menu.
+            </p>
+            <button
+              type="button"
+              onClick={onIrParaProfissionais}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500"
+            >
+              <Stethoscope className="h-4 w-4" />
+              Ir para Profissionais
+            </button>
+          </div>
+        </div>
+      )}
       {subTab === 'contas' && <FixedCostsManager />}
     </div>
   );
@@ -371,7 +392,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       case 'professionals':
         return <ProfessionalsSettings />;
       case 'financeiro':
-        return <FinanceiroSettings />;
+        return <FinanceiroSettings onIrParaProfissionais={() => setActiveTab('professionals')} />;
       case 'planilhas':
         return <PlanilhasSection />;
       case 'integrations':

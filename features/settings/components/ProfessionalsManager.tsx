@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Stethoscope, Pencil, Plus, Save, Trash2, ToggleLeft, ToggleRight, X } from 'lucide-react';
+import { Stethoscope, Pencil, Plus, Save, Trash2, ToggleLeft, ToggleRight, X, ChevronDown, ChevronRight, Percent } from 'lucide-react';
+import { CommissionsManager } from './CommissionsManager';
 import type { Professional, ProfessionalPayType } from '@/types';
 import { formatBRL } from '@/lib/utils';
 import { teamCatalogsService, type TeamCatalogItem } from '@/lib/supabase/teamCatalogs';
@@ -80,6 +81,9 @@ export const ProfessionalsManager: React.FC = () => {
 
   const canCreate = name.trim().length > 1;
 
+  // Comissão MORA na ficha da pessoa (Junior, 2026-07-27: "pra cadastrar certo
+  // profissional, especialidade, serviço e comissão preciso ir em 3 menus").
+  const [comissoesAbertas, setComissoesAbertas] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editSpecialtyIds, setEditSpecialtyIds] = useState<string[]>([]);
@@ -326,11 +330,10 @@ export const ProfessionalsManager: React.FC = () => {
               {pessoas.map((p) => {
                 const isActive = p.active !== false;
                 const isEditing = editingId === p.id;
+                const comissaoAberta = comissoesAbertas === p.id;
                 return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface/60 px-4 py-3"
-                  >
+                  <div key={p.id} className="rounded-xl border border-line bg-surface/60">
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
                     <div className="min-w-0">
                       {isEditing ? (
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
@@ -446,16 +449,31 @@ export const ProfessionalsManager: React.FC = () => {
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEdit(p)}
-                          className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-surface"
-                          title="Editar"
-                          aria-label="Editar profissional"
-                          disabled={busy}
-                        >
-                          <Pencil className="h-4 w-4 text-muted" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setComissoesAbertas(comissaoAberta ? null : p.id)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-line bg-card hover:bg-surface text-xs font-semibold text-ink"
+                            aria-expanded={comissaoAberta}
+                            title="Ver e definir as comissões desta pessoa"
+                          >
+                            {comissaoAberta
+                              ? <ChevronDown className="h-3.5 w-3.5 text-muted" />
+                              : <ChevronRight className="h-3.5 w-3.5 text-muted" />}
+                            <Percent className="h-3.5 w-3.5 text-muted" />
+                            Comissões
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(p)}
+                            className="px-2 py-2 rounded-lg border border-line bg-card hover:bg-surface"
+                            title="Editar"
+                            aria-label="Editar profissional"
+                            disabled={busy}
+                          >
+                            <Pencil className="h-4 w-4 text-muted" />
+                          </button>
+                        </>
                       )}
                       <button
                         type="button"
@@ -478,6 +496,12 @@ export const ProfessionalsManager: React.FC = () => {
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </button>
                     </div>
+                  </div>
+                  {comissaoAberta && (
+                    <div className="border-t border-line px-4 pb-4">
+                      <CommissionsManager professionalId={p.id} />
+                    </div>
+                  )}
                   </div>
                 );
               })}
