@@ -13,7 +13,9 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-28 · branch `feat/funil-construtor` · baseline `test:local` **991/991** (209 arquivos, verde em `61f1cfa`)
+Última atualização: 2026-07-29 · branch `feat/funil-construtor` @ `5624e5e` · baseline `test:local` **1011/1011** (213 arquivos, verde em `5624e5e`)
+
+> **Ordem de revisão recomendada (29/07):** **3** (motor, prioridade 1) → **7** (motor do webhook) → **6** (minúsculo) → **1** → **2** → **8**. Os pacotes de motor (3 e 7) travam fatia nova; os de UI não travam nada.
 
 ---
 
@@ -28,6 +30,7 @@
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 | 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
 | 7 | WhatsApp ao vivo: notificação de mensagem + 2 bugs reais no caminho (chave velha do QR · webhook esmagava o não-lido) | 🟡 UI + 🔴 **MOTOR** (webhook) | **PENDENTE** | bloco abaixo |
+| 8 | Tarde de 28/07: bolinhas âmbar · atendimento no card · reset de especialidade · Agenda NOSSA fatia 1 | 🟢 UI (+🟡 serviço de dado) | **PENDENTE** | bloco abaixo |
 
 ---
 
@@ -222,6 +225,9 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 | `61b582a` | não-vistas no menu (badge) + notificação do sistema estilo WhatsApp + som + toggles por usuário. ⚠️ **subiu com 4 testes quebrados e mensagem afirmando verde** — leitura da suíte e commit estavam encadeados num comando só (erro de processo, regra nova adotada) |
 | `576c2b7` | correção do arnês: `Layout.permissions.test` neutraliza o módulo novo (QueryClientProvider) |
 | `35b1ef8` | 🔴 **MOTOR** — 🐛 bug ANTIGO: no ramo `inbound && ai_active` do webhook, um update redundante reconstruía a metadata da foto lida ANTES do incremento e **esmagava o `unreadCount` com 0** milissegundos depois. Não-lidas NUNCA acumularam em conversa com IA ativa. Fix = remover o bloco (campos todos já gravados pelo update anterior) |
+| `e48e45b` | menu do avatar mostra a permissão REAL do navegador (4 estados; toggle "ativo" com permissão `default` passa a PEDIR a permissão no clique — era o motivo da janela nunca subir) |
+| `e602be4` | bolinhas âmbar de pendência em "Hoje" (ligações vencidas+hoje) e "Tarefas" (prazo hoje) — mesmo NavItem badge, tom âmbar |
+| `61c5e00` | 🐛 correção de teste ao vivo: a bolinha conta **MENSAGENS** (não conversas) e **abrir a conversa marca como lida sozinha** (efeito auto `mark_as_read` + invalidação imediata do resumo) — antes só o botão manual derrubava o contador |
 
 **O que pedir ao Codex (foco adversarial):**
 1. **A remoção do bloco no webhook é segura?** Conferir campo a campo que o update anterior grava TUDO que o bloco removido gravava, em todos os caminhos (thread nova × existente; `resolved` reaberto). Existe algum caminho onde o bloco era a única gravação?
@@ -231,8 +237,46 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 5. **Duas threads pro MESMO contato** apareceram em produção (16h24 e 16h56, mesmo telefone) — o webhook deveria ter reutilizado a primeira? Investigar o matching de thread por telefone.
 6. Parser de erro da Evolution: a reordenação (motivo detalhado > rótulo) muda alguma mensagem exibida em outro fluxo (envio, desconexão)?
 
+**Foco adversarial adicional (commits `e48e45b`/`e602be4`/`61c5e00`):**
+7. **Auto marcar-lida** (`61c5e00`): o efeito dispara quando a thread selecionada tem `unread_count>0` — o `marcandoLidaRef` anti-rajada cobre o caso de mensagem NOVA chegando com a conversa aberta (o contador sobe e o efeito re-dispara)? Alguma corrida entre o PATCH e o poll de 30s reexibe a bolinha por um ciclo?
+8. **Contagem por MENSAGENS** (`totalMensagens`): consistente com o que o webhook incrementa? Thread com `unreadCount` corrompido/negativo quebra a soma?
+9. **Bolinhas âmbar**: `buildCallList` e `splitTasks` rodam no Layout a cada render de menu — custo aceitável? A data "hoje" usa fuso local do navegador; virada de dia com aba aberta atualiza?
+
 **Encosta em motor?** **Sim** (`35b1ef8`, webhook). Nenhuma fatia nova se apoia nele até o parecer.
-**Prova:** `test:local` = **1003/1003 (211 arquivos)** · lint `--max-warnings 0` · tsc strict. Fixado ao vivo: instância `open`, "oi" do Junior dentro do CRM, IA muda (flag `ai_conversation_auto_reply=false` gravada explícita — o default do código "ausente/erro = LIGADO" em `lib/ai/features/server.ts` é candidato a G24).
+**Prova:** `test:local` = **1011/1011 (213 arquivos)** verde em `5624e5e` · lint `--max-warnings 0` · tsc strict. Fixado ao vivo: instância `open`, "oi" do Junior dentro do CRM, IA muda (flag `ai_conversation_auto_reply=false` gravada explícita — o default do código "ausente/erro = LIGADO" em `lib/ai/features/server.ts` é candidato a G24).
+
+---
+
+## Pacote 8 — Tarde de 28/07: âmbar no menu · atendimento no card · reset de especialidade · Agenda NOSSA fatia 1
+
+**Estado:** PENDENTE
+**Camada:** 🟢 UI (+🟡 serviço de dado — `appointmentsLocal` e `syncSpecialties` gravam via cliente user-scoped; RLS existente decide; **zero migration, zero RPC nova**)
+**Commits:** `4479366` · `a961fa6` · `5624e5e` (os 3 de notificação foram anexados ao Pacote 7)
+
+| SHA | O que faz |
+|---|---|
+| `4479366` | **especialidade removida leva embora as marcações DELA**: `syncSpecialties` na SAÍDA apaga overrides dos procedimentos da especialidade que saiu, EXCETO os cobertos por especialidade que ficou (simétrico ao reset de entrada já revisável no Pacote 3) |
+| `a961fa6` | **Registrar atendimento direto do card do lead**: `RegistrarAtendimentoDoLead` reusa `useAtendimentosController` + `AtendimentoFormModal` com o lead travado (`dealsDoLead` filtrado) |
+| `5624e5e` | **Agenda NOSSA fatia 1**: grade do dia por dentista (padrão Clinicorp), 08:00–18:30 de 30 em 30; CRUD local (`appointmentsLocal.ts`: criar `source:'manual'`/`status:'agendado'`, remarcar carimba `remarcado`, mudar status); 60min ocupa 2 linhas; cancelada libera a vaga; rótulo "veio do Clinicorp" pra `source:'clinicorp_api'` (fatia 3). **Apagou** a UI antiga dirigida por Clinicorp (`useAgendaController`/`AgendaDayView`/`AgendaBookModal`); rotas `app/api/agenda/*` mantidas pras fatias 2/3 |
+
+**O que o Junior conferiu ao vivo (29/07):** grade com os 7 dentistas, marcar/remarcar/cancelar/status funcionando; aprovou. Único defeito achado foi de DADO, não de código (ver nota de semeadura abaixo).
+
+**O que pedir ao Codex (foco adversarial):**
+1. **`appointmentsLocal` grava via cliente do usuário** — a RLS de `appointments` cobre select (`can_access_organization`) e mutação (`can_operate_organization`)? Conferir contra o achado seu anterior de **grants largos demais do `anon` em `appointments` (até TRUNCATE)** — este pacote torna o achado urgente.
+2. **Fuso**: `paraIsoLocal`/`horaLocalDe` convertem local↔ISO no navegador — consulta marcada às 08:00 em máquina com outro fuso aparece na linha certa pra quem está no fuso da clínica?
+3. **Sobreposição não é barrada**: nada impede 2 consultas no mesmo dentista/horário (a grade só mostra a 1ª por vaga?). Aceitável na fatia 1 ou precisa de guarda já?
+4. **`linhasOcupadas`/`ocupadasPorContinuacao`**: consulta de 90/120min ocupa todas as linhas? `ends_at` nulo cai como 30min?
+5. **Reset de especialidade na saída** (`4479366`): o `cobertos` (produtos ainda cobertos pelas especialidades que ficam) está correto quando a MESMA pessoa sai de A e entra em B no mesmo salvamento? Ordem de execução importa?
+6. **`RegistrarAtendimentoDoLead`**: o `chegouAbrir` ref sincroniza fechar-controller→fechar-card em todos os caminhos (salvar, cancelar, X)? Duplo clique no botão abre 2 modais?
+
+**Encosta em motor?** Não (serviços gravam pelo cliente autenticado; policies existentes decidem). A parte de MOTOR da agenda (espelho ida/volta Clinicorp, permissão do dentista) são as fatias 2/3/4 — **spec só depois do parecer deste pacote e do 3**.
+**Prova:** `test:local` = **1011/1011 (213 arquivos)** verde em `5624e5e` (lido ANTES do commit) · lint `--max-warnings 0` · tsc strict · deploy READY.
+
+---
+
+## 📌 Nota de operação — 29/07: conserto de acentuação na produção (SEM código)
+
+A semeadura local→prod de 28/07 gravou texto com codificação trocada (UTF-8 lido como Win1252): **105 registros corrompidos** ("JÃ©ssica", "ExtraÃ§Ã£o") em `professionals` (name+specialty), `products`, `commission_rules.procedimento` e `specialties`. O Junior pegou na tela da agenda. Reparo aplicado direto no banco em 29/07 com `convert_from(convert_to(col,'WIN1252'),'UTF8')`, prévia SELECT + checagem de colisão antes, verificação final = 0 restantes. **Nenhum arquivo do repo mudou.** Relevância pro Codex: ao revisar o Pacote 3, saber que os DADOS de produção passaram por esse reparo (não estranhar timestamps de update) e que a pipeline de semeadura (fora do repo) era a fonte do defeito.
 
 ---
 
