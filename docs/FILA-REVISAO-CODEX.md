@@ -13,7 +13,7 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-29 · branch `feat/funil-construtor` @ `5624e5e` · baseline `test:local` **1011/1011** (213 arquivos, verde em `5624e5e`)
+Última atualização: 2026-07-29 · base revisada `feat/funil-construtor` @ `041d963` · baseline local reconfirmado **1011/1011** (213 arquivos)
 
 > **Ordem de revisão recomendada (29/07):** **3** (motor, prioridade 1) → **7** (motor do webhook) → **6** (minúsculo) → **1** → **2** → **8**. Os pacotes de motor (3 e 7) travam fatia nova; os de UI não travam nada.
 
@@ -25,7 +25,7 @@
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
 | 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
-| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** (4 migrations + reescrita de RPC) | **PENDENTE — prioridade 1** | a redigir |
+| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** (5 migrations + reescrita de RPC) | **REVISADO — BLOQUEADO** | [`REVIEW-PACOTE-3.md`](REVIEW-PACOTE-3.md) |
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 | 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
@@ -97,7 +97,8 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 
 ## Pacote 3 — Remuneração da equipe: cargo/pagamento, comissão por vigência, catálogos
 
-**Estado:** PENDENTE (aguardando 29/07) · **PRIORIDADE 1 da revisão**
+**Estado:** REVISADO · **BLOQUEADO PARA FUNDAÇÃO/DEPLOY** · parecer:
+[`REVIEW-PACOTE-3.md`](REVIEW-PACOTE-3.md)
 **Camada:** 🔴 **MOTOR** — 5 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
 
 **Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
