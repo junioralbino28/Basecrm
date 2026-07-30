@@ -20,6 +20,7 @@ export function MarcarConsultaModal({
   professionalId,
   professionalName,
   hora,
+  dia,
   contacts,
   salvando,
   onConfirmar,
@@ -28,6 +29,9 @@ export function MarcarConsultaModal({
   professionalId: string;
   professionalName: string;
   hora: string;
+  /** Dia por extenso ("qua 29/07"). Nas visões de semana e mês a vaga clicada
+   *  pode não ser hoje — sem isso a pessoa marca achando que é o dia atual. */
+  dia?: string;
   contacts: Contact[];
   salvando: boolean;
   onConfirmar: (nova: NovaConsulta) => Promise<unknown>;
@@ -50,7 +54,9 @@ export function MarcarConsultaModal({
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Marcar consulta</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{professionalName} · {hora}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {professionalName} · {dia ? `${dia} · ` : ''}{hora}
+            </p>
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="text-slate-400 hover:text-slate-600">
             <X size={18} />

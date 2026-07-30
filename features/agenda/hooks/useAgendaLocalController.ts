@@ -29,7 +29,63 @@ export function vagasDoDia(): string[] {
 
 function hojeIso(): string {
   const agora = new Date();
-  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+  return isoDe(agora);
+}
+
+/** Date local → "YYYY-MM-DD" (sem passar por UTC, que muda o dia). */
+function isoDe(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function somarDias(dataIso: string, quantos: number): string {
+  const [ano, mes, dia] = dataIso.split('-').map(Number);
+  return isoDe(new Date(ano, mes - 1, dia + quantos));
+}
+
+/** Visões do calendário. Semana e mês são de UM profissional (pedido do Junior, 29/07). */
+export type VisaoAgenda = 'dia' | 'semana' | 'mes';
+
+/** Segunda-feira da semana da data (a semana da clínica começa na segunda). */
+export function inicioDaSemana(dataIso: string): string {
+  const [ano, mes, dia] = dataIso.split('-').map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  // getDay(): 0=domingo … 6=sábado. Domingo recua 6 dias, não 0.
+  const recuo = (d.getDay() + 6) % 7;
+  return somarDias(dataIso, -recuo);
+}
+
+/** Os 7 dias da semana da data, de segunda a domingo. Nenhum dia fica de fora
+ *  — consulta marcada no domingo tem que aparecer, não sumir da tela. */
+export function diasDaSemana(dataIso: string): string[] {
+  const segunda = inicioDaSemana(dataIso);
+  return Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
+}
+
+/** Células do mês, alinhadas por dia da semana. `null` = célula de preenchimento
+ *  antes do dia 1 ou depois do último dia. */
+export function celulasDoMes(dataIso: string): (string | null)[] {
+  const [ano, mes] = dataIso.split('-').map(Number);
+  const primeiro = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const vazias = (new Date(ano, mes - 1, 1).getDay() + 6) % 7;
+  const totalDeDias = new Date(ano, mes, 0).getDate();
+  const celulas: (string | null)[] = Array.from({ length: vazias }, () => null);
+  for (let i = 0; i < totalDeDias; i += 1) celulas.push(somarDias(primeiro, i));
+  while (celulas.length % 7 !== 0) celulas.push(null);
+  return celulas;
+}
+
+/** Janela de datas que a visão precisa buscar. `ate` é exclusivo. */
+export function intervaloDaVisao(visao: VisaoAgenda, dataIso: string): { de: string; ate: string } {
+  if (visao === 'semana') {
+    const segunda = inicioDaSemana(dataIso);
+    return { de: segunda, ate: somarDias(segunda, 7) };
+  }
+  if (visao === 'mes') {
+    const [ano, mes] = dataIso.split('-').map(Number);
+    const primeiro = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    return { de: primeiro, ate: somarDias(primeiro, new Date(ano, mes, 0).getDate()) };
+  }
+  return { de: dataIso, ate: somarDias(dataIso, 1) };
 }
 
 /** "YYYY-MM-DD" + "HH:mm" LOCAIS → ISO UTC (o banco guarda timestamptz). */
@@ -60,16 +116,21 @@ export function useAgendaLocalController() {
   const { showToast } = useToast();
 
   const [date, setDate] = useState<string>(hojeIso());
+  const [visao, setVisao] = useState<VisaoAgenda>('dia');
 
-  const chave = useMemo(() => ['agenda-dia', organizationId, date] as const, [organizationId, date]);
+  const intervalo = useMemo(() => intervaloDaVisao(visao, date), [visao, date]);
+
+  const chave = useMemo(
+    () => ['agenda-dia', organizationId, intervalo.de, intervalo.ate] as const,
+    [organizationId, intervalo.de, intervalo.ate],
+  );
 
   const consulta = useQuery({
     queryKey: chave,
     enabled: Boolean(organizationId),
     queryFn: async () => {
-      const deIso = paraIsoLocal(date, '00:00');
-      const [ano, mes, dia] = date.split('-').map(Number);
-      const ateIso = new Date(ano, mes - 1, dia + 1, 0, 0, 0, 0).toISOString();
+      const deIso = paraIsoLocal(intervalo.de, '00:00');
+      const ateIso = paraIsoLocal(intervalo.ate, '00:00');
       const { data, error } = await appointmentsLocalService.listar(organizationId as string, deIso, ateIso);
       if (error) throw error;
       return data;
@@ -133,18 +194,32 @@ export function useAgendaLocalController() {
     onError: (e: Error) => showToast(`Não deu pra atualizar: ${e.message}`, 'error'),
   });
 
-  const irParaDia = useCallback((quantos: number) => {
-    setDate((atual) => {
-      const [ano, mes, dia] = atual.split('-').map(Number);
-      const d = new Date(ano, mes - 1, dia + quantos);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    });
-  }, []);
+  /** ‹ e › andam na unidade da visão: 1 dia, 1 semana ou 1 mês. */
+  const avancar = useCallback(
+    (quantos: number) => {
+      setDate((atual) => {
+        if (visao === 'semana') return somarDias(atual, quantos * 7);
+        if (visao === 'mes') {
+          const [ano, mes, dia] = atual.split('-').map(Number);
+          const alvo = new Date(ano, mes - 1 + quantos, 1);
+          // dia 31 → mês curto: encaixa no último dia do mês de destino
+          const ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+          alvo.setDate(Math.min(dia, ultimoDia));
+          return isoDe(alvo);
+        }
+        return somarDias(atual, quantos);
+      });
+    },
+    [visao],
+  );
 
   return {
     date,
     setDate,
-    irParaDia,
+    visao,
+    setVisao,
+    intervalo,
+    avancar,
     voltarPraHoje: useCallback(() => setDate(hojeIso()), []),
     appointments: (consulta.data ?? []) as AppointmentDoDia[],
     isLoading: consulta.isLoading,
