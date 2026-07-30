@@ -13,9 +13,12 @@
 > Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-29 · base revisada `feat/funil-construtor` @ `041d963` · baseline local reconfirmado **1011/1011** (213 arquivos)
+Última atualização: 2026-07-29 (noite) · branch `feat/funil-construtor` @ `d198139` · baseline `test:local` **1032/1032** (214 arquivos, verde em `d198139`, lido em comando separado)
+Base revisada pelo Codex no Pacote 3: `041d963` (baseline daquele momento: 1011/1011 em 213 arquivos).
 
-> **Ordem de revisão recomendada (29/07):** **3** (motor, prioridade 1) → **7** (motor do webhook) → **6** (minúsculo) → **1** → **2** → **8**. Os pacotes de motor (3 e 7) travam fatia nova; os de UI não travam nada.
+> **Ordem recomendada (29/07, noite):** **correções do 3** (já revisado e **BLOQUEADO** — `REVIEW-PACOTE-3.md` + `ADJUDICACAO-PACOTE-3.md`) → **7** (motor do webhook) → **10** (spec de papel, barata, destrava construção) → **6** → **1** → **2** → **8** → **9**.
+>
+> Os dois primeiros blocos de correção do Pacote 3 (fail-closed no helper de teste · P3-14) **não dependem de decisão do Junior** e podem começar já. Os blocos 4 e 5 esperam as 2 respostas dele (remuneração fixa/híbrida · qual data manda na regra de comissão).
 
 ---
 
@@ -31,6 +34,8 @@
 | 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
 | 7 | WhatsApp ao vivo: notificação de mensagem + 2 bugs reais no caminho (chave velha do QR · webhook esmagava o não-lido) | 🟡 UI + 🔴 **MOTOR** (webhook) | **PENDENTE** | bloco abaixo |
 | 8 | Tarde de 28/07: bolinhas âmbar · atendimento no card · reset de especialidade · Agenda NOSSA fatia 1 | 🟢 UI (+🟡 serviço de dado) | **PENDENTE** | bloco abaixo |
+| 9 | Agenda: visões de semana e mês + "Todos" com cor por profissional | 🟢 UI pura | **PENDENTE** | bloco abaixo |
+| 10 | **Parcelamento clínica — SPEC, nada construído** | 🔴 motor (futuro) | **SPEC A REVISAR** | `SPEC-PARCELAMENTO-CLINICA.md` |
 
 ---
 
@@ -272,6 +277,56 @@ O Codex deve tratar estes como **prova de que a área é escorregadia**, não co
 
 **Encosta em motor?** Não (serviços gravam pelo cliente autenticado; policies existentes decidem). A parte de MOTOR da agenda (espelho ida/volta Clinicorp, permissão do dentista) são as fatias 2/3/4 — **spec só depois do parecer deste pacote e do 3**.
 **Prova:** `test:local` = **1011/1011 (213 arquivos)** verde em `5624e5e` (lido ANTES do commit) · lint `--max-warnings 0` · tsc strict · deploy READY.
+
+---
+
+## Pacote 9 — Agenda: semana, mês e visão "Todos" com cor por profissional
+
+**Estado:** PENDENTE
+**Camada:** 🟢 UI pura — sem migration, sem RPC, sem tocar no serviço. Mesma consulta da fatia 1 com a janela de datas maior (`appointmentsLocal.listar` já recebia intervalo); o filtro por profissional é client-side de propósito, pra não ampliar superfície.
+**Commits:** `05a9fed` (semana e mês por profissional) · `d198139` (visão "Todos" + cor por profissional)
+
+**O que o Junior conferiu ao vivo:** testou a 1ª entrega ("ficou bom") e pediu a visão "Todos" — a atendente precisa enxergar os dentistas juntos pra fazer encaixe sem abrir agenda por agenda — mais cor por profissional.
+
+**Decisões de desenho a validar:**
+- Semana começa na **segunda** e mostra **os 7 dias, incluindo domingo** (consulta de domingo não pode sumir da tela).
+- A cor identifica **QUEM** (faixa lateral na semana, nome colorido no mês, legenda ligando cor→nome); o **fundo do cartão continua sendo a SITUAÇÃO**. Duas informações, dois canais.
+- Cor deriva do **hash do `id`**, não da posição na lista — cadastrar dentista novo não embaralha a cor dos outros.
+- A conta de ocupação vive **só na grade**; a página recebe `livres` prontos em vez de recalcular.
+
+**O que pedir ao Codex (foco adversarial):**
+1. **Fuso:** `diaLocalDe`/`paraIsoLocal`/`horaLocalDe` convertem no navegador. Consulta às 23:30 cai no dia certo? E numa máquina em fuso diferente do da clínica?
+2. **Volume:** o mês busca a org inteira e filtra no cliente. Clínica cheia (7 dentistas × 30 dias) devolve quanto? Vale filtrar no serviço?
+3. **Sobreposição** continua não barrada (herdado da fatia 1) — na visão "Todos" isso fica mais visível; vale guarda agora?
+4. **`livres` calculado na grade** cobre o caso de a consulta ter `professionalId` nulo? E consulta de 90/120 min bloqueando as vagas seguintes de um só dentista?
+5. **Colisão de cor:** paleta de 8 com hash — clínica com 9+ profissionais terá duas pessoas na mesma cor. A legenda salva a leitura ou precisa de paleta maior?
+6. Acessibilidade: a cor é o único canal pra "quem"? (Hoje não — o nome vem escrito junto.)
+
+**Encosta em motor?** Não.
+**Prova:** `test:local` **1032/1032 (214 arquivos)** verde em `d198139`, lida em comando separado antes do commit · lint `--max-warnings 0` · tsc strict · deploy READY.
+
+---
+
+## Pacote 10 — Parcelamento clínica (SPEC, nada construído)
+
+**Estado:** SPEC A REVISAR — **nenhuma linha de código, nenhuma migration**
+**Documento:** `docs/SPEC-PARCELAMENTO-CLINICA.md`
+**Camada:** 🔴 motor quando for construído (2 tabelas + RPCs + regra de dinheiro)
+
+**Por que revisar antes de construir:** é dinheiro e é motor. A spec **já nasce aplicando os
+achados do seu Pacote 3** — FK composta same-org (P3-04), GRANT explícito + REVOKE de
+`anon`/`PUBLIC` (P3-24), baixa como RPC idempotente (P3-02), criação transacional (P3-11/12),
+histórico não reescrito (P3-07). Quero que você ataque a spec **antes** de ela virar código.
+
+**Foco pedido:**
+1. O modelo de 2 tabelas (`installment_plans` / `plan_installments`) resolve o caso, ou falta entidade?
+2. `due_date` (data combinada) e `remind_at` (data do cutucão) separados é a modelagem certa pra "reagendar ≠ postergar"?
+3. Baixa **parcial** com `paid_amount` na própria parcela — abre buraco de conciliação?
+4. Gerar N tarefas no ato (uma por parcela) é melhor ou pior que derivar o lembrete na leitura? Parcelamento de 24x cria 24 tarefas.
+5. Idempotência: a chave proposta cobre parcela paga em duas vezes no mesmo dia (dois recebimentos legítimos e iguais)?
+6. Algum gate G1–G25 que a spec ainda não endereça?
+
+**Encosta em motor?** Ainda não — é papel. **Construção só depois:** dos seus 2 primeiros blocos de correção do Pacote 3 e do seu parecer sobre esta spec.
 
 ---
 
