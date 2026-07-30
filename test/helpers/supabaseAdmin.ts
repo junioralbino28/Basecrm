@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getServiceRoleKey, getSupabaseUrl, requireEnv } from './env';
+import { assertTestSupabaseTarget } from './e2Supabase';
 
 let adminClient: SupabaseClient | null = null;
 
@@ -35,9 +36,11 @@ function looksLikeTransientNetworkError(err: unknown): boolean {
  * @returns {SupabaseClient<any, "public", "public", any, any>} Retorna um valor do tipo `SupabaseClient<any, "public", "public", any, any>`.
  */
 export function getSupabaseAdminClient(): SupabaseClient {
+  const url = getSupabaseUrl() || requireEnv('NEXT_PUBLIC_SUPABASE_URL');
+  assertTestSupabaseTarget(url);
+
   if (adminClient) return adminClient;
 
-  const url = getSupabaseUrl() || requireEnv('NEXT_PUBLIC_SUPABASE_URL');
   // Prefer new secret key format, fallback to legacy service_role key
   const key = getServiceRoleKey() || process.env.SUPABASE_SECRET_KEY || requireEnv('SUPABASE_SERVICE_ROLE_KEY');
 
