@@ -25,12 +25,16 @@ O código hoje usa `paid_at` pra escolher a regra (`AT TIME ZONE` no resolvedor)
 pra `performed_at`**. O teste vigente iguala as duas datas e não pega a diferença;
 separar nas fixtures.
 
-**⚠️ Ponto que o Junior NÃO decidiu — levantar antes de fechar o resolvedor:** comissão
-acrua no atendimento mesmo se o paciente **ainda não pagou** (ex.: parcelamento clínica em
-10x)? Hoje o relatório filtra `recebido = true`. Combinar com ele: sugestão de default =
-competência pelo atendimento, mas só entra no "a pagar" quando recebido — e no parcelamento
-de boca isso precisa de regra explícita (proporcional ao recebido? integral no 1º
-recebimento? integral no atendimento?). **Não implementar sem resposta.**
+**✅ RESPONDIDO (Junior, 30/07):** *"a clínica assume o risco; se o profissional fez, ele
+precisa ser comissionado — é o normal; se ocorrer diferente é caso à parte."*
+
+Regra de motor: **comissão é devida INTEGRAL na competência do atendimento
+(`performed_at`), independente de o paciente ter pago** — inclusive no parcelamento
+clínica em 10x. Consequência direta no código: o resolvedor **deixa de condicionar a
+comissão a `recebido = true`** (hoje o relatório filtra por isso; com parcelamento de boca
+esse filtro seguraria a comissão indevidamente). `recebido`/`paid_at` continuam mandando no
+**bruto/caixa** do período — não na comissão. Exceção (paciente sumiu, acordo desfeito) é
+**ajuste manual caso a caso**, com trilha — não entra como regra automática.
 
 ## 2. P3-03 RESPONDIDO — o motor CALCULA fixo e híbrido de verdade
 
@@ -107,9 +111,9 @@ Junior bateu o martelo (29/07): **o Basecrm compõe o SERVIÇO da Cenoura (progr
 
 1. Seus blocos 1-3 do Pacote 3 seguem como adjudicado (fail-closed do teste · P3-14 ·
    multitenant).
-2. **Bloco 4 (resolvedor canônico) agora destravado** com: regra por `performed_at` (§1) +
-   remuneração versionada com rateio (§2) + escopo do líquido (§5). A pergunta aberta do §1
-   (acrua sem recebimento?) vai pro Junior ANTES de fechar o resolvedor.
+2. **Bloco 4 (resolvedor canônico) TOTALMENTE destravado** — nenhuma pergunta pendente:
+   regra por `performed_at` + comissão integral independente de recebimento (§1) +
+   remuneração versionada com rateio (§2) + escopo do líquido (§5).
 3. Bloco 5 (histórico imutável) destravado junto — salário versionado entra no mesmo padrão
    de "nunca editar o passado".
 4. Nomenclatura "colaborador" (§3) é varredura de UI — pode ser pacote próprio, baixo risco.
