@@ -21,6 +21,7 @@ export function MarcarConsultaModal({
   professionalName,
   hora,
   dia,
+  livres,
   contacts,
   salvando,
   onConfirmar,
@@ -32,15 +33,22 @@ export function MarcarConsultaModal({
   /** Dia por extenso ("qua 29/07"). Nas visões de semana e mês a vaga clicada
    *  pode não ser hoje — sem isso a pessoa marca achando que é o dia atual. */
   dia?: string;
+  /** Livres naquela vaga, quando a marcação veio da visão "Todos": aí quem
+   *  atende ainda não foi escolhido e o campo aparece no formulário. */
+  livres?: { id: string; name: string }[];
   contacts: Contact[];
   salvando: boolean;
   onConfirmar: (nova: NovaConsulta) => Promise<unknown>;
   onFechar: () => void;
 }) {
   const [contactId, setContactId] = React.useState('');
+  const [escolhido, setEscolhido] = React.useState(professionalId);
   const [duracaoMin, setDuracaoMin] = React.useState(30);
   const [notes, setNotes] = React.useState('');
   const [busca, setBusca] = React.useState('');
+
+  // Só pergunta "com quem" quando a vaga tem mais de um dentista livre.
+  const escolherProfissional = Boolean(livres && livres.length > 1);
 
   const filtrados = React.useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -55,7 +63,9 @@ export function MarcarConsultaModal({
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Marcar consulta</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {professionalName} · {dia ? `${dia} · ` : ''}{hora}
+              {escolherProfissional ? '' : `${professionalName} · `}
+              {dia ? `${dia} · ` : ''}
+              {hora}
             </p>
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="text-slate-400 hover:text-slate-600">
@@ -67,8 +77,8 @@ export function MarcarConsultaModal({
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!contactId) return;
-            await onConfirmar({ contactId, professionalId, hora, duracaoMin, notes });
+            if (!contactId || !escolhido) return;
+            await onConfirmar({ contactId, professionalId: escolhido, hora, duracaoMin, notes });
             onFechar();
           }}
         >
@@ -95,6 +105,26 @@ export function MarcarConsultaModal({
               ))}
             </select>
           </div>
+
+          {escolherProfissional ? (
+            <div>
+              <label htmlFor="agenda-profissional" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Com quem
+              </label>
+              <select
+                id="agenda-profissional"
+                required
+                value={escolhido}
+                onChange={(e) => setEscolhido(e.target.value)}
+                className={CAMPO}
+              >
+                <option value="">Escolha o profissional…</option>
+                {livres?.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div>
             <label htmlFor="agenda-duracao" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Duração</label>

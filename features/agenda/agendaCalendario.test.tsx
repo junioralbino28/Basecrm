@@ -12,8 +12,15 @@ import {
 } from './hooks/useAgendaLocalController';
 import { AgendaGradeSemana } from './components/AgendaGradeSemana';
 import { AgendaGradeMes } from './components/AgendaGradeMes';
-import { diaLocalDe, rotuloCurtoDoDia, rotuloDoMes } from './components/agendaFormato';
+import {
+  corDoProfissional,
+  diaLocalDe,
+  primeiroNome,
+  rotuloCurtoDoDia,
+  rotuloDoMes,
+} from './components/agendaFormato';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
+import type { Professional } from '@/types';
 
 /**
  * Agenda — visões de SEMANA e MÊS por profissional (Junior, 29/07/2026:
@@ -72,6 +79,9 @@ describe('janelas de data das visões', () => {
   });
 });
 
+const DENTISTA_A = { id: 'pro-a', name: 'Dra. Ana', active: true } as Professional;
+const DENTISTA_B = { id: 'pro-b', name: 'Dr. Bruno', active: true } as Professional;
+
 function consulta(extra: Partial<AppointmentDoDia> = {}): AppointmentDoDia {
   return {
     id: 'appt-1',
@@ -92,8 +102,8 @@ describe('AgendaGradeSemana', () => {
     render(
       <AgendaGradeSemana
         appointments={[consulta()]}
+        professionals={[DENTISTA_A]}
         date="2026-07-29"
-        professionalName="Dra. Ana"
         onMarcar={vi.fn()}
         onAbrirConsulta={vi.fn()}
       />,
@@ -108,8 +118,8 @@ describe('AgendaGradeSemana', () => {
     render(
       <AgendaGradeSemana
         appointments={[]}
+        professionals={[DENTISTA_A]}
         date="2026-07-29"
-        professionalName="Dra. Ana"
         onMarcar={vi.fn()}
         onAbrirConsulta={vi.fn()}
       />,
@@ -124,8 +134,8 @@ describe('AgendaGradeSemana', () => {
     render(
       <AgendaGradeSemana
         appointments={[consulta({ endsAt: paraIsoLocal('2026-07-29', '10:00') })]}
+        professionals={[DENTISTA_A]}
         date="2026-07-29"
-        professionalName="Dra. Ana"
         onMarcar={vi.fn()}
         onAbrirConsulta={vi.fn()}
       />,
@@ -144,8 +154,8 @@ describe('AgendaGradeSemana', () => {
     render(
       <AgendaGradeSemana
         appointments={[consulta({ status: 'cancelado', endsAt: paraIsoLocal('2026-07-29', '10:00') })]}
+        professionals={[DENTISTA_A]}
         date="2026-07-29"
-        professionalName="Dra. Ana"
         onMarcar={vi.fn()}
         onAbrirConsulta={vi.fn()}
       />,
@@ -154,6 +164,88 @@ describe('AgendaGradeSemana', () => {
     expect(
       screen.getByRole('button', { name: 'Marcar 09:30 de qua 29/07 com Dra. Ana' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('AgendaGradeSemana — visão "Todos" (encaixe sem abrir agenda por agenda)', () => {
+  it('mostra de quem é cada consulta e quantos ainda estão livres na vaga', () => {
+    render(
+      <AgendaGradeSemana
+        appointments={[consulta()]}
+        professionals={[DENTISTA_A, DENTISTA_B]}
+        date="2026-07-29"
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    // o cartão diz o dentista, porque agora convivem vários na mesma célula
+    expect(screen.getByText(/Ana ·/)).toBeInTheDocument();
+    // e a mesma vaga anuncia que ainda cabe 1 encaixe (o Bruno)
+    expect(
+      screen.getByRole('button', { name: 'Marcar 09:00 de qua 29/07 — 1 profissional livre' }),
+    ).toBeInTheDocument();
+  });
+
+  it('entrega ao clicar QUEM está livre — a conta de ocupação não é refeita fora daqui', () => {
+    const marcar = vi.fn();
+    render(
+      <AgendaGradeSemana
+        appointments={[consulta()]}
+        professionals={[DENTISTA_A, DENTISTA_B]}
+        date="2026-07-29"
+        onMarcar={marcar}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    screen.getByRole('button', { name: 'Marcar 09:00 de qua 29/07 — 1 profissional livre' }).click();
+    expect(marcar).toHaveBeenCalledWith('2026-07-29', '09:00', [DENTISTA_B]);
+  });
+
+  it('vaga sem ninguém ocupado oferece os DOIS profissionais', () => {
+    const marcar = vi.fn();
+    render(
+      <AgendaGradeSemana
+        appointments={[]}
+        professionals={[DENTISTA_A, DENTISTA_B]}
+        date="2026-07-29"
+        onMarcar={marcar}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    screen.getByRole('button', { name: 'Marcar 10:00 de qua 29/07 — 2 profissionais livres' }).click();
+    expect(marcar).toHaveBeenCalledWith('2026-07-29', '10:00', [DENTISTA_A, DENTISTA_B]);
+  });
+
+  it('consulta de 60 min tira o dentista da vaga seguinte, mas o outro segue livre', () => {
+    render(
+      <AgendaGradeSemana
+        appointments={[consulta({ endsAt: paraIsoLocal('2026-07-29', '10:00') })]}
+        professionals={[DENTISTA_A, DENTISTA_B]}
+        date="2026-07-29"
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Marcar 09:30 de qua 29/07 — 1 profissional livre' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('cor de identidade do profissional', () => {
+  it('a mesma pessoa recebe sempre a mesma cor, e pessoas diferentes se distinguem', () => {
+    expect(corDoProfissional('pro-a')).toEqual(corDoProfissional('pro-a'));
+    expect(corDoProfissional('pro-a').faixa).not.toBe(corDoProfissional('pro-b').faixa);
+  });
+
+  it('o nome curto ignora o tratamento — "Dra. Ana Clara" vira "Ana"', () => {
+    expect(primeiroNome('Dra. Ana Clara Ofrante')).toBe('Ana');
+    expect(primeiroNome('Dr. Bruno')).toBe('Bruno');
+    expect(primeiroNome('Manuela Gonzalez')).toBe('Manuela');
   });
 });
 

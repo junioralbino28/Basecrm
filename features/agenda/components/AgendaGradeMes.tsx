@@ -8,7 +8,13 @@
 import React from 'react';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 import { celulasDoMes, horaLocalDe } from '../hooks/useAgendaLocalController';
-import { PONTO_DE_STATUS, ROTULOS_DE_STATUS, porDia } from './agendaFormato';
+import {
+  PONTO_DE_STATUS,
+  ROTULOS_DE_STATUS,
+  corDoProfissional,
+  porDia,
+  primeiroNome,
+} from './agendaFormato';
 
 const CABECALHO = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
 /** Quantas consultas cabem na célula antes de virar "+N". */
@@ -24,6 +30,8 @@ export function AgendaGradeMes({
 }: {
   appointments: AppointmentDoDia[];
   date: string;
+  /** Nome de quem a agenda é — ou "Todos" na visão da clínica inteira. Na visão
+   *  de todos o chip passa a dizer de qual dentista é cada consulta. */
   professionalName: string;
   hoje?: string;
   onAbrirDia: (dataIso: string) => void;
@@ -94,6 +102,15 @@ export function AgendaGradeMes({
                         />
                         <span className="shrink-0 tabular-nums opacity-70">{horaLocalDe(appt.startsAt)}</span>
                         <span className={`truncate ${appt.status === 'cancelado' ? 'line-through opacity-60' : ''}`}>
+                          {appt.professionalName && appt.professionalName !== professionalName ? (
+                            <span
+                              className={
+                                appt.professionalId ? corDoProfissional(appt.professionalId).texto : undefined
+                              }
+                            >
+                              {primeiroNome(appt.professionalName)} ·{' '}
+                            </span>
+                          ) : null}
                           {appt.contactName || 'Sem contato'}
                         </span>
                       </button>

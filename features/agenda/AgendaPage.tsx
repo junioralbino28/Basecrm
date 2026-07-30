@@ -16,6 +16,8 @@ import { AgendaGradeDia } from './components/AgendaGradeDia';
 import { AgendaGradeSemana } from './components/AgendaGradeSemana';
 import { AgendaGradeMes } from './components/AgendaGradeMes';
 import { rotuloCurtoDoDia, rotuloDoMes } from './components/agendaFormato';
+import { LegendaDeProfissionais } from './components/LegendaDeProfissionais';
+import type { Professional } from '@/types';
 import { MarcarConsultaModal, DetalheConsultaModal } from './components/MarcarConsultaModal';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 
@@ -35,27 +37,35 @@ export function AgendaPage() {
   const { data: professionals = [] } = useProfessionals();
   const { data: contacts = [] } = useContacts();
 
-  const [marcando, setMarcando] = React.useState<{ professionalId: string; hora: string } | null>(null);
+  const [marcando, setMarcando] = React.useState<
+    { professionalId: string; hora: string; livres?: Professional[] } | null
+  >(null);
   const [aberta, setAberta] = React.useState<AppointmentDoDia | null>(null);
   const [escolhidoId, setEscolhidoId] = React.useState<string | null>(null);
 
   const ativos = React.useMemo(() => professionals.filter((p) => p.active !== false), [professionals]);
   const profDaMarcacao = marcando ? ativos.find((p) => p.id === marcando.professionalId) : null;
 
-  // Semana e mês são de UMA pessoa. Ao trocar de visão sem ninguém escolhido,
-  // assume o primeiro da lista pra tela não abrir vazia.
+  // Semana e mês abrem em TODOS (é o que a recepção usa pra achar encaixe sem
+  // abrir agenda por agenda — pedido do Junior, 29/07). Escolher alguém no
+  // seletor filtra pra agenda individual daquela pessoa.
   const escolhido = React.useMemo(
-    () => ativos.find((p) => p.id === escolhidoId) ?? ativos[0] ?? null,
+    () => (escolhidoId ? (ativos.find((p) => p.id === escolhidoId) ?? null) : null),
     [ativos, escolhidoId],
   );
   const individual = controller.visao !== 'dia';
-  const consultasDele = React.useMemo(
+  const emFoco = React.useMemo(
+    () => (escolhido ? [escolhido] : ativos),
+    [escolhido, ativos],
+  );
+  const consultasEmFoco = React.useMemo(
     () =>
       escolhido
         ? controller.appointments.filter((a) => a.professionalId === escolhido.id)
-        : [],
+        : controller.appointments,
     [controller.appointments, escolhido],
   );
+  const tituloDeQuem = escolhido ? escolhido.name : 'Todos';
 
   const tituloDoPeriodo =
     controller.visao === 'mes'
@@ -120,9 +130,10 @@ export function AgendaPage() {
             Profissional
             <select
               value={escolhido?.id ?? ''}
-              onChange={(e) => setEscolhidoId(e.target.value)}
+              onChange={(e) => setEscolhidoId(e.target.value || null)}
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-line dark:bg-card/50 dark:text-white"
             >
+              <option value="">Todos</option>
               {ativos.map((pro) => (
                 <option key={pro.id} value={pro.id}>
                   {pro.name}
@@ -144,10 +155,8 @@ export function AgendaPage() {
         </p>
       ) : null}
 
-      {individual && !escolhido ? (
-        <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-          Cadastre os profissionais em Configurações → Equipe para ver a agenda por semana ou mês.
-        </p>
+      {individual && !escolhido && ativos.length > 1 ? (
+        <LegendaDeProfissionais professionals={ativos} />
       ) : null}
 
       {controller.visao === 'dia' ? (
@@ -159,27 +168,28 @@ export function AgendaPage() {
         />
       ) : null}
 
-      {controller.visao === 'semana' && escolhido ? (
+      {controller.visao === 'semana' ? (
         <AgendaGradeSemana
-          appointments={consultasDele}
+          appointments={consultasEmFoco}
+          professionals={emFoco}
           date={controller.date}
-          professionalName={escolhido.name}
           hoje={hojeIso()}
-          onMarcar={(dataIso, hora) => {
+          onMarcar={(dataIso, hora, livres) => {
             // A marcação usa a data do controller: mudar pro dia clicado mantém
             // a MESMA semana na tela (a janela é calculada pela segunda-feira).
             controller.setDate(dataIso);
-            setMarcando({ professionalId: escolhido.id, hora });
+            // Um livre só = já sai escolhido. Vários = o modal pergunta.
+            setMarcando({ professionalId: livres.length === 1 ? livres[0].id : '', hora, livres });
           }}
           onAbrirConsulta={setAberta}
         />
       ) : null}
 
-      {controller.visao === 'mes' && escolhido ? (
+      {controller.visao === 'mes' ? (
         <AgendaGradeMes
-          appointments={consultasDele}
+          appointments={consultasEmFoco}
           date={controller.date}
-          professionalName={escolhido.name}
+          professionalName={tituloDeQuem}
           hoje={hojeIso()}
           onAbrirDia={(dataIso) => {
             controller.setDate(dataIso);
@@ -189,10 +199,11 @@ export function AgendaPage() {
         />
       ) : null}
 
-      {marcando && profDaMarcacao ? (
+      {marcando && (profDaMarcacao || (marcando.livres?.length ?? 0) > 1) ? (
         <MarcarConsultaModal
           professionalId={marcando.professionalId}
-          professionalName={profDaMarcacao.name}
+          professionalName={profDaMarcacao?.name ?? 'Todos'}
+          livres={marcando.livres}
           hora={marcando.hora}
           // Fora da visão de dia a vaga clicada pode ser outro dia — dizer qual.
           dia={individual ? rotuloCurtoDoDia(controller.date) : undefined}

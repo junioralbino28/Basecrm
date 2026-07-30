@@ -58,6 +58,40 @@ export function rotuloDoMes(dataIso: string): string {
   return `${nomes[mes - 1]} de ${ano}`;
 }
 
+/**
+ * Cor de IDENTIDADE do profissional (visão "Todos"). Ela responde "de quem é
+ * esta consulta" — a SITUAÇÃO (confirmado, faltou, cancelado) continua no fundo
+ * do cartão, com as cores de status acima. Uma coisa não substitui a outra.
+ *
+ * As classes ficam escritas por extenso de propósito: o Tailwind varre o código
+ * em busca de nomes literais e não enxerga classe montada por concatenação.
+ */
+export const PALETA_DE_PROFISSIONAL = [
+  { faixa: 'bg-indigo-500', texto: 'text-indigo-700 dark:text-indigo-300', ponto: 'bg-indigo-500' },
+  { faixa: 'bg-cyan-500', texto: 'text-cyan-700 dark:text-cyan-300', ponto: 'bg-cyan-500' },
+  { faixa: 'bg-fuchsia-500', texto: 'text-fuchsia-700 dark:text-fuchsia-300', ponto: 'bg-fuchsia-500' },
+  { faixa: 'bg-orange-500', texto: 'text-orange-700 dark:text-orange-300', ponto: 'bg-orange-500' },
+  { faixa: 'bg-violet-500', texto: 'text-violet-700 dark:text-violet-300', ponto: 'bg-violet-500' },
+  { faixa: 'bg-sky-500', texto: 'text-sky-700 dark:text-sky-300', ponto: 'bg-sky-500' },
+  { faixa: 'bg-lime-600', texto: 'text-lime-700 dark:text-lime-300', ponto: 'bg-lime-600' },
+  { faixa: 'bg-rose-500', texto: 'text-rose-700 dark:text-rose-300', ponto: 'bg-rose-500' },
+] as const;
+
+/** Mesma pessoa = mesma cor, sempre. Deriva do id (não da posição na lista),
+ *  senão cadastrar alguém novo trocaria a cor de todo mundo. */
+export function corDoProfissional(professionalId: string): (typeof PALETA_DE_PROFISSIONAL)[number] {
+  let soma = 0;
+  for (let i = 0; i < professionalId.length; i += 1) soma = (soma * 31 + professionalId.charCodeAt(i)) >>> 0;
+  return PALETA_DE_PROFISSIONAL[soma % PALETA_DE_PROFISSIONAL.length];
+}
+
+/** "Dra. Jéssica Barros" → "Jéssica" (chip da visão de todos, que é apertado).
+ *  Ignora o tratamento (Dr./Dra.) porque ele não distingue ninguém. */
+export function primeiroNome(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter((p) => !/^(dr|dra|drª)\.?$/i.test(p));
+  return partes[0] || nome;
+}
+
 /** Agrupa as consultas por dia local, já ordenadas por horário. */
 export function porDia(appointments: AppointmentDoDia[]): Map<string, AppointmentDoDia[]> {
   const mapa = new Map<string, AppointmentDoDia[]>();
