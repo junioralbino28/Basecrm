@@ -18,7 +18,7 @@ Base revisada pelo Codex no Pacote 3: `041d963` (baseline daquele momento: 1011/
 
 > **Ordem recomendada (29/07, noite):** **correções do 3** (já revisado e **BLOQUEADO** — `REVIEW-PACOTE-3.md` + `ADJUDICACAO-PACOTE-3.md`) → **7** (motor do webhook) → **10** (spec de papel, barata, destrava construção) → **6** → **1** → **2** → **8** → **9**.
 >
-> Os dois primeiros blocos de correção do Pacote 3 (fail-closed no helper de teste · P3-14) **não dependem de decisão do Junior** e podem começar já. Os blocos 4 e 5 esperam as 2 respostas dele (remuneração fixa/híbrida · qual data manda na regra de comissão).
+> **🔓 30/07: BLOCOS 4 E 5 DESTRAVADOS.** As 2 respostas do Junior chegaram + requisitos novos que entram NA MESMA correção: **`DECISOES-JUNIOR-FINANCEIRO-29-07.md`** (leia antes de tocar no resolvedor). Resumo: regra de comissão escolhida por **`performed_at`** (P3-16) · motor CALCULA fixo/híbrido com versionamento por data e somatório partido (P3-03) · rótulo neutro **"colaborador"** em toda a UI (schema não renomeia) · formas de pagamento viram catálogo criável (spec depois do Pacote 10) · norte = bruto/líquido/margem precisos. **1 pergunta ainda aberta pro Junior** (comissão acrua sem recebimento? crítica pro parcelamento) — não fechar o resolvedor sem ela.
 
 ---
 
