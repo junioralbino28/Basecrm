@@ -117,7 +117,11 @@ describeLocal('C2A — taxonomia de etiquetas no Supabase local', () => {
     expect([first.error, second.error, third.error]).toEqual([null, null, null]);
     expect(new Set([first.data.id, second.data.id, third.data.id]).size).toBe(1);
     expect(first.data.normalized_name).toBe('indicacao');
-    expect(['Indicação', 'indicacao']).toContain(first.data.name);
+    // Qualquer uma das TRÊS variantes disparadas pode vencer a corrida e dar o
+    // nome de exibição (a ' indicação ' entra aparada). O que importa — mesma
+    // entidade e normalização — já está garantido acima. (Flake real: 30/07 a
+    // terceira venceu e a lista antiga, com só duas, reprovou o motor correto.)
+    expect(['Indicação', 'indicacao', 'indicação']).toContain(first.data.name);
     expect(first.data.created_by).toBe(clinicAdmin.id);
   });
 
