@@ -186,7 +186,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   };
 
   return (
-    <div className="flex gap-4 h-full overflow-x-auto pb-2 w-full">
+    // Sem trava de altura (Junior, 30/07): a coluna CRESCE com os cards e a
+    // rolagem vertical é UMA só — a da página. Aqui fica só a horizontal.
+    <div className="flex gap-4 overflow-x-auto pb-2 w-full">
       {stages.map(stage => {
         const stageDeals = dealsByStageId.map.get(stage.id) ?? [];
         const stageValue = dealsByStageId.totals.get(stage.id) ?? 0;
@@ -211,7 +213,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             }}
             onDragEnter={() => setDragOverStage(stage.id)}
             onDragLeave={() => setDragOverStage(null)}
-            className={`min-w-[16rem] flex-1 flex flex-col rounded-xl border-2 overflow-visible h-full max-h-full transition-all duration-200
+            className={`min-w-[16rem] flex-1 flex flex-col rounded-xl border-2 overflow-visible transition-all duration-200
                             ${isOver
                 ? `${dropHighlightClasses(stage.color)} scale-[1.02]`
                 : 'border-slate-200/50 dark:border-white/10 glass'
@@ -254,7 +256,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             </div>
 
             <div
-              className={`flex-1 p-1.5 overflow-y-auto space-y-1.5 bg-slate-100/50 dark:bg-black/20 scrollbar-thin min-h-[100px]`}
+              className={`flex-1 p-1.5 space-y-1.5 bg-slate-100/50 dark:bg-black/20 min-h-[100px]`}
             >
               {stageDeals.length === 0 && !draggingId && (
                 <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm py-8">
