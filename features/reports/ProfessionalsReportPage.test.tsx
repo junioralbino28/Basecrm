@@ -18,11 +18,12 @@ vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
 }));
 
 const mutateAsync = vi.fn();
+const createPaymentMutation = { mutateAsync, isPending: false };
 const deleteAsync = vi.fn();
 const updateDateAsync = vi.fn();
 let pagamentosDoMes: Array<{ id: string; professionalId: string; amount: number; paidAt: string; period: string }> = [];
 vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
-  useCreateCommissionPayment: () => ({ mutateAsync, isPending: false }),
+  useCreateCommissionPayment: () => createPaymentMutation,
   useDeleteCommissionPayment: () => ({ mutateAsync: deleteAsync, isPending: false }),
   useUpdateCommissionPaymentDate: () => ({ mutateAsync: updateDateAsync, isPending: false }),
   useCommissionPaymentsByPeriod: () => ({ data: pagamentosDoMes, isLoading: false }),
@@ -113,6 +114,25 @@ describe('ProfessionalsReportPage', () => {
     expect(payload.amount).toBe(453);
     expect(payload.period).toMatch(/^\d{4}-(0[1-9]|1[0-2])$/);
     await waitFor(() => expect(addToast).toHaveBeenCalled());
+  });
+
+  it('envia exatamente a data escolhida ao registrar o pagamento', async () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.change(
+      screen.getByLabelText(/Data do pagamento a Dr\. Marcos/i),
+      { target: { value: '2026-07-15' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0].paidAt)
+      .toBe(new Date(2026, 6, 15, 12, 0, 0).toISOString());
   });
 
   it('toast de erro quando o pagamento falha (mutation onError)', async () => {

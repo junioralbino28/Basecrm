@@ -315,7 +315,7 @@ que falhou.
    pagamentos exige configuração da organização:
    `features/reports/ProfessionalsReportPage.tsx:277,301,353,411` e
    `supabase/migrations/20260616000000_finance_config.sql:178-191`.
-3. O teste em `features/reports/ProfessionalsReportPage.test.tsx:82-95`
+3. O teste em `features/reports/ProfessionalsReportPage.test.tsx:83-96`
    atualmente consolida o botão para staff.
 
 **Impacto.** Override negativo de Financeiro perde efeito para admin; staff vê
@@ -326,22 +326,31 @@ comissões/pagamentos e aplicar a mesma capacidade em UI, rota e RLS/RPC.
 
 **Confiança:** alta — `[Inferred]`.
 
-### P3-14 — ALTO — a data escolhida no pagamento é ignorada
+### P3-14 — CORRIGIDO — defeito latente na data escolhida no pagamento
 
-**Evidência.** `handlePagar` lê `dataPagamento` em
-`features/reports/ProfessionalsReportPage.tsx:147-181`, porém a dependência está
-ausente do `useCallback` em `:181`.
+**Alegação original.** O parecer classificou como reprodução determinística que
+`handlePagar` preservaria o valor inicial de `dataPagamento`, enviaria
+`paidAt: undefined` e faria o banco usar a data atual.
 
-**Reprodução determinística.** Abrir o modal, escolher uma data e confirmar:
-a closure preserva o valor inicial vazio, envia `paidAt: undefined` e o banco
-usa a data atual.
+**Verificação na correção.** A dependência estava realmente ausente:
+`handlePagar` lê `dataPagamento` em
+`features/reports/ProfessionalsReportPage.tsx:147-181`, mas o valor não constava
+nas dependências do `useCallback`. A manifestação operacional descrita, porém,
+não era determinística no código vigente. O TanStack Query 5.90.12 devolve um
+novo objeto de mutation a cada render, e o mock anterior fazia o mesmo; essa
+mudança incidental de identidade recriava a callback com a data atual.
 
-**Impacto.** Histórico recebe data operacional errada.
+**Classificação corrigida.** **Defeito latente corrigido**, não bug operacional
+reproduzido. A closure ficaria obsoleta assim que o hook ou o mock devolvesse um
+objeto estável.
 
-**Correção obrigatória.** Passar a data como argumento ou corrigir a dependência;
-o teste deve conferir o `paidAt` exato enviado.
+**Correção e prova.** `dataPagamento` passou a integrar as dependências de
+`handlePagar`. O mock da mutation foi estabilizado e a regressão confere o
+`paidAt` ISO exato. Antes da correção, o teste recebeu `undefined`; depois,
+recebeu a data escolhida.
 
-**Confiança:** alta — `[Inferred]` pela semântica do React.
+**Confiança:** alta — `[Behavior observed]` no teste controlado com identidade
+estável; sem alegação de falha observada no runtime real.
 
 ### P3-15 — CRÍTICO OPERACIONAL — teste focal pode escrever em produção
 

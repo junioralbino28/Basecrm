@@ -178,7 +178,7 @@ export const ProfessionalsCommissionTable: React.FC<{
         setPayingId(null);
       }
     },
-    [createPayment, end, addToast, pagavel]
+    [createPayment, end, addToast, pagavel, dataPagamento]
   );
 
   return (
