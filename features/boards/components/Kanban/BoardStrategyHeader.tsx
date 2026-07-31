@@ -26,10 +26,34 @@ interface BoardStrategyHeaderProps {
  * @param {BoardStrategyHeaderProps} { board } - Parâmetro `{ board }`.
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
+/** O painel de estratégia nasce RECOLHIDO (pedido do Junior, 30/07: os blocos de
+ *  cima comiam a tela e sobrava uma fresta pros cards). A preferência persiste. */
+const CHAVE_ESTRATEGIA_ABERTA = 'basecrm.boards.strategy.expanded';
+
 export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board }) => {
   const { updateBoard, setIsGlobalAIOpen, boards, deals } = useCRM();
   const [isEditing, setIsEditing] = useState(false);
   const [editedBoard, setEditedBoard] = useState(board);
+  const [aberto, setAberto] = useState(false);
+
+  React.useEffect(() => {
+    try {
+      setAberto(localStorage.getItem(CHAVE_ESTRATEGIA_ABERTA) === '1');
+    } catch {
+      /* sem storage (SSR/teste) → fica recolhido */
+    }
+  }, []);
+
+  const alternarAberto = () => {
+    setAberto((v) => {
+      try {
+        localStorage.setItem(CHAVE_ESTRATEGIA_ABERTA, v ? '0' : '1');
+      } catch {
+        /* preferência só não persiste */
+      }
+      return !v;
+    });
+  };
 
   // Calculate Progress Automatically
   const calculatedProgress = React.useMemo(() => {
@@ -125,12 +149,64 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
     setIsEditing(false);
   };
 
+  // Linha fina recolhida: objetivo + progresso + agente, tudo num fôlego só.
+  if (!aberto && !isEditing) {
+    return (
+      <div className="mb-2 flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-1.5 text-xs">
+        <span className="flex h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden></span>
+        <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200">
+          {board.goal?.targetValue ? `${board.goal.targetValue} · ` : ''}
+          {board.goal?.kpi || 'Sem meta definida'}
+        </span>
+        <span className="hidden sm:block h-1 w-24 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-surface" aria-hidden>
+          <span className="block h-full bg-blue-500" style={{ width: `${progress}%` }} />
+        </span>
+        <span className="shrink-0 tabular-nums text-slate-400">{calculatedProgress.display}</span>
+        {board.agentPersona?.name ? (
+          <>
+            <span className="hidden sm:block h-4 w-px bg-slate-200 dark:bg-white/10" aria-hidden />
+            <span className="hidden sm:flex items-center gap-1 text-slate-500 dark:text-slate-400">
+              <Bot size={12} className="text-purple-500" aria-hidden />
+              {board.agentPersona.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsGlobalAIOpen(true)}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20"
+            >
+              Falar
+            </button>
+          </>
+        ) : null}
+        <button
+          type="button"
+          onClick={alternarAberto}
+          aria-expanded={false}
+          className="ml-auto flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:bg-surface hover:text-ink"
+        >
+          Estratégia <ChevronRight size={12} aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative mb-4 group/header z-20">
+    <div className="relative mb-2 group/header z-20">
       {/* Background Glow Effect (Subtle) */}
       <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-orange-500/5 rounded-xl blur-xl opacity-50 group-hover/header:opacity-100 transition-opacity duration-700"></div>
 
       <div className="relative px-5 py-3 bg-card rounded-lg border border-line shadow-sm transition-all duration-300 hover:shadow-md">
+        {/* Recolher (só no modo visão) */}
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={alternarAberto}
+            aria-expanded={true}
+            className="absolute top-2 right-9 rounded px-1.5 py-0.5 text-[11px] font-medium text-slate-400 hover:bg-surface hover:text-ink"
+          >
+            Recolher
+          </button>
+        )}
         {/* Edit Button - Only visible on hover */}
         {!isEditing && (
           <button

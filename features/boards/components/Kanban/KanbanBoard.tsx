@@ -211,7 +211,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             }}
             onDragEnter={() => setDragOverStage(stage.id)}
             onDragLeave={() => setDragOverStage(null)}
-            className={`min-w-[20rem] flex-1 flex flex-col rounded-xl border-2 overflow-visible h-full max-h-full transition-all duration-200
+            className={`min-w-[16rem] flex-1 flex flex-col rounded-xl border-2 overflow-visible h-full max-h-full transition-all duration-200
                             ${isOver
                 ? `${dropHighlightClasses(stage.color)} scale-[1.02]`
                 : 'border-slate-200/50 dark:border-white/10 glass'
@@ -220,42 +220,41 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           >
             <div className={`h-1.5 w-full ${stage.color}`}></div>
 
+            {/* Cabeçalho COMPACTO da coluna (30/07): 2 linhas justas no lugar de
+                3 andares — os cards são a estrela, não o cabeçalho. */}
             <div
-              className={`p-3 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 shrink-0`}
+              className={`px-2.5 py-1.5 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 shrink-0`}
             >
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-slate-700 dark:text-slate-200 font-display text-sm tracking-wide uppercase">
+              <div className="flex justify-between items-center gap-2">
+                <span className="min-w-0 truncate font-bold text-slate-700 dark:text-slate-200 font-display text-xs tracking-wide uppercase">
                   {stage.label}
                 </span>
-                <span className="text-xs font-bold bg-white dark:bg-surface border border-slate-200 dark:border-line px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                <span className="shrink-0 text-xs font-bold bg-white dark:bg-surface border border-slate-200 dark:border-line px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
                   {stageDeals.length}
                 </span>
               </div>
 
-              {/* Automation Indicator - Always rendered for consistent height */}
-              <div className="mb-2 flex items-center gap-1.5 min-h-[22px]">
+              <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
                 {linkedStageName ? (
-                  <span className="text-[10px] uppercase font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-100 dark:border-brand-800/50 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-brand-500 animate-pulse"></span>
-                    Promove para: {linkedStageName}
+                  <span
+                    title={`Promove para: ${linkedStageName}`}
+                    className="min-w-0 truncate uppercase font-bold text-brand-600 dark:text-brand-400"
+                  >
+                    → {linkedStageName}
                   </span>
                 ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 opacity-0 select-none">
-                    Placeholder
-                  </span>
+                  <span aria-hidden />
                 )}
-              </div>
-
-              <div className="text-xs text-slate-500 dark:text-slate-400 font-medium text-right">
-                Total:{' '}
-                <span className="text-slate-900 dark:text-white font-mono">
-                  {formatBRL(stageValue)}
+                <span className="shrink-0 text-slate-500 dark:text-slate-400 font-medium">
+                  <span className="text-slate-900 dark:text-white font-mono">
+                    {formatBRL(stageValue)}
+                  </span>
                 </span>
               </div>
             </div>
 
             <div
-              className={`flex-1 p-2 overflow-y-auto space-y-2 bg-slate-100/50 dark:bg-black/20 scrollbar-thin min-h-[100px]`}
+              className={`flex-1 p-1.5 overflow-y-auto space-y-1.5 bg-slate-100/50 dark:bg-black/20 scrollbar-thin min-h-[100px]`}
             >
               {stageDeals.length === 0 && !draggingId && (
                 <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm py-8">

@@ -148,8 +148,8 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
     onNewDeal
 }) => {
     return (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <div className="flex items-center gap-4 w-full sm:w-auto flex-wrap">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                 {clinicSwitcher}
 
                 {/* Board Selector */}
@@ -240,8 +240,8 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                     </button>
                 </div>
 
-                <div className="h-8 w-px bg-slate-200 dark:bg-white/10 mx-2 hidden sm:block"></div>
-                <div className="relative flex-1 sm:w-64">
+                <div className="h-8 w-px bg-slate-200 dark:bg-white/10 hidden sm:block"></div>
+                <div className="relative flex-1 sm:w-56">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                         type="text"

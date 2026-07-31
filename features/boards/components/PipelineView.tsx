@@ -333,7 +333,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
 
           <BoardStrategyHeader board={activeBoard} />
 
-          <div className="flex-1 overflow-hidden">
+          {/* min-h: com a janela baixa, a PÁGINA rola (o <main> tem overflow-auto)
+              em vez de esmagar as colunas numa fresta sem acesso aos cards. */}
+          <div className="flex-1 min-h-[26rem]">
             {viewMode === 'kanban' ? (
               <KanbanBoard
                 stages={activeBoard.stages}
