@@ -13,7 +13,10 @@ describe('P3 — contrato somente fixo', () => {
 
     expect(sql).toContain('professional_pay_type_at');
     expect(sql).toMatch(/professional_pay_type_at\([\s\S]+\) = 'fixed'[\s\S]+RETURN 0/i);
-    expect(sql).toMatch(/UPDATE public\.atendimentos a[\s\S]+SET commission_amount = 0/i);
+    // O baseline legado de remuneração em 1900-01-01 representa o estado
+    // conhecido hoje, não prova o contrato real na data de cada atendimento.
+    // Corrigir snapshots antigos em massa poderia apagar comissão válida.
+    expect(sql).not.toMatch(/UPDATE public\.atendimentos/i);
     expect(sql).toContain("AT TIME ZONE 'America/Sao_Paulo'");
   });
 

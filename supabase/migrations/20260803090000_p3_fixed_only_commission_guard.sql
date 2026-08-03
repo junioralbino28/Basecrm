@@ -122,18 +122,8 @@ REVOKE ALL ON FUNCTION public.resolve_commission_amount(uuid, uuid, uuid, text, 
 GRANT EXECUTE ON FUNCTION public.resolve_commission_amount(uuid, uuid, uuid, text, timestamptz, numeric)
   TO service_role;
 
--- Corrige somente snapshots impossíveis para contrato `fixed`. Os demais fatos
--- permanecem congelados e não são reavaliados contra regras/vínculos atuais.
-ALTER TABLE public.atendimentos DISABLE TRIGGER trg_snapshot_atendimento_commission;
-ALTER TABLE public.atendimentos DISABLE TRIGGER update_atendimentos_updated_at;
-UPDATE public.atendimentos a
-SET commission_amount = 0
-WHERE a.professional_id IS NOT NULL
-  AND a.commission_amount <> 0
-  AND public.professional_pay_type_at(
-    a.organization_id,
-    a.professional_id,
-    a.performed_at
-  ) = 'fixed';
-ALTER TABLE public.atendimentos ENABLE TRIGGER update_atendimentos_updated_at;
-ALTER TABLE public.atendimentos ENABLE TRIGGER trg_snapshot_atendimento_commission;
+-- Não reescrever snapshots existentes automaticamente. O backfill inicial de
+-- remuneração usa 1900-01-01 para representar o estado conhecido no cadastro,
+-- mas isso não prova que a pessoa já era `fixed` quando um atendimento antigo
+-- aconteceu. Qualquer saneamento retroativo exige preflight e evidência do
+-- contrato vigente em cada período; fatos novos já ficam corretos pelo resolvedor.
