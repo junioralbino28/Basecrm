@@ -117,7 +117,7 @@ function transformProfessional(db: DbProfessional): Professional {
  * continua coberto por outra especialidade da pessoa (essas marcações
  * pertencem ao contexto que ficou, não ao que saiu).
  */
-async function syncSpecialties(
+async function syncSpecialtiesLegacy(
   professionalId: string,
   organizationId: string | null,
   specialtyIds: string[],
@@ -220,6 +220,28 @@ async function syncSpecialties(
 
   return { mirror, error: null };
 }
+
+async function syncSpecialties(
+  professionalId: string,
+  organizationId: string | null,
+  specialtyIds: string[],
+): Promise<{ mirror: string | null; error: Error | null }> {
+  if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
+  const orgId = sanitizeUUID(organizationId);
+  const proId = sanitizeUUID(professionalId);
+  if (!orgId || !proId) return { mirror: null, error: new Error('Organização ou profissional inválido') };
+  const ids = [...new Set(specialtyIds.map((id) => sanitizeUUID(id)).filter(Boolean))] as string[];
+  const { data, error } = await supabase.rpc('sync_professional_specialties', {
+    p_organization_id: orgId,
+    p_professional_id: proId,
+    p_specialty_ids: ids,
+  });
+  return { mirror: typeof data === 'string' ? data : null, error: error ?? null };
+}
+
+// Mantido temporariamente para compatibilidade de leitura durante a migração;
+// todas as escritas novas usam a RPC transacional acima.
+void syncSpecialtiesLegacy;
 
 export const professionalsService = {
   async getAll(organizationId?: string | null): Promise<{ data: Professional[]; error: Error | null }> {

@@ -177,11 +177,18 @@ export const CommissionsManager: React.FC<{
       }
       return copia;
     });
-    for (const prod of alvos) {
-      const { error } = await professionalProductsService.set(
-        selectedId, prod.id, ligar, vemDaEspecialidade(prod.id), organizationId,
-      );
-      if (error) { showToast(`Não deu pra salvar: ${error.message}`, 'error'); break; }
+    const { error } = await professionalProductsService.setBatch(
+      selectedId,
+      alvos.map((prod) => ({
+        productId: prod.id,
+        enabled: ligar === vemDaEspecialidade(prod.id) ? null : ligar,
+      })),
+      organizationId,
+    );
+    if (error) {
+      showToast(`Não deu pra salvar: ${error.message}`, 'error');
+      const atual = await professionalProductsService.listOverrides(selectedId, organizationId);
+      if (!atual.error) setExcecoes(Object.fromEntries(atual.data.map((o) => [o.productId, o.enabled])));
     }
   };
 
@@ -190,12 +197,16 @@ export const CommissionsManager: React.FC<{
     const comExcecao = Object.keys(excecoes);
     if (comExcecao.length === 0) return;
     setExcecoes({});
-    for (const productId of comExcecao) {
-      const padrao = vemDaEspecialidade(productId);
-      const { error } = await professionalProductsService.set(
-        selectedId, productId, padrao, padrao, organizationId,
-      );
-      if (error) { showToast(`Não deu pra restaurar: ${error.message}`, 'error'); break; }
+    const { error } = await professionalProductsService.setBatch(
+      selectedId,
+      comExcecao.map((productId) => ({ productId, enabled: null })),
+      organizationId,
+    );
+    if (error) {
+      showToast(`Não deu pra restaurar: ${error.message}`, 'error');
+      const atual = await professionalProductsService.listOverrides(selectedId, organizationId);
+      if (!atual.error) setExcecoes(Object.fromEntries(atual.data.map((o) => [o.productId, o.enabled])));
+      return;
     }
     showToast('Voltou ao que as especialidades dela dizem.', 'success');
   };

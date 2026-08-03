@@ -86,9 +86,15 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       for (const p of alvos) { if (marcar) proximo.add(p.id); else proximo.delete(p.id); }
       return proximo;
     });
-    for (const p of alvos) {
-      const { error } = await specialtyProductsService.set(specialtyId, p.id, marcar, organizationId);
-      if (error) { setErro(error.message); break; }
+    const { error } = await specialtyProductsService.setBatch(
+      specialtyId, alvos.map((p) => p.id), marcar, organizationId,
+    );
+    if (error) {
+      setErro(error.message);
+      const atual = await specialtyProductsService.list(organizationId);
+      if (!atual.error) setMarcados(new Set(
+        atual.data.filter((l) => l.specialtyId === specialtyId).map((l) => l.productId),
+      ));
     }
   };
 

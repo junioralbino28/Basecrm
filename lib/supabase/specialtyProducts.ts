@@ -67,6 +67,22 @@ export const specialtyProductsService = {
       return { error: e as Error };
     }
   },
+
+  async setBatch(
+    specialtyId: string,
+    productIds: string[],
+    enabled: boolean,
+    organizationId: string,
+  ): Promise<{ error: Error | null }> {
+    if (!supabase) return { error: new Error('Supabase não configurado') };
+    const { error } = await supabase.rpc('set_specialty_products_batch', {
+      p_organization_id: organizationId,
+      p_specialty_id: specialtyId,
+      p_product_ids: productIds,
+      p_enabled: enabled,
+    });
+    return { error: error ?? null };
+  },
 };
 
 export const professionalProductsService = {
@@ -135,5 +151,22 @@ export const professionalProductsService = {
     } catch (e) {
       return { error: e as Error };
     }
+  },
+
+  async setBatch(
+    professionalId: string,
+    changes: Array<{ productId: string; enabled: boolean | null }>,
+    organizationId: string,
+  ): Promise<{ error: Error | null }> {
+    if (!supabase) return { error: new Error('Supabase não configurado') };
+    const { error } = await supabase.rpc('set_professional_product_overrides_batch', {
+      p_organization_id: organizationId,
+      p_professional_id: professionalId,
+      p_changes: changes.map((change) => ({
+        product_id: change.productId,
+        enabled: change.enabled,
+      })),
+    });
+    return { error: error ?? null };
   },
 };
