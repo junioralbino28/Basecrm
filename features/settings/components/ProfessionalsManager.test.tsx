@@ -9,6 +9,10 @@ vi.mock('@/context/AuthContext', () => ({
   }),
 }));
 
+vi.mock('@/context/TenantContext', () => ({
+  useTenant: () => ({ tenant: { organizationId: '11111111-1111-4111-8111-111111111111' } }),
+}));
+
 vi.mock('@/lib/query/hooks/useProfessionalsQuery', () => ({
   useProfessionals: () => ({ data: [], isLoading: false, error: null }),
   useCreateProfessional: () => ({ mutateAsync: vi.fn(), isPending: false }),

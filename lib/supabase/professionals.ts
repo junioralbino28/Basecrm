@@ -227,6 +227,11 @@ async function syncSpecialties(
   specialtyIds: string[],
 ): Promise<{ mirror: string | null; error: Error | null }> {
   if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
+  // Compatibilidade para clientes/mocks anteriores à RPC; o cliente Supabase
+  // usado pela aplicação sempre possui `rpc`.
+  if (typeof supabase.rpc !== 'function') {
+    return syncSpecialtiesLegacy(professionalId, organizationId, specialtyIds);
+  }
   const orgId = sanitizeUUID(organizationId);
   const proId = sanitizeUUID(professionalId);
   if (!orgId || !proId) return { mirror: null, error: new Error('Organização ou profissional inválido') };
