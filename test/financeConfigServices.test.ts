@@ -13,10 +13,12 @@ const insertMock = vi.fn();
 const updateMock = vi.fn();
 const fromMock = vi.fn();
 const getUserMock = vi.fn();
+const rpcMock = vi.fn();
 
 vi.mock('@/lib/supabase/client', () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
+    rpc: (...args: unknown[]) => rpcMock(...args),
     auth: { getUser: () => getUserMock() },
   },
 }));
@@ -208,8 +210,8 @@ describe('fixedCostsService', () => {
 });
 
 describe('commissionPaymentsService', () => {
-  it('create estampa org+owner e mapeia professional_id/amount/period (paid_at vem do banco quando omitido)', async () => {
-    mockInsertReturning({
+  it('create usa a RPC idempotente com tenant explícito', async () => {
+    rpcMock.mockResolvedValue({ data: {
       id: ROW_ID,
       organization_id: ORG_ID,
       professional_id: PROF_ID,
@@ -219,26 +221,29 @@ describe('commissionPaymentsService', () => {
       owner_id: USER_ID,
       created_at: 'now',
       updated_at: 'now',
-    });
+    }, error: null });
+
+    const idempotencyKey = '55555555-5555-4555-8555-555555555555';
 
     const res = await commissionPaymentsService.create({
       professionalId: PROF_ID,
       amount: 1200,
       period: '2026-06',
       organizationId: ORG_ID,
+      idempotencyKey,
     });
 
     expect(res.error).toBeNull();
     expect(res.data?.period).toBe('2026-06');
     expect(res.data?.paidAt).toBe('2026-06-10T12:00:00.000Z');
-    const payload = insertMock.mock.calls[0][0];
-    expect(payload.professional_id).toBe(PROF_ID);
-    expect(payload.amount).toBe(1200);
-    expect(payload.period).toBe('2026-06');
-    expect(payload.organization_id).toBe(ORG_ID);
-    expect(payload.owner_id).toBe(USER_ID);
-    // paid_at omitido no input → não vai no payload (DB default now()).
-    expect('paid_at' in payload).toBe(false);
+    expect(rpcMock).toHaveBeenCalledWith('record_commission_payment', {
+      p_organization_id: ORG_ID,
+      p_professional_id: PROF_ID,
+      p_amount: 1200,
+      p_period: '2026-06',
+      p_paid_at: null,
+      p_idempotency_key: idempotencyKey,
+    });
   });
 
   it('getAll transforma snake->camel', async () => {

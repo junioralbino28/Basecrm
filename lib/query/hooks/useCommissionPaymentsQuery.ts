@@ -18,6 +18,8 @@ interface CreateCommissionPaymentParams {
   period: string;
   /** Quando o dinheiro saiu. Omitido = agora (DEFAULT do banco). */
   paidAt?: string;
+  /** Uma intenção do usuário; retries reutilizam a mesma chave. */
+  idempotencyKey: string;
 }
 
 /**
@@ -30,12 +32,14 @@ export const useCreateCommissionPayment = () => {
 
   return useMutation({
     mutationFn: async (params: CreateCommissionPaymentParams) => {
+      if (!organizationId) throw new Error('Organização ativa não definida.');
       const { data, error } = await commissionPaymentsService.create({
         professionalId: params.professionalId,
         amount: params.amount,
         period: params.period,
         paidAt: params.paidAt,
         organizationId,
+        idempotencyKey: params.idempotencyKey,
       });
       if (error) throw error;
       return data!;

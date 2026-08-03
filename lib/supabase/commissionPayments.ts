@@ -16,34 +16,6 @@ import { supabase } from './client';
 import { CommissionPayment } from '@/types';
 import { sanitizeUUID } from './utils';
 
-// =============================================================================
-// Organization inference (client-side, RLS-safe)
-// =============================================================================
-let cachedOrgId: string | null = null;
-let cachedOrgUserId: string | null = null;
-
-async function getCurrentOrganizationId(): Promise<string | null> {
-  if (!supabase) return null;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  if (cachedOrgUserId === user.id && cachedOrgId) return cachedOrgId;
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error) return null;
-
-  const orgId = sanitizeUUID((profile as any)?.organization_id);
-  cachedOrgUserId = user.id;
-  cachedOrgId = orgId;
-  return orgId;
-}
-
 const COLUMNS =
   'id, organization_id, professional_id, amount, paid_at, period, owner_id, created_at, updated_at';
 
@@ -123,29 +95,21 @@ export const commissionPaymentsService = {
     amount: number;
     period: string;
     paidAt?: string;
-    organizationId?: string | null;
+    organizationId: string;
+    idempotencyKey: string;
   }): Promise<{ data: CommissionPayment | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
 
-      const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = sanitizeUUID(input.organizationId) || await getCurrentOrganizationId();
-
-      const payload: Record<string, unknown> = {
-        professional_id: sanitizeUUID(input.professionalId),
-        amount: input.amount,
-        period: input.period,
-        owner_id: sanitizeUUID(user?.id),
-        organization_id: organizationId,
-      };
-      // paid_at só entra quando informado (backfill) — senão o DEFAULT now() carimba.
-      if (input.paidAt !== undefined) payload.paid_at = input.paidAt;
-
       const { data, error } = await supabase
-        .from('commission_payments')
-        .insert(payload)
-        .select(COLUMNS)
-        .single();
+        .rpc('record_commission_payment', {
+          p_organization_id: sanitizeUUID(input.organizationId),
+          p_professional_id: sanitizeUUID(input.professionalId),
+          p_amount: input.amount,
+          p_period: input.period,
+          p_paid_at: input.paidAt ?? null,
+          p_idempotency_key: sanitizeUUID(input.idempotencyKey),
+        });
 
       if (error) return { data: null, error };
       return { data: transformCommissionPayment(data as DbCommissionPayment), error: null };

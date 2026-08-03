@@ -163,6 +163,7 @@ export const ProfessionalsCommissionTable: React.FC<{
           period: periodFromISO(end),
           // A data é escolhida na tela: dá pra lançar pagamento de outro dia.
           paidAt: dataPagamento ? doCampoData(dataPagamento) : undefined,
+          idempotencyKey: globalThis.crypto.randomUUID(),
         });
         addToast(`${formatBRL(amount)} marcado como pago a ${professionalName}.`, 'success');
         setAbertoId(null);
