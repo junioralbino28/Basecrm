@@ -162,10 +162,25 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     orgAId = fx.orgA.organizationId;
     orgBId = fx.orgB.organizationId;
 
+    const specialtyAName = `Protese ${runId}`;
+    const specialtyCName = `Ortodontia ${runId}`;
+    const specialtyA = await admin
+      .from('specialties')
+      .insert({ organization_id: orgAId, name: specialtyAName })
+      .select('id')
+      .single();
+    const specialtyAId = requireSupabaseData(specialtyA, 'insert specialty A').id;
+    const specialtyC = await admin
+      .from('specialties')
+      .insert({ organization_id: orgAId, name: specialtyCName })
+      .select('id')
+      .single();
+    const specialtyCId = requireSupabaseData(specialtyC, 'insert specialty C').id;
+
     // Profissionais (org A com especialidade pra regra de comissão; org B isolada).
     const profA = await admin
       .from('professionals')
-      .insert({ organization_id: orgAId, name: `Dr. Marcos ${runId}`, specialty: 'protese', active: true })
+      .insert({ organization_id: orgAId, name: `Dr. Marcos ${runId}`, specialty: specialtyAName, active: true })
       .select('id')
       .single();
     professionalAId = requireSupabaseData(profA, 'insert professional A').id;
@@ -180,10 +195,26 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     // Profissional C (org A): especialidade 'ortodontia' — alvo do desempate HIGH-3.
     const profC = await admin
       .from('professionals')
-      .insert({ organization_id: orgAId, name: `Dra. Carla ${runId}`, specialty: 'ortodontia', active: true })
+      .insert({ organization_id: orgAId, name: `Dra. Carla ${runId}`, specialty: specialtyCName, active: true })
       .select('id')
       .single();
     professionalCId = requireSupabaseData(profC, 'insert professional C').id;
+
+    assertNoSupabaseError(
+      await admin.from('professional_specialties').insert([
+        {
+          organization_id: orgAId,
+          professional_id: professionalAId,
+          specialty_id: specialtyAId,
+        },
+        {
+          organization_id: orgAId,
+          professional_id: professionalCId,
+          specialty_id: specialtyCId,
+        },
+      ]),
+      'insert professional specialties A/C',
+    );
 
     // Regras de comissão na org A:
     // - profA: específica do profissional (30%) E por especialidade 'protese' (50%).
@@ -193,10 +224,23 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     //   HIGH-3: a que casa a especialidade do dentista DEVE vencer (40%).
     assertNoSupabaseError(
       await admin.from('commission_rules').insert([
-        { organization_id: orgAId, professional_id: professionalAId, percent: 30 },
-        { organization_id: orgAId, specialty: 'protese', percent: 50 },
-        { organization_id: orgAId, professional_id: professionalCId, specialty: 'ortodontia', percent: 40 },
-        { organization_id: orgAId, professional_id: professionalCId, percent: 20 },
+        {
+          organization_id: orgAId, professional_id: professionalAId,
+          amount_type: 'percent', amount: 30, percent: 30, valid_from: '1900-01-01',
+        },
+        {
+          organization_id: orgAId, specialty: specialtyAName, specialty_id: specialtyAId,
+          amount_type: 'percent', amount: 50, percent: 50, valid_from: '1900-01-01',
+        },
+        {
+          organization_id: orgAId, professional_id: professionalCId,
+          specialty: specialtyCName, specialty_id: specialtyCId,
+          amount_type: 'percent', amount: 40, percent: 40, valid_from: '1900-01-01',
+        },
+        {
+          organization_id: orgAId, professional_id: professionalCId,
+          amount_type: 'percent', amount: 20, percent: 20, valid_from: '1900-01-01',
+        },
       ]),
       'insert commission_rules A',
     );
@@ -453,12 +497,12 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       (item) => item.professional_id === professionalAId,
     )!;
     expect(linha).toBeDefined();
-    // 30% de 1400 = 420 (se somasse as duas regras seria 1120 — dupla contagem)
-    expect(Number(linha.comissao)).toBeCloseTo(420, 2);
-    // base SÓ dos atendimentos COM dentista (A1 900 + A3 500) — o A4 sem
-    // dentista NÃO entra aqui (INNER join), só em sem_profissional.
-    expect(Number(linha.faturamento_base)).toBe(1400);
-    expect(Number(linha.atendimentos)).toBe(2);
+    // A comissão nasce na competência do atendimento, mesmo antes do
+    // recebimento: 30% de (A1 900 + A2 700 + A3 500) = 630. A regra específica
+    // continua vencendo a de especialidade, sem dupla contagem.
+    expect(Number(linha.comissao)).toBeCloseTo(630, 2);
+    expect(Number(linha.faturamento_base)).toBe(2100);
+    expect(Number(linha.atendimentos)).toBe(3);
     expect(Number(linha.pago)).toBe(100);
 
     // MEDIUM-8: o atendimento recebido sem dentista (A4, 300) é reportado à
@@ -520,7 +564,9 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
 
     // 900 (A1) + 500 (A3) + 300 (A4 sem dentista) = 1700.
     expect(Number(net.faturamento)).toBe(1700);
-    expect(Number(net.comissoes)).toBeCloseTo(420, 2);
+    // Comissão é competência por performed_at; inclui também o A2 ainda não
+    // recebido. Receita continua sendo caixa e, portanto, exclui o A2.
+    expect(Number(net.comissoes)).toBeCloseTo(630, 2);
     // HIGH-2: taxa só no A1 (crédito 'Visa' config vs 'visa' atendimento — só
     // aplica porque o RPC normaliza): 3,15% de 900 = 28,35; pix sem taxa.
     expect(Number(net.taxas)).toBeCloseTo(28.35, 2);
@@ -528,7 +574,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     expect(Number(net.contas_fixas_mensal)).toBe(250);
     expect(Number(net.meses_periodo)).toBe(1);
     expect(Number(net.contas_fixas)).toBe(250);
-    expect(Number(net.liquido)).toBeCloseTo(1700 - 420 - 28.35 - 250, 2);
+    expect(Number(net.liquido)).toBeCloseTo(1700 - 630 - 28.35 - 250, 2);
 
     await client.auth.signOut();
   });
@@ -634,6 +680,37 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
       .single();
     const profId = requireSupabaseData(prof, 'insert professional vigencia').id;
 
+    // O profissional é criado durante o teste (em agosto/2026), portanto o
+    // trigger só registra a remuneração a partir da data atual. Para consultar
+    // abril/2026, o fixture precisa declarar explicitamente a versão histórica.
+    assertNoSupabaseError(
+      await admin.from('professional_compensation_versions').insert({
+        organization_id: orgAId,
+        professional_id: profId,
+        pay_type: 'both',
+        fixed_amount: 1000,
+        active: true,
+        valid_from: '2020-01-01',
+      }),
+      'insert compensation version vigencia',
+    );
+
+    // O snapshot nasce junto com o atendimento: as regras e suas vigências
+    // precisam existir antes do fato e mudanças posteriores não o reabrem.
+    assertNoSupabaseError(
+      await admin.from('commission_rules').insert([
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          amount_type: 'fixed', amount: 30, percent: 0, valid_from: '2020-01-01',
+        },
+        {
+          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
+          amount_type: 'fixed', amount: 50, percent: 0, valid_from: '2026-04-15',
+        },
+      ]),
+      'insert commission_rules vigencia',
+    );
+
     // Dois atendimentos IDÊNTICOS, em dias diferentes de abril.
     assertNoSupabaseError(
       await admin.from('atendimentos').insert([
@@ -649,22 +726,6 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
         },
       ]),
       'insert atendimentos vigencia',
-    );
-
-    // Regra antiga: R$ 30 fixos. ADENDO: R$ 50 a partir de 15/04 — a regra
-    // anterior NÃO é editada, nasce um período novo (decisão do Junior).
-    assertNoSupabaseError(
-      await admin.from('commission_rules').insert([
-        {
-          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
-          amount_type: 'fixed', amount: 30, percent: 0, valid_from: '2020-01-01',
-        },
-        {
-          organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
-          amount_type: 'fixed', amount: 50, percent: 0, valid_from: '2026-04-15',
-        },
-      ]),
-      'insert commission_rules vigencia',
     );
 
     const client = createUserClient();

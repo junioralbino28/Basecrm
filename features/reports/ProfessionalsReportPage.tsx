@@ -63,6 +63,7 @@ export const ProfessionalsCommissionTable: React.FC<{
   embutido?: boolean;
 }> = ({ period: periodoExterno, embutido }) => {
   const { addToast } = useToast();
+  const canManageFinance = useHasPermission('settings.finance') === true;
   const [periodoLocal, setPeriodoLocal] = useState<PeriodFilter>('this_month');
   const period = periodoExterno ?? periodoLocal;
   const setPeriod = setPeriodoLocal;
@@ -96,7 +97,8 @@ export const ProfessionalsCommissionTable: React.FC<{
   const pagamentosDaPessoa = useCallback(
     (professionalId: string) => (pagamentos ?? [])
       .filter((p) => p.professionalId === professionalId)
-      .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || '')),
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')
+        || b.id.localeCompare(a.id)),
     [pagamentos],
   );
 
@@ -275,7 +277,7 @@ export const ProfessionalsCommissionTable: React.FC<{
                       <span className="inline-flex flex-col items-end gap-1">
                       <span className="inline-flex items-center gap-2">
                         {formatBRL(row.pago)}
-                        {ultimoPagamento(row.professionalId) ? (
+                        {canManageFinance && ultimoPagamento(row.professionalId) ? (
                           <button
                             type="button"
                             onClick={() => void handleDesfazer(row.professionalId, row.professionalName)}
@@ -295,14 +297,14 @@ export const ProfessionalsCommissionTable: React.FC<{
                           {pagamentosDaPessoa(row.professionalId).map((pg) => (
                             <span key={pg.id} className="inline-flex items-center gap-1">
                               {formatBRL(pg.amount)} ·
-                              <input
+                              {canManageFinance ? <input
                                 type="date"
                                 aria-label={`Data do pagamento de ${formatBRL(pg.amount)} a ${row.professionalName}`}
                                 value={paraCampoData(pg.paidAt)}
                                 onChange={(e) => void corrigirData(pg.id, e.target.value)}
                                 disabled={updateDate.isPending}
                                 className="bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-white/20 rounded px-1 py-0 text-[10px] text-slate-400 dark:text-slate-500 focus:outline-none focus:border-brand-400 disabled:opacity-50"
-                              />
+                              /> : <span>{formatDiaMes(pg.paidAt)}</span>}
                             </span>
                           ))}
                         </span>
@@ -318,7 +320,7 @@ export const ProfessionalsCommissionTable: React.FC<{
                         <span className="font-semibold text-gold-700 dark:text-gold-500">
                           {formatBRL(row.aPagar)}
                         </span>
-                        {abertoId === row.professionalId ? (
+                        {!canManageFinance ? null : abertoId === row.professionalId ? (
                           <span className="inline-flex items-center gap-1">
                             <input
                               type="date"

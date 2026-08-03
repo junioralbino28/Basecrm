@@ -156,7 +156,7 @@ const ProfessionalsSettings: React.FC = () => {
           descricao="A lista que aparece no cadastro da equipe. Cada pessoa pode ter várias — marque todas que ela atende."
           singular="Nova especialidade"
           placeholder="Ex.: Ortodontia"
-          avisoExclusao="Ela sai da lista e some da ficha de quem estava marcado com ela."
+          avisoExclusao="Ela será arquivada e sairá das novas seleções. Os vínculos, procedimentos e históricos existentes serão preservados."
           rotuloDetalhe="Procedimentos"
           renderDetalhe={(item) => <SpecialtyProductsPicker specialtyId={item.id} />}
         />

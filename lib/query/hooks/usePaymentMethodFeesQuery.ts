@@ -96,6 +96,7 @@ export const useCreatePaymentMethodFee = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethodFees.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -136,6 +137,7 @@ export const useUpdatePaymentMethodFee = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethodFees.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -170,6 +172,7 @@ export const useDeletePaymentMethodFee = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethodFees.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };

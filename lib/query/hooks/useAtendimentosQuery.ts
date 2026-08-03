@@ -84,6 +84,9 @@ export const useCreateAtendimento = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.atendimentos.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.revenueRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -118,6 +121,9 @@ export const useUpdateAtendimento = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.atendimentos.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.revenueRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -150,6 +156,9 @@ export const useDeleteAtendimento = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.atendimentos.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.revenueRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };

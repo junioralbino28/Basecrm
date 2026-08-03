@@ -28,13 +28,15 @@ CREATE POLICY professional_compensation_versions_select
     AND public.has_permission('reports.professionals')
   );
 
+-- O histórico é append/upsert exclusivo do trigger abaixo. Permitir INSERT ou
+-- UPDATE direto ao cliente deixaria um administrador fabricar versões antigas
+-- e também obrigaria o trigger SECURITY INVOKER a atravessar RLS.
 DROP POLICY IF EXISTS professional_compensation_versions_insert ON public.professional_compensation_versions;
-CREATE POLICY professional_compensation_versions_insert
-  ON public.professional_compensation_versions FOR INSERT TO authenticated
-  WITH CHECK (public.can_configure_organization(organization_id));
+DROP POLICY IF EXISTS professional_compensation_versions_update ON public.professional_compensation_versions;
 
 REVOKE ALL ON TABLE public.professional_compensation_versions FROM PUBLIC, anon;
-GRANT SELECT, INSERT ON TABLE public.professional_compensation_versions TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.professional_compensation_versions FROM authenticated;
+GRANT SELECT ON TABLE public.professional_compensation_versions TO authenticated;
 GRANT ALL ON TABLE public.professional_compensation_versions TO service_role;
 
 INSERT INTO public.professional_compensation_versions (
@@ -47,7 +49,7 @@ ON CONFLICT (professional_id, valid_from) DO NOTHING;
 CREATE OR REPLACE FUNCTION public.version_professional_compensation()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
@@ -59,7 +61,7 @@ BEGIN
       organization_id, professional_id, pay_type, fixed_amount, active, valid_from, created_by
     ) VALUES (
       NEW.organization_id, NEW.id, NEW.pay_type, NEW.fixed_amount, NEW.active,
-      CURRENT_DATE, (SELECT auth.uid())
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date, (SELECT auth.uid())
     )
     ON CONFLICT (professional_id, valid_from) DO UPDATE
       SET pay_type = EXCLUDED.pay_type,
@@ -77,8 +79,54 @@ CREATE TRIGGER trg_version_professional_compensation
   AFTER INSERT OR UPDATE OF pay_type, fixed_amount, active ON public.professionals
   FOR EACH ROW EXECUTE FUNCTION public.version_professional_compensation();
 
-REVOKE ALL ON FUNCTION public.version_professional_compensation() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.version_professional_compensation() TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.version_professional_compensation() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.version_professional_compensation() TO service_role;
+
+-- Cadastro operacional simples continua disponível a quem gerencia a equipe,
+-- mas forma/valor de remuneração obedecem ao override de settings.finance no
+-- servidor (não apenas à visibilidade do formulário).
+CREATE OR REPLACE FUNCTION public.guard_professional_financial_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF current_user IN ('postgres', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+
+  IF (
+      TG_OP = 'INSERT'
+      AND (
+        NEW.pay_type IS DISTINCT FROM 'commission'
+        OR NEW.fixed_amount IS DISTINCT FROM 0
+      )
+    ) OR (
+      TG_OP = 'UPDATE'
+      AND (
+        OLD.pay_type IS DISTINCT FROM NEW.pay_type
+        OR OLD.fixed_amount IS DISTINCT FROM NEW.fixed_amount
+      )
+    ) THEN
+    IF NOT coalesce(public.has_permission('settings.finance'), false) THEN
+      RAISE EXCEPTION USING
+        ERRCODE = '42501',
+        MESSAGE = 'sem permissão para alterar remuneração';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_professional_financial_fields ON public.professionals;
+CREATE TRIGGER trg_guard_professional_financial_fields
+  BEFORE INSERT OR UPDATE ON public.professionals
+  FOR EACH ROW EXECUTE FUNCTION public.guard_professional_financial_fields();
+
+REVOKE ALL ON FUNCTION public.guard_professional_financial_fields() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.guard_professional_financial_fields()
+  TO authenticated, service_role;
 
 -- Percentual tem uma fonte: amount. A coluna percent permanece apenas por
 -- compatibilidade e recebe sempre o mesmo valor.
@@ -119,9 +167,11 @@ RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
+DECLARE
+  v_today date := (now() AT TIME ZONE 'America/Sao_Paulo')::date;
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    IF OLD.valid_from < CURRENT_DATE THEN
+    IF OLD.valid_from < v_today THEN
       RAISE EXCEPTION USING
         ERRCODE = '55000',
         MESSAGE = 'regra histórica não pode ser apagada; crie uma nova vigência';
@@ -129,7 +179,7 @@ BEGIN
     RETURN OLD;
   END IF;
 
-  IF OLD.valid_from < CURRENT_DATE THEN
+  IF OLD.valid_from < v_today THEN
     IF OLD.organization_id IS DISTINCT FROM NEW.organization_id
       OR OLD.professional_id IS DISTINCT FROM NEW.professional_id
       OR OLD.specialty IS DISTINCT FROM NEW.specialty

@@ -19,20 +19,34 @@ import { supabase } from './client';
 export type SpecialtyProductLink = { specialtyId: string; productId: string };
 export type ProfessionalProductOverride = { productId: string; enabled: boolean };
 
+const PAGE_SIZE = 1_000;
+
 export const specialtyProductsService = {
   /** Todos os vínculos da clínica — a tela agrupa por especialidade. */
   async list(organizationId: string): Promise<{ data: SpecialtyProductLink[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
-      const { data, error } = await supabase
-        .from('specialty_products')
-        .select('specialty_id, product_id')
-        .eq('organization_id', organizationId);
-      if (error) return { data: [], error };
+      const rows: Array<{ specialty_id: string; product_id: string }> = [];
+
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from('specialty_products')
+          .select('specialty_id, product_id')
+          .eq('organization_id', organizationId)
+          .order('specialty_id', { ascending: true })
+          .order('product_id', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) return { data: [], error };
+
+        const page = (data || []) as Array<{ specialty_id: string; product_id: string }>;
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
       return {
-        data: (data || []).map((r) => ({
-          specialtyId: String((r as { specialty_id: string }).specialty_id),
-          productId: String((r as { product_id: string }).product_id),
+        data: rows.map((r) => ({
+          specialtyId: String(r.specialty_id),
+          productId: String(r.product_id),
         })),
         error: null,
       };
@@ -93,16 +107,27 @@ export const professionalProductsService = {
   ): Promise<{ data: ProfessionalProductOverride[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
-      const { data, error } = await supabase
-        .from('professional_product_overrides')
-        .select('product_id, enabled')
-        .eq('organization_id', organizationId)
-        .eq('professional_id', professionalId);
-      if (error) return { data: [], error };
+      const rows: Array<{ product_id: string; enabled: boolean }> = [];
+
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from('professional_product_overrides')
+          .select('product_id, enabled')
+          .eq('organization_id', organizationId)
+          .eq('professional_id', professionalId)
+          .order('product_id', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) return { data: [], error };
+
+        const page = (data || []) as Array<{ product_id: string; enabled: boolean }>;
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
       return {
-        data: (data || []).map((r) => ({
-          productId: String((r as { product_id: string }).product_id),
-          enabled: Boolean((r as { enabled: boolean }).enabled),
+        data: rows.map((r) => ({
+          productId: String(r.product_id),
+          enabled: Boolean(r.enabled),
         })),
         error: null,
       };

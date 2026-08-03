@@ -10,6 +10,7 @@ describe('P3 — escritas transacionais da equipe', () => {
     expect(sql).toContain('pg_advisory_xact_lock');
     expect(sql).toContain('can_configure_organization');
     expect(sql).toContain('specialty_ids_invalidos');
+    expect(sql).toContain('coalesce(public.can_configure_organization(p_organization_id), false)');
   });
 
   it('impede referência cruzada entre organizações', () => {
@@ -20,5 +21,12 @@ describe('P3 — escritas transacionais da equipe', () => {
   it('oferece operações em massa atômicas', () => {
     expect(sql).toContain('set_specialty_products_batch');
     expect(sql).toContain('set_professional_product_overrides_batch');
+    expect(sql).toContain('produto duplicado em changes');
+    expect(sql).toContain('enabled obrigatório');
+  });
+
+  it('restaura overrides de especialidade que entra e preserva os ainda cobertos ao sair', () => {
+    expect(sql).toMatch(/sp\.specialty_id = ANY\(v_entered\)\s*\n\s*\);/i);
+    expect(sql).toMatch(/sp\.specialty_id = ANY\(v_left\)[\s\S]+NOT EXISTS[\s\S]+kept\.specialty_id = ANY\(v_ids\)/i);
   });
 });

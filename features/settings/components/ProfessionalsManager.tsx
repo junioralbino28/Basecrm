@@ -12,6 +12,7 @@ import {
 } from '@/lib/query/hooks/useProfessionalsQuery';
 import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 import { useTenant } from '@/context/TenantContext';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 
 /**
  * Escolha de VÁRIAS especialidades (Junior, 2026-07-27: "pode colocar mais de uma
@@ -69,6 +70,7 @@ const SeletorEspecialidades: React.FC<{
 export const ProfessionalsManager: React.FC = () => {
   const { tenant } = useTenant();
   const organizationId = tenant?.organizationId || '';
+  const canManageFinance = useHasPermission('settings.finance') === true;
   const { data, isLoading, error } = useProfessionals();
   const createMutation = useCreateProfessional();
   const updateMutation = useUpdateProfessional();
@@ -198,8 +200,10 @@ export const ProfessionalsManager: React.FC = () => {
           name: nextName,
           specialtyIds: editSpecialtyIds,
           role: editRole.trim() || undefined,
-          payType: editPayType,
-          fixedAmount: paraNumeroBR(editFixedAmount),
+          ...(canManageFinance ? {
+            payType: editPayType,
+            fixedAmount: paraNumeroBR(editFixedAmount),
+          } : {}),
         },
       });
       cancelEdit();
@@ -290,7 +294,7 @@ export const ProfessionalsManager: React.FC = () => {
             </button>
           </div>
 
-          <div className="lg:col-span-4">
+          {canManageFinance && <div className="lg:col-span-4">
             <label className="block text-xs font-semibold text-muted mb-1">Como essa pessoa ganha</label>
             <select
               aria-label="Como essa pessoa ganha"
@@ -302,8 +306,8 @@ export const ProfessionalsManager: React.FC = () => {
               <option value="fixed">Só valor fixo</option>
               <option value="both">Fixo + comissão</option>
             </select>
-          </div>
-          {payType !== 'commission' && (
+          </div>}
+          {canManageFinance && payType !== 'commission' && (
             <div className="lg:col-span-3">
               <label className="block text-xs font-semibold text-muted mb-1">Valor fixo do mês (R$)</label>
               <input
@@ -377,7 +381,7 @@ export const ProfessionalsManager: React.FC = () => {
                               )}
                             </select>
                           </div>
-                          <div className="sm:col-span-4">
+                          {canManageFinance && <div className="sm:col-span-4">
                             <label className="block text-[11px] font-semibold text-muted mb-1">Como ganha</label>
                             <select
                               aria-label="Como essa pessoa ganha"
@@ -389,8 +393,8 @@ export const ProfessionalsManager: React.FC = () => {
                               <option value="fixed">Só valor fixo</option>
                               <option value="both">Fixo + comissão</option>
                             </select>
-                          </div>
-                          {editPayType !== 'commission' && (
+                          </div>}
+                          {canManageFinance && editPayType !== 'commission' && (
                             <div className="sm:col-span-4">
                               <label className="block text-[11px] font-semibold text-muted mb-1">Valor fixo (R$)</label>
                               <input
@@ -413,12 +417,12 @@ export const ProfessionalsManager: React.FC = () => {
                             )}
                           </div>
                           <div className="text-xs text-muted mt-0.5 truncate">
-                            <span className="mr-2 rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold">
+                            {canManageFinance && <span className="mr-2 rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold">
                               {p.payType === 'fixed' ? 'Só valor fixo'
                                 : p.payType === 'both' ? 'Fixo + comissão'
                                 : 'Só comissão'}
-                            </span>
-                            {p.payType !== 'commission' && Number(p.fixedAmount ?? 0) > 0 && (
+                            </span>}
+                            {canManageFinance && p.payType !== 'commission' && Number(p.fixedAmount ?? 0) > 0 && (
                               <span className="mr-2 text-[11px]">
                                 {formatBRL(Number(p.fixedAmount))}/mês
                               </span>
@@ -456,7 +460,7 @@ export const ProfessionalsManager: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <button
+                          {canManageFinance && <button
                             type="button"
                             onClick={() => setComissoesAbertas(comissaoAberta ? null : p.id)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-line bg-card hover:bg-surface text-xs font-semibold text-ink"
@@ -468,7 +472,7 @@ export const ProfessionalsManager: React.FC = () => {
                               : <ChevronRight className="h-3.5 w-3.5 text-muted" />}
                             <Percent className="h-3.5 w-3.5 text-muted" />
                             Comissões
-                          </button>
+                          </button>}
                           <button
                             type="button"
                             onClick={() => startEdit(p)}
@@ -503,7 +507,7 @@ export const ProfessionalsManager: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  {comissaoAberta && (
+                  {canManageFinance && comissaoAberta && (
                     <div className="border-t border-line px-4 pb-4">
                       <CommissionsManager professionalId={p.id} />
                     </div>

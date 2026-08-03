@@ -44,6 +44,108 @@ CREATE INDEX IF NOT EXISTS idx_commission_rules_canonical_lookup
     organization_id, professional_id, product_id, specialty_id, valid_from DESC, created_at DESC, id
   );
 
+-- A permissão visual também precisa existir no servidor: um override negativo
+-- de settings.finance não pode ser contornado consultando/mutando a REST API.
+DROP POLICY IF EXISTS "commission_rules_select_by_tenant_admin" ON public.commission_rules;
+CREATE POLICY "commission_rules_select_by_tenant_admin"
+  ON public.commission_rules FOR SELECT TO authenticated
+  USING (
+    coalesce(public.can_configure_organization(organization_id), false)
+    AND coalesce(public.has_permission('settings.finance'), false)
+  );
+
+DROP POLICY IF EXISTS "commission_rules_mutate_by_tenant_admin" ON public.commission_rules;
+CREATE POLICY "commission_rules_mutate_by_tenant_admin"
+  ON public.commission_rules FOR ALL TO authenticated
+  USING (
+    coalesce(public.can_configure_organization(organization_id), false)
+    AND coalesce(public.has_permission('settings.finance'), false)
+  )
+  WITH CHECK (
+    coalesce(public.can_configure_organization(organization_id), false)
+    AND coalesce(public.has_permission('settings.finance'), false)
+  );
+
+-- A UI legada ainda envia os nomes. Canonicalize no servidor para que toda
+-- regra nova ganhe as chaves estáveis sem depender da versão do cliente.
+CREATE OR REPLACE FUNCTION public.canonicalize_commission_rule_refs()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.product_id IS NULL AND NULLIF(btrim(NEW.procedimento), '') IS NOT NULL THEN
+    NEW.product_id := (
+      SELECT p.id
+      FROM public.products p
+      WHERE p.organization_id = NEW.organization_id
+        AND lower(btrim(p.name)) = lower(btrim(NEW.procedimento))
+    );
+  END IF;
+
+  IF NEW.specialty_id IS NULL AND NULLIF(btrim(NEW.specialty), '') IS NOT NULL THEN
+    NEW.specialty_id := (
+      SELECT s.id
+      FROM public.specialties s
+      WHERE s.organization_id = NEW.organization_id
+        AND lower(btrim(s.name)) = lower(btrim(NEW.specialty))
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_canonicalize_commission_rule_refs ON public.commission_rules;
+CREATE TRIGGER trg_canonicalize_commission_rule_refs
+  BEFORE INSERT OR UPDATE OF procedimento, specialty, product_id, specialty_id
+  ON public.commission_rules
+  FOR EACH ROW EXECUTE FUNCTION public.canonicalize_commission_rule_refs();
+
+REVOKE ALL ON FUNCTION public.canonicalize_commission_rule_refs() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.canonicalize_commission_rule_refs() TO authenticated, service_role;
+
+-- Os IDs só existem a partir desta migration. Recompile a proteção histórica
+-- depois do backfill para impedir que uma regra antiga seja redirecionada para
+-- outro produto/especialidade sem criar uma nova vigência.
+CREATE OR REPLACE FUNCTION public.protect_historical_commission_rule()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  v_today date := (now() AT TIME ZONE 'America/Sao_Paulo')::date;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.valid_from < v_today THEN
+      RAISE EXCEPTION USING
+        ERRCODE = '55000',
+        MESSAGE = 'regra histórica não pode ser apagada; crie uma nova vigência';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF OLD.valid_from < v_today THEN
+    IF OLD.organization_id IS DISTINCT FROM NEW.organization_id
+      OR OLD.professional_id IS DISTINCT FROM NEW.professional_id
+      OR OLD.specialty_id IS DISTINCT FROM NEW.specialty_id
+      OR OLD.product_id IS DISTINCT FROM NEW.product_id
+      OR OLD.specialty IS DISTINCT FROM NEW.specialty
+      OR OLD.procedimento IS DISTINCT FROM NEW.procedimento
+      OR OLD.amount_type IS DISTINCT FROM NEW.amount_type
+      OR OLD.amount IS DISTINCT FROM NEW.amount
+      OR OLD.percent IS DISTINCT FROM NEW.percent
+      OR OLD.valid_from IS DISTINCT FROM NEW.valid_from THEN
+      RAISE EXCEPTION USING
+        ERRCODE = '55000',
+        MESSAGE = 'regra histórica não pode ser reescrita; crie uma nova vigência';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.resolve_commission_amount(
   p_organization_id uuid,
   p_professional_id uuid,
@@ -76,8 +178,10 @@ BEGIN
       OR (c.product_id IS NULL AND c.procedimento = p_procedure_name)
     )
     AND (
-      c.specialty_id IS NULL
+      (c.specialty_id IS NULL AND c.specialty IS NULL)
       OR (
+        c.specialty_id IS NOT NULL
+        AND
         EXISTS (
           SELECT 1 FROM public.professional_specialties ps
           WHERE ps.organization_id = p_organization_id
@@ -93,6 +197,11 @@ BEGIN
               AND sp.product_id = p_product_id
           )
         )
+      )
+      OR (
+        c.specialty_id IS NULL
+        AND c.specialty IS NOT NULL
+        AND public.professional_has_specialty(p_professional_id, c.specialty)
       )
     )
   ORDER BY
@@ -114,6 +223,93 @@ REVOKE ALL ON FUNCTION public.resolve_commission_amount(uuid, uuid, uuid, text, 
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resolve_commission_amount(uuid, uuid, uuid, text, timestamptz, numeric)
   TO service_role;
+
+COMMENT ON FUNCTION public.resolve_commission_amount(uuid, uuid, uuid, text, timestamptz, numeric) IS
+  'Resolvedor canônico usado somente ao gravar ou corrigir o fato. Relatórios e '
+  'pagamentos usam atendimentos.commission_amount, que não muda com vínculos futuros.';
+
+-- Snapshot financeiro: a configuração vigente é consultada uma vez e o valor
+-- apurado acompanha o fato. Assim, mudar especialidades/produtos depois não
+-- reescreve comissão histórica.
+ALTER TABLE public.atendimentos
+  ADD COLUMN IF NOT EXISTS commission_amount numeric;
+
+-- O trigger legado de updated_at não deve transformar o backfill técnico em
+-- edição de todos os atendimentos históricos.
+ALTER TABLE public.atendimentos DISABLE TRIGGER update_atendimentos_updated_at;
+UPDATE public.atendimentos a
+SET commission_amount = public.resolve_commission_amount(
+  a.organization_id,
+  a.professional_id,
+  a.product_id,
+  a.procedimento,
+  a.performed_at,
+  a.valor - a.desconto
+)
+WHERE a.commission_amount IS NULL;
+ALTER TABLE public.atendimentos ENABLE TRIGGER update_atendimentos_updated_at;
+
+ALTER TABLE public.atendimentos
+  ALTER COLUMN commission_amount SET DEFAULT 0;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'atendimentos_commission_amount_chk'
+      AND conrelid = 'public.atendimentos'::regclass
+  ) THEN
+    ALTER TABLE public.atendimentos
+      ADD CONSTRAINT atendimentos_commission_amount_chk
+      CHECK (commission_amount >= 0 AND commission_amount < 'Infinity'::numeric)
+      NOT VALID;
+  END IF;
+END $$;
+
+ALTER TABLE public.atendimentos
+  VALIDATE CONSTRAINT atendimentos_commission_amount_chk;
+ALTER TABLE public.atendimentos
+  ALTER COLUMN commission_amount SET NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.snapshot_atendimento_commission()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT'
+    OR OLD.organization_id IS DISTINCT FROM NEW.organization_id
+    OR OLD.professional_id IS DISTINCT FROM NEW.professional_id
+    OR OLD.product_id IS DISTINCT FROM NEW.product_id
+    OR OLD.procedimento IS DISTINCT FROM NEW.procedimento
+    OR OLD.performed_at IS DISTINCT FROM NEW.performed_at
+    OR OLD.valor IS DISTINCT FROM NEW.valor
+    OR OLD.desconto IS DISTINCT FROM NEW.desconto THEN
+    NEW.commission_amount := public.resolve_commission_amount(
+      NEW.organization_id,
+      NEW.professional_id,
+      NEW.product_id,
+      NEW.procedimento,
+      NEW.performed_at,
+      NEW.valor - NEW.desconto
+    );
+  ELSE
+    -- commission_amount nunca é uma entrada confiável do cliente.
+    NEW.commission_amount := OLD.commission_amount;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_snapshot_atendimento_commission ON public.atendimentos;
+CREATE TRIGGER trg_snapshot_atendimento_commission
+  BEFORE INSERT OR UPDATE ON public.atendimentos
+  FOR EACH ROW EXECUTE FUNCTION public.snapshot_atendimento_commission();
+
+REVOKE ALL ON FUNCTION public.snapshot_atendimento_commission()
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.snapshot_atendimento_commission() TO service_role;
 
 CREATE OR REPLACE FUNCTION public.fixed_compensation_for_period(
   p_organization_id uuid,
@@ -176,6 +372,9 @@ BEGIN
     OR NOT public.has_permission('reports.professionals') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'acesso negado';
   END IF;
+  IF p_start IS NULL OR p_end IS NULL OR p_end < p_start THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'período inválido';
+  END IF;
 
   v_period_start := to_char(p_start AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM');
   v_period_end := to_char(p_end AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM');
@@ -187,10 +386,7 @@ BEGIN
       p.role,
       p.pay_type,
       count(a.id) AS atendimentos,
-      coalesce(sum(public.resolve_commission_amount(
-        v_org, p.id, a.product_id, a.procedimento, a.performed_at,
-        a.valor - a.desconto
-      )), 0) AS comissao,
+      coalesce(sum(a.commission_amount), 0) AS comissao,
       public.fixed_compensation_for_period(v_org, p.id, p_start, p_end) AS fixo,
       coalesce(sum(a.valor - a.desconto), 0) AS faturamento_base,
       coalesce((SELECT sum(cp.amount) FROM public.commission_payments cp
@@ -208,6 +404,21 @@ BEGIN
           SELECT 1 FROM public.commission_payments cp
           WHERE cp.organization_id = v_org AND cp.professional_id = p.id
             AND cp.period >= v_period_start AND cp.period <= v_period_end
+        ) OR EXISTS (
+          SELECT 1
+          FROM public.professional_compensation_versions cv
+          WHERE cv.organization_id = v_org
+            AND cv.professional_id = p.id
+            AND cv.active = true
+            AND cv.pay_type IN ('fixed', 'both')
+            AND cv.valid_from <= (p_end AT TIME ZONE 'America/Sao_Paulo')::date
+            AND coalesce((
+              SELECT min(next_cv.valid_from)
+              FROM public.professional_compensation_versions next_cv
+              WHERE next_cv.organization_id = cv.organization_id
+                AND next_cv.professional_id = cv.professional_id
+                AND next_cv.valid_from > cv.valid_from
+            ), 'infinity'::date) > (p_start AT TIME ZONE 'America/Sao_Paulo')::date
         )
       )
     GROUP BY p.id, p.name, p.role, p.pay_type
@@ -267,11 +478,11 @@ BEGIN
     OR NOT public.has_permission('reports.finance') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'acesso negado';
   END IF;
+  IF p_start IS NULL OR p_end IS NULL OR p_end < p_start THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'período inválido';
+  END IF;
 
-  SELECT coalesce(sum(public.resolve_commission_amount(
-    v_org, a.professional_id, a.product_id, a.procedimento, a.performed_at,
-    a.valor - a.desconto
-  )), 0) INTO v_comissoes
+  SELECT coalesce(sum(a.commission_amount), 0) INTO v_comissoes
   FROM public.atendimentos a
   WHERE a.organization_id = v_org AND a.professional_id IS NOT NULL
     AND a.performed_at >= p_start AND a.performed_at <= p_end;

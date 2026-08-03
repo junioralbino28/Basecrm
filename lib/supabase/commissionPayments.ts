@@ -39,6 +39,7 @@ function transformCommissionPayment(db: DbCommissionPayment): CommissionPayment 
     amount: Number(db.amount ?? 0),
     paidAt: db.paid_at,
     period: db.period,
+    createdAt: db.created_at,
   };
 }
 
@@ -79,7 +80,8 @@ export const commissionPaymentsService = {
         .select(COLUMNS)
         .eq('organization_id', organizationId)
         .eq('period', period)
-        .order('paid_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
       if (error) return { data: [], error };
       return {
         data: (data as DbCommissionPayment[] || []).map(transformCommissionPayment),
@@ -129,11 +131,11 @@ export const commissionPaymentsService = {
   async updatePaidAt(id: string, paidAt: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
-      const { error } = await supabase
-        .from('commission_payments')
-        .update({ paid_at: paidAt, updated_at: new Date().toISOString() })
-        .eq('id', sanitizeUUID(id))
-        .eq('organization_id', organizationId);
+      const { error } = await supabase.rpc('update_commission_payment_paid_at', {
+        p_organization_id: sanitizeUUID(organizationId),
+        p_payment_id: sanitizeUUID(id),
+        p_paid_at: paidAt,
+      });
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };
@@ -143,11 +145,10 @@ export const commissionPaymentsService = {
   async delete(id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
-      const { error } = await supabase
-        .from('commission_payments')
-        .delete()
-        .eq('id', sanitizeUUID(id))
-        .eq('organization_id', organizationId);
+      const { error } = await supabase.rpc('delete_commission_payment', {
+        p_organization_id: sanitizeUUID(organizationId),
+        p_payment_id: sanitizeUUID(id),
+      });
 
       return { error: error ?? null };
     } catch (e) {

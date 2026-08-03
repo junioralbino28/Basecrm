@@ -93,6 +93,7 @@ export const useCreateFixedCost = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.fixedCosts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -133,6 +134,7 @@ export const useUpdateFixedCost = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.fixedCosts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -167,6 +169,7 @@ export const useDeleteFixedCost = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.fixedCosts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };

@@ -105,6 +105,8 @@ export const useCreateProfessional = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.professionals.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -139,6 +141,8 @@ export const useUpdateProfessional = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.professionals.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -173,6 +177,8 @@ export const useDeleteProfessional = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.professionals.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };

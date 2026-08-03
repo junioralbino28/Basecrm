@@ -3,6 +3,11 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { axe } from '@/lib/a11y/test/a11y-utils';
 
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock('@/context/ToastContext', () => ({ useToast: () => ({ showToast: vi.fn() }) }));
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ tenant: { organizationId: 'org-1' } }),
@@ -63,6 +68,7 @@ vi.mock('@/lib/supabase/specialtyProducts', () => ({
   professionalProductsService: {
     listOverrides: async () => ({ data: [], error: null }),
     set: (...args: unknown[]) => setFazSpy(...(args as [])),
+    setBatch: vi.fn(async () => ({ error: null })),
   },
 }));
 

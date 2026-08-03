@@ -4,6 +4,8 @@ import { specialtyProductsService } from '@/lib/supabase/specialtyProducts';
 import { formatBRL } from '@/lib/utils';
 import { AcoesEmMassa } from './AcoesEmMassa';
 import { useTenant } from '@/context/TenantContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
 
 /**
  * Quais procedimentos cabem nesta especialidade.
@@ -17,6 +19,7 @@ import { useTenant } from '@/context/TenantContext';
  */
 export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ specialtyId }) => {
   const { tenant } = useTenant();
+  const queryClient = useQueryClient();
   const organizationId = tenant?.organizationId || '';
   const { data: produtosData, isLoading: carregandoProdutos } = useProducts();
   const produtos = React.useMemo(() => produtosData ?? [], [produtosData]);
@@ -63,6 +66,9 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
         if (marcado) proximo.add(productId); else proximo.delete(productId);
         return proximo;
       });
+    } else {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     }
   };
 
@@ -95,6 +101,9 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       if (!atual.error) setMarcados(new Set(
         atual.data.filter((l) => l.specialtyId === specialtyId).map((l) => l.productId),
       ));
+    } else {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     }
   };
 

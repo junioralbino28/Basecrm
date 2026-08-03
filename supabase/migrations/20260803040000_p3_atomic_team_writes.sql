@@ -12,7 +12,7 @@ DECLARE
   v_left uuid[];
   v_mirror text;
 BEGIN
-  IF NOT public.can_configure_organization(p_organization_id) THEN
+  IF NOT coalesce(public.can_configure_organization(p_organization_id), false) THEN
     RAISE EXCEPTION 'sem permissão' USING ERRCODE = '42501';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_professional_id::text, 0));
@@ -41,10 +41,25 @@ BEGIN
   SELECT p_organization_id, p_professional_id, x.id FROM unnest(v_entered) x(id)
   ON CONFLICT DO NOTHING;
 
+  -- Entrar numa especialidade sempre restaura o padrão dos produtos dela.
   DELETE FROM public.professional_product_overrides o
   WHERE o.organization_id = p_organization_id AND o.professional_id = p_professional_id
     AND o.product_id IN (
-      SELECT sp.product_id FROM public.specialty_products sp WHERE sp.organization_id = p_organization_id AND sp.specialty_id = ANY(v_entered || v_left)
+      SELECT sp.product_id
+      FROM public.specialty_products sp
+      WHERE sp.organization_id = p_organization_id
+        AND sp.specialty_id = ANY(v_entered)
+    );
+
+  -- Ao sair, restaure somente produtos que não continuam cobertos por outra
+  -- especialidade mantida pela pessoa.
+  DELETE FROM public.professional_product_overrides o
+  WHERE o.organization_id = p_organization_id AND o.professional_id = p_professional_id
+    AND o.product_id IN (
+      SELECT sp.product_id
+      FROM public.specialty_products sp
+      WHERE sp.organization_id = p_organization_id
+        AND sp.specialty_id = ANY(v_left)
     )
     AND NOT EXISTS (
       SELECT 1 FROM public.specialty_products kept
@@ -61,16 +76,20 @@ $$;
 CREATE OR REPLACE FUNCTION public.set_specialty_products_batch(
   p_organization_id uuid, p_specialty_id uuid, p_product_ids uuid[], p_enabled boolean
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_product_ids uuid[] := coalesce(p_product_ids, ARRAY[]::uuid[]);
 BEGIN
-  IF NOT public.can_configure_organization(p_organization_id) THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE = '42501'; END IF;
+  IF NOT coalesce(public.can_configure_organization(p_organization_id), false) THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE = '42501'; END IF;
+  IF p_enabled IS NULL THEN RAISE EXCEPTION 'enabled obrigatório' USING ERRCODE = '22023'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('specialty-products:' || p_specialty_id::text, 0));
   IF NOT EXISTS (SELECT 1 FROM public.specialties s WHERE s.id = p_specialty_id AND s.organization_id = p_organization_id)
-     OR EXISTS (SELECT 1 FROM unnest(p_product_ids) x(id) WHERE NOT EXISTS (SELECT 1 FROM public.products p WHERE p.id = x.id AND p.organization_id = p_organization_id))
+     OR EXISTS (SELECT 1 FROM unnest(v_product_ids) x(id) WHERE NOT EXISTS (SELECT 1 FROM public.products p WHERE p.id = x.id AND p.organization_id = p_organization_id))
   THEN RAISE EXCEPTION 'referência inválida' USING ERRCODE = '23503'; END IF;
   IF p_enabled THEN
     INSERT INTO public.specialty_products (organization_id, specialty_id, product_id)
-    SELECT p_organization_id, p_specialty_id, x.id FROM unnest(p_product_ids) x(id) ON CONFLICT DO NOTHING;
+    SELECT p_organization_id, p_specialty_id, x.id FROM unnest(v_product_ids) x(id) ON CONFLICT DO NOTHING;
   ELSE
-    DELETE FROM public.specialty_products WHERE organization_id = p_organization_id AND specialty_id = p_specialty_id AND product_id = ANY(p_product_ids);
+    DELETE FROM public.specialty_products WHERE organization_id = p_organization_id AND specialty_id = p_specialty_id AND product_id = ANY(v_product_ids);
   END IF;
 END;
 $$;
@@ -78,16 +97,24 @@ $$;
 CREATE OR REPLACE FUNCTION public.set_professional_product_overrides_batch(
   p_organization_id uuid, p_professional_id uuid, p_changes jsonb
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_changes jsonb := coalesce(p_changes, '[]'::jsonb);
 BEGIN
-  IF NOT public.can_configure_organization(p_organization_id) THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE = '42501'; END IF;
+  IF NOT coalesce(public.can_configure_organization(p_organization_id), false) THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE = '42501'; END IF;
+  IF jsonb_typeof(v_changes) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'changes deve ser array' USING ERRCODE = '22023'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_to_recordset(v_changes) x(product_id uuid, enabled boolean)
+    GROUP BY x.product_id HAVING count(*) > 1
+  ) THEN RAISE EXCEPTION 'produto duplicado em changes' USING ERRCODE = '22023'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('professional-products:' || p_professional_id::text, 0));
   IF NOT EXISTS (SELECT 1 FROM public.professionals p WHERE p.id = p_professional_id AND p.organization_id = p_organization_id)
-     OR EXISTS (SELECT 1 FROM jsonb_to_recordset(p_changes) x(product_id uuid, enabled boolean) WHERE NOT EXISTS (SELECT 1 FROM public.products p WHERE p.id = x.product_id AND p.organization_id = p_organization_id))
+     OR EXISTS (SELECT 1 FROM jsonb_to_recordset(v_changes) x(product_id uuid, enabled boolean) WHERE NOT EXISTS (SELECT 1 FROM public.products p WHERE p.id = x.product_id AND p.organization_id = p_organization_id))
   THEN RAISE EXCEPTION 'referência inválida' USING ERRCODE = '23503'; END IF;
-  DELETE FROM public.professional_product_overrides o USING jsonb_to_recordset(p_changes) x(product_id uuid, enabled boolean)
+  DELETE FROM public.professional_product_overrides o USING jsonb_to_recordset(v_changes) x(product_id uuid, enabled boolean)
   WHERE o.organization_id = p_organization_id AND o.professional_id = p_professional_id AND o.product_id = x.product_id AND x.enabled IS NULL;
   INSERT INTO public.professional_product_overrides (organization_id, professional_id, product_id, enabled, updated_at)
   SELECT p_organization_id, p_professional_id, x.product_id, x.enabled, now()
-  FROM jsonb_to_recordset(p_changes) x(product_id uuid, enabled boolean) WHERE x.enabled IS NOT NULL
+  FROM jsonb_to_recordset(v_changes) x(product_id uuid, enabled boolean) WHERE x.enabled IS NOT NULL
   ON CONFLICT (professional_id, product_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at;
 END;
 $$;

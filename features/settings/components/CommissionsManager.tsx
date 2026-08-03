@@ -18,6 +18,8 @@ import {
 } from '@/lib/supabase/specialtyProducts';
 import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
 import { useTenant } from '@/context/TenantContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
 
 /**
  * Comissão por funcionário × procedimento (config financeira). Só
@@ -46,6 +48,7 @@ export const CommissionsManager: React.FC<{
   professionalId?: string;
 }> = ({ professionalId }) => {
   const { tenant } = useTenant();
+  const queryClient = useQueryClient();
   const organizationId = tenant?.organizationId || '';
   const { data, isLoading, error } = useCommissionRules();
   const { data: professionalsData, isLoading: professionalsLoading } = useProfessionals();
@@ -98,7 +101,8 @@ export const CommissionsManager: React.FC<{
       .map((prod) => ({
         prod,
         regra: maisRecente(rules.filter(
-          (r) => r.professionalId === selectedId && r.procedimento === prod.name,
+          (r) => r.professionalId === selectedId
+            && (r.productId ? r.productId === prod.id : r.procedimento === prod.name),
         )),
       }));
   }, [products, rules, selectedId]);
@@ -159,6 +163,10 @@ export const CommissionsManager: React.FC<{
       selectedId, productId, proximo, padrao, organizationId,
     );
     if (error) showToast(`Não deu pra salvar: ${error.message}`, 'error');
+    else {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
+    }
   };
 
   /**
@@ -189,6 +197,9 @@ export const CommissionsManager: React.FC<{
       showToast(`Não deu pra salvar: ${error.message}`, 'error');
       const atual = await professionalProductsService.listOverrides(selectedId, organizationId);
       if (!atual.error) setExcecoes(Object.fromEntries(atual.data.map((o) => [o.productId, o.enabled])));
+    } else {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     }
   };
 
@@ -208,6 +219,8 @@ export const CommissionsManager: React.FC<{
       if (!atual.error) setExcecoes(Object.fromEntries(atual.data.map((o) => [o.productId, o.enabled])));
       return;
     }
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     showToast('Voltou ao que as especialidades dela dizem.', 'success');
   };
 
@@ -224,7 +237,7 @@ export const CommissionsManager: React.FC<{
     setEditValue('');
   };
 
-  const salvar = async (procedimento: string | null) => {
+  const salvar = async (procedimento: string | null, productId?: string) => {
     const valor = paraNumeroBR(editValue);
     if (!Number.isFinite(valor) || valor < 0) {
       showToast('Valor inválido.', 'error');
@@ -239,6 +252,7 @@ export const CommissionsManager: React.FC<{
       // faz o mês já pago continuar valendo o que valia (decisão do Junior).
       await createMutation.mutateAsync({
         professionalId: selectedId,
+        productId,
         procedimento: procedimento || undefined,
         amountType: editType,
         amount: valor,
@@ -452,7 +466,7 @@ export const CommissionsManager: React.FC<{
                               valor={editValue}
                               onTipo={setEditType}
                               onValor={setEditValue}
-                              onSalvar={() => salvar(prod.name)}
+                              onSalvar={() => salvar(prod.name, prod.id)}
                               onCancelar={cancelEdit}
                               busy={busy}
                               rotulo={`Comissão de ${prod.name}`}

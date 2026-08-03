@@ -376,6 +376,8 @@ export interface CommissionRule {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   professionalId?: string;
+  specialtyId?: string;
+  productId?: string;
   specialty?: string;
   /** Escopo mais específico: casa com o procedimento do atendimento. */
   procedimento?: string;
@@ -410,6 +412,7 @@ export interface CommissionPayment {
   amount: number;
   paidAt: string;
   period: string;
+  createdAt: string;
 }
 
 // CUSTOM FIELDS DEFINITION

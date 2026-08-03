@@ -39,6 +39,7 @@ export const teamCatalogsService = {
         .from(kind)
         .select(COLUMNS)
         .eq('organization_id', organizationId)
+        .eq('active', true)
         .order('name', { ascending: true });
       if (error) return { data: [], error };
       return { data: (data || []).map((row) => transform(row as Record<string, unknown>)), error: null };
@@ -100,9 +101,10 @@ export const teamCatalogsService = {
   async remove(kind: TeamCatalogKind, id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
-      const { error } = await supabase.from(kind).delete()
-        .eq('id', id)
-        .eq('organization_id', organizationId);
+      const query = kind === 'specialties'
+        ? supabase.from(kind).update({ active: false, updated_at: new Date().toISOString() })
+        : supabase.from(kind).delete();
+      const { error } = await query.eq('id', id).eq('organization_id', organizationId);
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };

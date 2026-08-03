@@ -41,12 +41,14 @@ async function getCurrentOrganizationId(): Promise<string | null> {
 }
 
 const COLUMNS =
-  'id, organization_id, professional_id, specialty, procedimento, amount_type, amount, valid_from, percent, owner_id, created_at, updated_at';
+  'id, organization_id, professional_id, specialty_id, product_id, specialty, procedimento, amount_type, amount, valid_from, percent, owner_id, created_at, updated_at';
 
 type DbCommissionRule = {
   id: string;
   organization_id: string | null;
   professional_id: string | null;
+  specialty_id: string | null;
+  product_id: string | null;
   specialty: string | null;
   percent: number;
   procedimento?: string | null;
@@ -63,6 +65,8 @@ function transformCommissionRule(db: DbCommissionRule): CommissionRule {
     id: db.id,
     organizationId: db.organization_id || undefined,
     professionalId: db.professional_id || undefined,
+    specialtyId: db.specialty_id || undefined,
+    productId: db.product_id || undefined,
     specialty: db.specialty || undefined,
     percent: Number(db.percent ?? 0),
     procedimento: db.procedimento || undefined,
@@ -99,6 +103,8 @@ export const commissionRulesService = {
 
   async create(input: {
     professionalId?: string;
+    specialtyId?: string;
+    productId?: string;
     specialty?: string;
     procedimento?: string;
     amountType?: 'percent' | 'fixed';
@@ -119,6 +125,8 @@ export const commissionRulesService = {
         .from('commission_rules')
         .insert({
           professional_id: sanitizeUUID(input.professionalId),
+          specialty_id: sanitizeUUID(input.specialtyId),
+          product_id: sanitizeUUID(input.productId),
           specialty: input.specialty || null,
           procedimento: input.procedimento || null,
           amount_type: input.amountType || 'percent',

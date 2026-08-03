@@ -8,6 +8,7 @@ vi.mock('@/context/AuthContext', () => ({
 }));
 
 const useHasPermissionMock = vi.fn();
+let permissionMap: Record<string, boolean> = {};
 vi.mock('@/lib/auth/useHasPermission', () => ({
   useHasPermission: (...args: unknown[]) => useHasPermissionMock(...args),
 }));
@@ -21,7 +22,7 @@ const mutateAsync = vi.fn();
 const createPaymentMutation = { mutateAsync, isPending: false };
 const deleteAsync = vi.fn();
 const updateDateAsync = vi.fn();
-let pagamentosDoMes: Array<{ id: string; professionalId: string; amount: number; paidAt: string; period: string }> = [];
+let pagamentosDoMes: Array<{ id: string; professionalId: string; amount: number; paidAt: string; period: string; createdAt: string }> = [];
 vi.mock('@/lib/query/hooks/useCommissionPaymentsQuery', () => ({
   useCreateCommissionPayment: () => createPaymentMutation,
   useDeleteCommissionPayment: () => ({ mutateAsync: deleteAsync, isPending: false }),
@@ -72,7 +73,8 @@ function mockReport() {
 describe('ProfessionalsReportPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useHasPermissionMock.mockReturnValue(true);
+    permissionMap = { 'reports.professionals': true, 'settings.finance': true };
+    useHasPermissionMock.mockImplementation((key: string) => permissionMap[key] ?? false);
     mockReport();
     mutateAsync.mockResolvedValue({ id: 'cp-1' });
     deleteAsync.mockResolvedValue('cp-1');
@@ -94,6 +96,24 @@ describe('ProfessionalsReportPage', () => {
     // quitado (a pagar = 0) não tem botão pagar
     expect(screen.getByText(/quitado/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^pagar/i })).toHaveLength(1);
+  });
+
+  it('sem settings.finance vê o relatório sem controles de pagamento', () => {
+    permissionMap['settings.finance'] = false;
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
+    } as any);
+    pagamentosDoMes = [{
+      id: 'cp-1', professionalId: 'p-marcos', amount: 100,
+      paidAt: '2026-07-03T12:00:00Z', period: '2026-07', createdAt: '2026-07-04T12:00:00Z',
+    }];
+
+    render(<ProfessionalsReportPage />);
+
+    expect(screen.queryByRole('button', { name: /^pagar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Desfazer último pagamento/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Data do pagamento de/i)).not.toBeInTheDocument();
+    expect(screen.getByText('03/07')).toBeInTheDocument();
   });
 
   it('ação "pagar" registra o pagamento com valor a pagar e período YYYY-MM', async () => {
@@ -185,8 +205,8 @@ describe('ProfessionalsReportPage', () => {
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
     pagamentosDoMes = [
-      { id: 'cp-antigo', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-01T10:00:00Z', period: '2026-07' },
-      { id: 'cp-ultimo', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-20T10:00:00Z', period: '2026-07' },
+      { id: 'cp-antigo', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-20T10:00:00Z', period: '2026-07', createdAt: '2026-07-20T10:00:00Z' },
+      { id: 'cp-ultimo', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-01T10:00:00Z', period: '2026-07', createdAt: '2026-07-21T10:00:00Z' },
     ];
     window.confirm = vi.fn(() => true);
 
@@ -202,8 +222,8 @@ describe('ProfessionalsReportPage', () => {
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
     pagamentosDoMes = [
-      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07' },
-      { id: 'cp-2', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-21T12:00:00Z', period: '2026-07' },
+      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07', createdAt: '2026-07-03T12:00:00Z' },
+      { id: 'cp-2', professionalId: 'p-marcos', amount: 500, paidAt: '2026-07-21T12:00:00Z', period: '2026-07', createdAt: '2026-07-21T12:00:00Z' },
     ];
 
     render(<ProfessionalsReportPage />);
@@ -223,7 +243,7 @@ describe('ProfessionalsReportPage', () => {
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
     pagamentosDoMes = [
-      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07' },
+      { id: 'cp-1', professionalId: 'p-marcos', amount: 100, paidAt: '2026-07-03T12:00:00Z', period: '2026-07', createdAt: '2026-07-03T12:00:00Z' },
     ];
 
     render(<ProfessionalsReportPage />);

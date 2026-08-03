@@ -7,6 +7,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PROF_ID = '33333333-3333-4333-8333-333333333333';
 const ROW_ID = '44444444-4444-4444-8444-444444444444';
+const PRODUCT_ID = '66666666-6666-4666-8666-666666666666';
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -158,6 +159,7 @@ describe('commissionRulesService', () => {
       organization_id: ORG_ID,
       professional_id: PROF_ID,
       specialty: 'ortodontia',
+      product_id: PRODUCT_ID,
       percent: 30,
       owner_id: USER_ID,
       created_at: 'now',
@@ -167,6 +169,7 @@ describe('commissionRulesService', () => {
     const res = await commissionRulesService.create({
       professionalId: PROF_ID,
       specialty: 'ortodontia',
+      productId: PRODUCT_ID,
       percent: 30,
       organizationId: ORG_ID,
     });
@@ -174,6 +177,7 @@ describe('commissionRulesService', () => {
     expect(res.data?.percent).toBe(30);
     const payload = insertMock.mock.calls[0][0];
     expect(payload.professional_id).toBe(PROF_ID);
+    expect(payload.product_id).toBe(PRODUCT_ID);
     expect(payload.organization_id).toBe(ORG_ID);
     expect(payload.owner_id).toBe(USER_ID);
   });
@@ -276,7 +280,27 @@ describe('commissionPaymentsService', () => {
       amount: 800,
       paidAt: '2026-06-01T10:00:00.000Z',
       period: '2026-05',
+      createdAt: 'now',
     });
     expect(fromMock).toHaveBeenCalledWith('commission_payments');
+  });
+
+  it('corrige data e desfaz pagamento somente pelas RPCs protegidas', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    expect((await commissionPaymentsService.updatePaidAt(
+      ROW_ID, '2026-06-05T12:00:00.000Z', ORG_ID,
+    )).error).toBeNull();
+    expect(rpcMock).toHaveBeenCalledWith('update_commission_payment_paid_at', {
+      p_organization_id: ORG_ID,
+      p_payment_id: ROW_ID,
+      p_paid_at: '2026-06-05T12:00:00.000Z',
+    });
+
+    expect((await commissionPaymentsService.delete(ROW_ID, ORG_ID)).error).toBeNull();
+    expect(rpcMock).toHaveBeenCalledWith('delete_commission_payment', {
+      p_organization_id: ORG_ID,
+      p_payment_id: ROW_ID,
+    });
   });
 });

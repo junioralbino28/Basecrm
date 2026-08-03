@@ -40,6 +40,8 @@ export const useCommissionRules = () => {
 
 interface CreateCommissionRuleParams {
   professionalId?: string;
+  specialtyId?: string;
+  productId?: string;
   specialty?: string;
   /** Escopo mais específico: casa com o procedimento do atendimento. */
   procedimento?: string;
@@ -77,6 +79,8 @@ export const useCreateCommissionRule = () => {
         id: `temp-${Date.now()}`,
         organizationId: organizationId || undefined,
         professionalId: input.professionalId,
+        specialtyId: input.specialtyId,
+        productId: input.productId,
         specialty: input.specialty,
         procedimento: input.procedimento,
         amountType: tipo,
@@ -103,6 +107,8 @@ export const useCreateCommissionRule = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.commissionRules.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -143,6 +149,8 @@ export const useUpdateCommissionRule = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.commissionRules.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
@@ -177,6 +185,8 @@ export const useDeleteCommissionRule = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.commissionRules.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.commissionRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.netResultRoot });
     },
   });
 };
