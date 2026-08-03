@@ -717,7 +717,9 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
         {
           organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',
           valor: 100, desconto: 0, recebido: true,
-          paid_at: '2026-04-10T12:00:00-03:00', performed_at: '2026-04-10T12:00:00-03:00',
+          // Atendeu antes da nova regra, mas recebeu depois dela: performed_at
+          // continua escolhendo a regra antiga.
+          paid_at: '2026-04-20T12:00:00-03:00', performed_at: '2026-04-10T12:00:00-03:00',
         },
         {
           organization_id: orgAId, professional_id: profId, procedimento: 'Consulta',

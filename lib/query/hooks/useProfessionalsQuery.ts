@@ -27,6 +27,7 @@ export const useProfessionals = () => {
   return useQuery({
     queryKey: [...queryKeys.professionals.lists(), organizationId],
     queryFn: async () => {
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
       const { data, error } = await professionalsService.getAll(organizationId);
       if (error) throw error;
       return data || [];
@@ -63,6 +64,7 @@ export const useCreateProfessional = () => {
 
   return useMutation({
     mutationFn: async (input: CreateProfessionalParams) => {
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
       const { data, error } = await professionalsService.create({
         ...input,
         organizationId,
@@ -121,7 +123,8 @@ export const useUpdateProfessional = () => {
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<{ name: string; specialty?: string; specialtyIds: string[]; role?: string; payType: ProfessionalPayType; fixedAmount: number; active: boolean }> }) => {
-      const { error } = await professionalsService.update(id, updates);
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
+      const { error } = await professionalsService.update(id, updates, organizationId);
       if (error) throw error;
       return { id, updates };
     },
@@ -157,7 +160,8 @@ export const useDeleteProfessional = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await professionalsService.delete(id);
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
+      const { error } = await professionalsService.delete(id, organizationId);
       if (error) throw error;
       return id;
     },

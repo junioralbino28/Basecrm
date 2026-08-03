@@ -27,6 +27,7 @@ export const useCommissionRules = () => {
   return useQuery({
     queryKey: [...queryKeys.commissionRules.lists(), organizationId],
     queryFn: async () => {
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
       const { data, error } = await commissionRulesService.getAll(organizationId);
       if (error) throw error;
       return data || [];
@@ -61,6 +62,7 @@ export const useCreateCommissionRule = () => {
 
   return useMutation({
     mutationFn: async (input: CreateCommissionRuleParams) => {
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
       const { data, error } = await commissionRulesService.create({
         ...input,
         organizationId,
@@ -129,7 +131,8 @@ export const useUpdateCommissionRule = () => {
       id: string;
       updates: Partial<{ professionalId?: string; specialty?: string; percent: number }>;
     }) => {
-      const { error } = await commissionRulesService.update(id, updates);
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
+      const { error } = await commissionRulesService.update(id, updates, organizationId);
       if (error) throw error;
       return { id, updates };
     },
@@ -165,7 +168,8 @@ export const useDeleteCommissionRule = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await commissionRulesService.delete(id);
+      if (!organizationId) throw new Error('Organização ativa não encontrada');
+      const { error } = await commissionRulesService.delete(id, organizationId);
       if (error) throw error;
       return id;
     },

@@ -11,7 +11,7 @@ describe('professionalsService', () => {
   });
 
   it('getAll sem Supabase configurado retorna erro sem lançar', async () => {
-    const res = await professionalsService.getAll(null);
+    const res = await professionalsService.getAll('');
     expect(res).toHaveProperty('data');
     expect(res).toHaveProperty('error');
     expect(Array.isArray(res.data)).toBe(true);

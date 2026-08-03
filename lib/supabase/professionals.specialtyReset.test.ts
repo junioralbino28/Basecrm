@@ -24,6 +24,7 @@ import { professionalsService } from './professionals';
 
 const PRO = '11111111-1111-4111-8111-111111111111';
 const ESP_NOVA = '22222222-2222-4222-8222-222222222222';
+const ORG = '99999999-9999-4999-8999-999999999999';
 
 type Chain = Record<string, unknown>;
 
@@ -65,7 +66,7 @@ describe('professionalsService.update — especialidade que volta limpa as exce�
       }
     });
 
-    const { error } = await professionalsService.update(PRO, { specialtyIds: [ESP_NOVA] });
+    const { error } = await professionalsService.update(PRO, { specialtyIds: [ESP_NOVA] }, ORG);
 
     expect(error).toBeNull();
     expect(chamadas).toContain('professional_product_overrides');
@@ -88,7 +89,7 @@ describe('professionalsService.update — especialidade que volta limpa as exce�
       }
     });
 
-    await professionalsService.update(PRO, { specialtyIds: [ESP_NOVA] });
+    await professionalsService.update(PRO, { specialtyIds: [ESP_NOVA] }, ORG);
 
     expect(chamadas).not.toContain('professional_product_overrides');
     expect(chamadas).not.toContain('specialty_products');
@@ -120,7 +121,7 @@ describe('professionalsService.update — especialidade que SAI limpa as marcaç
       }
     });
 
-    const { error } = await professionalsService.update(PRO, { specialtyIds: [] });
+    const { error } = await professionalsService.update(PRO, { specialtyIds: [] }, ORG);
 
     expect(error).toBeNull();
     expect(overridesDelete.in).toHaveBeenCalledWith('product_id', ['prod-A', 'prod-B']);
@@ -148,7 +149,7 @@ describe('professionalsService.update — especialidade que SAI limpa as marcaç
       }
     });
 
-    const { error } = await professionalsService.update(PRO, { specialtyIds: [ESP_QUE_FICA] });
+    const { error } = await professionalsService.update(PRO, { specialtyIds: [ESP_QUE_FICA] }, ORG);
 
     expect(error).toBeNull();
     // prod-B continua coberto pela que ficou → só prod-A perde a marcação.

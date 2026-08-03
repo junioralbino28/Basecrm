@@ -37,9 +37,11 @@ describeLocal('P3 finance hardening - Supabase local real', () => {
   let organizationB = '';
   let professionalA = '';
   let professionalB = '';
+  let fixedProfessional = '';
   let initialSpecialtyId = '';
   let nextSpecialtyId = '';
   let atendimentoId = '';
+  let fixedAtendimentoId = '';
   let adminUserId = '';
   let clientA: SupabaseClient | null = null;
 
@@ -158,6 +160,74 @@ describeLocal('P3 finance hardening - Supabase local real', () => {
       );
     }
 
+    const fixedProfessionalResult = await admin
+      .from('professionals')
+      .insert({
+        organization_id: organizationA,
+        name: `Profissional Fixo ${unique}`,
+        pay_type: 'fixed',
+        fixed_amount: 1000,
+        active: true,
+      })
+      .select('id')
+      .single();
+    fixedProfessional = requireSupabaseData(
+      fixedProfessionalResult,
+      'insert fixed-only professional P3',
+    ).id;
+
+    assertNoSupabaseError(
+      await admin.from('professional_compensation_versions').insert([
+        {
+          organization_id: organizationA,
+          professional_id: fixedProfessional,
+          pay_type: 'fixed',
+          fixed_amount: 1000,
+          active: true,
+          valid_from: '2020-01-01',
+        },
+        {
+          organization_id: organizationA,
+          professional_id: fixedProfessional,
+          pay_type: 'fixed',
+          fixed_amount: 2000,
+          active: true,
+          valid_from: '2026-06-16',
+        },
+      ]),
+      'insert fixed-only compensation version P3',
+    );
+    assertNoSupabaseError(
+      await admin.from('commission_rules').insert({
+        organization_id: organizationA,
+        professional_id: fixedProfessional,
+        amount_type: 'percent',
+        amount: 20,
+        percent: 20,
+        valid_from: '2020-01-01',
+      }),
+      'insert fixed-only commission rule P3',
+    );
+    const fixedAtendimento = await admin
+      .from('atendimentos')
+      .insert({
+        organization_id: organizationA,
+        professional_id: fixedProfessional,
+        procedimento: `Serviço fixo P3 ${unique}`,
+        valor: 1000,
+        desconto: 0,
+        installments: 1,
+        recebido: false,
+        paid_at: null,
+        performed_at: PERFORMED_AT,
+      })
+      .select('id')
+      .single();
+    fixedAtendimentoId = requireSupabaseData(
+      fixedAtendimento,
+      'insert fixed-only atendimento P3',
+    ).id;
+
     const email = `p3.finance.${unique}@example.com`;
     const created = await admin.auth.admin.createUser({
       email,
@@ -274,6 +344,104 @@ describeLocal('P3 finance hardening - Supabase local real', () => {
     expect(divergent.error).not.toBeNull();
     expect(divergent.error?.code).toBe('23505');
     expect(divergent.error?.message).toContain('payload diferente');
+  });
+
+  it('serializa pagamentos concorrentes e impede ultrapassar o saldo', async () => {
+    if (!admin) throw new Error('Admin Supabase não inicializado');
+    const client = requireClient();
+    const existing = await admin
+      .from('commission_payments')
+      .select('amount')
+      .eq('organization_id', organizationA)
+      .eq('professional_id', professionalA)
+      .eq('period', PERIOD);
+    expect(existing.error).toBeNull();
+
+    const alreadyPaid = (existing.data ?? []).reduce(
+      (total, row) => total + Number(row.amount),
+      0,
+    );
+    const remaining = 200 - alreadyPaid;
+    expect(remaining).toBeGreaterThan(0);
+
+    const overpay = await client.rpc('record_commission_payment', {
+      p_organization_id: organizationA,
+      p_professional_id: professionalA,
+      p_amount: remaining + 1,
+      p_period: PERIOD,
+      p_paid_at: '2026-06-22T09:00:00-03:00',
+      p_idempotency_key: randomUUID(),
+    });
+    expect(overpay.data).toBeNull();
+    expect(overpay.error?.code).toBe('23514');
+
+    const keys = [randomUUID(), randomUUID()];
+    const attempts = await Promise.all(keys.map((key) => client.rpc(
+      'record_commission_payment',
+      {
+        p_organization_id: organizationA,
+        p_professional_id: professionalA,
+        p_amount: remaining,
+        p_period: PERIOD,
+        p_paid_at: '2026-06-22T09:00:00-03:00',
+        p_idempotency_key: key,
+      },
+    )));
+
+    const succeeded = attempts.filter((attempt) => attempt.error === null);
+    const rejected = attempts.filter((attempt) => attempt.error !== null);
+    expect(succeeded).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].error?.code).toBe('23514');
+
+    const persisted = await admin
+      .from('commission_payments')
+      .select('id, amount, idempotency_key')
+      .eq('organization_id', organizationA)
+      .in('idempotency_key', keys);
+    expect(persisted.error).toBeNull();
+    expect(persisted.data).toHaveLength(1);
+    expect(Number(persisted.data?.[0]?.amount)).toBe(remaining);
+
+    const paymentId = persisted.data?.[0]?.id;
+    if (!paymentId) throw new Error('Pagamento concorrente persistido não retornou id');
+    const removed = await client.rpc('delete_commission_payment', {
+      p_organization_id: organizationA,
+      p_payment_id: paymentId,
+    });
+    expect(removed.error).toBeNull();
+  });
+
+  it('não gera comissão para colaborador somente fixo', async () => {
+    if (!admin) throw new Error('Admin Supabase não inicializado');
+
+    const snapshot = await admin
+      .from('atendimentos')
+      .select('commission_amount')
+      .eq('id', fixedAtendimentoId)
+      .single();
+    expect(snapshot.error).toBeNull();
+    expect(Number(snapshot.data?.commission_amount)).toBe(0);
+
+    const report = await requireClient().rpc('get_commission_report', {
+      p_start: '2026-06-01T00:00:00-03:00',
+      p_end: '2026-06-30T23:59:59.999-03:00',
+    });
+    expect(report.error).toBeNull();
+    const rows = (report.data as {
+      por_profissional: Array<{
+        professional_id: string;
+        comissao: number;
+        fixed_amount: number;
+        remuneracao_total: number;
+      }>;
+    }).por_profissional;
+    const fixedRow = rows.find((row) => row.professional_id === fixedProfessional);
+    expect(fixedRow).toBeDefined();
+    expect(Number(fixedRow?.comissao)).toBe(0);
+    // 01–15/06: 15 × 1000/30; 16–30/06: 15 × 2000/30.
+    expect(Number(fixedRow?.fixed_amount)).toBe(1500);
+    expect(Number(fixedRow?.remuneracao_total)).toBe(1500);
   });
 
   it('nega INSERT direto autenticado em commission_payments', async () => {

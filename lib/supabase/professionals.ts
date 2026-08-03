@@ -12,34 +12,6 @@ import { supabase } from './client';
 import { Professional } from '@/types';
 import { sanitizeUUID } from './utils';
 
-// =============================================================================
-// Organization inference (client-side, RLS-safe)
-// =============================================================================
-let cachedOrgId: string | null = null;
-let cachedOrgUserId: string | null = null;
-
-async function getCurrentOrganizationId(): Promise<string | null> {
-  if (!supabase) return null;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  if (cachedOrgUserId === user.id && cachedOrgId) return cachedOrgId;
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error) return null;
-
-  const orgId = sanitizeUUID((profile as any)?.organization_id);
-  cachedOrgUserId = user.id;
-  cachedOrgId = orgId;
-  return orgId;
-}
-
 type DbProfessional = {
   id: string;
   organization_id: string | null;
@@ -119,20 +91,25 @@ function transformProfessional(db: DbProfessional): Professional {
  */
 async function syncSpecialtiesLegacy(
   professionalId: string,
-  organizationId: string | null,
+  organizationId: string,
   specialtyIds: string[],
 ): Promise<{ mirror: string | null; error: Error | null }> {
   if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
 
   const ids = [...new Set(specialtyIds.map((id) => sanitizeUUID(id)).filter(Boolean))] as string[];
   const proId = sanitizeUUID(professionalId);
+  const orgId = sanitizeUUID(organizationId);
+  if (!proId || !orgId) {
+    return { mirror: null, error: new Error('Organização ou profissional inválido') };
+  }
 
   // Lê o que já existe pra saber o que ENTROU — sem isso não dá pra distinguir
   // "especialidade nova" de "especialidade que já estava lá".
   const { data: atuais, error: atuaisError } = await supabase
     .from('professional_specialties')
     .select('specialty_id')
-    .eq('professional_id', proId);
+    .eq('professional_id', proId)
+    .eq('organization_id', orgId);
   if (atuaisError) return { mirror: null, error: atuaisError };
 
   const antes = new Set((atuais || []).map((r) => String((r as { specialty_id: string }).specialty_id)));
@@ -144,6 +121,7 @@ async function syncSpecialtiesLegacy(
       .from('professional_specialties')
       .delete()
       .eq('professional_id', proId)
+      .eq('organization_id', orgId)
       .in('specialty_id', sairam);
     if (error) return { mirror: null, error };
 
@@ -154,6 +132,7 @@ async function syncSpecialtiesLegacy(
     const { data: procsDaQueSaiu } = await supabase
       .from('specialty_products')
       .select('product_id')
+      .eq('organization_id', orgId)
       .in('specialty_id', sairam);
     const candidatos = [...new Set((procsDaQueSaiu || [])
       .map((r) => String((r as { product_id: string }).product_id)))];
@@ -164,6 +143,7 @@ async function syncSpecialtiesLegacy(
         const { data: procsQueFicam } = await supabase
           .from('specialty_products')
           .select('product_id')
+          .eq('organization_id', orgId)
           .in('specialty_id', ids);
         cobertos = new Set((procsQueFicam || [])
           .map((r) => String((r as { product_id: string }).product_id)));
@@ -174,6 +154,7 @@ async function syncSpecialtiesLegacy(
           .from('professional_product_overrides')
           .delete()
           .eq('professional_id', proId)
+          .eq('organization_id', orgId)
           .in('product_id', alvosDaSaida);
       }
     }
@@ -185,7 +166,7 @@ async function syncSpecialtiesLegacy(
       .insert(entraram.map((specialty_id) => ({
         professional_id: proId,
         specialty_id,
-        organization_id: organizationId,
+        organization_id: orgId,
       })));
     if (error) return { mirror: null, error };
 
@@ -194,6 +175,7 @@ async function syncSpecialtiesLegacy(
     const { data: procedimentos } = await supabase
       .from('specialty_products')
       .select('product_id')
+      .eq('organization_id', orgId)
       .in('specialty_id', entraram);
     const alvos = [...new Set((procedimentos || [])
       .map((r) => String((r as { product_id: string }).product_id)))];
@@ -202,6 +184,7 @@ async function syncSpecialtiesLegacy(
         .from('professional_product_overrides')
         .delete()
         .eq('professional_id', proId)
+        .eq('organization_id', orgId)
         .in('product_id', alvos);
     }
   }
@@ -211,6 +194,7 @@ async function syncSpecialtiesLegacy(
   const { data: nomes, error: nomesError } = await supabase
     .from('specialties')
     .select('id, name')
+    .eq('organization_id', orgId)
     .in('id', ids);
   if (nomesError) return { mirror: null, error: nomesError };
 
@@ -223,7 +207,7 @@ async function syncSpecialtiesLegacy(
 
 async function syncSpecialties(
   professionalId: string,
-  organizationId: string | null,
+  organizationId: string,
   specialtyIds: string[],
 ): Promise<{ mirror: string | null; error: Error | null }> {
   if (!supabase) return { mirror: null, error: new Error('Supabase não configurado') };
@@ -249,18 +233,17 @@ async function syncSpecialties(
 void syncSpecialtiesLegacy;
 
 export const professionalsService = {
-  async getAll(organizationId?: string | null): Promise<{ data: Professional[]; error: Error | null }> {
+  async getAll(organizationId: string): Promise<{ data: Professional[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
+      const orgId = sanitizeUUID(organizationId);
+      if (!orgId) return { data: [], error: new Error('Organização inválida') };
 
-      let query = supabase
+      const query = supabase
         .from('professionals')
         .select(SELECT_COLUMNS)
+        .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
-
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-      }
 
       const { data, error } = await query;
 
@@ -273,19 +256,18 @@ export const professionalsService = {
     }
   },
 
-  async getActive(organizationId?: string | null): Promise<{ data: Professional[]; error: Error | null }> {
+  async getActive(organizationId: string): Promise<{ data: Professional[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
+      const orgId = sanitizeUUID(organizationId);
+      if (!orgId) return { data: [], error: new Error('Organização inválida') };
 
-      let query = supabase
+      const query = supabase
         .from('professionals')
         .select(SELECT_COLUMNS)
+        .eq('organization_id', orgId)
         .eq('active', true)
         .order('created_at', { ascending: false });
-
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-      }
 
       const { data, error } = await query;
 
@@ -306,13 +288,14 @@ export const professionalsService = {
     payType?: 'fixed' | 'commission' | 'both';
     fixedAmount?: number;
     active?: boolean;
-    organizationId?: string | null;
+    organizationId: string;
   }): Promise<{ data: Professional | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
+      const organizationId = sanitizeUUID(input.organizationId);
+      if (!organizationId) return { data: null, error: new Error('Organização inválida') };
 
       const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = sanitizeUUID(input.organizationId) || await getCurrentOrganizationId();
 
       const { data, error } = await supabase
         .from('professionals')
@@ -343,10 +326,18 @@ export const professionalsService = {
         // especialidades — devolve o erro pra tela avisar e ele reeditar.
         if (syncError) return { data: criado, error: syncError };
         if (mirror) {
-          await supabase.from('professionals').update({ specialty: mirror }).eq('id', criado.id);
+          await supabase
+            .from('professionals')
+            .update({ specialty: mirror })
+            .eq('id', criado.id)
+            .eq('organization_id', organizationId);
         }
         const { data: recarregado } = await supabase
-          .from('professionals').select(SELECT_COLUMNS).eq('id', criado.id).single();
+          .from('professionals')
+          .select(SELECT_COLUMNS)
+          .eq('id', criado.id)
+          .eq('organization_id', organizationId)
+          .single();
         if (recarregado) return { data: transformProfessional(recarregado as DbProfessional), error: null };
       }
 
@@ -364,9 +355,12 @@ export const professionalsService = {
     payType: 'fixed' | 'commission' | 'both';
     fixedAmount: number;
     active: boolean;
-  }>): Promise<{ error: Error | null }> {
+  }>, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
+      const proId = sanitizeUUID(id);
+      const orgId = sanitizeUUID(organizationId);
+      if (!proId || !orgId) return { error: new Error('Organização ou profissional inválido') };
 
       const payload: Record<string, unknown> = {};
       if (updates.name !== undefined) payload.name = updates.name;
@@ -379,11 +373,9 @@ export const professionalsService = {
 
       // As especialidades vêm antes: o espelho legado sai delas.
       if (updates.specialtyIds !== undefined) {
-        const { data: atual } = await supabase
-          .from('professionals').select('organization_id').eq('id', sanitizeUUID(id)).single();
         const { mirror, error: syncError } = await syncSpecialties(
-          id,
-          (atual as { organization_id: string | null } | null)?.organization_id ?? null,
+          proId,
+          orgId,
           updates.specialtyIds,
         );
         if (syncError) return { error: syncError };
@@ -393,7 +385,8 @@ export const professionalsService = {
       const { error } = await supabase
         .from('professionals')
         .update(payload)
-        .eq('id', sanitizeUUID(id));
+        .eq('id', proId)
+        .eq('organization_id', orgId);
 
       return { error: error ?? null };
     } catch (e) {
@@ -401,13 +394,17 @@ export const professionalsService = {
     }
   },
 
-  async delete(id: string): Promise<{ error: Error | null }> {
+  async delete(id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
+      const proId = sanitizeUUID(id);
+      const orgId = sanitizeUUID(organizationId);
+      if (!proId || !orgId) return { error: new Error('Organização ou profissional inválido') };
       const { error } = await supabase
         .from('professionals')
         .delete()
-        .eq('id', sanitizeUUID(id));
+        .eq('id', proId)
+        .eq('organization_id', orgId);
 
       return { error: error ?? null };
     } catch (e) {

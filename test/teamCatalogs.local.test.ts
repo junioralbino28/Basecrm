@@ -135,4 +135,73 @@ describeLocal('Catálogos da equipe — cargo e especialidade no Supabase local'
       .insert({ organization_id: organizationB, name: `Invasor ${runId}` });
     expect(invasao.error).not.toBeNull();
   });
+
+  it('arquiva especialidade e bloqueia DELETE direto sem perder vínculos', async (ctx) => {
+    if (!admin) return ctx.skip();
+
+    const especialidade = await admin
+      .from('specialties')
+      .insert({ organization_id: organizationA, name: `Arquivo ${runId}` })
+      .select('id')
+      .single();
+    if (especialidade.error) throw especialidade.error;
+
+    const profissional = await admin
+      .from('professionals')
+      .insert({ organization_id: organizationA, name: `Arquivo ${runId}`, active: true })
+      .select('id')
+      .single();
+    if (profissional.error) throw profissional.error;
+
+    const produto = await admin
+      .from('products')
+      .insert({ organization_id: organizationA, name: `Arquivo ${runId}`, price: 100 })
+      .select('id')
+      .single();
+    if (produto.error) throw produto.error;
+
+    const specialtyId = especialidade.data.id;
+    const professionalId = profissional.data.id;
+    const productId = produto.data.id;
+    const links = await admin.from('professional_specialties').insert({
+      organization_id: organizationA,
+      professional_id: professionalId,
+      specialty_id: specialtyId,
+    });
+    if (links.error) throw links.error;
+    const products = await admin.from('specialty_products').insert({
+      organization_id: organizationA,
+      specialty_id: specialtyId,
+      product_id: productId,
+    });
+    if (products.error) throw products.error;
+
+    const hardDelete = await clinicAdmin.client
+      .from('specialties')
+      .delete()
+      .eq('id', specialtyId);
+    expect(hardDelete.error?.code).toBe('42501');
+
+    const archive = await clinicAdmin.client
+      .from('specialties')
+      .update({ active: false })
+      .eq('id', specialtyId)
+      .select('id, active')
+      .single();
+    expect(archive.error).toBeNull();
+    expect(archive.data?.active).toBe(false);
+
+    const professionalLinks = await admin
+      .from('professional_specialties')
+      .select('id', { count: 'exact', head: true })
+      .eq('professional_id', professionalId)
+      .eq('specialty_id', specialtyId);
+    const productLinks = await admin
+      .from('specialty_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('specialty_id', specialtyId)
+      .eq('product_id', productId);
+    expect(professionalLinks.count).toBe(1);
+    expect(productLinks.count).toBe(1);
+  });
 });

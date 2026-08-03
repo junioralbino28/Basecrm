@@ -12,34 +12,6 @@ import { supabase } from './client';
 import { CommissionRule } from '@/types';
 import { sanitizeUUID } from './utils';
 
-// =============================================================================
-// Organization inference (client-side, RLS-safe)
-// =============================================================================
-let cachedOrgId: string | null = null;
-let cachedOrgUserId: string | null = null;
-
-async function getCurrentOrganizationId(): Promise<string | null> {
-  if (!supabase) return null;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  if (cachedOrgUserId === user.id && cachedOrgId) return cachedOrgId;
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  if (error) return null;
-
-  const orgId = sanitizeUUID((profile as any)?.organization_id);
-  cachedOrgUserId = user.id;
-  cachedOrgId = orgId;
-  return orgId;
-}
-
 const COLUMNS =
   'id, organization_id, professional_id, specialty_id, product_id, specialty, procedimento, amount_type, amount, valid_from, percent, owner_id, created_at, updated_at';
 
@@ -77,18 +49,17 @@ function transformCommissionRule(db: DbCommissionRule): CommissionRule {
 }
 
 export const commissionRulesService = {
-  async getAll(organizationId?: string | null): Promise<{ data: CommissionRule[]; error: Error | null }> {
+  async getAll(organizationId: string): Promise<{ data: CommissionRule[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
+      const orgId = sanitizeUUID(organizationId);
+      if (!orgId) return { data: [], error: new Error('Organização inválida') };
 
-      let query = supabase
+      const query = supabase
         .from('commission_rules')
         .select(COLUMNS)
+        .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
-
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-      }
 
       const { data, error } = await query;
 
@@ -113,13 +84,14 @@ export const commissionRulesService = {
     percent?: number;
     /** Dia em que passa a valer. Padrão: HOJE (decisão do Junior, 24/07). */
     validFrom?: string;
-    organizationId?: string | null;
+    organizationId: string;
   }): Promise<{ data: CommissionRule | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
+      const organizationId = sanitizeUUID(input.organizationId);
+      if (!organizationId) return { data: null, error: new Error('Organização inválida') };
 
       const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = sanitizeUUID(input.organizationId) || await getCurrentOrganizationId();
 
       const { data, error } = await supabase
         .from('commission_rules')
@@ -152,10 +124,14 @@ export const commissionRulesService = {
 
   async update(
     id: string,
-    updates: Partial<{ professionalId?: string; specialty?: string; percent: number }>
+    updates: Partial<{ professionalId?: string; specialty?: string; percent: number }>,
+    organizationId: string,
   ): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
+      const ruleId = sanitizeUUID(id);
+      const orgId = sanitizeUUID(organizationId);
+      if (!ruleId || !orgId) return { error: new Error('Organização ou regra inválida') };
 
       // Edição parcial: SÓ os campos explicitamente enviados entram no payload.
       const payload: Record<string, unknown> = {};
@@ -167,7 +143,8 @@ export const commissionRulesService = {
       const { error } = await supabase
         .from('commission_rules')
         .update(payload)
-        .eq('id', sanitizeUUID(id));
+        .eq('id', ruleId)
+        .eq('organization_id', orgId);
 
       return { error: error ?? null };
     } catch (e) {
@@ -175,13 +152,17 @@ export const commissionRulesService = {
     }
   },
 
-  async delete(id: string): Promise<{ error: Error | null }> {
+  async delete(id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
+      const ruleId = sanitizeUUID(id);
+      const orgId = sanitizeUUID(organizationId);
+      if (!ruleId || !orgId) return { error: new Error('Organização ou regra inválida') };
       const { error } = await supabase
         .from('commission_rules')
         .delete()
-        .eq('id', sanitizeUUID(id));
+        .eq('id', ruleId)
+        .eq('organization_id', orgId);
 
       return { error: error ?? null };
     } catch (e) {
