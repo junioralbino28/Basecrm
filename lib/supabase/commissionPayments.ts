@@ -99,12 +99,13 @@ export const commissionPaymentsService = {
    * Pagamentos de um mês de competência. Existe pro DESFAZER: pra apagar o
    * último pagamento é preciso saber quais são e qual foi o último.
    */
-  async listByPeriod(period: string): Promise<{ data: CommissionPayment[]; error: Error | null }> {
+  async listByPeriod(period: string, organizationId: string): Promise<{ data: CommissionPayment[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
       const { data, error } = await supabase
         .from('commission_payments')
         .select(COLUMNS)
+        .eq('organization_id', organizationId)
         .eq('period', period)
         .order('paid_at', { ascending: false });
       if (error) return { data: [], error };
@@ -161,26 +162,28 @@ export const commissionPaymentsService = {
    * uma comissão de julho paga em 5 de agosto continua sendo de julho, senão o
    * fechamento do mês mudaria sozinho ao corrigir uma data.
    */
-  async updatePaidAt(id: string, paidAt: string): Promise<{ error: Error | null }> {
+  async updatePaidAt(id: string, paidAt: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
       const { error } = await supabase
         .from('commission_payments')
         .update({ paid_at: paidAt, updated_at: new Date().toISOString() })
-        .eq('id', sanitizeUUID(id));
+        .eq('id', sanitizeUUID(id))
+        .eq('organization_id', organizationId);
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };
     }
   },
 
-  async delete(id: string): Promise<{ error: Error | null }> {
+  async delete(id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
       const { error } = await supabase
         .from('commission_payments')
         .delete()
-        .eq('id', sanitizeUUID(id));
+        .eq('id', sanitizeUUID(id))
+        .eq('organization_id', organizationId);
 
       return { error: error ?? null };
     } catch (e) {

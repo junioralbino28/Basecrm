@@ -3,6 +3,7 @@ import { useProducts } from '@/lib/query/hooks/useProductsQuery';
 import { specialtyProductsService } from '@/lib/supabase/specialtyProducts';
 import { formatBRL } from '@/lib/utils';
 import { AcoesEmMassa } from './AcoesEmMassa';
+import { useTenant } from '@/context/TenantContext';
 
 /**
  * Quais procedimentos cabem nesta especialidade.
@@ -15,6 +16,8 @@ import { AcoesEmMassa } from './AcoesEmMassa';
  * todas), então isto NÃO é exclusivo.
  */
 export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ specialtyId }) => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || '';
   const { data: produtosData, isLoading: carregandoProdutos } = useProducts();
   const produtos = React.useMemo(() => produtosData ?? [], [produtosData]);
 
@@ -27,7 +30,8 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
   React.useEffect(() => {
     let vivo = true;
     setCarregando(true);
-    void specialtyProductsService.list().then(({ data, error }) => {
+    if (!organizationId) return;
+    void specialtyProductsService.list(organizationId).then(({ data, error }) => {
       if (!vivo) return;
       if (error) setErro(error.message);
       else {
@@ -37,7 +41,7 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       setCarregando(false);
     });
     return () => { vivo = false; };
-  }, [specialtyId]);
+  }, [specialtyId, organizationId]);
 
   const alternar = async (productId: string) => {
     const marcado = marcados.has(productId);
@@ -49,7 +53,8 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       return proximo;
     });
     setSalvando(productId);
-    const { error } = await specialtyProductsService.set(specialtyId, productId, !marcado);
+    if (!organizationId) return;
+    const { error } = await specialtyProductsService.set(specialtyId, productId, !marcado, organizationId);
     setSalvando(null);
     if (error) {
       setErro(error.message);
@@ -82,7 +87,7 @@ export const SpecialtyProductsPicker: React.FC<{ specialtyId: string }> = ({ spe
       return proximo;
     });
     for (const p of alvos) {
-      const { error } = await specialtyProductsService.set(specialtyId, p.id, marcar);
+      const { error } = await specialtyProductsService.set(specialtyId, p.id, marcar, organizationId);
       if (error) { setErro(error.message); break; }
     }
   };

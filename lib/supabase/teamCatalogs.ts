@@ -31,25 +31,14 @@ function transform(db: Record<string, unknown>): TeamCatalogItem {
   };
 }
 
-async function currentOrganizationId(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-  return (data?.organization_id as string) || null;
-}
-
 export const teamCatalogsService = {
-  async list(kind: TeamCatalogKind): Promise<{ data: TeamCatalogItem[]; error: Error | null }> {
+  async list(kind: TeamCatalogKind, organizationId: string): Promise<{ data: TeamCatalogItem[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
       const { data, error } = await supabase
         .from(kind)
         .select(COLUMNS)
+        .eq('organization_id', organizationId)
         .order('name', { ascending: true });
       if (error) return { data: [], error };
       return { data: (data || []).map((row) => transform(row as Record<string, unknown>)), error: null };
@@ -61,17 +50,16 @@ export const teamCatalogsService = {
   async create(
     kind: TeamCatalogKind,
     name: string,
-    organizationId?: string | null,
+    organizationId: string,
   ): Promise<{ data: TeamCatalogItem | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
-      const orgId = organizationId || await currentOrganizationId();
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from(kind)
         .insert({
           name: name.trim(),
-          organization_id: orgId,
+          organization_id: organizationId,
           owner_id: user?.id ?? null,
         })
         .select(COLUMNS)
@@ -94,23 +82,27 @@ export const teamCatalogsService = {
     kind: TeamCatalogKind,
     id: string,
     name: string,
+    organizationId: string,
   ): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
       const { error } = await supabase
         .from(kind)
         .update({ name: name.trim(), updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('organization_id', organizationId);
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };
     }
   },
 
-  async remove(kind: TeamCatalogKind, id: string): Promise<{ error: Error | null }> {
+  async remove(kind: TeamCatalogKind, id: string, organizationId: string): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
-      const { error } = await supabase.from(kind).delete().eq('id', id);
+      const { error } = await supabase.from(kind).delete()
+        .eq('id', id)
+        .eq('organization_id', organizationId);
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };

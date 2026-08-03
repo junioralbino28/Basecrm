@@ -11,6 +11,7 @@ import {
   useDeleteProfessional,
 } from '@/lib/query/hooks/useProfessionalsQuery';
 import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
+import { useTenant } from '@/context/TenantContext';
 
 /**
  * Escolha de VÁRIAS especialidades (Junior, 2026-07-27: "pode colocar mais de uma
@@ -66,6 +67,8 @@ const SeletorEspecialidades: React.FC<{
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const ProfessionalsManager: React.FC = () => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || '';
   const { data, isLoading, error } = useProfessionals();
   const createMutation = useCreateProfessional();
   const updateMutation = useUpdateProfessional();
@@ -101,9 +104,10 @@ export const ProfessionalsManager: React.FC = () => {
   const [cargos, setCargos] = useState<TeamCatalogItem[]>([]);
   const [especialidades, setEspecialidades] = useState<TeamCatalogItem[]>([]);
   useEffect(() => {
-    void teamCatalogsService.list('job_roles').then(({ data }) => setCargos(data));
-    void teamCatalogsService.list('specialties').then(({ data }) => setEspecialidades(data));
-  }, []);
+    if (!organizationId) return;
+    void teamCatalogsService.list('job_roles', organizationId).then(({ data }) => setCargos(data));
+    void teamCatalogsService.list('specialties', organizationId).then(({ data }) => setEspecialidades(data));
+  }, [organizationId]);
 
   // Agrupado por CARGO (decisão do Junior, 24/07): as secretárias juntas, os
   // dentistas juntos, os vendedores juntos. Inativos vão pro fim de cada grupo.

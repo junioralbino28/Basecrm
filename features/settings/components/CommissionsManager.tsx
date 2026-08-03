@@ -17,6 +17,7 @@ import {
   type SpecialtyProductLink,
 } from '@/lib/supabase/specialtyProducts';
 import { mascararMoedaBR, paraNumeroBR, paraCampoMoedaBR } from '@/lib/utils/moedaBR';
+import { useTenant } from '@/context/TenantContext';
 
 /**
  * Comissão por funcionário × procedimento (config financeira). Só
@@ -44,6 +45,8 @@ export const CommissionsManager: React.FC<{
   /** Fixa a pessoa e esconde o seletor — usado dentro da ficha do funcionário. */
   professionalId?: string;
 }> = ({ professionalId }) => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || '';
   const { data, isLoading, error } = useCommissionRules();
   const { data: professionalsData, isLoading: professionalsLoading } = useProfessionals();
   // A comissão é POR PROCEDIMENTO (Junior, 24/07) — a lista vem do catálogo em
@@ -110,18 +113,20 @@ export const CommissionsManager: React.FC<{
   }, [rules]);
 
   React.useEffect(() => {
-    void specialtyProductsService.list().then(({ data }) => setVinculos(data));
-  }, []);
+    if (!organizationId) return;
+    void specialtyProductsService.list(organizationId).then(({ data }) => setVinculos(data));
+  }, [organizationId]);
 
   React.useEffect(() => {
     if (!selectedId) { setExcecoes({}); return; }
     let vivo = true;
-    void professionalProductsService.listOverrides(selectedId).then(({ data }) => {
+    if (!organizationId) return;
+    void professionalProductsService.listOverrides(selectedId, organizationId).then(({ data }) => {
       if (!vivo) return;
       setExcecoes(Object.fromEntries(data.map((o) => [o.productId, o.enabled])));
     });
     return () => { vivo = false; };
-  }, [selectedId]);
+  }, [selectedId, organizationId]);
 
   const especialidadesDaPessoa = useMemo(
     () => new Set(selected?.specialtyIds ?? []),
@@ -151,7 +156,7 @@ export const CommissionsManager: React.FC<{
       return copia;
     });
     const { error } = await professionalProductsService.set(
-      selectedId, productId, proximo, padrao,
+      selectedId, productId, proximo, padrao, organizationId,
     );
     if (error) showToast(`Não deu pra salvar: ${error.message}`, 'error');
   };
@@ -174,7 +179,7 @@ export const CommissionsManager: React.FC<{
     });
     for (const prod of alvos) {
       const { error } = await professionalProductsService.set(
-        selectedId, prod.id, ligar, vemDaEspecialidade(prod.id),
+        selectedId, prod.id, ligar, vemDaEspecialidade(prod.id), organizationId,
       );
       if (error) { showToast(`Não deu pra salvar: ${error.message}`, 'error'); break; }
     }
@@ -188,7 +193,7 @@ export const CommissionsManager: React.FC<{
     for (const productId of comExcecao) {
       const padrao = vemDaEspecialidade(productId);
       const { error } = await professionalProductsService.set(
-        selectedId, productId, padrao, padrao,
+        selectedId, productId, padrao, padrao, organizationId,
       );
       if (error) { showToast(`Não deu pra restaurar: ${error.message}`, 'error'); break; }
     }

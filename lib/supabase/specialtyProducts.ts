@@ -19,23 +19,15 @@ import { supabase } from './client';
 export type SpecialtyProductLink = { specialtyId: string; productId: string };
 export type ProfessionalProductOverride = { productId: string; enabled: boolean };
 
-async function currentOrganizationId(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from('profiles').select('organization_id').eq('id', user.id).single();
-  return (data?.organization_id as string) || null;
-}
-
 export const specialtyProductsService = {
   /** Todos os vínculos da clínica — a tela agrupa por especialidade. */
-  async list(): Promise<{ data: SpecialtyProductLink[]; error: Error | null }> {
+  async list(organizationId: string): Promise<{ data: SpecialtyProductLink[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
       const { data, error } = await supabase
         .from('specialty_products')
-        .select('specialty_id, product_id');
+        .select('specialty_id, product_id')
+        .eq('organization_id', organizationId);
       if (error) return { data: [], error };
       return {
         data: (data || []).map((r) => ({
@@ -54,6 +46,7 @@ export const specialtyProductsService = {
     specialtyId: string,
     productId: string,
     marcado: boolean,
+    organizationId: string,
   ): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
@@ -61,14 +54,14 @@ export const specialtyProductsService = {
         const { error } = await supabase
           .from('specialty_products')
           .delete()
+          .eq('organization_id', organizationId)
           .eq('specialty_id', specialtyId)
           .eq('product_id', productId);
         return { error: error ?? null };
       }
-      const orgId = await currentOrganizationId();
       const { error } = await supabase
         .from('specialty_products')
-        .insert({ specialty_id: specialtyId, product_id: productId, organization_id: orgId });
+        .insert({ specialty_id: specialtyId, product_id: productId, organization_id: organizationId });
       return { error: error ?? null };
     } catch (e) {
       return { error: e as Error };
@@ -80,12 +73,14 @@ export const professionalProductsService = {
   /** Exceções de uma pessoa. Sem linha = vale o que a especialidade diz. */
   async listOverrides(
     professionalId: string,
+    organizationId: string,
   ): Promise<{ data: ProfessionalProductOverride[]; error: Error | null }> {
     try {
       if (!supabase) return { data: [], error: new Error('Supabase não configurado') };
       const { data, error } = await supabase
         .from('professional_product_overrides')
         .select('product_id, enabled')
+        .eq('organization_id', organizationId)
         .eq('professional_id', professionalId);
       if (error) return { data: [], error };
       return {
@@ -111,6 +106,7 @@ export const professionalProductsService = {
     productId: string,
     faz: boolean,
     vemDaEspecialidade: boolean,
+    organizationId: string,
   ): Promise<{ error: Error | null }> {
     try {
       if (!supabase) return { error: new Error('Supabase não configurado') };
@@ -118,11 +114,11 @@ export const professionalProductsService = {
         const { error } = await supabase
           .from('professional_product_overrides')
           .delete()
+          .eq('organization_id', organizationId)
           .eq('professional_id', professionalId)
           .eq('product_id', productId);
         return { error: error ?? null };
       }
-      const orgId = await currentOrganizationId();
       const { error } = await supabase
         .from('professional_product_overrides')
         .upsert(
@@ -130,7 +126,7 @@ export const professionalProductsService = {
             professional_id: professionalId,
             product_id: productId,
             enabled: faz,
-            organization_id: orgId,
+            organization_id: organizationId,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'professional_id,product_id' },

@@ -60,7 +60,8 @@ export const useCommissionPaymentsByPeriod = (period: string) => {
     queryKey: [...queryKeys.commissionPayments.lists(), organizationId, period],
     enabled: Boolean(period),
     queryFn: async () => {
-      const { data, error } = await commissionPaymentsService.listByPeriod(period);
+      if (!organizationId) throw new Error('Organização ativa não definida.');
+      const { data, error } = await commissionPaymentsService.listByPeriod(period, organizationId);
       if (error) throw error;
       return data;
     },
@@ -71,10 +72,13 @@ export const useCommissionPaymentsByPeriod = (period: string) => {
 /** Apaga um pagamento lançado por engano (o "desfazer" da tela). */
 export const useDeleteCommissionPayment = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await commissionPaymentsService.delete(id);
+      if (!organizationId) throw new Error('Organização ativa não definida.');
+      const { error } = await commissionPaymentsService.delete(id, organizationId);
       if (error) throw error;
       return id;
     },
@@ -88,10 +92,13 @@ export const useDeleteCommissionPayment = () => {
 /** Corrige a data de um pagamento já lançado (só `paid_at`, nunca a competência). */
 export const useUpdateCommissionPaymentDate = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || null;
 
   return useMutation({
     mutationFn: async ({ id, paidAt }: { id: string; paidAt: string }) => {
-      const { error } = await commissionPaymentsService.updatePaidAt(id, paidAt);
+      if (!organizationId) throw new Error('Organização ativa não definida.');
+      const { error } = await commissionPaymentsService.updatePaidAt(id, paidAt, organizationId);
       if (error) throw error;
       return id;
     },

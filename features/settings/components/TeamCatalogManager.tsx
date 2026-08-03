@@ -5,6 +5,7 @@ import {
   type TeamCatalogItem,
   type TeamCatalogKind,
 } from '@/lib/supabase/teamCatalogs';
+import { useTenant } from '@/context/TenantContext';
 
 type Props = {
   kind: TeamCatalogKind;
@@ -41,6 +42,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
   kind, titulo, descricao, singular, placeholder, avisoExclusao,
   renderDetalhe, rotuloDetalhe,
 }) => {
+  const { tenant } = useTenant();
+  const organizationId = tenant?.organizationId || '';
   const [itens, setItens] = React.useState<TeamCatalogItem[]>([]);
   const [carregando, setCarregando] = React.useState(true);
   const [erro, setErro] = React.useState<string | null>(null);
@@ -52,11 +55,12 @@ export const TeamCatalogManager: React.FC<Props> = ({
 
   const carregar = React.useCallback(async () => {
     setCarregando(true);
-    const { data, error } = await teamCatalogsService.list(kind);
+    if (!organizationId) return;
+    const { data, error } = await teamCatalogsService.list(kind, organizationId);
     if (error) setErro(error.message);
     else { setItens(data); setErro(null); }
     setCarregando(false);
-  }, [kind]);
+  }, [kind, organizationId]);
 
   React.useEffect(() => { void carregar(); }, [carregar]);
 
@@ -64,7 +68,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
     const nome = novo.trim();
     if (nome.length < 2) return;
     setOcupado(true);
-    const { error } = await teamCatalogsService.create(kind, nome);
+    if (!organizationId) return;
+    const { error } = await teamCatalogsService.create(kind, nome, organizationId);
     setOcupado(false);
     if (error) { setErro(error.message); return; }
     setNovo('');
@@ -77,7 +82,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
     const nome = editNome.trim();
     if (nome.length < 2) { setErro('Nome muito curto.'); return; }
     setOcupado(true);
-    const { error } = await teamCatalogsService.rename(kind, editandoId, nome);
+    if (!organizationId) return;
+    const { error } = await teamCatalogsService.rename(kind, editandoId, nome, organizationId);
     setOcupado(false);
     if (error) { setErro(error.message); return; }
     setEditandoId(null);
@@ -92,7 +98,8 @@ export const TeamCatalogManager: React.FC<Props> = ({
     );
     if (!ok) return;
     setOcupado(true);
-    const { error } = await teamCatalogsService.remove(kind, item.id);
+    if (!organizationId) return;
+    const { error } = await teamCatalogsService.remove(kind, item.id, organizationId);
     setOcupado(false);
     if (error) { setErro(error.message); return; }
     await carregar();

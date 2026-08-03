@@ -190,5 +190,21 @@ describeLocal('Especialidades múltiplas por funcionário — Supabase local', (
       specialty_id: outraEsp.data!.id,
     });
     expect(invasao.error).not.toBeNull();
+
+    // RLS sozinho aceitaria estas linhas porque elas DECLARAM organizationA.
+    // As FKs compostas do P3-04 precisam barrar a referência escondida a B.
+    const profissionalCruzado = await clientA.from('professional_specialties').insert({
+      organization_id: organizationA,
+      professional_id: outroPro.data!.id,
+      specialty_id: idEndodontia,
+    });
+    expect(profissionalCruzado.error).not.toBeNull();
+
+    const especialidadeCruzada = await clientA.from('professional_specialties').insert({
+      organization_id: organizationA,
+      professional_id: professionalId,
+      specialty_id: outraEsp.data!.id,
+    });
+    expect(especialidadeCruzada.error).not.toBeNull();
   });
 });
