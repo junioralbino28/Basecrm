@@ -19,7 +19,7 @@
 | [visao-geral.md](./arquitetura/visao-geral.md) | o mapa de tudo em 1 página |
 | [rotas-e-navegacao.md](./arquitetura/rotas-e-navegacao.md) | toda URL, toda tela, sidebar, guards, aliases e duplicatas |
 | [camada-de-dados.md](./arquitetura/camada-de-dados.md) | serviços, hooks TanStack, contextos, permissões no cliente |
-| [banco-de-dados.md](./arquitetura/banco-de-dados.md) | as 55 migrations, todas as tabelas, RPCs, triggers, RLS, cron, storage |
+| [banco-de-dados.md](./arquitetura/banco-de-dados.md) | as 71 migrations atuais, todas as tabelas, RPCs, triggers, RLS, cron, storage |
 | [apis-e-integracoes.md](./arquitetura/apis-e-integracoes.md) | 103 rotas de API, WhatsApp/Evolution, IA, Clinicorp, env vars, scripts npm |
 
 ## Produto (o que existe)
@@ -30,6 +30,7 @@
 | [decisoes.md](./decisoes.md) | decisões travadas (produto, arquitetura, processo) — não reabrir |
 | [historia-e-origens.md](./historia-e-origens.md) | linhagem NossoCRM→Base CRM + mapa de TODA a documentação fora do repo (workspaces, ledgers, auditoria Codex, planilha do Adel) |
 | [ativacao-cliente.md](./ativacao-cliente.md) | o que o cliente fornece × o que a agência configura × o que falta no produto — o caminho até "CRM finalizado" |
+| [IMPL-LOG-CORRECOES-PACOTE-3.md](./IMPL-LOG-CORRECOES-PACOTE-3.md) | handoff completo das correções do motor de remuneração: commits, migrations, falhas encontradas, 24 achados, testes e roteiro de reverificação |
 | [OPINIAO-CODEX-PENTE-FINO.md](./OPINIAO-CODEX-PENTE-FINO.md) + [REVIEW](./REVIEW-OPINIAO-PENTE-FINO.md) | auditoria independente do pente fino (P1: RPCs legadas; P2: DTOs de canal, origem dupla, call-list) + adjudicação com ordem de execução |
 | [features/funil-construtor/](./features/funil-construtor/) | ciclo completo do construtor: SPEC, pedidos, adjudicações e revisões de cada fatia |
 

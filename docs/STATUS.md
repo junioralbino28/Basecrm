@@ -1,8 +1,9 @@
 # STATUS — matriz viva do sistema
 
 > Parte da documentação-mãe. Índice em [README.md](./README.md).
-> **Este arquivo se atualiza a cada fatia entregue.** Última revisão: 2026-07-23
-> (branch `feat/funil-construtor`; produção = `main` @ 34 migrations).
+> **Este arquivo se atualiza a cada fatia entregue.** Última revisão: 2026-08-03
+> (branch `feat/funil-construtor` @ `553303a`; produção não foi consultada nem
+> alterada neste ciclo).
 >
 > Legenda: 🟢 pronto e testado · 🟡 funciona com ressalvas · 🟠 parcial/em obra ·
 > 🔴 protótipo ou quebrado · ⬜ ainda não construído
@@ -19,6 +20,7 @@
 | Atendimentos | 🟢 | sim | — |
 | Hoje (call-list) | 🟢 | sim | — |
 | Relatórios (financeiro/profissionais) | 🟢 | sim | — |
+| Motor de remuneração — Pacote 3 corrigido | 🟡 | **não** (branch) | código/testes locais fechados; aguarda reverificação independente e preflight de dados antes de deploy |
 | Visão Geral | 🟢 | sim | — |
 | Dashboard (rota de aterrissagem) | 🟡 | sim | sem testes; TODO de refactor em métrica |
 | Configurações (RBAC, catálogos, financeiro) | 🟡 | sim | custom fields + tags legadas em localStorage (saem com deploy da C2) |
@@ -70,8 +72,12 @@
 | 10 | `products`/`lifecycleStages` com fonte de dado dupla | divergência de estado | [arquitetura/camada-de-dados.md](./arquitetura/camada-de-dados.md) |
 | 11 | Docs da era março defasados (termo antigo, pré-sweep) + candidatos a `docs/arquivo/` | dev novo lê coisa errada | [historia-e-origens.md](./historia-e-origens.md) |
 | 12 | Rename `lifecycle_stages` **MQL→"Qualificado"** aplicado só no banco LOCAL (2026-07-24, decisão de nomenclatura neutra); o deploy precisa da mesma correção via migration de dado (domínio Codex, junto do gate C2) | rótulo técnico volta em produção | [decisoes.md](./decisoes.md) |
+| 13 | Pacote 3 corrigido até `553303a`, mas ainda exige reverificação, preflight de nomes/regras/snapshots legados e conferência de ambientes que possam ter aplicado versões antigas das migrations `0100`–`0400` | integridade financeira/deploy | [IMPL-LOG-CORRECOES-PACOTE-3.md](./IMPL-LOG-CORRECOES-PACOTE-3.md) |
 
 ## Baseline de qualidade
 
-`test:local` = **985/985** (208 arquivos, 2026-07-27 — inclui Reforma 2 do construtor, módulo de remuneração por vigência, catálogos de cargo/especialidade, várias especialidades por funcionário, comissão dentro da ficha da pessoa, procedimento por especialidade, ações em massa nas chaves, comissão dentro do dashboard do Financeiro com pagamento parcial/desfazer/data editável e digitação de dinheiro no padrão brasileiro) · lint `--max-warnings 0` · tsc strict.
+`test:local` = **1103/1103** (231 arquivos, 2026-08-03, Supabase local) ·
+`supabase db lint --local` sem erros · ESLint `--max-warnings 0` · TypeScript
+strict · build Next.js concluído. O baseline automatizado de segurança ficou
+inconclusivo por timeout; não conta como aprovação de segurança.
 Histórico em [operacao/testes-e-gates.md](./operacao/testes-e-gates.md).

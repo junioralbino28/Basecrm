@@ -30,6 +30,25 @@ Registrar aqui a cada fatia aprovada:
 | 2026-07-22 | C2A | 848/848 |
 | 2026-07-22 | C2B | 869/869 |
 | 2026-07-23 | C2C | 888/888 |
+| 2026-08-03 | Correções do Pacote 3 (`553303a`) | **1103/1103 em 231 arquivos** |
+
+No fechamento do Pacote 3 também passaram: `supabase db lint --local`,
+TypeScript, ESLint e `next build`. O detalhe, incluindo testes focais e limites
+da auditoria de segurança, está em
+[`IMPL-LOG-CORRECOES-PACOTE-3.md`](../IMPL-LOG-CORRECOES-PACOTE-3.md).
+
+## Baseline de segurança do fechamento de 03/08
+
+- `npm audit`: 0 vulnerabilidades.
+- Semgrep: 0 achados em 929 caminhos, com 2 arquivos parcialmente parseados.
+- Gitleaks em 716 commits: 0 vazamentos.
+- O runner canônico completo atingiu timeout durante `gitleaks dir` e não criou
+  `status.json` final. Pelo critério fail-closed, o baseline geral é
+  **inconclusivo**, não PASS.
+
+Esses scanners cobrem somente parte dos gates de segurança. Nunca substituir
+teste A↔B de RLS, invariantes financeiras e revisão das RPCs por uma contagem
+zero de scanner.
 
 Se o número CAIR em relação ao baseline sem explicação, algo quebrou.
 
@@ -37,3 +56,7 @@ Se o número CAIR em relação ao baseline sem explicação, algo quebrou.
 
 - `DELETE .../deal_notes ... 400` no teardown de integração — aparece desde a
   C1C, os testes passam; é limpeza de fixture, não produto.
+- `ECONNREFUSED localhost:3000` quando a suíte roda sem dev server — os testes
+  que exercitam essa ausência passam; não confundir stderr com falha do gate.
+- O build conclui, mas avisa rastreamento NFT amplo em `next.config.ts` →
+  `lib/installer/edgeFunctions.ts` → rota `installer/supabase/resolve`.

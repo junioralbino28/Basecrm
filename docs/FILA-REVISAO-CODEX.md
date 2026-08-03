@@ -1,24 +1,26 @@
 # FILA DE REVISÃO PENDENTE (Codex)
 
-> **Por que este arquivo existe.** O Codex bateu o teto semanal e volta **quinta 29/07/2026**.
-> Enquanto ele está fora, o Claude continua avançando **só no que é barato de refazer**
-> (UI, correções ao vivo, observabilidade de leitura, specs) — nunca fundação nova sobre
-> código não-revisado. Cada frente tocada na ausência dele entra aqui como um **pacote fechado**,
-> pra que a revisão dele seja **profunda e por partes** (não uma passada rasa gigante) e
-> **nada escape**.
+> **Por que este arquivo existe.** Cada frente executada por um agente entra aqui
+> como pacote fechado para revisão cruzada, profunda e por partes. O Pacote 3 já
+> passou pela correção do Codex e agora aguarda a reverificação independente do
+> Claude; isso não equivale a aprovação para deploy.
 >
 > **Regra de ouro:** se um pacote encosta em MOTOR (migrations, RPC, jobs, envio), ele é
 > marcado 🔴 e **não** vira fundação de outra fatia até o Codex revisar. UI pura é 🟢.
 >
-> Fluxo por pacote: `PENDENTE` → (Codex revisa dia 29) → `EM REVISÃO` → `REVISADO` (link do parecer).
+> Fluxo por pacote: `PENDENTE` → `EM REVISÃO` → `CORREÇÕES ENTREGUES` →
+> `REVERIFICADO` (link do parecer independente).
 > Padrão de parecer segue o que já usamos: `PEDIDO-*.md` → `REVIEW-*.md` / `OPINIAO-*.md`.
 
-Última atualização: 2026-07-29 (noite) · branch `feat/funil-construtor` @ `d198139` · baseline `test:local` **1032/1032** (214 arquivos, verde em `d198139`, lido em comando separado)
-Base revisada pelo Codex no Pacote 3: `041d963` (baseline daquele momento: 1011/1011 em 213 arquivos).
+Última atualização: 2026-08-03 · branch `feat/funil-construtor` @ `553303a` ·
+baseline `test:local` **1103/1103** (231 arquivos, Supabase local).
+Base originalmente revisada no Pacote 3: `041d963` (1011/1011 em 213 arquivos).
 
-> **Ordem recomendada (29/07, noite):** **correções do 3** (já revisado e **BLOQUEADO** — `REVIEW-PACOTE-3.md` + `ADJUDICACAO-PACOTE-3.md`) → **7** (motor do webhook) → **10** (spec de papel, barata, destrava construção) → **6** → **1** → **2** → **8** → **9**.
+> **Próximo gate do Pacote 3:** Claude reverifica `553303a` usando
+> [`IMPL-LOG-CORRECOES-PACOTE-3.md`](IMPL-LOG-CORRECOES-PACOTE-3.md) e registra
+> um parecer novo. Até isso acontecer, sem deploy/fundação nova sobre o motor.
 >
-> **🔓 30/07: BLOCOS 4 E 5 DESTRAVADOS.** As 2 respostas do Junior chegaram + requisitos novos que entram NA MESMA correção: **`DECISOES-JUNIOR-FINANCEIRO-29-07.md`** (leia antes de tocar no resolvedor). Resumo: regra de comissão escolhida por **`performed_at`** (P3-16) · motor CALCULA fixo/híbrido com versionamento por data e somatório partido (P3-03) · rótulo neutro **"colaborador"** em toda a UI (schema não renomeia) · formas de pagamento viram catálogo criável (spec depois do Pacote 10) · norte = bruto/líquido/margem precisos. **30/07: a última pergunta foi respondida** — comissão é devida INTEGRAL na competência do atendimento, independente de recebimento (a clínica assume o risco do parcelamento; exceção = ajuste manual). **Nada mais pendente de decisão: o resolvedor pode fechar inteiro.**
+> **🔓 30/07: BLOCOS 4 E 5 DESTRAVADOS.** As 2 respostas do Junior chegaram + requisitos novos que entram NA MESMA correção: **`DECISOES-JUNIOR-FINANCEIRO-29-07.md`** (leia antes de tocar no resolvedor). Resumo: regra de comissão escolhida por **`performed_at`** (P3-16) · motor CALCULA fixo/híbrido com versionamento por data e somatório partido (P3-03) · rótulo-alvo neutro **"colaborador"** (schema não renomeia; varredura completa da UI ainda pendente) · formas de pagamento viram catálogo criável (spec depois do Pacote 10) · norte = bruto/líquido/margem precisos. **30/07: a última pergunta foi respondida** — comissão é devida INTEGRAL na competência do atendimento, independente de recebimento (a clínica assume o risco do parcelamento; exceção = ajuste manual). **Nada mais pendente de decisão: o resolvedor pode fechar inteiro.**
 
 ---
 
@@ -28,7 +30,7 @@ Base revisada pelo Codex no Pacote 3: `041d963` (baseline daquele momento: 1011/
 |---|--------|--------|--------|---------|
 | 1 | C2C — Construtor + sincronia + nomenclatura + correções ao vivo | 🟢 UI (+🟡 ponte de dado) | **PENDENTE** | `PEDIDO-REVISAO-C2C.md` (a redigir) |
 | 2 | Reforma 2 — canvas vertical + botão de trocar direção | 🟢 UI | **PENDENTE** | a redigir |
-| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** (5 migrations + reescrita de RPC) | **REVISADO — BLOQUEADO** | [`REVIEW-PACOTE-3.md`](REVIEW-PACOTE-3.md) |
+| 3 | Remuneração da equipe — cargo/pagamento, comissão por vigência, catálogos, várias especialidades, unificação do cadastro | 🔴 **MOTOR** | **CORREÇÕES ENTREGUES · AGUARDANDO REVERIFICAÇÃO** | [`IMPL-LOG-CORRECOES-PACOTE-3.md`](IMPL-LOG-CORRECOES-PACOTE-3.md) |
 | 4 | C2D — observabilidade de LEITURA (telas "como eu confiro?") | 🟢 UI leitura | _não iniciado_ | — |
 | 5 | C2D — motor (create_task / mover etapa real) | 🔴 MOTOR — **spec only** até o Codex | _não iniciado_ | spec a redigir |
 | 6 | CSV de totais: leads da tabela viva (`contacts`) | 🟢 leitura (1 lib + 1 teste) | **PENDENTE** | bloco abaixo |
@@ -102,9 +104,23 @@ Docs de contexto: `1c56f9d`, `0b89e1d`, `062a7a0`, `eb92725`, `96c2f83`.
 
 ## Pacote 3 — Remuneração da equipe: cargo/pagamento, comissão por vigência, catálogos
 
-**Estado:** REVISADO · **BLOQUEADO PARA FUNDAÇÃO/DEPLOY** · parecer:
-[`REVIEW-PACOTE-3.md`](REVIEW-PACOTE-3.md)
-**Camada:** 🔴 **MOTOR** — 5 migrations novas, reescrita de uma RPC `SECURITY DEFINER` e mudança de contrato de tabela existente. É o pacote mais perigoso da semana; é também o que **não deve virar fundação** de nenhuma fatia nova antes do parecer.
+**Estado:** **CORREÇÕES IMPLEMENTADAS E TESTADAS LOCALMENTE · AGUARDANDO
+REVERIFICAÇÃO INDEPENDENTE · SEM DEPLOY**. Handoff completo:
+[`IMPL-LOG-CORRECOES-PACOTE-3.md`](IMPL-LOG-CORRECOES-PACOTE-3.md).
+Parecer que originou o bloqueio: [`REVIEW-PACOTE-3.md`](REVIEW-PACOTE-3.md).
+**Camada:** 🔴 **MOTOR** — migrations, RPCs `SECURITY DEFINER`, histórico e
+contratos financeiros. Não vira fundação nem vai a deploy antes do novo parecer.
+
+### Atualização da correção — 03/08/2026
+
+- Checkpoints da correção: `c00f505`, `2222b7f`, `e1af02c`, `563f5e3`,
+  `fc3a046`, `05e5b59`, `01e0fd9`, `cba6f7f`, `86e6d60` e `553303a`.
+- Migrations de hardening: `20260803000000` a `20260803100000`.
+- Gate final: `test:local` **1103/1103** em 231 arquivos; schema lint,
+  TypeScript, ESLint e build verdes.
+- Produção e Supabase remoto permaneceram intactos; sem push, merge ou deploy.
+- Baseline automatizado de segurança ficou inconclusivo por timeout do
+  `gitleaks dir`; resultados individuais e limites estão no impl-log.
 
 **Por que existe:** o Junior autorizou explicitamente avançar em motor na ausência do Codex ("tudo que puder fazer agora, faz, e cria documentação pro Codex só revisar"). A regra que dirige o desenho: a planilha do Adel é caso de uso pra aprender a **regra**, nunca a fonte dos **valores** — nada de odontologia nem número de cliente entra no motor, porque o CRM serve outros nichos.
 
