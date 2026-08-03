@@ -111,9 +111,9 @@ export async function runSchemaMigration(dbUrl: string) {
   const createClient = () =>
     new Client({
       connectionString: normalizedDbUrl,
-      // NOTE: Supabase DB uses TLS; on some networks a MITM/corporate proxy can inject a cert chain
-      // that Node doesn't trust. For the installer/migrations step we prefer "no-verify" over failure.
-      ssl: needsSsl(dbUrl) ? { rejectUnauthorized: false } : undefined,
+      // O instalador manipula schema e credenciais: certificado inválido deve
+      // falhar fechado, nunca transformar a conexão em alvo de MITM.
+      ssl: needsSsl(dbUrl) ? { rejectUnauthorized: true } : undefined,
     });
 
   const client = await connectClientWithRetry(createClient, { maxAttempts: 5, initialDelayMs: 3000 });

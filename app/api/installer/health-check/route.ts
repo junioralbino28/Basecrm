@@ -63,7 +63,7 @@ async function checkDatabaseHealth(dbUrl: string): Promise<{
   const normalizedDbUrl = stripSslModeParam(dbUrl);
   const client = new Client({
     connectionString: normalizedDbUrl,
-    ssl: needsSsl(dbUrl) ? { rejectUnauthorized: false } : undefined,
+    ssl: needsSsl(dbUrl) ? { rejectUnauthorized: true } : undefined,
     connectionTimeoutMillis: 10_000,
   });
 
