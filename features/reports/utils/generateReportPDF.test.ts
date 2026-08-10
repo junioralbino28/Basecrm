@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Deal } from '@/types';
-import { generateReportPDF } from './generateReportPDF';
+import {
+  buildFinanceKpiGrid,
+  generateFinanceReportPDF,
+  generateReportPDF,
+} from './generateReportPDF';
 
 // Regressão do achado High 5 (deps): jspdf <=4.2.0 tem CVE CRÍTICO (Path Traversal /
 // LFI + PDF Injection com execução de JS + DoS). O relatório é gerado no browser do
@@ -78,5 +82,48 @@ describe('generateReportPDF — hardening de deps (H5)', () => {
     expect(createUrlSpy).toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalledTimes(1);
     expect(openSpy).toHaveBeenCalledWith('blob:mock', '_blank');
+  });
+
+  it('relatório financeiro imprime salário fixo e recompõe o líquido com essa dedução', async () => {
+    await generateFinanceReportPDF(
+      {
+        faturamento: 0,
+        taxas: 0,
+        comissoes: 0,
+        contasFixas: 0,
+        salariosFixos: 2500,
+        // Valor propositalmente inconsistente: o PDF deve ignorá-lo e recomputar -2500.
+        liquido: 999999,
+        totalAtendimentos: 0,
+        porMes: [],
+        porSemana: [],
+      },
+      'this_month'
+    );
+
+    const pdfBlob = createUrlSpy.mock.calls.at(-1)?.[0] as Blob;
+    const pdfText = new TextDecoder('latin1').decode(await pdfBlob.arrayBuffer());
+
+    expect(pdfText).toContain('Salários fixos');
+    expect(pdfText.match(/2\.500,00/g)).toHaveLength(2);
+  });
+
+  it('distribui os 6 KPIs financeiros em grade 3×2 com largura segura', () => {
+    const grid = buildFinanceKpiGrid(180, 6);
+
+    expect(grid.columns).toBe(3);
+    expect(grid.rows).toBe(2);
+    expect(grid.cardWidth).toBeGreaterThan(55);
+    expect(grid.positions.map(({ row, column }) => [row, column])).toEqual([
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 0],
+      [1, 1],
+      [1, 2],
+    ]);
+    expect(grid.positions[2].x + grid.cardWidth).toBeLessThanOrEqual(180);
+    expect(grid.positions[3].y).toBeGreaterThanOrEqual(grid.cardHeight + grid.gap);
+    expect(grid.totalHeight).toBe(grid.cardHeight * 2 + grid.gap);
   });
 });

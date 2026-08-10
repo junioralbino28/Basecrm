@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { axe } from '@/lib/a11y/test/a11y-utils';
 
 vi.mock('@/context/AuthContext', () => ({
@@ -44,24 +44,47 @@ function mockReport() {
   useCommissionReport.mockReturnValue({
     data: {
       totalComissao: 1380,
+      totalFixo: 6700,
+      totalRemuneracao: 8080,
       porProfissional: [
         {
           professionalId: 'p-marcos',
           professionalName: 'Dr. Marcos',
+          role: 'Closer',
+          payType: 'commission',
+          fixedAmount: 0,
           atendimentos: 9,
           comissao: 1053,
           faturamentoBase: 3510,
           pago: 600,
           aPagar: 453,
+          remuneracaoTotal: 1053,
         },
         {
           professionalId: 'p-carol',
           professionalName: 'Dra. Carol',
+          role: 'Executiva de contas',
+          payType: 'both',
+          fixedAmount: 2500,
           atendimentos: 7,
           comissao: 327,
           faturamentoBase: 1310,
-          pago: 327,
-          aPagar: 0,
+          pago: 500,
+          aPagar: 2327,
+          remuneracaoTotal: 2827,
+        },
+        {
+          professionalId: 'p-bruno',
+          professionalName: 'Bruno Fixo',
+          role: 'Atendimento',
+          payType: 'fixed',
+          fixedAmount: 4200,
+          atendimentos: 0,
+          comissao: 0,
+          faturamentoBase: 0,
+          pago: 1200,
+          aPagar: 3000,
+          remuneracaoTotal: 4200,
         },
       ],
     },
@@ -82,7 +105,7 @@ describe('ProfessionalsReportPage', () => {
     pagamentosDoMes = [];
   });
 
-  it('usuário com reports.professionals vê a tabela por dentista', () => {
+  it('usuário com reports.professionals vê a tabela por colaborador', () => {
     useAuthMock.mockReturnValue({
       profile: { id: 'u1', role: 'clinic_staff', organization_id: 'org-1', email: 'vitoria@clinica.com' },
     } as any);
@@ -91,11 +114,80 @@ describe('ProfessionalsReportPage', () => {
 
     expect(screen.getByText('Dr. Marcos')).toBeInTheDocument();
     expect(screen.getByText('Dra. Carol')).toBeInTheDocument();
+    expect(screen.getByText('Bruno Fixo')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Colaborador' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Dentista' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Fixo no período' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Remuneração total' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Remuneração paga' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Remuneração a pagar' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Tabela de remuneração por colaborador' }))
+      .toHaveAttribute('tabindex', '0');
     // a pagar do Dr. Marcos
     expect(screen.getByText('R$ 453,00')).toBeInTheDocument();
-    // quitado (a pagar = 0) não tem botão pagar
-    expect(screen.getByText(/quitado/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^pagar/i })).toHaveLength(1);
+    // Os três modelos têm saldo de remuneração e podem receber pagamentos.
+    expect(screen.getAllByRole('button', { name: /^pagar remuneração/i })).toHaveLength(3);
+  });
+
+  it('colaborador só fixo mostra remuneração paga, saldo e controle de pagamento', () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'agency_admin', organization_id: 'org-1', email: 'admin@empresa.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+
+    const row = screen.getByRole('row', { name: /Bruno Fixo/i });
+    const cells = within(row).getAllByRole('cell');
+    expect(cells).toHaveLength(8);
+    expect(cells[0]).toHaveTextContent('Atendimento');
+    expect(cells[0]).not.toHaveTextContent('Só valor fixo');
+    expect(cells[3]).toHaveTextContent('R$ 4.200,00');
+    expect(cells[4]).toHaveTextContent('—');
+    expect(cells[5]).toHaveTextContent('R$ 4.200,00');
+    expect(cells[6]).toHaveTextContent('R$ 1.200,00');
+    expect(cells[7]).toHaveTextContent('R$ 3.000,00');
+    expect(within(row).getByRole('button', { name: /Pagar remuneração de Bruno Fixo/i }))
+      .toBeInTheDocument();
+  });
+
+  it('colaborador só comissionado separa comissão, remuneração e controles de pagamento', () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'agency_admin', organization_id: 'org-1', email: 'admin@empresa.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+
+    const row = screen.getByRole('row', { name: /Dr\. Marcos/i });
+    const cells = within(row).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Closer');
+    expect(cells[0]).not.toHaveTextContent('Só comissão');
+    expect(cells[3]).toHaveTextContent('—');
+    expect(cells[4]).toHaveTextContent('R$ 1.053,00');
+    expect(cells[5]).toHaveTextContent('R$ 1.053,00');
+    expect(cells[6]).toHaveTextContent('R$ 600,00');
+    expect(cells[7]).toHaveTextContent('R$ 453,00');
+    expect(within(row).getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }))
+      .toBeInTheDocument();
+  });
+
+  it('colaborador híbrido mostra fixo mais comissão na remuneração total', () => {
+    useAuthMock.mockReturnValue({
+      profile: { id: 'u1', role: 'agency_admin', organization_id: 'org-1', email: 'admin@empresa.com' },
+    } as any);
+
+    render(<ProfessionalsReportPage />);
+
+    const row = screen.getByRole('row', { name: /Dra\. Carol/i });
+    const cells = within(row).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Executiva de contas');
+    expect(cells[0]).not.toHaveTextContent('Fixo + comissão');
+    expect(cells[3]).toHaveTextContent('R$ 2.500,00');
+    expect(cells[4]).toHaveTextContent('R$ 327,00');
+    expect(cells[5]).toHaveTextContent('R$ 2.827,00');
+    expect(cells[6]).toHaveTextContent('R$ 500,00');
+    expect(cells[7]).toHaveTextContent('R$ 2.327,00');
+    expect(within(row).getByRole('button', { name: /Pagar remuneração de Dra\. Carol/i }))
+      .toBeInTheDocument();
   });
 
   it('sem settings.finance vê o relatório sem controles de pagamento', () => {
@@ -125,7 +217,7 @@ describe('ProfessionalsReportPage', () => {
 
     // Agora "pagar" ABRE o campo de valor (pagamento parcial, 27/07) — o
     // lançamento só acontece no "confirmar".
-    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
@@ -143,7 +235,7 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }));
     fireEvent.change(
       screen.getByLabelText(/Data do pagamento a Dr\. Marcos/i),
       { target: { value: '2026-07-15' } },
@@ -163,7 +255,7 @@ describe('ProfessionalsReportPage', () => {
 
     render(<ProfessionalsReportPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     await waitFor(() => expect(addToast).toHaveBeenCalledWith(expect.stringMatching(/erro|falha|não foi/i), 'error'));
@@ -176,7 +268,7 @@ describe('ProfessionalsReportPage', () => {
     } as any);
 
     render(<ProfessionalsReportPage />);
-    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }));
     // Centavos pela direita: "20000" = R$ 200,00.
     fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '20000' } });
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
@@ -191,7 +283,7 @@ describe('ProfessionalsReportPage', () => {
     } as any);
 
     render(<ProfessionalsReportPage />);
-    fireEvent.click(screen.getByRole('button', { name: /^pagar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pagar remuneração de Dr\. Marcos/i }));
     fireEvent.change(screen.getByLabelText(/Valor a pagar a Dr\. Marcos/i), { target: { value: '99900' } });
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 

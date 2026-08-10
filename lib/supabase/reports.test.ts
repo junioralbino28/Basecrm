@@ -63,26 +63,36 @@ describe('reportsService', () => {
     });
   });
 
-  it('getCommissionReport mapeia por_profissional para camelCase e deriva aPagar = max(comissao − pago, 0)', async () => {
+  it('getCommissionReport deriva a pagar da remuneração total para híbrido e somente fixo', async () => {
     rpcMock.mockResolvedValue({
       data: {
-        total_comissao: 2000,
+        total_comissao: 1053,
+        total_fixo: 3500,
+        total_remuneracao: 4553,
         por_profissional: [
           {
             professional_id: 'p1',
             professional_name: 'Dr. Marcos',
+            role: 'Dentista',
+            pay_type: 'both',
+            fixed_amount: 2500,
             atendimentos: 9,
             comissao: 1053,
+            remuneracao_total: 3553,
             faturamento_base: 3510,
             pago: 600,
           },
           {
             professional_id: 'p2',
             professional_name: 'Dra. Carol',
+            role: null,
+            pay_type: 'fixed',
+            fixed_amount: 1000,
             atendimentos: 7,
-            comissao: 327,
+            comissao: 0,
+            remuneracao_total: 1000,
             faturamento_base: 1310,
-            pago: 400, // pagou a mais — a pagar não fica negativo
+            pago: 400,
           },
         ],
       },
@@ -96,25 +106,81 @@ describe('reportsService', () => {
 
     expect(error).toBeNull();
     expect(data).toEqual({
-      totalComissao: 2000,
+      totalComissao: 1053,
+      totalFixo: 3500,
+      totalRemuneracao: 4553,
       porProfissional: [
         {
           professionalId: 'p1',
           professionalName: 'Dr. Marcos',
+          role: 'Dentista',
+          payType: 'both',
+          fixedAmount: 2500,
           atendimentos: 9,
           comissao: 1053,
+          remuneracaoTotal: 3553,
           faturamentoBase: 3510,
           pago: 600,
-          aPagar: 453,
+          aPagar: 2953,
         },
         {
           professionalId: 'p2',
           professionalName: 'Dra. Carol',
+          role: null,
+          payType: 'fixed',
+          fixedAmount: 1000,
           atendimentos: 7,
-          comissao: 327,
+          comissao: 0,
+          remuneracaoTotal: 1000,
           faturamentoBase: 1310,
           pago: 400,
-          aPagar: 0,
+          aPagar: 600,
+        },
+      ],
+    });
+  });
+
+  it('getCommissionReport mantém fallback compatível com resposta legada', async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        total_comissao: 1053,
+        por_profissional: [
+          {
+            professional_id: 'p1',
+            professional_name: 'Dr. Marcos',
+            atendimentos: 9,
+            comissao: 1053,
+            faturamento_base: 3510,
+            pago: 600,
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const { data, error } = await reportsService.getCommissionReport(
+      '2026-06-01T00:00:00Z',
+      '2026-06-30T23:59:59Z'
+    );
+
+    expect(error).toBeNull();
+    expect(data).toEqual({
+      totalComissao: 1053,
+      totalFixo: 0,
+      totalRemuneracao: 1053,
+      porProfissional: [
+        {
+          professionalId: 'p1',
+          professionalName: 'Dr. Marcos',
+          role: null,
+          payType: 'commission',
+          fixedAmount: 0,
+          atendimentos: 9,
+          comissao: 1053,
+          remuneracaoTotal: 1053,
+          faturamentoBase: 3510,
+          pago: 600,
+          aPagar: 453,
         },
       ],
     });
@@ -125,11 +191,13 @@ describe('reportsService', () => {
       data: {
         faturamento: 10000,
         comissoes: 2000,
+        salarios_fixos: 2500,
+        remuneracao_total: 4500,
         taxas: 300,
         contas_fixas: 4500, // 1500/mês × 3 meses (pró-rateio HIGH-1)
         contas_fixas_mensal: 1500,
         meses_periodo: 3,
-        liquido: 3200,
+        liquido: 700,
       },
       error: null,
     });
@@ -143,11 +211,13 @@ describe('reportsService', () => {
     expect(data).toEqual({
       faturamento: 10000,
       comissoes: 2000,
+      salariosFixos: 2500,
+      remuneracaoTotal: 4500,
       taxas: 300,
       contasFixas: 4500,
       contasFixasMensal: 1500,
       mesesPeriodo: 3,
-      liquido: 3200,
+      liquido: 700,
     });
   });
 
@@ -172,6 +242,8 @@ describe('reportsService', () => {
     expect(data).toEqual({
       faturamento: 10000,
       comissoes: 2000,
+      salariosFixos: 0,
+      remuneracaoTotal: 2000,
       taxas: 300,
       contasFixas: 1500,
       contasFixasMensal: 1500,

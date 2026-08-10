@@ -771,25 +771,40 @@ export interface RevenueReport {
 export interface CommissionReportRow {
   professionalId: string;
   professionalName: string;
+  /** Cargo registrado no período; pode não existir em dados legados. */
+  role: string | null;
+  /** Modalidade de remuneração. Respostas legadas são tratadas como comissão. */
+  payType: ProfessionalPayType;
+  /** Parcela fixa devida no período. */
+  fixedAmount: number;
   atendimentos: number;
   comissao: number;
+  /** Remuneração total = comissão + parcela fixa. */
+  remuneracaoTotal: number;
   faturamentoBase: number;
-  /** Comissão já paga no(s) período(s) do range (commission_payments). */
+  /** Remuneração já paga no(s) período(s) do range (`commission_payments`, nome legado). */
   pago: number;
-  /** A pagar = max(comissao − pago, 0) — derivado no service. */
+  /** A pagar = max(remuneracaoTotal − pago, 0) — derivado no service. */
   aPagar: number;
 }
 
 /** Saída do RPC get_commission_report. */
 export interface CommissionReport {
   totalComissao: number;
+  totalFixo: number;
+  /** Soma das parcelas variável e fixa no período. */
+  totalRemuneracao: number;
   porProfissional: CommissionReportRow[];
 }
 
-/** Saída do RPC get_net_result (líquido = faturamento − comissões − taxas − contas). */
+/** Saída do RPC get_net_result (líquido = faturamento − remuneração − taxas − contas). */
 export interface NetResult {
   faturamento: number;
   comissoes: number;
+  /** Salários/parcelas fixas devidos no período. */
+  salariosFixos: number;
+  /** Remuneração total = comissões + salários fixos. */
+  remuneracaoTotal: number;
   taxas: number;
   /** Contas fixas PRÓ-RATEADAS pelo nº de meses do período (= mensal × meses). */
   contasFixas: number;

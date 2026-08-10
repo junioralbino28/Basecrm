@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Stethoscope, Check, Undo2, X } from 'lucide-react';
+import { Users, Check, Undo2, X } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
@@ -190,20 +190,20 @@ export const ProfessionalsCommissionTable: React.FC<{
       {embutido ? (
         <div className="shrink-0">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">
-            Comissão por profissional
+            Remuneração por colaborador
           </h2>
           <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-            Quem produziu o quê — e quanto falta pagar a cada um.
+            Parcela fixa, comissão e saldo da remuneração no período.
           </p>
         </div>
       ) : (
         <div className="flex justify-between items-center shrink-0">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-display tracking-tight">
-              Profissionais
+              Colaboradores
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Quem produziu o quê — e a comissão de cada um.
+              Parcela fixa, comissão e remuneração total de cada colaborador.
             </p>
           </div>
           <PeriodFilterSelect value={period} onChange={setPeriod} />
@@ -214,7 +214,7 @@ export const ProfessionalsCommissionTable: React.FC<{
       {isError ? (
         <div className="glass p-4 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50/50 dark:bg-red-500/5 shadow-sm shrink-0">
           <p className="text-sm text-red-600 dark:text-red-400">
-            Não foi possível carregar o relatório de comissões. Tente novamente.
+            Não foi possível carregar o relatório de remunerações. Tente novamente.
           </p>
         </div>
       ) : null}
@@ -225,54 +225,71 @@ export const ProfessionalsCommissionTable: React.FC<{
           <p className="text-xs text-amber-700 dark:text-amber-400">
             O período selecionado cobre mais de um mês. Para registrar pagamentos, escolha
             <span className="font-semibold"> este mês</span> ou
-            <span className="font-semibold"> mês passado</span> — comissão se paga mês a mês.
+            <span className="font-semibold"> mês passado</span> — a remuneração é paga mês a mês.
           </p>
         </div>
       ) : null}
 
-      {/* Tabela paga vs a pagar (mockup) */}
+      {/* Remuneração completa, incluindo o saldo operacional pago/a pagar. */}
       <div className="glass rounded-xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div
+          className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-inset"
+          role="region"
+          aria-label="Tabela de remuneração por colaborador"
+          tabIndex={0}
+        >
+        <table className="w-full min-w-[1180px] text-sm">
           <thead className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
             <tr>
-              <th scope="col" className="text-left font-semibold px-5 py-3">Dentista</th>
+              <th scope="col" className="text-left font-semibold px-5 py-3">Colaborador</th>
               <th scope="col" className="text-right font-semibold px-3 py-3">Atendimentos</th>
-              <th scope="col" className="text-right font-semibold px-3 py-3">Receita</th>
-              <th scope="col" className="text-right font-semibold px-3 py-3">Comissão</th>
-              <th scope="col" className="text-right font-semibold px-3 py-3">Paga</th>
-              <th scope="col" className="text-right font-semibold px-5 py-3">A pagar</th>
+              <th scope="col" className="text-right font-semibold px-3 py-3">Receita atribuída</th>
+              <th scope="col" className="text-right font-semibold px-3 py-3">Fixo no período</th>
+              <th scope="col" className="text-right font-semibold px-3 py-3">Comissão gerada</th>
+              <th scope="col" className="text-right font-semibold px-3 py-3">Remuneração total</th>
+              <th scope="col" className="text-right font-semibold px-3 py-3">Remuneração paga</th>
+              <th scope="col" className="text-right font-semibold px-5 py-3">Remuneração a pagar</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
-                  Carregando comissões...
+                <td colSpan={8} className="px-5 py-8 text-center text-slate-500">
+                  Carregando remunerações...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
-                  <Stethoscope size={28} className="mx-auto mb-2 opacity-50" aria-hidden="true" />
-                  Nenhum atendimento pago no período.
+                <td colSpan={8} className="px-5 py-8 text-center text-slate-500">
+                  <Users size={28} className="mx-auto mb-2 opacity-50" aria-hidden="true" />
+                  Nenhuma remuneração encontrada no período.
                 </td>
               </tr>
             ) : (
               rows.map((row) => (
                 <tr key={row.professionalId} className="hover:bg-slate-50/60 dark:hover:bg-white/5 transition">
-                  <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white">
-                    {row.professionalName}
+                  <td className="px-5 py-3.5 min-w-[190px] text-slate-900 dark:text-white">
+                    <span className="block font-medium">{row.professionalName}</span>
+                    <span className="block mt-0.5 text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                      {row.role || 'Sem cargo'}
+                    </span>
                   </td>
-                  <td className="px-3 py-3.5 text-right text-slate-600 dark:text-slate-300">
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap text-slate-600 dark:text-slate-300">
                     {row.atendimentos}
                   </td>
-                  <td className="px-3 py-3.5 text-right font-semibold text-slate-900 dark:text-white">
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap font-semibold text-slate-900 dark:text-white">
                     {formatBRL(row.faturamentoBase)}
                   </td>
-                  <td className="px-3 py-3.5 text-right text-slate-600 dark:text-slate-300">
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap text-slate-600 dark:text-slate-300">
+                    {row.fixedAmount > 0 ? formatBRL(row.fixedAmount) : '—'}
+                  </td>
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap text-slate-600 dark:text-slate-300">
                     {row.comissao > 0 ? formatBRL(row.comissao) : '—'}
                   </td>
-                  <td className="px-3 py-3.5 text-right text-emerald-600 dark:text-emerald-400 align-top">
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap font-semibold text-slate-900 dark:text-white">
+                    {formatBRL(row.remuneracaoTotal)}
+                  </td>
+                  <td className="px-3 py-3.5 text-right whitespace-nowrap text-emerald-600 dark:text-emerald-400 align-top">
                     {row.pago > 0 ? (
                       <span className="inline-flex flex-col items-end gap-1">
                       <span className="inline-flex items-center gap-2">
@@ -313,7 +330,7 @@ export const ProfessionalsCommissionTable: React.FC<{
                     ) : '—'}
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {row.comissao <= 0 ? (
+                    {row.remuneracaoTotal <= 0 ? (
                       <span className="text-slate-400">—</span>
                     ) : row.aPagar > 0 ? (
                       <span className="inline-flex items-center gap-2">
@@ -375,7 +392,8 @@ export const ProfessionalsCommissionTable: React.FC<{
                             // relatório refaz fetch (evita clique antes do "a
                             // pagar" recalcular).
                             disabled={!pagavel || isFetching}
-                            title={!pagavel ? 'Selecione um único mês para pagar' : undefined}
+                            aria-label={`Pagar remuneração de ${row.professionalName}`}
+                            title={!pagavel ? 'Selecione um único mês para pagar' : 'Registrar pagamento da remuneração'}
                             onClick={() => abrirPagamento(row.professionalId, row.aPagar)}
                             className="h-7 px-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
@@ -395,9 +413,10 @@ export const ProfessionalsCommissionTable: React.FC<{
             )}
           </tbody>
         </table>
+        </div>
         <div className="px-5 py-3.5 bg-slate-50 dark:bg-white/5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-200 dark:border-white/5">
-          A comissão entra sozinha: a recepção registra o atendimento com o dentista e o procedimento →
-          o sistema acha a regra certa e soma aqui e no Financeiro.
+          A remuneração total soma o fixo do período à comissão gerada. Cada pagamento é descontado
+          desse total, e o saldo restante aparece em remuneração a pagar.
         </div>
       </div>
     </div>
@@ -423,7 +442,7 @@ const ProfessionalsReportPage: React.FC = () => {
 
   if (!canViewProfessionals) {
     return (
-      <AccessDenied message="Você não tem permissão para acessar o relatório por profissional." />
+      <AccessDenied message="Você não tem permissão para acessar o relatório por colaborador." />
     );
   }
 

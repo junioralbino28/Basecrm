@@ -7,32 +7,35 @@
 import type { NetResult } from '@/types';
 
 /**
- * Cálculo puro do resultado líquido financeiro da clínica.
+ * Cálculo puro do resultado líquido financeiro.
  *
- * Líquido = faturamento − comissões − taxas de cartão − contas fixas.
+ * Líquido = faturamento − comissões − taxas de cartão − contas fixas − salários fixos.
  *
  * @param faturamento - Total recebido no período (atendimentos pagos, valor − desconto).
  * @param comissoes - Total de comissões dos profissionais no período.
  * @param taxas - Total de taxas de cartão aplicadas no período.
  * @param contas - Total de contas/custos fixos ativos.
+ * @param salariosFixos - Parcela fixa da remuneração dos profissionais no período.
  * @returns Resultado líquido (pode ser negativo).
  */
 export function calcLiquido(
   faturamento: number,
   comissoes: number,
   taxas: number,
-  contas: number
+  contas: number,
+  salariosFixos: number
 ): number {
   const f = Number.isFinite(faturamento) ? faturamento : 0;
   const co = Number.isFinite(comissoes) ? comissoes : 0;
   const t = Number.isFinite(taxas) ? taxas : 0;
   const ct = Number.isFinite(contas) ? contas : 0;
-  return f - co - t - ct;
+  const s = Number.isFinite(salariosFixos) ? salariosFixos : 0;
+  return f - co - t - ct - s;
 }
 
 /** Fatia do donut "pra onde vai o dinheiro" (mockup Financeiro). */
 export interface MoneyAllocationSegment {
-  key: 'liquido' | 'contas' | 'comissoes' | 'taxas';
+  key: 'liquido' | 'contas' | 'salarios' | 'comissoes' | 'taxas';
   /** Rótulo humano da fatia. */
   name: string;
   /** Valor em R$ da fatia (nunca negativo). */
@@ -46,7 +49,7 @@ export interface MoneyAllocationSegment {
 /** Campos do NetResult que o donut consome (não exige o objeto inteiro). */
 type MoneyAllocationInput = Pick<
   NetResult,
-  'faturamento' | 'liquido' | 'contasFixas' | 'comissoes' | 'taxas'
+  'faturamento' | 'liquido' | 'contasFixas' | 'salariosFixos' | 'comissoes' | 'taxas'
 >;
 
 /**
@@ -70,21 +73,20 @@ export function isMonthInRed(net: Pick<NetResult, 'liquido'>): boolean {
  *
  * MEDIUM-7: os percentuais usam o método do maior resto (largest remainder)
  * para somarem EXATAMENTE 100% (antes, arredondamento independente dava
- * 99%/101%). A base é o faturamento quando o líquido ≥ 0; quando o mês está no
- * vermelho (sem fatia "sobra"), a base é a soma das fatias visíveis.
+ * 99%/101%). A base é o faturamento quando há receita e o líquido ≥ 0; quando o
+ * mês está no vermelho ou só há despesas, a base é a soma das fatias visíveis.
  *
  * @param net - Resultado líquido do período (RPC get_net_result).
- * @returns Fatias ordenadas (sobra → contas → comissões → taxas); vazio se faturamento = 0.
+ * @returns Fatias ordenadas (sobra → contas → salários → comissões → taxas); vazio sem valor algum.
  */
 export function buildMoneyAllocation(net: MoneyAllocationInput): MoneyAllocationSegment[] {
   const faturamento = Number.isFinite(net.faturamento) ? net.faturamento : 0;
-  if (faturamento <= 0) return [];
-
   const safe = (value: number) => (Number.isFinite(value) && value > 0 ? value : 0);
 
   const base = [
     { key: 'liquido' as const, name: 'Sobra (líquido)', value: safe(net.liquido), color: '#b0883f' },
     { key: 'contas' as const, name: 'Contas fixas', value: safe(net.contasFixas), color: '#0e7d69' },
+    { key: 'salarios' as const, name: 'Salários fixos', value: safe(net.salariosFixos), color: '#f59e0b' },
     { key: 'comissoes' as const, name: 'Comissões', value: safe(net.comissoes), color: '#5fd0b6' },
     { key: 'taxas' as const, name: 'Taxas de cartão', value: safe(net.taxas), color: '#fda4af' },
   ];
@@ -92,7 +94,9 @@ export function buildMoneyAllocation(net: MoneyAllocationInput): MoneyAllocation
   // Denominador dos percentuais: faturamento se há sobra; senão a soma das
   // fatias visíveis (mês no vermelho não tem fatia "sobra" pra fechar 100%).
   const visibleSum = base.reduce((acc, s) => acc + s.value, 0);
-  const denom = isMonthInRed(net) ? visibleSum : faturamento;
+  if (visibleSum <= 0) return [];
+
+  const denom = isMonthInRed(net) || faturamento <= 0 ? visibleSum : faturamento;
 
   return withLargestRemainder(base, denom);
 }

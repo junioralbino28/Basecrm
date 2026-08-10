@@ -12,7 +12,12 @@
  */
 
 import { supabase } from './client';
-import { RevenueReport, CommissionReport, NetResult } from '@/types';
+import {
+  RevenueReport,
+  CommissionReport,
+  NetResult,
+  ProfessionalPayType,
+} from '@/types';
 
 /** Saída crua do RPC get_revenue_report. */
 interface DbRevenueReport {
@@ -25,11 +30,18 @@ interface DbRevenueReport {
 /** Saída crua do RPC get_commission_report. */
 interface DbCommissionReport {
   total_comissao: number;
+  // Opcionais para aceitar o contrato anterior, que reportava apenas comissão.
+  total_fixo?: number;
+  total_remuneracao?: number;
   por_profissional: Array<{
     professional_id: string;
     professional_name: string;
+    role?: string | null;
+    pay_type?: ProfessionalPayType | null;
+    fixed_amount?: number;
     atendimentos: number;
     comissao: number;
+    remuneracao_total?: number;
     faturamento_base: number;
     pago: number;
   }> | null;
@@ -39,6 +51,9 @@ interface DbCommissionReport {
 interface DbNetResult {
   faturamento: number;
   comissoes: number;
+  // Campos do Pacote 3. Opcionais p/ tolerar resposta anterior à remuneração fixa.
+  salarios_fixos?: number;
+  remuneracao_total?: number;
   taxas: number;
   contas_fixas: number;
   // Campos do fix 20260624000000 (HIGH-1). Opcionais p/ tolerar resposta antiga.
@@ -61,29 +76,50 @@ const transformRevenue = (db: DbRevenueReport): RevenueReport => ({
   })),
 });
 
-const transformCommission = (db: DbCommissionReport): CommissionReport => ({
-  totalComissao: Number(db.total_comissao || 0),
-  porProfissional: (db.por_profissional || []).map((r) => {
+const transformCommission = (db: DbCommissionReport): CommissionReport => {
+  const totalComissao = Number(db.total_comissao || 0);
+  const porProfissional = (db.por_profissional || []).map((r) => {
     const comissao = Number(r.comissao || 0);
+    const fixedAmount = Number(r.fixed_amount ?? 0);
+    const remuneracaoTotal = Number(r.remuneracao_total ?? comissao + fixedAmount);
     const pago = Number(r.pago || 0);
     return {
       professionalId: r.professional_id,
       professionalName: r.professional_name,
+      role: r.role ?? null,
+      // No contrato antigo toda remuneração reportada aqui era comissão.
+      payType: r.pay_type ?? 'commission',
+      fixedAmount,
       atendimentos: Number(r.atendimentos || 0),
       comissao,
+      remuneracaoTotal,
       faturamentoBase: Number(r.faturamento_base || 0),
       pago,
-      // "A pagar" nunca fica negativo: pagamento a maior = quitado.
-      aPagar: Math.max(comissao - pago, 0),
+      // O pagamento quita a remuneração inteira (variável + fixa), sem saldo negativo.
+      aPagar: Math.max(remuneracaoTotal - pago, 0),
     };
-  }),
-});
+  });
+  const totalFixo = Number(
+    db.total_fixo ?? porProfissional.reduce((total, row) => total + row.fixedAmount, 0)
+  );
+
+  return {
+    totalComissao,
+    totalFixo,
+    totalRemuneracao: Number(db.total_remuneracao ?? totalComissao + totalFixo),
+    porProfissional,
+  };
+};
 
 const transformNetResult = (db: DbNetResult): NetResult => {
+  const comissoes = Number(db.comissoes || 0);
+  const salariosFixos = Number(db.salarios_fixos ?? 0);
   const contasFixas = Number(db.contas_fixas || 0);
   return {
     faturamento: Number(db.faturamento || 0),
-    comissoes: Number(db.comissoes || 0),
+    comissoes,
+    salariosFixos,
+    remuneracaoTotal: Number(db.remuneracao_total ?? comissoes + salariosFixos),
     taxas: Number(db.taxas || 0),
     contasFixas,
     // Fallback p/ resposta antiga (pré-fix): mensal = total, 1 mês.
@@ -158,7 +194,7 @@ export const reportsService = {
   },
 
   /**
-   * Resultado líquido (faturamento − comissões − taxas − contas fixas).
+   * Resultado líquido (faturamento − remuneração total − taxas − contas fixas).
    */
   async getNetResult(
     pStart: string,

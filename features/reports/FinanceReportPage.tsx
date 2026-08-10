@@ -1,7 +1,15 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { DollarSign, Users, TrendingUp, Download, CreditCard, Receipt } from 'lucide-react';
+import {
+  DollarSign,
+  Users,
+  TrendingUp,
+  Download,
+  CreditCard,
+  Receipt,
+  WalletCards,
+} from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 import { StatCard } from '@/features/dashboard/components/StatCard';
@@ -112,9 +120,10 @@ const FinanceReportContent: React.FC = () => {
     const taxas = netResult.taxas;
     const comissoes = netResult.comissoes;
     const contasFixas = netResult.contasFixas;
+    const salariosFixos = netResult.salariosFixos;
     // MEDIUM-4: o líquido do PDF é RECOMPUTADO dos MESMOS valores impressos
     // (cascata consistente) — não confia num campo que pode divergir.
-    const liquido = calcLiquido(faturamento, comissoes, taxas, contasFixas);
+    const liquido = calcLiquido(faturamento, comissoes, taxas, contasFixas, salariosFixos);
 
     await generateFinanceReportPDF(
       {
@@ -122,6 +131,7 @@ const FinanceReportContent: React.FC = () => {
         taxas,
         comissoes,
         contasFixas,
+        salariosFixos,
         liquido,
         mesesPeriodo: netResult.mesesPeriodo,
         contasFixasMensal: netResult.contasFixasMensal,
@@ -146,7 +156,7 @@ const FinanceReportContent: React.FC = () => {
             Financeiro
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            O líquido REAL — depois de taxas, comissões e contas ·{' '}
+            O líquido REAL — depois de taxas, comissões, salários e contas ·{' '}
             <span className="text-gold-700 dark:text-gold-500 font-medium">só você vê esta tela</span>
           </p>
         </div>
@@ -180,7 +190,7 @@ const FinanceReportContent: React.FC = () => {
       ) : null}
 
       {/* P&L do período: a cascata até o líquido (mockup) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 shrink-0">
         <StatCard
           title="Recebido bruto"
           value={revenueLoading ? '...' : formatBRL(netResult?.faturamento ?? revenue?.faturamento ?? 0)}
@@ -207,6 +217,15 @@ const FinanceReportContent: React.FC = () => {
           icon={Users}
           color="bg-purple-500"
           comparisonLabel="detalhe em Profissionais"
+        />
+        <StatCard
+          title="Salários fixos"
+          value={`- ${formatBRL(netResult?.salariosFixos ?? 0)}`}
+          subtext="remuneração fixa do período"
+          subtextPositive={false}
+          icon={WalletCards}
+          color="bg-amber-500"
+          comparisonLabel="independe dos procedimentos"
         />
         <StatCard
           title="Contas fixas"

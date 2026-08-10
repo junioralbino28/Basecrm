@@ -1,5 +1,6 @@
 import { PeriodFilter, PERIOD_LABELS } from '@/features/dashboard/hooks/useDashboardMetrics';
 import { Deal } from '@/types';
+import { calcLiquido } from './financeMath';
 
 interface ReportData {
     pipelineValue: number;
@@ -24,6 +25,7 @@ const COLORS = {
     emerald: [16, 185, 129] as [number, number, number],
     purple: [139, 92, 246] as [number, number, number],
     orange: [249, 115, 22] as [number, number, number],
+    amber: [245, 158, 11] as [number, number, number],
     red: [239, 68, 68] as [number, number, number],
     bgLight: [248, 250, 252] as [number, number, number],
     border: [226, 232, 240] as [number, number, number],
@@ -345,6 +347,7 @@ interface FinanceReportData {
     taxas: number;
     comissoes: number;
     contasFixas: number;
+    salariosFixos: number;
     liquido: number;
     /** Nº de meses do período (HIGH-1) — pró-rateio das contas fixas. */
     mesesPeriodo?: number;
@@ -355,6 +358,35 @@ interface FinanceReportData {
     /** Semanas já rotuladas por data ('25/05–31/05', LOW-9) e contínuas. */
     porSemana: Array<{ semana: string; faturamento: number; atendimentos: number }>;
 }
+
+/** Geometria dos KPIs financeiros no A4: três colunas e quantas linhas forem necessárias. */
+export const buildFinanceKpiGrid = (contentWidth: number, itemCount: number) => {
+    const columns = 3;
+    const gap = 4;
+    const cardHeight = 32;
+    const cardWidth = (contentWidth - gap * (columns - 1)) / columns;
+    const rows = Math.ceil(itemCount / columns);
+    const positions = Array.from({ length: itemCount }, (_, index) => {
+        const row = Math.floor(index / columns);
+        const column = index % columns;
+        return {
+            row,
+            column,
+            x: column * (cardWidth + gap),
+            y: row * (cardHeight + gap),
+        };
+    });
+
+    return {
+        columns,
+        rows,
+        gap,
+        cardWidth,
+        cardHeight,
+        totalHeight: rows > 0 ? rows * cardHeight + (rows - 1) * gap : 0,
+        positions,
+    };
+};
 
 /**
  * Gera o PDF do relatório financeiro (cascata até o líquido + listas).
@@ -403,43 +435,52 @@ export const generateFinanceReportPDF = async (
     doc.setLineWidth(0.3);
     doc.line(margin, 38, pageWidth - margin, 38);
 
-    // KPI cards — cascata do mockup (5 cards)
+    // KPI cards — cascata completa do período.
     const meses = data.mesesPeriodo ?? 1;
     const contasLabel = meses > 1 ? `Contas fixas (${meses}m)` : 'Contas fixas';
+    const liquido = calcLiquido(
+        data.faturamento,
+        data.comissoes,
+        data.taxas,
+        data.contasFixas,
+        data.salariosFixos
+    );
     const kpis = [
         { label: 'Recebido bruto', value: formatBRL(data.faturamento), accent: COLORS.blue },
         { label: 'Taxas de cartão', value: `- ${formatBRL(data.taxas)}`, accent: COLORS.red },
         { label: 'Comissões', value: `- ${formatBRL(data.comissoes)}`, accent: COLORS.purple },
+        { label: 'Salários fixos', value: `- ${formatBRL(data.salariosFixos)}`, accent: COLORS.amber },
         { label: contasLabel, value: `- ${formatBRL(data.contasFixas)}`, accent: COLORS.orange },
-        { label: 'Líquido', value: formatBRL(data.liquido), accent: COLORS.emerald },
+        { label: 'Líquido', value: formatBRL(liquido), accent: COLORS.emerald },
     ];
 
     const kpiY = 45;
-    const cardGap = 4;
-    const cardWidth = (contentWidth - cardGap * (kpis.length - 1)) / kpis.length;
-    const cardHeight = 32;
+    const kpiGrid = buildFinanceKpiGrid(contentWidth, kpis.length);
+    const { cardWidth, cardHeight } = kpiGrid;
 
     kpis.forEach((kpi, i) => {
-        const x = margin + i * (cardWidth + cardGap);
+        const position = kpiGrid.positions[i];
+        const x = margin + position.x;
+        const y = kpiY + position.y;
 
         doc.setFillColor(...COLORS.white);
         doc.setDrawColor(...COLORS.border);
-        doc.roundedRect(x, kpiY, cardWidth, cardHeight, 2, 2, 'FD');
+        doc.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'FD');
 
         doc.setFillColor(...kpi.accent);
-        doc.roundedRect(x, kpiY, cardWidth, 4, 2, 2, 'F');
+        doc.roundedRect(x, y, cardWidth, 4, 2, 2, 'F');
         doc.setFillColor(...COLORS.white);
-        doc.rect(x, kpiY + 2, cardWidth, 2, 'F');
+        doc.rect(x, y + 2, cardWidth, 2, 'F');
 
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...COLORS.secondary);
-        doc.text(kpi.label, x + 3, kpiY + 11);
+        doc.text(kpi.label, x + 3, y + 11);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...COLORS.primary);
-        doc.text(kpi.value, x + 3, kpiY + 22);
+        doc.text(kpi.value, x + 3, y + 22);
     });
 
     // Resumo do período
@@ -453,11 +494,11 @@ export const generateFinanceReportPDF = async (
     doc.text(
         `${data.totalAtendimentos} atendimentos pagos no período · só conta o que foi recebido${proRateNote}`,
         margin,
-        kpiY + cardHeight + 8
+        kpiY + kpiGrid.totalHeight + 8
     );
 
     // Recebido por semana (lista)
-    const weekY = kpiY + cardHeight + 18;
+    const weekY = kpiY + kpiGrid.totalHeight + 18;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...COLORS.primary);
