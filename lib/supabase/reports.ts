@@ -49,12 +49,13 @@ interface DbCommissionReport {
 
 /** Saída crua do RPC get_net_result. */
 interface DbNetResult {
+  // Régua do relatório (04/09): 'caixa'. Opcional p/ tolerar resposta anterior.
+  regime?: 'caixa';
   faturamento: number;
-  comissoes: number;
-  // Campos do Pacote 3. Opcionais p/ tolerar resposta anterior à remuneração fixa.
-  salarios_fixos?: number;
-  remuneracao_total?: number;
   taxas: number;
+  // Pago à equipe no período (fixo + comissão) pela data do pagamento.
+  // Opcional p/ tolerar resposta anterior à separação das réguas.
+  remuneracao_paga?: number;
   contas_fixas: number;
   // Campos do fix 20260624000000 (HIGH-1). Opcionais p/ tolerar resposta antiga.
   contas_fixas_mensal?: number;
@@ -112,15 +113,14 @@ const transformCommission = (db: DbCommissionReport): CommissionReport => {
 };
 
 const transformNetResult = (db: DbNetResult): NetResult => {
-  const comissoes = Number(db.comissoes || 0);
-  const salariosFixos = Number(db.salarios_fixos ?? 0);
   const contasFixas = Number(db.contas_fixas || 0);
   return {
+    // O contrato é caixa por definição; a RPC antiga (sem o campo) recebe o
+    // mesmo rótulo para o consumidor não misturar réguas por engano.
+    regime: 'caixa',
     faturamento: Number(db.faturamento || 0),
-    comissoes,
-    salariosFixos,
-    remuneracaoTotal: Number(db.remuneracao_total ?? comissoes + salariosFixos),
     taxas: Number(db.taxas || 0),
+    remuneracaoPaga: Number(db.remuneracao_paga ?? 0),
     contasFixas,
     // Fallback p/ resposta antiga (pré-fix): mensal = total, 1 mês.
     contasFixasMensal: Number(db.contas_fixas_mensal ?? contasFixas),

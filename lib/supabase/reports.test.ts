@@ -186,14 +186,13 @@ describe('reportsService', () => {
     });
   });
 
-  it('getNetResult mapeia o líquido para camelCase (com pró-rateio das contas)', async () => {
+  it('getNetResult mapeia o caixa para camelCase (com pró-rateio das contas)', async () => {
     rpcMock.mockResolvedValue({
       data: {
+        regime: 'caixa',
         faturamento: 10000,
-        comissoes: 2000,
-        salarios_fixos: 2500,
-        remuneracao_total: 4500,
         taxas: 300,
+        remuneracao_paga: 4500,
         contas_fixas: 4500, // 1500/mês × 3 meses (pró-rateio HIGH-1)
         contas_fixas_mensal: 1500,
         meses_periodo: 3,
@@ -209,11 +208,10 @@ describe('reportsService', () => {
 
     expect(error).toBeNull();
     expect(data).toEqual({
+      regime: 'caixa',
       faturamento: 10000,
-      comissoes: 2000,
-      salariosFixos: 2500,
-      remuneracaoTotal: 4500,
       taxas: 300,
+      remuneracaoPaga: 4500,
       contasFixas: 4500,
       contasFixasMensal: 1500,
       mesesPeriodo: 3,
@@ -221,14 +219,13 @@ describe('reportsService', () => {
     });
   });
 
-  it('getNetResult tolera resposta antiga (sem pró-rateio): mensal = total, 1 mês', async () => {
+  it('getNetResult tolera resposta antiga (sem pró-rateio nem pago à equipe): mensal = total, 1 mês, pago = 0', async () => {
     rpcMock.mockResolvedValue({
       data: {
         faturamento: 10000,
-        comissoes: 2000,
         taxas: 300,
         contas_fixas: 1500,
-        liquido: 6200,
+        liquido: 8200,
       },
       error: null,
     });
@@ -240,15 +237,14 @@ describe('reportsService', () => {
 
     expect(error).toBeNull();
     expect(data).toEqual({
+      regime: 'caixa',
       faturamento: 10000,
-      comissoes: 2000,
-      salariosFixos: 0,
-      remuneracaoTotal: 2000,
       taxas: 300,
+      remuneracaoPaga: 0,
       contasFixas: 1500,
       contasFixasMensal: 1500,
       mesesPeriodo: 1,
-      liquido: 6200,
+      liquido: 8200,
     });
   });
 

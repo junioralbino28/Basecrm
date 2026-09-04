@@ -8,8 +8,7 @@ import {
   Download,
   CreditCard,
   Receipt,
-  WalletCards,
-} from 'lucide-react';
+  } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import PageLoader from '@/components/PageLoader';
 import { StatCard } from '@/features/dashboard/components/StatCard';
@@ -26,7 +25,6 @@ import { buildMoneyAllocation, calcLiquido, isMonthInRed } from './utils/finance
 import { fillWeeklySeries } from './utils/financeWeeks';
 import {
   useRevenueReport,
-  useCommissionReport,
   useNetResult,
 } from '@/lib/query/hooks/useFinanceReports';
 import { generateFinanceReportPDF } from './utils/generateReportPDF';
@@ -56,21 +54,17 @@ const FinanceReportContent: React.FC = () => {
     isError: revenueError,
   } = useRevenueReport(start, end);
   const {
-    data: commission,
-    isLoading: commissionLoading,
-    isError: commissionError,
-  } = useCommissionReport(start, end);
-  const {
     data: netResult,
     isLoading: netLoading,
     isError: netError,
   } = useNetResult(start, end);
 
-  // MEDIUM-4: PDF/cascata só são confiáveis com as 3 fontes prontas. Qualquer
+  // MEDIUM-4: PDF/cascata só são confiáveis com as 2 fontes prontas. Qualquer
   // uma carregando ou em erro → não exporta (senão imprime R$0 silencioso) e
-  // sinaliza o erro na tela (antes só o revenue avisava).
-  const anyLoading = revenueLoading || commissionLoading || netLoading;
-  const anyError = revenueError || commissionError || netError;
+  // sinaliza o erro na tela (antes só o revenue avisava). A comissão DEVIDA não
+  // entra aqui: o Financeiro é caixa (04/09); o devido vive em Profissionais.
+  const anyLoading = revenueLoading || netLoading;
+  const anyError = revenueError || netError;
 
   const trendData = useMemo(
     () =>
@@ -118,20 +112,18 @@ const FinanceReportContent: React.FC = () => {
 
     const faturamento = netResult.faturamento;
     const taxas = netResult.taxas;
-    const comissoes = netResult.comissoes;
+    const remuneracaoPaga = netResult.remuneracaoPaga;
     const contasFixas = netResult.contasFixas;
-    const salariosFixos = netResult.salariosFixos;
     // MEDIUM-4: o líquido do PDF é RECOMPUTADO dos MESMOS valores impressos
     // (cascata consistente) — não confia num campo que pode divergir.
-    const liquido = calcLiquido(faturamento, comissoes, taxas, contasFixas, salariosFixos);
+    const liquido = calcLiquido(faturamento, remuneracaoPaga, taxas, contasFixas);
 
     await generateFinanceReportPDF(
       {
         faturamento,
         taxas,
-        comissoes,
+        remuneracaoPaga,
         contasFixas,
-        salariosFixos,
         liquido,
         mesesPeriodo: netResult.mesesPeriodo,
         contasFixasMensal: netResult.contasFixasMensal,
@@ -156,7 +148,7 @@ const FinanceReportContent: React.FC = () => {
             Financeiro
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            O líquido REAL — depois de taxas, comissões, salários e contas ·{' '}
+            O caixa REAL — o que entrou, o que saiu pra equipe e o que sobrou ·{' '}
             <span className="text-gold-700 dark:text-gold-500 font-medium">só você vê esta tela</span>
           </p>
         </div>
@@ -175,22 +167,22 @@ const FinanceReportContent: React.FC = () => {
         </div>
       </div>
 
-      {/* Estado de erro — MEDIUM-4: cobre as 3 fontes (taxas/comissões/líquido
-          falhavam mudas; só o revenue avisava). */}
+      {/* Estado de erro — MEDIUM-4: cobre as 2 fontes (taxas/líquido falhavam
+          mudas; só o revenue avisava). */}
       {anyError ? (
         <div className="glass p-4 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50/50 dark:bg-red-500/5 shadow-sm shrink-0">
           <p className="text-sm text-red-600 dark:text-red-400">
             Não foi possível carregar
             {revenueError ? ' o faturamento' : ''}
-            {commissionError ? `${revenueError ? ',' : ''} as comissões` : ''}
-            {netError ? `${revenueError || commissionError ? ' e' : ''} o resultado líquido` : ''}
+            {netError ? `${revenueError ? ' e' : ''} o resultado líquido` : ''}
             . Os números podem estar incompletos — tente novamente (a exportação fica bloqueada até carregar).
           </p>
         </div>
       ) : null}
 
-      {/* P&L do período: a cascata até o líquido (mockup) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 shrink-0">
+      {/* Caixa do período: a cascata até o líquido (mockup). Comissão e salário
+          DEVIDOS não aparecem aqui — é a régua de Profissionais (competência). */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 shrink-0">
         <StatCard
           title="Recebido bruto"
           value={revenueLoading ? '...' : formatBRL(netResult?.faturamento ?? revenue?.faturamento ?? 0)}
@@ -210,22 +202,13 @@ const FinanceReportContent: React.FC = () => {
           comparisonLabel="calculadas no registro"
         />
         <StatCard
-          title="Comissões"
-          value={`- ${formatBRL(netResult?.comissoes ?? commission?.totalComissao ?? 0)}`}
-          subtext={`${commission?.porProfissional.length ?? 0} profissionais`}
+          title="Pago à equipe"
+          value={`- ${formatBRL(netResult?.remuneracaoPaga ?? 0)}`}
+          subtext="fixo + comissões pagos no período"
           subtextPositive={false}
           icon={Users}
           color="bg-purple-500"
-          comparisonLabel="detalhe em Profissionais"
-        />
-        <StatCard
-          title="Salários fixos"
-          value={`- ${formatBRL(netResult?.salariosFixos ?? 0)}`}
-          subtext="remuneração fixa do período"
-          subtextPositive={false}
-          icon={WalletCards}
-          color="bg-amber-500"
-          comparisonLabel="independe dos procedimentos"
+          comparisonLabel="só o que já saiu do caixa"
         />
         <StatCard
           title="Contas fixas"
@@ -244,11 +227,11 @@ const FinanceReportContent: React.FC = () => {
         <StatCard
           title="Líquido"
           value={formatBRL(netResult?.liquido ?? 0)}
-          subtext="o que sobra de verdade"
+          subtext="o que sobrou no caixa"
           subtextPositive={(netResult?.liquido ?? 0) >= 0}
           icon={TrendingUp}
           color="bg-emerald-500"
-          comparisonLabel="após deduções"
+          comparisonLabel="entradas − saídas"
         />
       </div>
 

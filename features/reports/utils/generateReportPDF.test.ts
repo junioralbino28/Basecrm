@@ -84,14 +84,13 @@ describe('generateReportPDF — hardening de deps (H5)', () => {
     expect(openSpy).toHaveBeenCalledWith('blob:mock', '_blank');
   });
 
-  it('relatório financeiro imprime salário fixo e recompõe o líquido com essa dedução', async () => {
+  it('relatório financeiro imprime o pago à equipe e recompõe o líquido com essa saída', async () => {
     await generateFinanceReportPDF(
       {
         faturamento: 0,
         taxas: 0,
-        comissoes: 0,
+        remuneracaoPaga: 2500,
         contasFixas: 0,
-        salariosFixos: 2500,
         // Valor propositalmente inconsistente: o PDF deve ignorá-lo e recomputar -2500.
         liquido: 999999,
         totalAtendimentos: 0,
@@ -104,7 +103,7 @@ describe('generateReportPDF — hardening de deps (H5)', () => {
     const pdfBlob = createUrlSpy.mock.calls.at(-1)?.[0] as Blob;
     const pdfText = new TextDecoder('latin1').decode(await pdfBlob.arrayBuffer());
 
-    expect(pdfText).toContain('Salários fixos');
+    expect(pdfText).toContain('Pago à equipe');
     expect(pdfText.match(/2\.500,00/g)).toHaveLength(2);
   });
 

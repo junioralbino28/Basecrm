@@ -799,14 +799,18 @@ export interface CommissionReport {
 
 /** Saída do RPC get_net_result (líquido = faturamento − remuneração − taxas − contas). */
 export interface NetResult {
+  /**
+   * Régua do Financeiro: CAIXA — só dinheiro que entrou e saiu no período
+   * (decisão de 04/09). Comissão e salário DEVIDOS ficam no relatório de
+   * Profissionais, que é por competência. Nunca subtrair uma régua da outra.
+   */
+  regime: 'caixa';
+  /** Recebido bruto: atendimentos pagos no período (valor − desconto), pela data do pagamento. */
   faturamento: number;
-  comissoes: number;
-  /** Salários/parcelas fixas devidos no período. */
-  salariosFixos: number;
-  /** Remuneração total = comissões + salários fixos. */
-  remuneracaoTotal: number;
   taxas: number;
-  /** Contas fixas PRÓ-RATEADAS pelo nº de meses do período (= mensal × meses). */
+  /** Pago à equipe no período: pagamentos de remuneração (fixo + comissão) pela data do pagamento. */
+  remuneracaoPaga: number;
+  /** Contas fixas PRÓ-RATEADAS pelo nº de meses do período (= mensal × meses). Estimativa: sem registro de pagamento. */
   contasFixas: number;
   /** Mensalidade base das contas fixas ativas (antes do pró-rateio). */
   contasFixasMensal: number;

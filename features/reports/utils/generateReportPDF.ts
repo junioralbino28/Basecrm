@@ -339,15 +339,16 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
 };
 
 // ============================================
-// RELATÓRIO FINANCEIRO (F8 — faturamento · comissão · líquido)
+// RELATÓRIO FINANCEIRO (F8 — caixa: recebido · pago à equipe · líquido)
 // ============================================
 
 interface FinanceReportData {
+    /** Recebido no período (caixa). */
     faturamento: number;
     taxas: number;
-    comissoes: number;
+    /** Pago à equipe no período (fixo + comissões, caixa). */
+    remuneracaoPaga: number;
     contasFixas: number;
-    salariosFixos: number;
     liquido: number;
     /** Nº de meses do período (HIGH-1) — pró-rateio das contas fixas. */
     mesesPeriodo?: number;
@@ -440,16 +441,14 @@ export const generateFinanceReportPDF = async (
     const contasLabel = meses > 1 ? `Contas fixas (${meses}m)` : 'Contas fixas';
     const liquido = calcLiquido(
         data.faturamento,
-        data.comissoes,
+        data.remuneracaoPaga,
         data.taxas,
-        data.contasFixas,
-        data.salariosFixos
+        data.contasFixas
     );
     const kpis = [
         { label: 'Recebido bruto', value: formatBRL(data.faturamento), accent: COLORS.blue },
         { label: 'Taxas de cartão', value: `- ${formatBRL(data.taxas)}`, accent: COLORS.red },
-        { label: 'Comissões', value: `- ${formatBRL(data.comissoes)}`, accent: COLORS.purple },
-        { label: 'Salários fixos', value: `- ${formatBRL(data.salariosFixos)}`, accent: COLORS.amber },
+        { label: 'Pago à equipe', value: `- ${formatBRL(data.remuneracaoPaga)}`, accent: COLORS.purple },
         { label: contasLabel, value: `- ${formatBRL(data.contasFixas)}`, accent: COLORS.orange },
         { label: 'Líquido', value: formatBRL(liquido), accent: COLORS.emerald },
     ];

@@ -277,6 +277,8 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
         professional_id: professionalAId,
         amount: 100,
         period: '2026-06',
+        // Caixa: pago em 20/06 — entra em `remuneracao_paga` do get_net_result.
+        paid_at: '2026-06-20T10:00:00-03:00',
       }),
       'insert commission_payment A',
     );
@@ -288,6 +290,9 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     // A4 — recebido SEM dentista (professional_id null), pix, 300 — entra no
     //      faturamento bruto mas NÃO na tabela por-profissional (INNER join);
     //      MEDIUM-8: aparece em sem_profissional pra reconciliar o Financeiro.
+    // A5 — SEM dentista, feito 30/06 e pago só em 02/07 (400): competência
+    //      junho, caixa julho — R-01 (entra em sem_profissional de junho, fora
+    //      do recebido de junho).
     // B1 — org B, recebido, 9999 (nunca pode vazar pro relatório de A).
     assertNoSupabaseError(
       await admin.from('atendimentos').insert([
@@ -353,6 +358,18 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
           recebido: true,
           paid_at: '2026-05-15T10:00:00-03:00',
           performed_at: '2026-05-15T09:00:00-03:00',
+        },
+        {
+          organization_id: orgAId,
+          professional_id: null,
+          procedimento: `Sem dentista julho ${runId}`,
+          valor: 400,
+          desconto: 0,
+          payment_method: 'pix',
+          installments: 1,
+          recebido: true,
+          paid_at: '2026-07-02T10:00:00-03:00',
+          performed_at: '2026-06-30T10:00:00-03:00',
         },
         {
           organization_id: orgBId,
@@ -505,10 +522,11 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     expect(Number(linha.atendimentos)).toBe(3);
     expect(Number(linha.pago)).toBe(100);
 
-    // MEDIUM-8: o atendimento recebido sem dentista (A4, 300) é reportado à
-    // parte pra reconciliar com o "Recebido bruto" do Financeiro (1700).
-    expect(Number(report.sem_profissional.atendimentos)).toBe(1);
-    expect(Number(report.sem_profissional.faturamento)).toBe(300);
+    // R-01: o bloco sem dentista segue a MESMA régua das linhas (competência
+    // por performed_at). A4 (300, junho) e A5 (400, feito 30/06 e pago só em
+    // 02/07) entram os dois em junho — antes o A5 sumia daqui e aparecia em julho.
+    expect(Number(report.sem_profissional.atendimentos)).toBe(2);
+    expect(Number(report.sem_profissional.faturamento)).toBe(700);
 
     await client.auth.signOut();
   });
@@ -543,7 +561,7 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     await client.auth.signOut();
   });
 
-  it('líquido = faturamento − comissões − taxas (forma+bandeira+parcelas) − contas fixas ATIVAS', async ctx => {
+  it('caixa: líquido = recebido − taxas (forma+bandeira+parcelas) − pago à equipe − contas fixas ATIVAS', async ctx => {
     if (rpcMissing) return ctx.skip();
     const client = createUserClient();
     const signIn = await client.auth.signInWithPassword({ email: adminEmail, password });
@@ -553,28 +571,36 @@ describeSupabase('finance reports RPCs - gate financeiro multi-tenant (usuário 
     expect(res.error).toBeNull();
 
     const net = res.data as {
+      regime: string;
       faturamento: number;
-      comissoes: number;
       taxas: number;
+      remuneracao_paga: number;
       contas_fixas: number;
       contas_fixas_mensal: number;
       meses_periodo: number;
       liquido: number;
+      comissoes?: number;
+      salarios_fixos?: number;
     };
 
-    // 900 (A1) + 500 (A3) + 300 (A4 sem dentista) = 1700.
+    // R-08 (04/09): o Financeiro é CAIXA puro. Comissão e salário DEVIDOS não
+    // entram aqui — vivem no relatório de Profissionais, que é por competência.
+    expect(net.regime).toBe('caixa');
+    expect(net.comissoes).toBeUndefined();
+    expect(net.salarios_fixos).toBeUndefined();
+    // Recebido em junho pela data do pagamento: 900 (A1) + 500 (A3) + 300 (A4).
+    // A2 (não recebido) e A5 (pago só em julho) ficam fora.
     expect(Number(net.faturamento)).toBe(1700);
-    // Comissão é competência por performed_at; inclui também o A2 ainda não
-    // recebido. Receita continua sendo caixa e, portanto, exclui o A2.
-    expect(Number(net.comissoes)).toBeCloseTo(630, 2);
     // HIGH-2: taxa só no A1 (crédito 'Visa' config vs 'visa' atendimento — só
     // aplica porque o RPC normaliza): 3,15% de 900 = 28,35; pix sem taxa.
     expect(Number(net.taxas)).toBeCloseTo(28.35, 2);
+    // Pago à equipe: o pagamento de 100 feito em 20/06 (data do pagamento).
+    expect(Number(net.remuneracao_paga)).toBe(100);
     // conta inativa de 9999 NÃO entra. HIGH-1: junho é 1 mês → 1× 250.
     expect(Number(net.contas_fixas_mensal)).toBe(250);
     expect(Number(net.meses_periodo)).toBe(1);
     expect(Number(net.contas_fixas)).toBe(250);
-    expect(Number(net.liquido)).toBeCloseTo(1700 - 630 - 28.35 - 250, 2);
+    expect(Number(net.liquido)).toBeCloseTo(1700 - 28.35 - 100 - 250, 2);
 
     await client.auth.signOut();
   });

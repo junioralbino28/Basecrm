@@ -7,47 +7,40 @@ import {
   isMonthInRed,
 } from './financeMath';
 
-describe('calcLiquido', () => {
-  it('subtrai comissões, taxas, contas e salários fixos do faturamento', () => {
-    expect(calcLiquido(10000, 2000, 300, 1500, 1000)).toBe(5200);
+describe('calcLiquido (caixa: recebido − pago à equipe − taxas − contas)', () => {
+  it('subtrai o pago à equipe, as taxas e as contas do recebido', () => {
+    expect(calcLiquido(10000, 3000, 300, 1500)).toBe(5200);
   });
 
-  it('retorna o próprio faturamento quando não há deduções', () => {
-    expect(calcLiquido(5000, 0, 0, 0, 0)).toBe(5000);
+  it('retorna o próprio recebido quando nada saiu', () => {
+    expect(calcLiquido(5000, 0, 0, 0)).toBe(5000);
   });
 
-  it('pode ficar negativo quando as despesas superam o faturamento', () => {
-    expect(calcLiquido(1000, 500, 100, 800, 200)).toBe(-600);
+  it('pode ficar negativo quando as saídas superam o recebido', () => {
+    expect(calcLiquido(1000, 700, 100, 800)).toBe(-600);
   });
 
-  it('regressão: salário fixo sozinho deixa o resultado negativo', () => {
-    expect(calcLiquido(0, 0, 0, 0, 2500)).toBe(-2500);
+  it('regressão: pagamento à equipe sozinho deixa o caixa negativo', () => {
+    expect(calcLiquido(0, 2500, 0, 0)).toBe(-2500);
   });
 
   it('trata valores indefinidos/NaN como zero', () => {
     // @ts-expect-error testando robustez com entradas inválidas
-    expect(calcLiquido(10000, undefined, NaN, null, undefined)).toBe(10000);
+    expect(calcLiquido(10000, undefined, NaN, null)).toBe(10000);
   });
 });
 
 describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
-  it('divide o faturamento em sobra, contas, comissões e taxas com percentuais', () => {
+  it('divide o recebido em sobra, contas, pago à equipe e taxas com percentuais', () => {
     const segments = buildMoneyAllocation({
       faturamento: 18430,
-      comissoes: 4890,
+      remuneracaoPaga: 4890,
       taxas: 312,
       contasFixas: 6200,
-      salariosFixos: 0,
       liquido: 7028,
     });
 
-    expect(segments.map((s) => s.key)).toEqual([
-      'liquido',
-      'contas',
-      'salarios',
-      'comissoes',
-      'taxas',
-    ]);
+    expect(segments.map((s) => s.key)).toEqual(['liquido', 'contas', 'equipe', 'taxas']);
     const sobra = segments.find((s) => s.key === 'liquido')!;
     expect(sobra.value).toBe(7028);
     expect(sobra.percent).toBe(38); // 7028/18430 ≈ 38,1% → 38
@@ -60,10 +53,9 @@ describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
     // 3 fatias iguais de 33,33% → sem maior resto somaria 99%.
     const segments = buildMoneyAllocation({
       faturamento: 300,
-      comissoes: 100,
+      remuneracaoPaga: 100,
       taxas: 100,
       contasFixas: 100,
-      salariosFixos: 0,
       liquido: 0,
     });
     expect(segments.reduce((acc, s) => acc + s.percent, 0)).toBe(100);
@@ -72,10 +64,9 @@ describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
   it('líquido negativo vira sobra zero e % sobre as fatias visíveis (mês no vermelho)', () => {
     const net = {
       faturamento: 1000,
-      comissoes: 800,
+      remuneracaoPaga: 800,
       taxas: 100,
       contasFixas: 500,
-      salariosFixos: 0,
       liquido: -400,
     };
     const segments = buildMoneyAllocation(net);
@@ -85,31 +76,29 @@ describe('buildMoneyAllocation (donut "pra onde vai o dinheiro")', () => {
     expect(segments.reduce((acc, s) => acc + s.percent, 0)).toBe(100);
   });
 
-  it('regressão: salário fixo aparece sozinho no donut mesmo sem faturamento', () => {
+  it('regressão: pagamento à equipe aparece sozinho no donut mesmo sem recebimento', () => {
     const segments = buildMoneyAllocation({
       faturamento: 0,
-      comissoes: 0,
+      remuneracaoPaga: 2500,
       taxas: 0,
       contasFixas: 0,
-      salariosFixos: 2500,
       liquido: -2500,
     });
 
-    expect(segments.find((s) => s.key === 'salarios')).toMatchObject({
-      name: 'Salários fixos',
+    expect(segments.find((s) => s.key === 'equipe')).toMatchObject({
+      name: 'Pago à equipe',
       value: 2500,
       percent: 100,
     });
   });
 
-  it('faturamento zero retorna lista vazia (nada pra alocar)', () => {
+  it('sem valor algum retorna lista vazia (nada pra alocar)', () => {
     expect(
       buildMoneyAllocation({
         faturamento: 0,
-        comissoes: 0,
+        remuneracaoPaga: 0,
         taxas: 0,
         contasFixas: 0,
-        salariosFixos: 0,
         liquido: 0,
       })
     ).toEqual([]);

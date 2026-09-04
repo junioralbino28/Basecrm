@@ -7,35 +7,34 @@
 import type { NetResult } from '@/types';
 
 /**
- * Cálculo puro do resultado líquido financeiro.
+ * Cálculo puro do resultado de CAIXA do período (decisão de 04/09: o
+ * Financeiro só conta dinheiro que entrou e saiu; comissão e salário DEVIDOS
+ * ficam no relatório de Profissionais, por competência).
  *
- * Líquido = faturamento − comissões − taxas de cartão − contas fixas − salários fixos.
+ * Líquido = recebido − pago à equipe − taxas de cartão − contas fixas.
  *
- * @param faturamento - Total recebido no período (atendimentos pagos, valor − desconto).
- * @param comissoes - Total de comissões dos profissionais no período.
- * @param taxas - Total de taxas de cartão aplicadas no período.
- * @param contas - Total de contas/custos fixos ativos.
- * @param salariosFixos - Parcela fixa da remuneração dos profissionais no período.
- * @returns Resultado líquido (pode ser negativo).
+ * @param faturamento - Recebido no período (atendimentos pagos, valor − desconto, pela data do pagamento).
+ * @param remuneracaoPaga - Pago à equipe no período (fixo + comissões, pela data do pagamento).
+ * @param taxas - Taxas de cartão sobre o que entrou.
+ * @param contas - Contas/custos fixos ativos (estimativa mensal × meses).
+ * @returns Resultado de caixa (pode ser negativo).
  */
 export function calcLiquido(
   faturamento: number,
-  comissoes: number,
+  remuneracaoPaga: number,
   taxas: number,
-  contas: number,
-  salariosFixos: number
+  contas: number
 ): number {
   const f = Number.isFinite(faturamento) ? faturamento : 0;
-  const co = Number.isFinite(comissoes) ? comissoes : 0;
+  const e = Number.isFinite(remuneracaoPaga) ? remuneracaoPaga : 0;
   const t = Number.isFinite(taxas) ? taxas : 0;
   const ct = Number.isFinite(contas) ? contas : 0;
-  const s = Number.isFinite(salariosFixos) ? salariosFixos : 0;
-  return f - co - t - ct - s;
+  return f - e - t - ct;
 }
 
 /** Fatia do donut "pra onde vai o dinheiro" (mockup Financeiro). */
 export interface MoneyAllocationSegment {
-  key: 'liquido' | 'contas' | 'salarios' | 'comissoes' | 'taxas';
+  key: 'liquido' | 'contas' | 'equipe' | 'taxas';
   /** Rótulo humano da fatia. */
   name: string;
   /** Valor em R$ da fatia (nunca negativo). */
@@ -49,7 +48,7 @@ export interface MoneyAllocationSegment {
 /** Campos do NetResult que o donut consome (não exige o objeto inteiro). */
 type MoneyAllocationInput = Pick<
   NetResult,
-  'faturamento' | 'liquido' | 'contasFixas' | 'salariosFixos' | 'comissoes' | 'taxas'
+  'faturamento' | 'liquido' | 'contasFixas' | 'remuneracaoPaga' | 'taxas'
 >;
 
 /**
@@ -68,7 +67,7 @@ export function isMonthInRed(net: Pick<NetResult, 'liquido'>): boolean {
  * Converte o NetResult no breakdown do donut "pra onde vai o dinheiro".
  *
  * Cores espelham o mockup aprovado: sobra = gold-500, contas = brand-600,
- * comissões = brand-300, taxas = rose-300. Sobra negativa vira fatia zero
+ * pago à equipe = brand-300, taxas = rose-300. Sobra negativa vira fatia zero
  * (donut não representa prejuízo — o card Líquido mostra o negativo).
  *
  * MEDIUM-7: os percentuais usam o método do maior resto (largest remainder)
@@ -77,7 +76,7 @@ export function isMonthInRed(net: Pick<NetResult, 'liquido'>): boolean {
  * mês está no vermelho ou só há despesas, a base é a soma das fatias visíveis.
  *
  * @param net - Resultado líquido do período (RPC get_net_result).
- * @returns Fatias ordenadas (sobra → contas → salários → comissões → taxas); vazio sem valor algum.
+ * @returns Fatias ordenadas (sobra → contas → pago à equipe → taxas); vazio sem valor algum.
  */
 export function buildMoneyAllocation(net: MoneyAllocationInput): MoneyAllocationSegment[] {
   const faturamento = Number.isFinite(net.faturamento) ? net.faturamento : 0;
@@ -86,8 +85,7 @@ export function buildMoneyAllocation(net: MoneyAllocationInput): MoneyAllocation
   const base = [
     { key: 'liquido' as const, name: 'Sobra (líquido)', value: safe(net.liquido), color: '#b0883f' },
     { key: 'contas' as const, name: 'Contas fixas', value: safe(net.contasFixas), color: '#0e7d69' },
-    { key: 'salarios' as const, name: 'Salários fixos', value: safe(net.salariosFixos), color: '#f59e0b' },
-    { key: 'comissoes' as const, name: 'Comissões', value: safe(net.comissoes), color: '#5fd0b6' },
+    { key: 'equipe' as const, name: 'Pago à equipe', value: safe(net.remuneracaoPaga), color: '#5fd0b6' },
     { key: 'taxas' as const, name: 'Taxas de cartão', value: safe(net.taxas), color: '#fda4af' },
   ];
 

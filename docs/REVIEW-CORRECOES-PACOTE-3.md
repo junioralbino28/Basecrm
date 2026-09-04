@@ -4,7 +4,7 @@
 **Data:** 2026-09-04
 **Branch:** `feat/funil-construtor`
 **Checkpoint revisado:** **`2793ff4`** — não `553303a`
-**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado · V-01 corrigida na branch em 04/09 (ver §0)**
+**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado · V-01 corrigida na branch (§0) · R-01 e R-08 corrigidos (§0b)**
 
 > Nenhuma linha de código foi alterada nesta revisão. Sem acesso a produção, sem push de
 > código, sem deploy, sem merge, sem `db reset`. Todo teste de escrita rodou em banco
@@ -112,6 +112,56 @@ anterior (`IMPL-LOG-HOTFIX-SEGURANCA.md`) também ficou só no local — produç
 antes dele. O buraco em `crm.basea2.com` só fecha com o rollout, que exige o preflight de 7 passos.
 **Decisão do Junior:** levar esta migration sozinha como hotfix (fora do ledger, em janela própria)
 ou junto com a cadeia do Pacote 3. Não faço isso por conta própria.
+
+### §0b — R-01 e R-08 corrigidos em 04/09 (decisão do Junior: cada relatório numa régua só)
+
+**Decisão (Junior, 04/09):** *"os 2 podem ser usados, mas em momentos diferentes. Para metrificar o
+ganho do lead metrifica no mês de fechamento, mas o dinheiro só consta em caixa quando ele realmente
+entrar"* — e, na sequência: *"o mais importante hoje é metrificar o COMERCIAL"*. Leitura confirmada
+por ele: **Comercial** pelo mês em que o lead virou ganho · **Financeiro = caixa puro** ·
+**Profissionais = competência**. Nunca subtrair uma régua da outra.
+
+**Migration `20260904010000_r08_financeiro_caixa_e_equipe_competencia.sql`** (cabeçalhos de segurança
+conferidos no catálogo antes de reescrever; `STABLE SECURITY DEFINER`, `search_path = ''` e gates
+preservados nas duas RPCs):
+
+- **R-01:** o bloco `sem_profissional` de `get_commission_report` passa a contar por `performed_at`,
+  sem exigir recebimento — a mesma régua das linhas. O resto da função é idêntico.
+- **R-08:** `get_net_result` vira caixa puro. `faturamento` e `taxas` seguem pela data do pagamento
+  (como já eram); entra **`remuneracao_paga`** = pagamentos à equipe no período
+  (`commission_payments.paid_at`; a RPC de pagamento quita fixo + comissão juntos); contas fixas
+  continuam como estimativa mensal × meses (o produto não registra pagamento delas);
+  `liquido = faturamento − taxas − remuneracao_paga − contas`; `regime: 'caixa'` no contrato.
+  `comissoes` e `salarios_fixos` **saem** do JSON — o devido vive em Profissionais.
+- **Tela e PDF:** os cards "Comissões" e "Salários fixos" viram um só, **"Pago à equipe"** (6 → 5
+  KPIs); o donut e o PDF acompanham; a página deixa de buscar o relatório de comissão (não havia mais
+  consumidor). Nenhum layout novo — o Junior pediu para não redesenhar.
+
+**Provas:**
+
+| Prova | Resultado |
+|---|---|
+| Cadeia do zero no banco descartável | **73/73**; ledger local em 73 |
+| `test/r08FinanceiroCaixaMigration.test.ts` (estático) | 3/3 |
+| Unitários dos 4 arquivos tocados (`financeMath`, `reports`, `FinanceReportPage`, `generateReportPDF`) | 32/32 |
+| **Integração real `financeReportsRpcs.multiTenant`** | **10/10**, com fixture novo A5 (sem colaborador, feito 30/06 e pago 02/07): `sem_profissional` de junho = **2 / R$ 700** (antes 1 / R$ 300 — o A5 sumia); `get_net_result` de junho = recebido 1.700 − taxas 28,35 − **pago à equipe 100** − contas 250, com `regime = 'caixa'` e sem `comissoes`/`salarios_fixos` |
+| `tsc --noEmit` · ESLint `--max-warnings 0` | limpos |
+| Suíte completa `npm run test:local` | **234 arquivos / 1.125 testes, zero falhas** (190 s). Eram 233 / 1.122: o +1 / +3 é o teste estático novo. Saída em arquivo, lida em comando separado antes do commit |
+
+**Auto-revisão adversarial:**
+
+1. *Algum consumidor dependia de `comissoes`/`salarios_fixos` no `get_net_result`?* Todos no
+   repositório — tipos, transformador, tela, PDF e testes — foram atualizados; o transformador tolera a
+   RPC antiga (`remuneracao_paga` ausente → 0; `regime` sempre `'caixa'`).
+2. *Perdi a paridade do P3-01?* Não. Paridade era "uma fonte canônica por fato". Comissão **devida**
+   continua vindo só de `atendimentos.commission_amount` (Profissionais); comissão **paga** vem só de
+   `commission_payments` (Financeiro). São fatos diferentes, não duas contas do mesmo fato.
+3. *`commission_payments.paid_at`* é `NOT NULL DEFAULT now()` — todo pagamento tem data de caixa.
+4. *Efeito nos gráficos?* `get_revenue_report` (por semana/mês) já era caixa; agora a página inteira
+   está numa régua só.
+5. *O que NÃO mudou, de propósito:* a régua do **Comercial** (mês de fechamento) ainda não existe como
+   relatório — o painel atual mede por data de **entrada** (coorte de criação). É a próxima frente,
+   fora deste parecer.
 
 ---
 
@@ -292,7 +342,7 @@ esperados de testes sem autenticação.
 | # | Achado | Gravidade | Prova |
 |---|---|---|---|
 | **V-01** | `mark_deal_won`/`mark_deal_lost`/`reopen_deal`/`cleanup_rate_limits` executáveis por `anon`, sem gate, `SECURITY DEFINER` | 🔴 Crítico, fora do Pacote 3 · **✅ corrigido na branch** (`20260904000000`, §0) · **produção ainda exposta** | HTTP 204 antes → 401/`42501` depois |
-| **R-01** | `get_commission_report` mistura competência (linhas) e caixa (bloco `sem_profissional`) | 🔴 Alto | Reprodução 13 |
+| **R-01** | `get_commission_report` mistura competência (linhas) e caixa (bloco `sem_profissional`) | 🔴 Alto · **✅ corrigido** (`20260904010000`, §0b) | Reprodução 13; agora 2 / R$ 700 em junho |
 | **R-02** | P3-06 sobrevive em regra legada só com o nome da especialidade | 🔴 Alto | Reprodução 5: R$ 500 vs R$ 0 |
 | **R-09** | `anon` mantém escrita e `TRUNCATE` nas tabelas centrais do dinheiro; `TRUNCATE` ignora RLS | 🔴 Alto | Catálogo §4.3 |
 | **R-04** | `professional_pay_type_at` usa o cadastro de hoje para decidir o passado, e diverge do `fixed_amount` | 🟡 Médio | Prova §4.2 |
@@ -300,7 +350,7 @@ esperados de testes sem autenticação.
 | **R-05** | Backfill de snapshot (`020000`) roda antes do guard de `fixed` (`090000`) | 🟡 Médio | Ordem das migrations |
 | **R-06** | `professional_has_specialty` sem `organization_id`, contra o pedido do P3-04 | 🟡 Baixo | Assinatura inalterada |
 | **R-07** | `pay_type` do cadastro atual exibido como dado do período | 🟡 Baixo | SQL + transformador |
-| **R-08** | O "líquido" mistura competência e caixa | ❓ **Decisão do Junior** | Leitura |
+| **R-08** | O "líquido" mistura competência e caixa | ✅ **decidido e implementado** — Financeiro = caixa puro (§0b) | `regime = 'caixa'`, integração 10/10 |
 
 ### Ressalvas menores confirmadas
 
@@ -344,10 +394,11 @@ atendimento, `fixed` não recebe comissão, o rateio do salário fecha ao centav
 
 1. **V-01** — **corrigida nesta branch e provada** (§0). Em produção o buraco continua até o
    rollout com preflight — e passa a ser o motivo mais forte para esse rollout andar.
-2. **R-01 e R-02** — dois defeitos de cálculo/apresentação confirmados com número, ambos no motor
-   financeiro que o pacote se propôs a unificar.
-3. **R-08** — a semântica do "líquido" é decisão de produto ainda não tomada, e é o número que a
-   clínica vai olhar para decidir.
+2. **R-02** — defeito de cálculo confirmado com número (a regra legada só com o nome da
+   especialidade paga R$ 500 onde a canônica paga R$ 0). **R-01 já foi corrigido** (§0b).
+3. **R-09** — `anon`/`authenticated` mantêm `TRUNCATE` (que ignora RLS) nas tabelas centrais do
+   dinheiro; e as pendências pré-deploy da §11 do IMPL-LOG continuam válidas. **R-08 foi decidido e
+   implementado** (§0b), então deixa de ser motivo.
 
 As pendências pré-deploy da §11 do IMPL-LOG continuam válidas, com duas correções: a de número 12
 é decisão, não tarefa; e a de número 4 (snapshots `fixed` legados) tem causa identificada em R-05.

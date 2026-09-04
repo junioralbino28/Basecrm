@@ -70,11 +70,10 @@ function mockReports() {
   });
   useNetResult.mockReturnValue({
     data: {
+      regime: 'caixa',
       faturamento: 18430,
-      comissoes: 4890,
-      salariosFixos: 1800,
-      remuneracaoTotal: 6690,
       taxas: 312,
+      remuneracaoPaga: 6690,
       contasFixas: 6200,
       liquido: 5228,
     },
@@ -100,8 +99,7 @@ describe('FinanceReportPage', () => {
     expect(screen.getByText('Recebido bruto')).toBeInTheDocument();
     // As deduções aparecem no card E na legenda do donut.
     expect(screen.getAllByText('Taxas de cartão').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Comissões').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Salários fixos').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Pago à equipe').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Contas fixas').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Líquido')).toBeInTheDocument();
     // gráficos do mockup montados
@@ -109,7 +107,7 @@ describe('FinanceReportPage', () => {
     expect(screen.getByTestId('weekly-bars')).toBeInTheDocument();
   });
 
-  it('regressão: exibe salário fixo e prejuízo quando ele é a única despesa', () => {
+  it('regressão: exibe o pago à equipe e prejuízo quando ele é a única saída', () => {
     useAuthMock.mockReturnValue({
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
@@ -125,11 +123,10 @@ describe('FinanceReportPage', () => {
     });
     useNetResult.mockReturnValue({
       data: {
+        regime: 'caixa',
         faturamento: 0,
-        comissoes: 0,
-        salariosFixos: 2500,
-        remuneracaoTotal: 2500,
         taxas: 0,
+        remuneracaoPaga: 2500,
         contasFixas: 0,
         liquido: -2500,
       },
@@ -139,13 +136,13 @@ describe('FinanceReportPage', () => {
 
     render(<FinanceReportPage />);
 
-    expect(screen.getAllByText('Salários fixos').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Pago à equipe').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('mês no vermelho')).toBeInTheDocument();
     expect(screen.getByTestId('money-donut')).toBeInTheDocument();
     expect(screen.getAllByText(/2\.500,00/).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('exporta PDF com salários e líquido recomputado pela cascata', async () => {
+  it('exporta PDF com o pago à equipe e líquido recomputado pela cascata', async () => {
     useAuthMock.mockReturnValue({
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);
@@ -161,11 +158,10 @@ describe('FinanceReportPage', () => {
     });
     useNetResult.mockReturnValue({
       data: {
+        regime: 'caixa',
         faturamento: 0,
-        comissoes: 0,
-        salariosFixos: 2500,
-        remuneracaoTotal: 2500,
         taxas: 0,
+        remuneracaoPaga: 2500,
         contasFixas: 0,
         liquido: 999999,
       },
@@ -178,7 +174,7 @@ describe('FinanceReportPage', () => {
 
     await waitFor(() => expect(generateFinanceReportPDF).toHaveBeenCalledTimes(1));
     expect(generateFinanceReportPDF).toHaveBeenCalledWith(
-      expect.objectContaining({ salariosFixos: 2500, liquido: -2500 }),
+      expect.objectContaining({ remuneracaoPaga: 2500, liquido: -2500 }),
       'this_month'
     );
   });
@@ -193,7 +189,7 @@ describe('FinanceReportPage', () => {
 
     expect(screen.getByText(/acesso restrito/i)).toBeInTheDocument();
     expect(screen.queryByText('Recebido bruto')).not.toBeInTheDocument();
-    expect(screen.queryByText('Comissões')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pago à equipe')).not.toBeInTheDocument();
     expect(screen.queryByText('Líquido')).not.toBeInTheDocument();
     // staff bloqueado nem dispara as queries financeiras
     expect(useRevenueReport).not.toHaveBeenCalled();
