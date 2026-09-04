@@ -818,3 +818,38 @@ export interface NetResult {
   mesesPeriodo: number;
   liquido: number;
 }
+
+/** Linha "por origem" do relatório comercial (primeiro toque: de onde o lead veio). */
+export interface CommercialReportOrigem {
+  origem: string;
+  ganhosQtd: number;
+  ganhosValor: number;
+  perdidosQtd: number;
+}
+
+/** Linha "por campanha" do relatório comercial (campanha do último toque dos ganhos). */
+export interface CommercialReportCampanha {
+  campanha: string;
+  ganhosQtd: number;
+  ganhosValor: number;
+}
+
+/**
+ * Relatório comercial pelo mês de FECHAMENTO (decisão de 04/09): o negócio conta
+ * no mês em que virou ganho/perdido. `entrada` é a coorte do mesmo período, só
+ * como contexto — nunca subtrair uma régua da outra.
+ */
+export interface CommercialReport {
+  regime: 'fechamento';
+  fechamento: {
+    ganhos: { qtd: number; valor: number };
+    perdidos: { qtd: number; valor: number; motivos: Array<{ motivo: string; qtd: number }> };
+    /** Percentual: ganhos ÷ (ganhos + perdidos) do período. */
+    taxaFechamento: number;
+    ticketMedio: number;
+    cicloMedioDias: number;
+  };
+  entrada: { leads: number; negocios: number; valor: number };
+  porOrigem: CommercialReportOrigem[];
+  porCampanha: CommercialReportCampanha[];
+}

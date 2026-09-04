@@ -16,11 +16,12 @@ import { useContacts } from '@/lib/query/hooks/useContactsQuery';
 import { useDealsView } from '@/lib/query/hooks/useDealsQuery';
 import { useTasks, useCreateTask } from '@/lib/query/hooks/useTasksQuery';
 import { useLeadSources } from '@/lib/query/hooks/useLeadSourcesQuery';
-import { useRevenueReport } from '@/lib/query/hooks/useFinanceReports';
+import { useRevenueReport, useCommercialReport } from '@/lib/query/hooks/useFinanceReports';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useCRM } from '@/context/CRMContext';
 import { canManageClinicSettings } from '@/lib/auth/scope';
+import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { getFinanceDateRange } from '@/features/reports/utils/financeDateRange';
 import {
   contarLeadsNovosDoMes,
@@ -51,6 +52,125 @@ const MES_LABEL = new Intl.DateTimeFormat('pt-BR', { month: 'long' });
  * Card "Recebido no mês" — componente separado pra montar SÓ pra admin
  * (clinic_staff nem dispara a query financeira; o RPC barra de novo no banco).
  */
+const KpiComercial: React.FC<{ label: string; valor: string; sub?: string }> = ({ label, valor, sub }) => (
+  <div>
+    <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+    <p className="text-lg font-bold text-slate-900 dark:text-white font-display">{valor}</p>
+    {sub ? <p className="text-[11px] text-slate-500">{sub}</p> : null}
+  </div>
+);
+
+/**
+ * Comercial do mês pelo mês de FECHAMENTO (decisão de 04/09): o negócio conta no
+ * mês em que virou ganho/perdido — é o que a agência mostra ao cliente. Os cards
+ * de cima seguem por coorte de ENTRADA; as duas leituras convivem, lado a lado,
+ * e nunca se subtrai uma da outra. Origem = primeiro toque; campanha = último.
+ */
+export const ComercialDoMesSection: React.FC = () => {
+  const { start, end } = useMemo(() => getFinanceDateRange('this_month'), []);
+  const { data, isLoading, isError } = useCommercialReport(start, end);
+  if (isError) return null;
+
+  const fech = data?.fechamento;
+  const num = (n: number | undefined) => (isLoading ? '...' : String(n ?? 0));
+  const brl = (n: number | undefined) => (isLoading ? '...' : formatBRL(n ?? 0));
+  const origens = data?.porOrigem ?? [];
+  const campanhas = data?.porCampanha ?? [];
+  const maxOrigem = Math.max(...origens.map((o) => o.ganhosValor), 1);
+  const motivos = fech?.perdidos.motivos ?? [];
+
+  return (
+    <div
+      className="glass p-5 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm shrink-0"
+      data-testid="comercial-do-mes"
+    >
+      <div className="flex justify-between items-baseline mb-4 gap-3">
+        <h2 className="text-base font-bold text-slate-900 dark:text-white font-display">Comercial do mês</h2>
+        <span className="text-[11px] text-slate-400 text-right">
+          conta pelo mês em que fechou · entrada só como contexto
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KpiComercial label="Fechados (ganhos)" valor={num(fech?.ganhos.qtd)} sub={brl(fech?.ganhos.valor)} />
+        <KpiComercial label="Perdidos" valor={num(fech?.perdidos.qtd)} sub={brl(fech?.perdidos.valor)} />
+        <KpiComercial
+          label="Taxa de fechamento"
+          valor={isLoading ? '...' : `${fech?.taxaFechamento ?? 0}%`}
+          sub="ganhos ÷ decisões do mês"
+        />
+        <KpiComercial label="Ticket médio" valor={brl(fech?.ticketMedio)} sub="por negócio ganho" />
+        <KpiComercial
+          label="Ciclo médio"
+          valor={isLoading ? '...' : `${fech?.cicloMedioDias ?? 0} dias`}
+          sub="da entrada ao fechamento"
+        />
+        <KpiComercial
+          label="Entraram no mês"
+          valor={num(data?.entrada.negocios)}
+          sub={`${num(data?.entrada.leads)} leads · ${brl(data?.entrada.valor)}`}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5 text-xs">
+        <div>
+          <h3 className="font-semibold text-slate-700 dark:text-slate-200 mb-2">
+            Fechados por origem <span className="font-normal text-slate-400">(de onde o lead veio)</span>
+          </h3>
+          {origens.length > 0 ? (
+            <div className="space-y-3">
+              {origens.map((o) => (
+                <div key={o.origem}>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">{o.origem}</span>
+                    <span className="text-slate-500">
+                      {o.ganhosQtd} ganho{o.ganhosQtd === 1 ? '' : 's'} · {formatBRL(o.ganhosValor)}
+                      {o.perdidosQtd > 0 ? ` · ${o.perdidosQtd} perdido${o.perdidosQtd === 1 ? '' : 's'}` : ''}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                    <span
+                      className="block h-full bg-gold-500 rounded-full"
+                      style={{ width: `${Math.max((o.ganhosValor / maxOrigem) * 100, 3)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500">Nenhum negócio fechado neste mês.</p>
+          )}
+        </div>
+        <div>
+          <h3 className="font-semibold text-slate-700 dark:text-slate-200 mb-2">
+            Fechados por campanha <span className="font-normal text-slate-400">(último toque)</span>
+          </h3>
+          {campanhas.length > 0 ? (
+            <ul className="space-y-2">
+              {campanhas.map((c) => (
+                <li key={c.campanha} className="flex justify-between">
+                  <span className="font-medium text-slate-700 dark:text-slate-200">{c.campanha}</span>
+                  <span className="text-slate-500">
+                    {c.ganhosQtd} ganho{c.ganhosQtd === 1 ? '' : 's'} · {formatBRL(c.ganhosValor)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500">Sem campanha registrada nos negócios ganhos.</p>
+          )}
+        </div>
+      </div>
+
+      {motivos.length > 0 ? (
+        <p className="text-[11px] text-slate-400 mt-4">
+          motivos de perda: {motivos.map((m) => `${m.motivo} (${m.qtd})`).join(' · ')}
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
 const RecebidoNoMesCard: React.FC = () => {
   const { start, end } = useMemo(() => getFinanceDateRange('this_month'), []);
   const { data: revenue, isLoading } = useRevenueReport(start, end);
@@ -92,6 +212,8 @@ const VisaoGeralPage: React.FC = () => {
   const [resolvendo, setResolvendo] = useState<string | null>(null);
 
   const canSeeMoney = canManageClinicSettings(profile?.role);
+  // Comercial do mês: relatório geral (reports.view). Staff da clínica não tem por padrão.
+  const canSeeComercial = useHasPermission('reports.view') === true;
   const juliaInsightsOn = process.env.NEXT_PUBLIC_FEATURE_JULIA_INSIGHTS === '1';
 
   const contacts = useMemo(() => contactsData ?? [], [contactsData]);
@@ -258,6 +380,8 @@ const VisaoGeralPage: React.FC = () => {
         />
         {canSeeMoney ? <RecebidoNoMesCard /> : null}
       </div>
+
+      {canSeeComercial ? <ComercialDoMesSection /> : null}
 
       {/* Leitura inteligente: parados · atenção · (insights atrás de flag) */}
       <div className={`grid grid-cols-1 ${juliaInsightsOn ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4 shrink-0`}>

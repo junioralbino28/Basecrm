@@ -71,3 +71,25 @@ export const useNetResult = (start: string, end: string) => {
     staleTime: 60 * 1000,
   });
 };
+
+/**
+ * Comercial do período pelo mês de FECHAMENTO (decisão de 04/09): ganhos,
+ * perdidos, taxa de fechamento, entrada (contexto), por origem (1º toque) e por
+ * campanha (último toque). O RPC valida can_access_organization + reports.view.
+ */
+export const useCommercialReport = (start: string, end: string) => {
+  const { user, loading: authLoading } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const organizationId = tenant?.organizationId || null;
+
+  return useQuery({
+    queryKey: [...queryKeys.dashboard.commercial(start, end), organizationId],
+    queryFn: async () => {
+      const { data, error } = await reportsService.getCommercialReport(start, end, organizationId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !authLoading && !tenantLoading && !!user && !!organizationId,
+    staleTime: 60 * 1000,
+  });
+};

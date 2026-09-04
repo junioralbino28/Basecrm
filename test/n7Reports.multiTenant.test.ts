@@ -158,6 +158,9 @@ describeSupabase('N7 — planilhas conectadas AO VIVO (token de planilha isolado
     // O da org B não entra — prova de isolamento também na contagem de leads.
     expect(csv).toContain('Leads (total),1');
     expect(csv).toContain('Leads (mês),1'); // criado agora → cai no mês corrente
+    // Comercial do mês (04/09): as linhas existem e vêm da conta canônica.
+    expect(csv).toMatch(/Fechados no mês \(qtd\),\d+/);
+    expect(csv).toMatch(/Taxa de fechamento \(%\),[\d.]+/);
     expect(csv).not.toContain(phoneA);
     expect(csv).not.toContain(`Limpeza ${runId}`);
   });

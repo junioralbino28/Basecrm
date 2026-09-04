@@ -100,8 +100,14 @@ vi.mock('@/lib/query/hooks/useLeadSourcesQuery', () => ({
 }));
 
 const useRevenueReport = vi.fn();
+const useCommercialReport = vi.fn();
 vi.mock('@/lib/query/hooks/useFinanceReports', () => ({
   useRevenueReport: (...a: unknown[]) => useRevenueReport(...a),
+  useCommercialReport: (...a: unknown[]) => useCommercialReport(...a),
+}));
+
+vi.mock('@/lib/auth/useHasPermission', () => ({
+  useHasPermission: () => true,
 }));
 
 vi.mock('@/components/charts', () => ({
@@ -118,6 +124,7 @@ describe('VisaoGeralPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createTaskAsync.mockResolvedValue({ id: 't-1' });
+    useCommercialReport.mockReturnValue({ data: undefined, isLoading: false, isError: false });
     // LOW-6: "mandar pra fila" agora confirma antes de disparar — confirma por padrão.
     // happy-dom não implementa window.confirm (undefined), então atribuímos o mock
     // direto em vez de vi.spyOn (que exige uma função existente pra espionar).

@@ -74,6 +74,10 @@ export const queryKeys = {
         netResultRoot: ['dashboard', 'netResult'] as const,
         netResult: (start: string, end: string) =>
             ['dashboard', 'netResult', start, end] as const,
+        // Comercial por mês de fechamento (decisão de 04/09)
+        commercialRoot: ['dashboard', 'commercial'] as const,
+        commercial: (start: string, end: string) =>
+            ['dashboard', 'commercial', start, end] as const,
     },
 };
 

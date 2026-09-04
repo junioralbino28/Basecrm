@@ -248,6 +248,73 @@ describe('reportsService', () => {
     });
   });
 
+  it('getCommercialReport mapeia o mês de fechamento para camelCase (origem 1º toque, campanha último toque)', async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        regime: 'fechamento',
+        fechamento: {
+          ganhos: { qtd: 3, valor: 1700 },
+          perdidos: { qtd: 1, valor: 800, motivos: [{ motivo: 'Preço', qtd: 1 }] },
+          taxa_fechamento: 75,
+          ticket_medio: 566.67,
+          ciclo_medio_dias: 41.3,
+        },
+        entrada: { leads: 2, negocios: 4, valor: 10600 },
+        por_origem: [
+          { origem: 'Instagram', ganhos_qtd: 1, ganhos_valor: 1000, perdidos_qtd: 1 },
+          { origem: 'Sem origem', ganhos_qtd: 1, ganhos_valor: 200, perdidos_qtd: 0 },
+        ],
+        por_campanha: [{ campanha: 'promo-junho', ganhos_qtd: 1, ganhos_valor: 1000 }],
+      },
+      error: null,
+    });
+
+    const { data, error } = await reportsService.getCommercialReport(
+      '2026-06-01T00:00:00Z',
+      '2026-06-30T23:59:59Z',
+      'org-1'
+    );
+
+    expect(error).toBeNull();
+    expect(rpcMock).toHaveBeenCalledWith('get_commercial_report', {
+      p_start: '2026-06-01T00:00:00Z',
+      p_end: '2026-06-30T23:59:59Z',
+      p_organization_id: 'org-1',
+    });
+    expect(data).toEqual({
+      regime: 'fechamento',
+      fechamento: {
+        ganhos: { qtd: 3, valor: 1700 },
+        perdidos: { qtd: 1, valor: 800, motivos: [{ motivo: 'Preço', qtd: 1 }] },
+        taxaFechamento: 75,
+        ticketMedio: 566.67,
+        cicloMedioDias: 41.3,
+      },
+      entrada: { leads: 2, negocios: 4, valor: 10600 },
+      porOrigem: [
+        { origem: 'Instagram', ganhosQtd: 1, ganhosValor: 1000, perdidosQtd: 1 },
+        { origem: 'Sem origem', ganhosQtd: 1, ganhosValor: 200, perdidosQtd: 0 },
+      ],
+      porCampanha: [{ campanha: 'promo-junho', ganhosQtd: 1, ganhosValor: 1000 }],
+    });
+  });
+
+  it('getCommercialReport tolera resposta vazia/antiga sem lançar', async () => {
+    rpcMock.mockResolvedValue({ data: {}, error: null });
+    const { data, error } = await reportsService.getCommercialReport(
+      '2026-06-01T00:00:00Z',
+      '2026-06-30T23:59:59Z'
+    );
+    expect(error).toBeNull();
+    expect(data).toMatchObject({
+      regime: 'fechamento',
+      fechamento: { ganhos: { qtd: 0, valor: 0 }, taxaFechamento: 0 },
+      entrada: { leads: 0, negocios: 0, valor: 0 },
+      porOrigem: [],
+      porCampanha: [],
+    });
+  });
+
   it('propaga erro do RPC sem lançar exceção', async () => {
     rpcMock.mockResolvedValue({ data: null, error: new Error('boom') });
 

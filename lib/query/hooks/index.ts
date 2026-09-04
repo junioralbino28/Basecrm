@@ -152,6 +152,7 @@ export {
   useRevenueReport,
   useCommissionReport,
   useNetResult,
+  useCommercialReport,
 } from './useFinanceReports';
 
 // Pagamentos de comissão (F8/adendo — ação "pagar")

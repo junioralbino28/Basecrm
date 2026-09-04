@@ -16,6 +16,7 @@ import {
   RevenueReport,
   CommissionReport,
   NetResult,
+  CommercialReport,
   ProfessionalPayType,
 } from '@/types';
 
@@ -62,6 +63,58 @@ interface DbNetResult {
   meses_periodo?: number;
   liquido: number;
 }
+
+/** Saída crua do RPC get_commercial_report (mês de fechamento). */
+interface DbCommercialReport {
+  regime?: 'fechamento';
+  fechamento?: {
+    ganhos?: { qtd?: number; valor?: number };
+    perdidos?: { qtd?: number; valor?: number; motivos?: Array<{ motivo: string; qtd: number }> | null };
+    taxa_fechamento?: number;
+    ticket_medio?: number;
+    ciclo_medio_dias?: number;
+  };
+  entrada?: { leads?: number; negocios?: number; valor?: number };
+  por_origem?: Array<{ origem: string; ganhos_qtd: number; ganhos_valor: number; perdidos_qtd: number }> | null;
+  por_campanha?: Array<{ campanha: string; ganhos_qtd: number; ganhos_valor: number }> | null;
+}
+
+const transformCommercial = (db: DbCommercialReport): CommercialReport => ({
+  regime: 'fechamento',
+  fechamento: {
+    ganhos: {
+      qtd: Number(db.fechamento?.ganhos?.qtd || 0),
+      valor: Number(db.fechamento?.ganhos?.valor || 0),
+    },
+    perdidos: {
+      qtd: Number(db.fechamento?.perdidos?.qtd || 0),
+      valor: Number(db.fechamento?.perdidos?.valor || 0),
+      motivos: (db.fechamento?.perdidos?.motivos || []).map((m) => ({
+        motivo: m.motivo,
+        qtd: Number(m.qtd || 0),
+      })),
+    },
+    taxaFechamento: Number(db.fechamento?.taxa_fechamento || 0),
+    ticketMedio: Number(db.fechamento?.ticket_medio || 0),
+    cicloMedioDias: Number(db.fechamento?.ciclo_medio_dias || 0),
+  },
+  entrada: {
+    leads: Number(db.entrada?.leads || 0),
+    negocios: Number(db.entrada?.negocios || 0),
+    valor: Number(db.entrada?.valor || 0),
+  },
+  porOrigem: (db.por_origem || []).map((o) => ({
+    origem: o.origem,
+    ganhosQtd: Number(o.ganhos_qtd || 0),
+    ganhosValor: Number(o.ganhos_valor || 0),
+    perdidosQtd: Number(o.perdidos_qtd || 0),
+  })),
+  porCampanha: (db.por_campanha || []).map((c) => ({
+    campanha: c.campanha,
+    ganhosQtd: Number(c.ganhos_qtd || 0),
+    ganhosValor: Number(c.ganhos_valor || 0),
+  })),
+});
 
 const transformRevenue = (db: DbRevenueReport): RevenueReport => ({
   faturamento: Number(db.faturamento || 0),
@@ -211,6 +264,31 @@ export const reportsService = {
       );
       if (error) return { data: null, error };
       return { data: transformNetResult(data as DbNetResult), error: null };
+    } catch (e) {
+      return { data: null, error: e as Error };
+    }
+  },
+
+  /**
+   * Comercial do período pelo mês de FECHAMENTO: ganhos, perdidos, taxa de
+   * fechamento, entrada (contexto), por origem (1º toque) e por campanha
+   * (último toque). Decisão de 04/09.
+   */
+  async getCommercialReport(
+    pStart: string,
+    pEnd: string,
+    organizationId?: string | null
+  ): Promise<{ data: CommercialReport | null; error: Error | null }> {
+    try {
+      if (!supabase) {
+        return { data: null, error: new Error('Supabase não configurado') };
+      }
+      const { data, error } = await supabase.rpc(
+        'get_commercial_report',
+        rpcParams(pStart, pEnd, organizationId) as any
+      );
+      if (error) return { data: null, error };
+      return { data: transformCommercial(data as DbCommercialReport), error: null };
     } catch (e) {
       return { data: null, error: e as Error };
     }
