@@ -4,7 +4,7 @@
 **Data:** 2026-09-04
 **Branch:** `feat/funil-construtor`
 **Checkpoint revisado:** **`2793ff4`** — não `553303a`
-**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado**
+**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado · V-01 corrigida na branch em 04/09 (ver §0)**
 
 > Nenhuma linha de código foi alterada nesta revisão. Sem acesso a produção, sem push de
 > código, sem deploy, sem merge, sem `db reset`. Todo teste de escrita rodou em banco
@@ -54,9 +54,64 @@ inconveniência, não controle de acesso.
 **Não é regressão do Pacote 3.** São funções antigas da base do projeto. Mas está valendo em
 `crm.basea2.com` agora. Viola G3 (autorização no servidor) e G4 (IDOR) dos gates da Cenoura.
 
-**Conserto proposto (não aplicado — aguardando decisão do Junior):** `REVOKE EXECUTE … FROM anon,
-PUBLIC` nas quatro, mais o gate de organização/permissão dentro de cada uma, no mesmo padrão que
-`record_commission_payment` já usa, com teste que prova a recusa.
+### §0 — Correção aplicada em 04/09, autorizada pelo Junior (*"pode consertar a V-01"*)
+
+**Migration `20260904000000_v01_fechar_rpcs_publicas.sql`**, na branch. Nenhuma assinatura mudou;
+o corpo dos `UPDATE` é o original. O que muda:
+
+- as três RPCs de negócio passam a exigir `public.can_operate_deal(deal_id)` **antes** de escrever —
+  o mesmo gate da policy `deals_mutate_by_tenant_operator` (`can_operate_organization`), então quem
+  já podia editar o negócio pela tabela continua podendo pela RPC, e mais ninguém. Negócio de outra
+  organização e negócio inexistente recebem o mesmo `42501`, sem sondagem de existência;
+- `REVOKE ALL … FROM PUBLIC, anon` nas três, `GRANT … TO authenticated, service_role`;
+- `cleanup_rate_limits` fica restrita ao `service_role` (`REVOKE … FROM PUBLIC, anon, authenticated`);
+- **diff de cabeçalho declarado:** as quatro saem de `search_path = public[, extensions]` para
+  `search_path = ''` com nomes qualificados, o padrão do restante do motor. `SECURITY DEFINER`,
+  `RETURNS` e parâmetros preservados.
+
+**Por que gate + REVOKE, e não só REVOKE:** o REVOKE fecha o `anon`; o gate fecha o usuário
+autenticado de **outra** organização, que antes também conseguia (a função era `SECURITY DEFINER`
+sem checagem nenhuma).
+
+**Provas, nesta ordem:**
+
+| Prova | Resultado |
+|---|---|
+| Catálogo real (`has_function_privilege`) | `anon` = **false** nas quatro; `authenticated` mantém as 3 de negócio e perde `cleanup`; `service_role` mantém as 4; `search_path=""` nas quatro |
+| Varredura: alguma `SECURITY DEFINER` executável por `anon` que escreva em `deals`/`rate_limits`? | **0** |
+| **A mesma exploração de antes, pela API** | `mark_deal_won` / `mark_deal_lost` / `reopen_deal` / `cleanup_rate_limits` → **HTTP 401, `42501 permission denied`**; negócio intocado (`is_won=false, closed_at=null`) |
+| Cadeia do zero | **72/72** no banco descartável; ledger local em 72 |
+| `test/v01FecharRpcsPublicasMigration.test.ts` (estático) | 4/4 |
+| `test/v01FecharRpcsPublicas.local.test.ts` (integração, Supabase local) | **5/5** — anônimo recusado e negócio intocado · admin de OUTRA org recusado · inexistente = mesmo `42501` · admin **e** `clinic_staff` da org certa marcam ganho/perdido/reabrem · `cleanup` só responde ao `service_role` |
+| ESLint `--max-warnings 0` · `tsc --noEmit` | limpos |
+| Suíte completa `npm run test:local` | **233 arquivos / 1.122 testes, zero falhas** (239,8 s). Eram 231 / 1.113: os +2 / +9 são exatamente os dois testes novos. Saída em arquivo, lida em comando separado antes do commit |
+
+**Auto-revisão adversarial (escrita antes de declarar pronto):**
+
+1. *Quebrei algum chamador legítimo?* Não há chamador no repositório (varredura em `.ts/.tsx/.mjs/.js`
+   fora de `node_modules`, `.next` e migrations). O único comportamento que muda para quem chamava
+   com JWT válido é: negócio inexistente deixa de ser no-op silencioso e vira `42501`.
+2. *O `search_path=''` quebra algo?* `now()`, `coalesce`, `||`, `::interval` vivem em `pg_catalog`
+   (sempre no caminho); tabelas e helper estão qualificados. O teste de integração exercita as
+   funções reais e o caminho legítimo passou.
+3. *`service_role` com EXECUTE mas sem perfil recebe `42501` do gate.* Consistente com
+   `record_commission_payment` (mesmo padrão do Codex). Sem chamador; documentado.
+4. *`can_operate_deal` é `SECURITY DEFINER` com `search_path = public`* — folga preexistente no
+   helper de que agora dependo. Chamo-o qualificado; o corpo dele também é qualificado. Risco
+   baixo, registrado como adjacente.
+5. *Existe outro caminho de escrita em `deals` para `anon`?* REST direto → RLS ativo e **zero
+   policies** para `anon`. Funções `INVOKER` herdam esse bloqueio. `DEFINER` executáveis por `anon`
+   que escrevam em `deals`/`rate_limits`: 0 após a migration.
+6. *Reaplicável?* `CREATE OR REPLACE` + `REVOKE`/`GRANT` — idempotente.
+7. *O teste estático reprovou na primeira rodada* porque lia o **comentário** do cabeçalho (que
+   cita "GRANT … anon" e "SECURITY DEFINER" ao explicar o mecanismo). Corrigido para ignorar linhas
+   de comentário. Defeito do teste, não da migration — registrado por honestidade.
+
+**⚠️ PRODUÇÃO CONTINUA EXPOSTA.** Esta correção existe na branch e no Supabase local. O hotfix
+anterior (`IMPL-LOG-HOTFIX-SEGURANCA.md`) também ficou só no local — produção está congelada desde
+antes dele. O buraco em `crm.basea2.com` só fecha com o rollout, que exige o preflight de 7 passos.
+**Decisão do Junior:** levar esta migration sozinha como hotfix (fora do ledger, em janela própria)
+ou junto com a cadeia do Pacote 3. Não faço isso por conta própria.
 
 ---
 
@@ -201,7 +256,19 @@ versões antigas".
 Das 28, a maioria são helpers de RLS (`can_access_organization`, `is_agency_role`,
 `current_profile_*`) que dependem de `auth.uid()` e devolvem vazio sem sessão, além de funções de
 trigger que não são chamáveis diretamente. **Quatro não são inofensivas** — é a vulnerabilidade do
-topo deste documento.
+topo deste documento, corrigida na §0.
+
+**Adjacentes, inspecionadas e NÃO corrigidas (fora do escopo autorizado):**
+
+| Função | Executável por `anon` | O que faz | Gravidade |
+|---|:--:|---|---|
+| `get_singleton_organization_id()` | sim | devolve o UUID da organização mais antiga a qualquer visitante — em produção, o da clínica | 🟡 média — vazamento de identificador de tenant |
+| `log_audit_event(...)` | sim | insere em `audit_logs` com `user_id = null` para quem não tem sessão | 🟡 média — poluição da trilha de auditoria |
+| `_api_key_make_token()` | sim | gera string aleatória com prefixo, **não persiste** | 🟢 baixa — só formata bytes aleatórios |
+| `_api_key_sha256_hex(text)` | sim | hash puro | 🟢 baixa |
+
+Padrão de correção é o mesmo da §0 (`REVOKE … FROM PUBLIC, anon` + gate onde couber). Cabe num
+ciclo curto, junto com a revisão dos outros 21 helpers com ACL padrão.
 
 ### 4.5 Suíte completa — **PASS**
 
@@ -224,7 +291,7 @@ esperados de testes sem autenticação.
 
 | # | Achado | Gravidade | Prova |
 |---|---|---|---|
-| **V-01** | `mark_deal_won`/`mark_deal_lost`/`reopen_deal`/`cleanup_rate_limits` executáveis por `anon`, sem gate, `SECURITY DEFINER` | 🔴 **Crítico, fora do Pacote 3** | HTTP 204 ao vivo |
+| **V-01** | `mark_deal_won`/`mark_deal_lost`/`reopen_deal`/`cleanup_rate_limits` executáveis por `anon`, sem gate, `SECURITY DEFINER` | 🔴 Crítico, fora do Pacote 3 · **✅ corrigido na branch** (`20260904000000`, §0) · **produção ainda exposta** | HTTP 204 antes → 401/`42501` depois |
 | **R-01** | `get_commission_report` mistura competência (linhas) e caixa (bloco `sem_profissional`) | 🔴 Alto | Reprodução 13 |
 | **R-02** | P3-06 sobrevive em regra legada só com o nome da especialidade | 🔴 Alto | Reprodução 5: R$ 500 vs R$ 0 |
 | **R-09** | `anon` mantém escrita e `TRUNCATE` nas tabelas centrais do dinheiro; `TRUNCATE` ignora RLS | 🔴 Alto | Catálogo §4.3 |
@@ -275,8 +342,8 @@ atendimento, `fixed` não recebe comissão, o rateio do salário fecha ao centav
 
 **Não aprovo para produção**, por três motivos independentes:
 
-1. **V-01** — vulnerabilidade explorável, ainda que fora do Pacote 3. Precisa ser fechada antes de
-   qualquer conversa sobre deploy.
+1. **V-01** — **corrigida nesta branch e provada** (§0). Em produção o buraco continua até o
+   rollout com preflight — e passa a ser o motivo mais forte para esse rollout andar.
 2. **R-01 e R-02** — dois defeitos de cálculo/apresentação confirmados com número, ambos no motor
    financeiro que o pacote se propôs a unificar.
 3. **R-08** — a semântica do "líquido" é decisão de produto ainda não tomada, e é o número que a
