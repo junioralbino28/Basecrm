@@ -1,8 +1,25 @@
 import { normalizePhoneE164 } from '@/lib/phone';
-import type { ConversationMessageDirection, ConversationThreadMetadata } from './types';
+import type {
+  ConversationMessageDirection,
+  ConversationThreadAdClick,
+  ConversationThreadMetadata,
+} from './types';
 
 function toSafeString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function toSafeAdClick(value: unknown): ConversationThreadAdClick | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const click = {
+    ctwaClid: toSafeString(source.ctwaClid),
+    title: toSafeString(source.title),
+    sourceId: toSafeString(source.sourceId),
+    sourceApp: toSafeString(source.sourceApp),
+    at: toSafeString(source.at),
+  };
+  return click.ctwaClid || click.sourceId ? click : null;
 }
 
 function toSafeDirection(value: unknown): ConversationMessageDirection | null {
@@ -22,6 +39,8 @@ export function readConversationThreadMetadata(value: unknown): ConversationThre
     ...source,
     provider: toSafeString(source.provider) ?? undefined,
     autoCreated: Boolean(source.autoCreated),
+    firstAdClick: toSafeAdClick(source.firstAdClick),
+    lastAdClick: toSafeAdClick(source.lastAdClick),
     routingMode:
       source.routingMode === 'ai' || source.routingMode === 'human' || source.routingMode === 'hybrid'
         ? source.routingMode
@@ -65,6 +84,8 @@ export function buildConversationThreadMetadataUpdate(
     unreadCount?: number | null;
     incrementUnread?: boolean;
     provider?: string | null;
+    /** Clique de anúncio que veio nesta mensagem (só inbound). */
+    adClick?: ConversationThreadAdClick | null;
   }
 ): ConversationThreadMetadata {
   const current = readConversationThreadMetadata(currentValue);
@@ -78,6 +99,8 @@ export function buildConversationThreadMetadataUpdate(
   return {
     ...current,
     provider: update.provider ?? current.provider ?? undefined,
+    firstAdClick: current.firstAdClick ?? update.adClick ?? null,
+    lastAdClick: update.adClick ?? current.lastAdClick ?? null,
     routingMode: update.routingMode ?? current.routingMode ?? undefined,
     humanLocked: update.humanLocked ?? current.humanLocked ?? false,
     aiLockedReason: update.aiLockedReason ?? current.aiLockedReason ?? null,

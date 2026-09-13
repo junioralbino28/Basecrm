@@ -23,6 +23,8 @@ Uma pasta por feature em `docs/features/<slug>/` com:
 | E2 — Enforcement de permissões (toggles bloqueiam telas) | completo | 🟢 EM PROD (2026-07-15): migration aplicada+verificada + código deployado (`main` fd84dff) | [`e2-enforcement/`](e2-enforcement/) |
 | Multi-número / Caixa unificada (parear fácil + switch de número + IA por número) | completo | 🟢 EM PROD (2026-07-16): Codex implementou, Claude revisou/aprovou, deploy `be7fe35` | [`multi-numero-inbox/`](multi-numero-inbox/) |
 | Construtor de Funil + Automação (mensagens editáveis + mídia + manual/IA) | execução | 🔵 **A e B concluídas e aprovadas** · **visual APROVADO pelo Junior** (`mockup-tela-real.html` = referência oficial) → **SPEC-ENTREGA-C.md** escrita, fatiada em C1/C2/C3, aguardando decisão | [`funil-construtor/`](funil-construtor/) |
+| Comercial por mês de fechamento (RPC + Visão Geral + planilha pública) | completo | 🟠 na branch (`21140bf`, 04/09), construído pelo Claude; aguarda revisão pontual do Codex e rollout com a cadeia do Pacote 3 | [`comercial/`](comercial/) |
+| Conversão de volta para a Meta (clique de anúncio → agendou → compareceu → fechou → CAPI) | execução | 🔵 **3a** captura do `ctwa_clid` (13/09, Claude) · 3b marcos · 3c envio · 3d evento intermediário | [`conversao-meta/`](conversao-meta/) |
 
 ### Legenda de status
 🟡 spec → ⚪ plano → 🔵 implementando (Codex) → 🟠 revisão (Claude) → 🟢 pronto/em prod

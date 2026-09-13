@@ -1,3 +1,23 @@
+/**
+ * Clique de anúncio (Click-to-WhatsApp) que veio junto com a mensagem. A Evolution
+ * entrega em `contextInfo.externalAdReply` (conferido em 384 mensagens reais).
+ * Nada aqui é dado clínico: é a etiqueta do clique e a identidade do anúncio.
+ */
+export type EvolutionAdClick = {
+  /** Etiqueta do clique. É a única chave que liga a pessoa ao anúncio na Meta. */
+  ctwaClid: string | null;
+  /** Título do anúncio, como a Meta entrega. */
+  title: string | null;
+  /** ID do anúncio na Meta (`externalAdReply.sourceId`). */
+  sourceId: string | null;
+  sourceUrl: string | null;
+  /** 'instagram' | 'facebook' | outro, como veio. */
+  sourceApp: string | null;
+  /** 'ad' na prática; guardado como veio. */
+  sourceType: string | null;
+  mediaUrl: string | null;
+};
+
 type ParsedEvolutionMessage = {
   event: string | null;
   providerMessageId: string | null;
@@ -8,6 +28,7 @@ type ParsedEvolutionMessage = {
   contactName: string | null;
   contactPhone: string | null;
   sentAt: string;
+  adClick: EvolutionAdClick | null;
   raw: Record<string, unknown>;
 };
 
@@ -87,11 +108,57 @@ function extractContent(root: Record<string, unknown>, message: Record<string, u
     getNested(message, ['listResponseMessage', 'singleSelectReply', 'selectedRowId']),
     getNested(message, ['templateButtonReplyMessage', 'selectedDisplayText']),
     getNested(message, ['interactiveResponseMessage', 'body', 'text']),
+    // Primeira mensagem de quem clica em anúncio pode chegar como interactiveMessage
+    // (57 casos reais); sem isto o lead era descartado antes de virar contato.
+    getNested(message, ['interactiveMessage', 'body', 'text']),
     root.body,
     root.text,
     getNested(root, ['data', 'body']),
     getNested(root, ['data', 'text']),
   ]);
+}
+
+const AD_FIELD_MAX_LENGTH = 512;
+
+function clip(value: string | null) {
+  return value && value.length > AD_FIELD_MAX_LENGTH ? value.slice(0, AD_FIELD_MAX_LENGTH) : value;
+}
+
+/**
+ * Procura o bloco do anúncio no nível do evento (onde a Evolution o sobe, inclusive
+ * para `conversation`, que não tem contextInfo próprio) e dentro de cada tipo de
+ * mensagem (`interactiveMessage`, `audioMessage`, ...). Nunca dentro de
+ * `quotedMessage`: ali o anúncio pertence à mensagem citada, não a esta.
+ */
+function extractAdClick(
+  envelope: Record<string, unknown>,
+  message: Record<string, unknown> | null
+): EvolutionAdClick | null {
+  const candidates: unknown[] = [getNested(envelope, ['contextInfo', 'externalAdReply'])];
+  if (message) {
+    for (const key of Object.keys(message)) {
+      candidates.push(getNested(message, [key, 'contextInfo', 'externalAdReply']));
+    }
+  }
+
+  const adReply = candidates
+    .map(getObject)
+    .find((candidate): candidate is Record<string, unknown> => candidate !== null);
+  if (!adReply) return null;
+
+  const ctwaClid = clip(getFirstString([adReply.ctwaClid, adReply.ctwa_clid]));
+  const sourceId = clip(getFirstString([adReply.sourceId, adReply.source_id]));
+  if (!ctwaClid && !sourceId) return null;
+
+  return {
+    ctwaClid,
+    title: clip(getFirstString([adReply.title])),
+    sourceId,
+    sourceUrl: clip(getFirstString([adReply.sourceUrl, adReply.source_url])),
+    sourceApp: clip(getFirstString([adReply.sourceApp, adReply.source_app])),
+    sourceType: clip(getFirstString([adReply.sourceType, adReply.source_type])),
+    mediaUrl: clip(getFirstString([adReply.mediaUrl, adReply.media_url])),
+  };
 }
 
 function getCandidateMessage(root: Record<string, unknown>) {
@@ -192,6 +259,7 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
         root.messageTimestamp ??
         root.timestamp
     ),
+    adClick: extractAdClick(candidate.envelope, candidate.message),
     raw: root,
   };
 }

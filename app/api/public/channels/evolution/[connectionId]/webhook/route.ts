@@ -771,6 +771,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   let threadId = threadResult.data?.id ?? null;
   const inboundThreadStatus = getConversationStatusAfterInbound(threadResult.data?.status, aiEnabled);
 
+  // 3a: resumo do clique de anúncio fica na conversa (a caixa mostra "veio do anúncio X");
+  // o histórico auditável vai para lead_source_attributions mais abaixo.
+  const threadAdClick =
+    parsed.direction === 'inbound' && parsed.adClick
+      ? {
+          ctwaClid: parsed.adClick.ctwaClid,
+          title: parsed.adClick.title,
+          sourceId: parsed.adClick.sourceId,
+          sourceApp: parsed.adClick.sourceApp,
+          at: parsed.sentAt,
+        }
+      : null;
+
   if (!threadId) {
     const createdThread = await admin
       .from('conversation_threads')
@@ -799,6 +812,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
             provider: 'evolution',
             humanLocked: !aiEnabled,
             aiLockedReason: aiEnabled ? null : 'connection_ai_disabled',
+            adClick: threadAdClick,
           }
         ),
         last_message_at: parsed.sentAt,
@@ -825,6 +839,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         updated_at: now,
         metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
           provider: 'evolution',
+          adClick: threadAdClick,
           direction: parsed.direction,
           event: parsed.event,
           preview: content.slice(0, 160),
@@ -937,6 +952,38 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     }
   }
 
+  // 3a: etiqueta do clique (ctwa_clid) + anúncio no histórico de origem, com primeiro/último
+  // toque no negócio. Não derruba o webhook se falhar: a mensagem já está gravada e um
+  // reenvio da Evolution cairia no dedupe sem repetir esta etapa. Fica no log do servidor e
+  // na resposta, que aparece no painel de webhooks da Evolution.
+  let adAttributionError: string | null = null;
+  if (parsed.direction === 'inbound' && parsed.adClick) {
+    const attribution = await admin.rpc('record_whatsapp_ad_attribution', {
+      p_organization_id: connectionResult.data.organization_id,
+      p_channel_connection_id: connectionId,
+      p_provider_message_id: parsed.providerMessageId ?? insertedMessage.data.id,
+      p_observed_at: parsed.sentAt,
+      p_deal_id: dealId,
+      p_contact_id: contactId,
+      p_ctwa_clid: parsed.adClick.ctwaClid,
+      p_ad_title: parsed.adClick.title,
+      p_ad_source_id: parsed.adClick.sourceId,
+      p_ad_source_url: parsed.adClick.sourceUrl,
+      p_ad_source_app: parsed.adClick.sourceApp,
+      p_ad_media_url: parsed.adClick.mediaUrl,
+    });
+    if (attribution.error) {
+      adAttributionError = attribution.error.message;
+      console.warn('[Evolution webhook] Falha ao registrar clique de anúncio', {
+        connectionId,
+        threadId,
+        dealId,
+        providerMessageId: parsed.providerMessageId,
+        error: attribution.error.message,
+      });
+    }
+  }
+
   const currentConnectionMetadata = (connection.metadata as Record<string, unknown> | null) || {};
   const connectionUpdate = await admin
     .from('channel_connections')
@@ -1036,5 +1083,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     deal_id: dealId,
     message_id: insertedMessage.data.id,
     direction: parsed.direction,
+    ...(adAttributionError ? { ad_attribution_error: adAttributionError } : {}),
   });
 }

@@ -49,9 +49,22 @@ export type ConversationMessageMetadata = {
   [key: string]: unknown;
 };
 
+/** Resumo do clique de anúncio guardado na conversa (o histórico completo fica em lead_source_attributions). */
+export type ConversationThreadAdClick = {
+  ctwaClid: string | null;
+  title: string | null;
+  sourceId: string | null;
+  sourceApp: string | null;
+  at: string | null;
+};
+
 export type ConversationThreadMetadata = {
   provider?: string;
   autoCreated?: boolean;
+  /** Primeiro clique de anúncio visto nesta conversa; nunca é sobrescrito. */
+  firstAdClick?: ConversationThreadAdClick | null;
+  /** Clique de anúncio mais recente (a pessoa pode voltar por outro anúncio). */
+  lastAdClick?: ConversationThreadAdClick | null;
   routingMode?: 'ai' | 'human' | 'hybrid' | null;
   humanLocked?: boolean;
   aiLockedReason?: string | null;
