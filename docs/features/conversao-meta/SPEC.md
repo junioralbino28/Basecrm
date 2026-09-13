@@ -61,12 +61,18 @@ com a origem "Anúncio Meta (WhatsApp)" e o título do anúncio, sem ninguém ma
 clique do mesmo lead vira novo toque sem apagar o primeiro; e o mesmo evento reenviado pela Evolution
 não duplica. Provado por teste com o payload real e por RPC no Supabase local.
 
-### 3b — Marcos por lead (agendou, compareceu, fechou)
+### 3b — Marcos por lead (agendou, compareceu, fechou) ✅ (entregue, ver IMPL-LOG-3B)
 
-Tabela de eventos de conversão por negócio (tipo: `respondeu` | `agendou` | `compareceu` | `fechou`,
-`ocorreu_em`, fonte, valor no `fechou`, `meta_event_id`, status/data do envio). Preenchida sozinha:
-agendamento criado → `agendou` (a agenda passa a apontar o negócio); status `compareceu` → `compareceu`;
-`mark_deal_won` → `fechou` com o valor do negócio. A recepção não ganha botão novo.
+Tabela `deal_conversion_events` (tipo: `replied` | `scheduled` | `attended` | `no_show` | `won`,
+`occurred_at`, fonte, valor no `won`, `meta_event_id`, status/data do envio). Preenchida sozinha por
+gatilhos: consulta criada e ligada ao negócio → `scheduled` (a agenda passou a apontar o negócio);
+status `compareceu` → `attended` na hora da consulta; `faltou` → `no_show` já descartado para a Meta;
+`is_won` virando verdadeiro por qualquer caminho → `won` com o valor do negócio. Arrependimento antes
+do envio descarta o marco pendente. A recepção não ganhou botão novo.
+
+**Como vamos saber que está pronto:** a recepção marca a consulta e o comparecimento onde já marca, o
+negócio vira ganho como sempre, e cada um desses momentos aparece como uma linha datada no negócio,
+com id único para a Meta, sem ninguém preencher nada. Provado com gatilhos reais no Supabase local.
 
 ### 3c — Envio à Meta pelo próprio CRM
 

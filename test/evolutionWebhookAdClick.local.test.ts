@@ -52,8 +52,12 @@ describeLocal('3a — webhook da Evolution de ponta a ponta: clique de anúncio 
   const telefone = `5522${String(Math.floor(Math.random() * 1e9)).padStart(9, '0')}`;
   let organizationId = '';
   let connectionId = '';
+  // Cada mensagem ganha um segundo próprio: duas no mesmo segundo empatam em observed_at e a
+  // ordem dos toques oscila sob carga (falhou na suíte completa, passava isolado).
+  let relogio = Math.floor(Date.now() / 1000) - 120;
 
   function payload(id: string, texto: string, clique: typeof anuncio | null) {
+    relogio += 1;
     return {
       event: 'messages.upsert',
       instance: `clinica-${runId}`,
@@ -63,7 +67,7 @@ describeLocal('3a — webhook da Evolution de ponta a ponta: clique de anúncio 
         message: { conversation: texto, messageContextInfo: {} },
         ...(clique ? { contextInfo: { mentionedJid: [], externalAdReply: clique } } : {}),
         messageType: 'conversation',
-        messageTimestamp: Math.floor(Date.now() / 1000),
+        messageTimestamp: relogio,
         instanceId: runId,
         source: 'android',
       },
@@ -84,7 +88,8 @@ describeLocal('3a — webhook da Evolution de ponta a ponta: clique de anúncio 
       .from('lead_source_attributions')
       .select('id, deal_id, contact_id, source_id, ctwa_clid, ad_title, ad_source_id, provenance, channel')
       .eq('organization_id', organizationId)
-      .order('observed_at');
+      .order('observed_at')
+      .order('recorded_at');
     if (res.error) throw res.error;
     return res.data;
   }

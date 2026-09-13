@@ -326,6 +326,33 @@ export type AppointmentStatus =
 export type AppointmentSource = 'manual' | 'clinicorp_api';
 
 /**
+ * Marco de conversão de um negócio (3b). Nasce sozinho dos gatilhos da agenda e do
+ * ganho; é o que volta para a Meta (3c). `no_show` nunca é enviado.
+ */
+export type DealConversionEventType = 'replied' | 'scheduled' | 'attended' | 'no_show' | 'won';
+export type DealConversionEventSource = 'reception' | 'agenda' | 'clinicorp' | 'automation' | 'api' | 'system';
+export type DealConversionMetaStatus = 'pending' | 'sent' | 'error' | 'skipped';
+
+export interface DealConversionEvent {
+  id: string;
+  organizationId: OrganizationId;
+  dealId: string;
+  contactId: string | null;
+  appointmentId: string | null;
+  eventType: DealConversionEventType;
+  occurredAt: string;
+  source: DealConversionEventSource;
+  value: number | null;
+  /** Id único do evento para a Meta nunca contar duas vezes. */
+  metaEventId: string;
+  metaStatus: DealConversionMetaStatus;
+  metaAttempts: number;
+  metaLastError: string | null;
+  metaSentAt: string | null;
+  createdAt: string;
+}
+
+/**
  * Agendamento — cache LOCAL de resiliência da agenda.
  * A fonte de verdade é o Clinicorp (book/list ao vivo via /api/agenda/*); esta entidade
  * só espelha o mínimo pra tela carregar rápido e ter fallback. SEM PII crua de paciente.
@@ -334,6 +361,8 @@ export interface Appointment {
   id?: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS)
   contactId?: string;
+  /** Negócio que a consulta atende (3b); preenchido pelo gatilho quando a recepção não escolhe. */
+  dealId?: string;
   professionalId?: string;
   startsAt: string;
   endsAt?: string;
