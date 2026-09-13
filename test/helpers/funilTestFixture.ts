@@ -20,16 +20,22 @@ type FixtureEdge = {
 
 type FixtureTagContext = {
   tagIdsByName: Record<string, string>;
+  boardId: string;
+  entryStageId: string;
+  stageIdsByName: Record<string, string>;
 };
 
 export type FunilTestFixture = {
   actorId: string;
   automationId: string;
+  boardId: string;
   channelConnectionId: string;
   contactId: string;
   dealId: string;
   enrollmentId: string;
+  entryStageId: string;
   organizationId: string;
+  stageIdsByName: Record<string, string>;
   stepKeys: string[];
   tagIdsByName: Record<string, string>;
   threadId: string;
@@ -50,6 +56,10 @@ export async function createFunilTestFixture(params: {
   dealTags?: string[];
   entityTagNames?: string[];
   assignedEntityTagNames?: string[];
+  /** 2a: modo de entrega da automação publicada (padrão: simulation). */
+  deliveryMode?: 'simulation' | 'live';
+  /** 2a: etapas extras no mesmo funil, para passos de "mover etapa" (nome → id no contexto). */
+  extraStageNames?: string[];
 }): Promise<FunilTestFixture> {
   const { admin } = params;
   const runId = randomUUID();
@@ -70,8 +80,27 @@ export async function createFunilTestFixture(params: {
     email_confirm: true,
     user_metadata: { role: 'clinic_admin', organization_id: organizationId },
   });
-  if (actor.error || !actor.data.user?.id) fail('actor fixture', actor.error);
+  if (actor.error || !actor.data.user?.id) {
+    await admin.from('organizations').delete().eq('id', organizationId);
+    fail('actor fixture', actor.error);
+  }
   const actorId = actor.data.user.id;
+
+  // Se qualquer passo abaixo falhar (ex.: publicação recusada pelo compilador), a organização
+  // e o usuário não podem ficar para trás: era assim que o banco local acumulava centenas de
+  // organizações órfãs com jobs presos.
+  try {
+    return await buildFixture();
+  } catch (error) {
+    for (const table of ['automation_step_attempts', 'automation_jobs', 'automation_enrollments', 'conversation_messages'] as const) {
+      await admin.from(table).delete().eq('organization_id', organizationId);
+    }
+    await admin.from('organizations').delete().eq('id', organizationId);
+    await admin.auth.admin.deleteUser(actorId);
+    throw error;
+  }
+
+  async function buildFixture(): Promise<FunilTestFixture> {
 
   const profile = await admin.from('profiles').upsert({
     id: actorId,
@@ -107,6 +136,23 @@ export async function createFunilTestFixture(params: {
     .select('id')
     .single();
   if (stage.error || !stage.data) fail('stage fixture', stage.error);
+
+  const stageIdsByName: Record<string, string> = {};
+  for (const [index, name] of [...new Set(params.extraStageNames ?? [])].entries()) {
+    const extraStage = await admin
+      .from('board_stages')
+      .insert({
+        organization_id: organizationId,
+        board_id: board.data.id,
+        name,
+        color: '#22c55e',
+        order: index + 1,
+      })
+      .select('id')
+      .single();
+    if (extraStage.error || !extraStage.data) fail(`extra stage fixture ${name}`, extraStage.error);
+    stageIdsByName[name] = extraStage.data.id;
+  }
 
   const contact = await admin
     .from('contacts')
@@ -229,6 +275,7 @@ export async function createFunilTestFixture(params: {
       name: `Automação ${params.label}`,
       created_by: actorId,
       trigger_config: { tag_id: triggerTagId },
+      delivery_mode: params.deliveryMode ?? 'simulation',
     })
     .select('id')
     .single();
@@ -236,7 +283,7 @@ export async function createFunilTestFixture(params: {
   const automationId = automation.data.id;
 
   const fixtureSteps = typeof params.steps === 'function'
-    ? params.steps({ tagIdsByName })
+    ? params.steps({ tagIdsByName, boardId: board.data.id, entryStageId: stage.data.id, stageIdsByName })
     : params.steps;
   const insertedSteps = [];
   for (const [index, step] of fixtureSteps.entries()) {
@@ -286,11 +333,14 @@ export async function createFunilTestFixture(params: {
   return {
     actorId,
     automationId,
+    boardId: board.data.id,
     channelConnectionId,
     contactId,
     dealId,
     enrollmentId: enrollment.data.id,
+    entryStageId: stage.data.id,
     organizationId,
+    stageIdsByName,
     stepKeys: insertedSteps.map((step) => step.step_key),
     tagIdsByName,
     threadId,
@@ -326,4 +376,5 @@ export async function createFunilTestFixture(params: {
       if (deletedActor.error) fail('cleanup actor', deletedActor.error);
     },
   };
+  }
 }

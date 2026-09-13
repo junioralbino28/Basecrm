@@ -1,7 +1,12 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { authorizeAutomationInternalRequest } from '@/lib/automations/internalAuth';
+import { executeDueAutomationJobs, type ExecutorSummary } from '@/lib/automations/executor';
 import { dispatchPendingConversionEvents, type DispatchSummary } from '@/lib/meta/conversionDispatch';
 import { z } from 'zod';
+
+// 2a: o tick passou a executar jobs (envio real com tempo limite por mensagem). O executor
+// tem orçamento próprio de 35 s; o resto cabe na margem.
+export const maxDuration = 60;
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status });
@@ -60,6 +65,19 @@ export async function POST(request: Request) {
   }
   const materializedCount = materialized.data?.length ?? 0;
 
+  // 2a: executa os jobs vencidos (mensagem real, atraso, espera, tarefa, movimentação) em lote
+  // pequeno com orçamento de tempo. Nunca derruba o tick: o resumo vai na resposta e o que não
+  // coube fica para o próximo. Desligado por ambiente (AUTOMATION_LIVE_SENDS_ENABLED), só
+  // registra o motivo.
+  let executed: ExecutorSummary | { error: string } | null = null;
+  try {
+    executed = await executeDueAutomationJobs({ admin, workerId: `tick:${tickAttemptId}` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Executor de automações falhou', { tickAttemptId, error: message });
+    executed = { error: message };
+  }
+
   // 3c: os marcos de conversão pendentes vão para a Meta no mesmo relógio do tick
   // (a cada 5 min). Nunca derruba o tick: o despachante grava o resultado em cada
   // marco e o resumo vai na resposta.
@@ -87,6 +105,7 @@ export async function POST(request: Request) {
     routed: routed.data?.length ?? 0,
     expired: expired.data?.length ?? 0,
     materialized: materializedCount,
+    executed,
     conversions,
   });
 }
