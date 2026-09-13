@@ -74,18 +74,53 @@ do envio descarta o marco pendente. A recepção não ganhou botão novo.
 negócio vira ganho como sempre, e cada um desses momentos aparece como uma linha datada no negócio,
 com id único para a Meta, sem ninguém preencher nada. Provado com gatilhos reais no Supabase local.
 
-### 3c — Envio à Meta pelo próprio CRM
+### 3c — Envio à Meta pelo próprio CRM ✅ (entregue, ver IMPL-LOG-3C)
 
-Não pelo n8n: o CRM é o dono do estado. Configuração por cliente (dataset/pixel e token guardados como
-as chaves de IA, nunca no navegador), disparo **na hora** da mudança de status mais varredura de
-retry a cada 5 min no tick que já existe, id único por evento, só evento genérico e etiqueta.
-**Nunca procedimento nem dado clínico.** Janela de envio confirmada na documentação da Meta antes do
-primeiro envio.
+Não pelo n8n: o CRM é o dono do estado. Configuração por cliente em `organization_settings`
+(`meta_capi_enabled`, `meta_capi_dataset_id`, `meta_capi_access_token` **sem SELECT para o navegador**,
+`meta_capi_test_event_code`, `meta_capi_send_value`, `meta_capi_event_map`), rota
+`/api/settings/meta-capi` só para admin. Despacho a cada 5 min no tick das automações (e sob demanda
+em `/api/internal/conversions/dispatch`): reserva com lease, um evento por vez, `event_id` =
+`meta_event_id`, resultado gravado em cada marco (`sent` / `skipped` com motivo / `error` /
+`pending` com espera crescente até 5 tentativas).
 
-### 3d — Evento intermediário para otimização
+**O que a doc da Meta diz (lida na fonte em 13/09):** `POST /{DATASET_ID}/events`,
+`action_source = business_messaging`, `messaging_channel = whatsapp`, `user_data.ctwa_clid` sem hash,
+`event_time` até 7 dias antes do envio, 14 nomes de evento aceitos para mensageria (LeadSubmitted,
+QualifiedLead, Purchase, ...; **não existe "Schedule"**), e **a Meta não deduplica eventos de
+mensageria**: quem garante "uma vez só" é o nosso id + status. A janela de atribuição de 7 dias após o
+clique aparece em três fontes secundárias e bate com a regra do `event_time`; **confiança média**, o
+envio aplica as duas regras (marco com mais de 7 dias e clique com mais de 7 dias antes do marco são
+descartados com motivo).
 
-"Lead respondeu e é da região": critério proposto = DDD do telefone numa lista por cliente. É o evento
-com volume para a Meta otimizar; "Agendou" e "Compareceu" servem para medir.
+**Regras que nunca mudam:** `no_show` nunca sai; nada além da etiqueta, nome do evento, hora, id e
+(só no ganho, se ligado) valor em BRL. Sem telefone, nome, procedimento ou mensagem.
+
+**Mapa padrão de eventos (o Junior pode mudar por cliente):** respondeu → `LeadSubmitted` ·
+agendou → `QualifiedLead` · compareceu → **(sem envio até ele escolher o nome)** · fechou → `Purchase`.
+
+**Como configurar um cliente:** no Gerenciador de Eventos da Meta, o conjunto de dados (dataset) ligado
+à conta do WhatsApp; um token de usuário do sistema com acesso a esse dataset (permissão de anúncios);
+opcionalmente um código de teste ("Testar eventos"), que faz os eventos aparecerem na aba de teste sem
+valer para otimização. Tirar o código = valer de verdade. Pré-requisito de infraestrutura: o tick das
+automações precisa estar de pé no ambiente (segredos do cofre semeados, 2d).
+
+**Como vamos saber que está pronto:** com um cliente configurado em modo teste, um negócio ganho de um
+lead que veio de anúncio aparece em "Testar eventos" do Gerenciador de Eventos em até 5 minutos, com o
+nome do evento escolhido e o mesmo id do marco; o mesmo marco nunca aparece duas vezes; um lead sem
+etiqueta não gera envio. Provado no local com a rede simulada e as funções reais.
+
+### 3d — Evento intermediário para otimização ✅ (entregue, ver IMPL-LOG-3D)
+
+"Lead respondeu e é da região": o lead mandou mensagem depois de a clínica ter falado, e o DDD do
+telefone está na lista do cliente (`conversion_region_ddds`; lista vazia = qualquer região). Marco
+`replied`, um por negócio, nasce no webhook; fora da região já nasce descartado (conta no funil, não vai
+à Meta). Vai como `LeadSubmitted` por padrão. É o evento com volume para a Meta otimizar; "Agendou" e
+"Compareceu" servem para medir.
+
+**Como vamos saber que está pronto:** um lead de anúncio que responde à clínica aparece como um marco
+"respondeu" no negócio e, com o cliente configurado, chega à Meta como LeadSubmitted em até 5 minutos;
+um lead de outro DDD aparece no funil mas não vai. Provado de ponta a ponta no local pelo webhook real.
 
 ## 4. Fora de escopo (por enquanto)
 

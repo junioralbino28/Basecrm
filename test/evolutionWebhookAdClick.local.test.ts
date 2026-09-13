@@ -121,6 +121,12 @@ describeLocal('3a — webhook da Evolution de ponta a ponta: clique de anúncio 
       .insert({ organization_id: organizationId, board_id: board.data.id, name: 'Novo lead', order: 0 });
     if (stage.error) throw stage.error;
 
+    // 3d: a região do cliente é o DDD 22 (o telefone da fixture começa com 5522).
+    const regiao = await admin
+      .from('organization_settings')
+      .upsert({ organization_id: organizationId, conversion_region_ddds: ['22'] }, { onConflict: 'organization_id' });
+    if (regiao.error) throw regiao.error;
+
     const connection = await admin
       .from('channel_connections')
       .insert({
@@ -210,6 +216,38 @@ describeLocal('3a — webhook da Evolution de ponta a ponta: clique de anúncio 
     const thread = await conversa();
     expect(thread.metadata.firstAdClick).toMatchObject({ ctwaClid: anuncio.ctwaClid, title: anuncio.title });
     expect(thread.metadata.lastAdClick).toMatchObject({ ctwaClid: outroAnuncio.ctwaClid, title: outroAnuncio.title });
+  });
+
+  it('3d: "lead respondeu" só nasce depois de a clínica falar, uma vez por negócio, com a região por DDD', async () => {
+    const thread = await conversa();
+    const marcos = () =>
+      admin!
+        .from('deal_conversion_events')
+        .select('event_type, meta_status, meta_skip_reason, contact_id')
+        .eq('deal_id', thread.deal_id!)
+        .eq('event_type', 'replied');
+
+    // Até aqui só houve mensagens do lead: a clínica nunca falou, então não é "resposta".
+    expect((await marcos()).data).toHaveLength(0);
+
+    // A clínica responde (mensagem de saída, fromMe = true, entra pelo mesmo webhook).
+    const saida = payload('wamid-out-1', 'Olá! Aqui é a clínica, posso ajudar?', null);
+    saida.data.key.fromMe = true;
+    const respostaSaida = await postar(saida);
+    expect(respostaSaida.body.direction).toBe('outbound');
+    expect((await marcos()).data).toHaveLength(0);
+
+    // O lead responde → marco "replied", pendente para a Meta (DDD 22 está na região).
+    const { body } = await postar(payload('wamid-in-5', 'Pode sim, quero agendar', null));
+    expect(body.ok).toBe(true);
+    const depois = (await marcos()).data!;
+    expect(depois).toHaveLength(1);
+    expect(depois[0]).toMatchObject({ meta_status: 'pending', meta_skip_reason: null });
+    expect(depois[0].contact_id).toBeTruthy();
+
+    // Outra resposta do lead não duplica.
+    await postar(payload('wamid-in-6', 'Amanhã de manhã?', null));
+    expect((await marcos()).data).toHaveLength(1);
   });
 
   it('sem o segredo da conexão, nada entra', async () => {

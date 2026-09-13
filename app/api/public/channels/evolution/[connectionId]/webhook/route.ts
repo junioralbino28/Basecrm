@@ -5,6 +5,7 @@ import {
   buildConversationThreadMetadataUpdate,
   buildConversationPhoneCandidates,
   getCanonicalConversationPhone,
+  readConversationThreadMetadata,
 } from '@/lib/conversations/threadMetadata';
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
@@ -980,6 +981,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         dealId,
         providerMessageId: parsed.providerMessageId,
         error: attribution.error.message,
+      });
+    }
+  }
+
+  // 3d: "lead respondeu" = mensagem do lead numa conversa em que a clínica já tinha falado
+  // (a leitura da conversa feita ANTES desta mensagem diz se houve saída). Um marco por
+  // negócio (a função devolve o que já existe); a região por DDD é decidida no banco. Não
+  // derruba o webhook se falhar.
+  const previousOutboundAt = readConversationThreadMetadata(threadResult.data?.metadata).lastOutboundAt;
+  if (parsed.direction === 'inbound' && dealId && previousOutboundAt) {
+    const replied = await admin.rpc('record_lead_replied_event', {
+      p_organization_id: connectionResult.data.organization_id,
+      p_deal_id: dealId,
+      p_contact_id: contactId,
+      p_occurred_at: parsed.sentAt,
+      p_phone: canonicalPhone,
+    });
+    if (replied.error) {
+      console.warn('[Evolution webhook] Falha ao registrar resposta do lead', {
+        connectionId,
+        threadId,
+        dealId,
+        error: replied.error.message,
       });
     }
   }
