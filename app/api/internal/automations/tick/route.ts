@@ -1,5 +1,6 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { authorizeAutomationInternalRequest } from '@/lib/automations/internalAuth';
+import { dispatchPendingConversionEvents, type DispatchSummary } from '@/lib/meta/conversionDispatch';
 import { z } from 'zod';
 
 function json(body: unknown, status = 200) {
@@ -58,6 +59,19 @@ export async function POST(request: Request) {
     return json({ error: 'Falha ao reconciliar automações.' }, 500);
   }
   const materializedCount = materialized.data?.length ?? 0;
+
+  // 3c: os marcos de conversão pendentes vão para a Meta no mesmo relógio do tick
+  // (a cada 5 min). Nunca derruba o tick: o despachante grava o resultado em cada
+  // marco e o resumo vai na resposta.
+  let conversions: DispatchSummary | { error: string } | null = null;
+  try {
+    conversions = await dispatchPendingConversionEvents({ admin, batchLimit: 50 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Despacho de conversões falhou', { tickAttemptId, error: message });
+    conversions = { error: message };
+  }
+
   const completed = await admin.rpc('complete_automation_tick', {
     p_attempt_token: tickAttemptId,
     p_http_status: 200,
@@ -73,5 +87,6 @@ export async function POST(request: Request) {
     routed: routed.data?.length ?? 0,
     expired: expired.data?.length ?? 0,
     materialized: materializedCount,
+    conversions,
   });
 }

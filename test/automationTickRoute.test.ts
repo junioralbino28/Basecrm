@@ -30,6 +30,8 @@ describe('endpoint interno do tick', () => {
       if (name === 'materialize_automation_jobs') {
         return { data: [{ id: 'job-1' }, { id: 'job-2' }], error: null };
       }
+      // 3c: o tick também despacha os marcos de conversão pendentes; aqui não há nenhum.
+      if (name === 'claim_conversion_events') return { data: [], error: null };
       return { data: true, error: null };
     });
     mocks.authorize.mockReturnValue(true);
@@ -48,12 +50,14 @@ describe('endpoint interno do tick', () => {
       routed: 1,
       expired: 1,
       materialized: 2,
+      conversions: { claimed: 0, sent: 0, skipped: 0, retried: 0, failed: 0 },
     });
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
       'mark_automation_tick_received',
       'process_due_automation_routing',
       'expire_due_automation_waits',
       'materialize_automation_jobs',
+      'claim_conversion_events',
       'complete_automation_tick',
     ]);
     expect(rpc).toHaveBeenLastCalledWith('complete_automation_tick', {
