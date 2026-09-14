@@ -97,7 +97,21 @@ descartados com motivo).
 (só no ganho, se ligado) valor em BRL. Sem telefone, nome, procedimento ou mensagem.
 
 **Mapa padrão de eventos (o Junior pode mudar por cliente):** respondeu → `LeadSubmitted` ·
-agendou → `QualifiedLead` · compareceu → **(sem envio até ele escolher o nome)** · fechou → `Purchase`.
+agendou → `QualifiedLead` · compareceu → `InitiateCheckout` (decisão do Junior em 13/09: *"se compareceu à
+consulta pelo menos vai pagar"*; migration `20260913060000`) · fechou → `Purchase`.
+
+**Tradução dos eventos** (o nome é só um rótulo para a Meta; o que ele significa para nós fica aqui, em
+`lib/meta/conversionEventLabels.ts` e no comentário da coluna `meta_capi_event_map`):
+
+| Nome na Meta | Em português | Usamos para |
+|---|---|---|
+| `LeadSubmitted` | lead enviado | **respondeu** (lead mandou mensagem depois de a clínica falar) |
+| `QualifiedLead` | lead qualificado | **agendou** (consulta marcada) |
+| `InitiateCheckout` | começou a finalizar a compra | **compareceu** (veio à consulta) |
+| `Purchase` | compra | **fechou** (negócio ganho) |
+| `AddToCart` · `ViewContent` · `CartAbandoned` | adicionou ao carrinho · viu conteúdo · abandonou o carrinho | livres |
+| `OrderCreated` · `OrderShipped` · `OrderDelivered` · `OrderCanceled` · `OrderReturned` | pedido criado · enviado · entregue · cancelado · devolvido | loja virtual; não usamos |
+| `RatingProvided` · `ReviewProvided` | deu nota · escreveu avaliação | não usamos |
 
 **Como configurar um cliente:** no Gerenciador de Eventos da Meta, o conjunto de dados (dataset) ligado
 à conta do WhatsApp; um token de usuário do sistema com acesso a esse dataset (permissão de anúncios);
@@ -139,7 +153,10 @@ um lead de outro DDD aparece no funil mas não vai. Provado de ponta a ponta no 
 ## 6. Decisões assumidas (Junior pode virar)
 
 - Envio da Meta sai do CRM, não do n8n.
-- "Da região" = lista de DDD por cliente.
+- "Da região" = lista de DDD por cliente. **Jéssica (decisão do Junior, 13/09): DDD 22.** O DDD é regional
+  por natureza (Região dos Lagos e mais cidades do mesmo código, não só a da clínica): é o melhor sinal de
+  região que o WhatsApp dá, e o lead de fora continua no funil, só não vira evento de otimização.
+- "Compareceu" vai como `InitiateCheckout` (decisão do Junior, 13/09; tradução gravada acima).
 - Recepção marca agendou/compareceu na agenda, sem botão novo.
 - Origem canônica única "Anúncio Meta (WhatsApp)"; o anúncio específico fica na atribuição e no
   relatório por campanha, não vira uma origem por anúncio.

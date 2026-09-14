@@ -32,7 +32,7 @@ Decisão assumida (13/09, SPEC): o envio sai do próprio CRM, não do n8n, porqu
 
 | Peça | O que faz |
 |---|---|
-| `organization_settings` | `meta_capi_enabled`, `meta_capi_dataset_id`, **`meta_capi_access_token` (sem SELECT para authenticated, padrão M6)**, `meta_capi_test_event_code`, `meta_capi_send_value`, `meta_capi_event_map` (padrão: respondeu → LeadSubmitted, agendou → QualifiedLead, compareceu → **null**, fechou → Purchase), `conversion_region_ddds` (3d). SELECT por coluna concedido só nas que não são segredo |
+| `organization_settings` | `meta_capi_enabled`, `meta_capi_dataset_id`, **`meta_capi_access_token` (sem SELECT para authenticated, padrão M6)**, `meta_capi_test_event_code`, `meta_capi_send_value`, `meta_capi_event_map` (padrão original: respondeu → LeadSubmitted, agendou → QualifiedLead, compareceu → **null**, fechou → Purchase; **em 13/09 o Junior escolheu compareceu → InitiateCheckout**, migration `20260913060000`, tradução em `lib/meta/conversionEventLabels.ts` e na SPEC), `conversion_region_ddds` (3d). SELECT por coluna concedido só nas que não são segredo |
 | `deal_conversion_events` | `meta_lease_until` (reserva) e `meta_skip_reason` (por que não foi) |
 | `claim_conversion_events(limite, lease)` | reserva marcos `pending` de clientes **ligados e configurados**, `FOR UPDATE SKIP LOCKED`, incrementa `meta_attempts`, devolve as linhas. INVOKER, `search_path` vazio, só service_role |
 | `complete_conversion_event(org, id, status, erro, motivo, retry)` | grava `sent` (+ `meta_sent_at`) / `error` / `skipped` (+ motivo) / `pending` com nova espera. Idem |
@@ -86,7 +86,8 @@ com clique cuja atribuição falhou (dívida da 3a, item 1); `replied` (3d).
    descartando de menos... não: descartando de mais (marcos entre 7 e N dias viram `skipped`). Reversível
    por config futura; hoje é a leitura conservadora.
 4. **"compareceu" não é enviado por padrão** porque a lista da doc não tem um nome que signifique
-   isso. O Junior escolhe (QualifiedLead? Purchase?) por cliente. Enquanto não escolher, o marco fica
+   isso. O Junior escolhe por cliente. **Escolhido em 13/09: InitiateCheckout** ("começou a finalizar a
+   compra": quem compareceu vai pagar a consulta), migration `20260913060000`. Antes disso o marco ficava
    `skipped` como `nao_mapeado` **e não volta**: quando ele configurar, só os marcos novos vão. Aceitável
    porque a janela mataria os antigos de qualquer jeito.
 5. **Um cliente com envio desligado acumula `pending`.** Não há custo (índice parcial) e ao ligar só o

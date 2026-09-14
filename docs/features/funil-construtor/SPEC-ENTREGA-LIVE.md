@@ -76,11 +76,12 @@ tick não está de pé); grava silêncio noturno e fuso (validados). Só admin d
   janela do cliente (`automation_quiet_hours_*` no fuso `automation_timezone`; janela que cruza a
   meia-noite tratada) é adiado para o fim da janela; envio de organização com live desligado é
   adiado uma hora. Sem reserva, sem tentativa gasta. Atraso, espera e simulação não são afetados.
-- **Opt-out**: `contacts.automation_opt_out_at`; o webhook reconhece a mensagem inteira igual a uma
-  palavra de parada ("PARAR", "SAIR", "STOP", "CANCELAR", "NÃO QUERO RECEBER", ...; nunca no meio
-  de frase), chama `record_automation_opt_out` (marca o contato uma vez, pausa as inscrições da
-  conversa com `opt_out:<palavra>`) **antes** de correlacionar a espera, e cala a IA nessa mensagem.
-  O banco também recusa (`42501`) qualquer envio real a contato com opt-out: defesa em profundidade.
+- **Opt-out**: `contacts.automation_opt_out_at` e `record_automation_opt_out` (marca o contato uma
+  vez, pausa as inscrições da conversa com `opt_out:<motivo>`); o banco recusa (`42501`) qualquer
+  envio real a contato com opt-out. **Quem decide o opt-out é a IA de atendimento (1a)**, ao
+  interpretar na conversa que o lead não quer mais ("não tenho interesse", "já marquei com outro
+  profissional"). *Decisão do Junior, 13/09: nunca existirá palavra de parada fixa nem texto do tipo
+  "digite STOP"; a primeira versão com detector de palavra foi removida no mesmo dia.*
 
 ### 2d — Segredos do tick por ambiente
 
@@ -113,19 +114,33 @@ prevista para mídia. **Nesta entrega o executor roda dentro do tick** (e por ro
 Custo aceito: enquanto for o tick, um pico de backlog leva mais ticks para escoar, e a mensagem
 real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
 
-## 6. Decisões assumidas (Junior pode virar)
+## 6. Decisões (revisadas pelo Junior em 13/09)
 
-- Envio nunca é retentado sozinho; falha e dúvida pausam a conversa para um humano.
+- **Envio nunca é retentado sozinho** (confirmado): falha e dúvida pausam a conversa para um humano.
+  **Complemento exigido pelo Junior:** toda falha tem que ficar "na cara" no funil, numa caixa
+  própria, mostrando a mensagem que falhou (para a pessoa conferir se chegou ou não) e um botão
+  **Reenviar** (e "marcar como enviada" / "descartar"). Ver §7, primeiro item.
 - Sem aresta "Falhou o envio" no desenho, a falha pausa; com a aresta, o funil segue por ela.
-- Lista de palavras de parada fixa (não configurável por cliente por enquanto).
-- Silêncio noturno só para mensagem; tarefa e movimentação acontecem a qualquer hora.
-- Live desligado adia o envio de hora em hora (não descarta): ligar de volta retoma.
+- **Opt-out é interpretado pela IA de atendimento, nunca por palavra fixa** (virado pelo Junior: a
+  Cenoura não faz bot binário nem escreve "digite STOP" em follow-up).
+- **Follow-up tem horário de envio configurável por automação** (virado pelo Junior): o funil define
+  a partir de que hora (e até que hora) os follow-ups saem; **a IA de atendimento trabalha 24 h**,
+  conversa com quem chega fora do horário e move os cards normalmente. Hoje a janela é por
+  organização (`automation_quiet_hours_*`) e vale só para mensagem de automação, o que já respeita
+  a regra; a configuração por automação entra no construtor (§7).
+- Live desligado adia o envio de hora em hora (não descarta): ligar de volta retoma. "Desligar" é a
+  chave por cliente da rota 2b (`automation_live_enabled`), usada na implantação (fica desligada até
+  o primeiro ensaio) e em incidente (mensagem errada num funil, WhatsApp instável).
 
-## 7. Fora de escopo (dívidas registradas)
+## 7. Fora de escopo (dívidas registradas, em ordem de prioridade)
 
-- **Retomar inscrição pausada**: não existe função de retomada no motor (nem antes desta entrega).
-  Hoje pausa é terminal na prática; o job pendente de inscrição pausada vira dead-letter. A
-  retomada precisará re-enfileirar o passo atual.
+- **Caixa de falhas de envio com "Reenviar"** (requisito do Junior, 13/09): lista das conversas
+  pausadas por `delivery_failed` / `delivery_unknown` com a mensagem, o erro, a hora e os botões
+  Reenviar · Marcar como enviada · Descartar. Exige no motor a retomada da inscrição (re-enfileirar
+  o passo atual com nova chave de idempotência) e uma nova linha de mensagem para o reenvio.
+- **Horário de envio dos follow-ups por automação** no construtor (hoje só por organização).
+- **Retomar inscrição pausada** (é o motor da caixa acima): não existe função de retomada
+  (nem antes desta entrega); hoje pausa é terminal na prática.
 - Tela de "conversas pausadas pela automação" com o motivo (dado já está em
   `automation_enrollments.pause_reason`).
 - `condition` legado: sem executor; o construtor usa "Dividir caminho" (switch), que já é resolvido

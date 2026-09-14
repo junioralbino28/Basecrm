@@ -180,21 +180,15 @@ describe('2b — rota admin de ligar/desligar o envio real', () => {
   });
 });
 
-describe('2c — opt-out no webhook da Evolution', () => {
-  const rota = read('app', 'api', 'public', 'channels', 'evolution', '[connectionId]', 'webhook', 'route.ts');
+describe('2c — opt-out é decisão da IA de atendimento, nunca palavra fixa (Junior, 13/09)', () => {
+  it('o webhook não detecta palavra de parada; a função e o gate no banco ficam para a IA usar (1a)', () => {
+    const rota = read('app', 'api', 'public', 'channels', 'evolution', '[connectionId]', 'webhook', 'route.ts');
+    expect(rota).not.toContain('detectAutomationOptOut');
+    expect(rota).not.toContain("rpc('record_automation_opt_out'");
+    expect(rota).toContain("if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {");
 
-  it('detecta a palavra de parada em inbound, registra antes de correlacionar a espera, sem derrubar o webhook, e cala a IA nessa mensagem', () => {
-    expect(rota).toContain("import { detectAutomationOptOut } from '@/lib/automations/optOut';");
-    expect(rota).toContain('const keyword = detectAutomationOptOut(content);');
-    expect(rota).toContain("rpc('record_automation_opt_out'");
-    const optOut = rota.indexOf("rpc('record_automation_opt_out'");
-    const correlacao = rota.indexOf("p_message_id: insertedMessage.data.id,");
-    expect(optOut).toBeGreaterThan(0);
-    expect(optOut).toBeLessThan(correlacao);
-    const bloco = rota.slice(rota.indexOf('let automationOptOut: string | null = null;'), correlacao);
-    expect(bloco).not.toContain('return json(');
-    expect(bloco).toContain('Falha ao registrar opt-out de automações');
-    expect(rota).toContain("threadStatus === 'ai_active' && !automationOptOut");
-    expect(rota).toContain('automation_opt_out: automationOptOut');
+    const s = sql();
+    expect(s).toContain('create or replace function public.record_automation_opt_out(');
+    expect(s).toContain("message = 'contato pediu para não receber automações'");
   });
 });

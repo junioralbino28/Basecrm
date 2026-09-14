@@ -168,6 +168,8 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     return result.data ?? [];
   }
 
+  type Resumo = Awaited<ReturnType<typeof executeDueAutomationJobs>>;
+
   async function executar(extra: Partial<Parameters<typeof executeDueAutomationJobs>[0]> = {}) {
     return executeDueAutomationJobs({
       admin: db(),
@@ -176,6 +178,20 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
       sendTimeoutMs: 3_000,
       ...extra,
     });
+  }
+
+  /**
+   * O executor é global (reserva jobs de qualquer organização, inclusive os que outros arquivos
+   * da suíte deixam para trás). As contagens deste arquivo olham só os jobs da própria fixture.
+   */
+  function meus(resumo: Resumo, fixture: FunilTestFixture) {
+    const jobs = resumo.jobs.filter((job) => job.organizationId === fixture.organizationId);
+    const contagem: Record<string, number> = { claimed: jobs.length };
+    for (const job of jobs) contagem[job.outcome] = (contagem[job.outcome] ?? 0) + 1;
+    const erros = resumo.errors.filter(
+      (erro) => erro.organizationId === fixture.organizationId || erro.jobId === '-',
+    );
+    return { ...contagem, erros };
   }
 
   async function jobDe(fixture: FunilTestFixture, stepIndex: number) {
@@ -263,7 +279,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     expect(job).toMatchObject({ status: 'pending', attempt_count: 0 });
 
     const resumo = await executar();
-    expect(resumo.claimed).toBe(0);
+    expect(meus(resumo, funil)).toMatchObject({ claimed: 0, erros: [] });
     expect(requests).toHaveLength(0);
 
     const reset = await db().from('automation_jobs').update({ available_at: new Date(Date.now() - 1000).toISOString() }).eq('id', job!.id);
@@ -295,8 +311,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
 
   it('manda a mensagem real, grava o id do provedor, avança e abre a espera citando a mensagem enviada', async () => {
     const resumo = await executar();
-    expect(resumo.errors).toEqual([]);
-    expect(resumo).toMatchObject({ claimed: 1, sent: 1, failed: 0, unknown: 0 });
+    expect(meus(resumo, funil)).toEqual({ claimed: 1, sent: 1, erros: [] });
 
     expect(requests).toHaveLength(1);
     expect(requests[0].path).toBe('/message/sendText/inst-live');
@@ -326,8 +341,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     // O tick materializa o passo seguinte (a espera); o executor abre a espera sem avançar.
     await materializar();
     const resumoEspera = await executar();
-    expect(resumoEspera.errors).toEqual([]);
-    expect(resumoEspera).toMatchObject({ claimed: 1, waiting: 1 });
+    expect(meus(resumoEspera, funil)).toEqual({ claimed: 1, waiting: 1, erros: [] });
     expect(await jobDe(funil, 1)).toMatchObject({ status: 'sent' });
     const wait = await db()
       .from('automation_waits')
@@ -384,8 +398,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     // Tarefa
     await materializar();
     const resumoTarefa = await executar();
-    expect(resumoTarefa.errors).toEqual([]);
-    expect(resumoTarefa).toMatchObject({ claimed: 1, tasks: 1 });
+    expect(meus(resumoTarefa, funil)).toEqual({ claimed: 1, tasks: 1, erros: [] });
     const jobTarefa = await jobDe(funil, 2);
     expect(jobTarefa?.status).toBe('sent');
     const tarefa = await db()
@@ -402,8 +415,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     // Mover etapa → último passo → funil concluído
     await materializar();
     const resumoMover = await executar();
-    expect(resumoMover.errors).toEqual([]);
-    expect(resumoMover).toMatchObject({ claimed: 1, moved: 1 });
+    expect(meus(resumoMover, funil)).toEqual({ claimed: 1, moved: 1, erros: [] });
     const deal = await db().from('deals').select('stage_id, board_id').eq('id', funil.dealId).single();
     expect(deal.data).toEqual({ stage_id: funil.stageIdsByName.Agendado, board_id: funil.boardId });
     expect(await inscricao(funil)).toMatchObject({ status: 'done' });
@@ -411,7 +423,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     // Nada mais a fazer: o passo de timeout nunca nasceu.
     await materializar();
     expect(await jobDe(funil, 4)).toBeNull();
-    expect((await executar()).claimed).toBe(0);
+    expect(meus(await executar(), funil)).toMatchObject({ claimed: 0 });
     expect(requests).toHaveLength(1);
   }, 120_000);
 
@@ -424,8 +436,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     const antes = requests.length;
 
     const resumo = await executar();
-    expect(resumo.errors).toEqual([]);
-    expect(resumo).toMatchObject({ claimed: 1, failed: 1, sent: 0 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
     // Em 4xx a biblioteca da Evolution tenta os 4 formatos de corpo antes de desistir
     // (em 5xx para na primeira, porque o resultado é desconhecido). Uma mensagem, 4 POSTs.
     expect(requests.length).toBe(antes + 4);
@@ -454,13 +465,13 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     fakeMode = 'http400';
 
     const resumo = await executar();
-    expect(resumo).toMatchObject({ claimed: 1, failed: 1 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
     expect(await jobDe(fixture, 0)).toMatchObject({ status: 'dead_letter' });
     expect(await inscricao(fixture)).toMatchObject({ status: 'active', current_step_key: fixture.stepKeys[1] });
 
     await materializar();
     const resumoTarefa = await executar();
-    expect(resumoTarefa).toMatchObject({ claimed: 1, tasks: 1 });
+    expect(meus(resumoTarefa, fixture)).toEqual({ claimed: 1, tasks: 1, erros: [] });
     const tarefa = await db().from('tasks').select('title, due_time').eq('organization_id', fixture.organizationId).single();
     expect(tarefa.data).toMatchObject({ title: 'Número inválido: ligar', due_time: null });
     expect(await inscricao(fixture)).toMatchObject({ status: 'done' });
@@ -474,8 +485,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     const antes = requests.length;
 
     const resumo = await executar();
-    expect(resumo.errors).toEqual([]);
-    expect(resumo).toMatchObject({ claimed: 1, unknown: 1 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, unknown: 1, erros: [] });
     expect(requests.length).toBe(antes + 1);
     const job = await jobDe(fixture, 0);
     expect(job?.status).toBe('unknown');
@@ -483,7 +493,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     expect(await inscricao(fixture)).toMatchObject({ status: 'paused', pause_reason: 'delivery_unknown' });
 
     const denovo = await executar();
-    expect(denovo.claimed).toBe(0);
+    expect(meus(denovo, fixture)).toMatchObject({ claimed: 0 });
     expect(requests.length).toBe(antes + 1);
   }, 120_000);
 
@@ -494,7 +504,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     fakeMode = 'hang';
 
     const resumo = await executar({ sendTimeoutMs: 400 });
-    expect(resumo).toMatchObject({ claimed: 1, unknown: 1 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, unknown: 1, erros: [] });
     const job = await jobDe(fixture, 0);
     const mensagem = await mensagemDoJob(job!.id);
     expect(mensagem?.delivery_status).toBe('unknown');
@@ -513,8 +523,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     const antes = requests.length;
 
     const resumo = await executar();
-    expect(resumo.errors).toEqual([]);
-    expect(resumo).toMatchObject({ claimed: 1, failed: 1 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
     expect(requests.length).toBe(antes);
     const job = await jobDe(fixture, 0);
     expect(job).toMatchObject({ status: 'dead_letter' });
@@ -555,7 +564,7 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
 
     const antes = requests.length;
     const resumo = await executar();
-    expect(resumo).toMatchObject({ claimed: 1, failed: 1 });
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
     expect(requests.length).toBe(antes);
     expect(await jobDe(fixture, 0)).toMatchObject({ status: 'dead_letter' });
     expect(await inscricao(fixture)).toMatchObject({ status: 'paused', pause_reason: 'opt_out:PARAR' });

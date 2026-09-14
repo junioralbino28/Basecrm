@@ -12,7 +12,6 @@ import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation'
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
 import { evaluateWebhookAuth } from '@/lib/conversations/webhookAuth';
 import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
-import { detectAutomationOptOut } from '@/lib/automations/optOut';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -921,30 +920,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     return json({ error: insertedMessage.error.message }, 500);
   }
 
-  // 2c: o lead pediu para parar ("PARAR", "SAIR", ...): marca o contato e pausa as automações
-  // desta conversa ANTES de correlacionar a resposta, para a espera fechar com a inscrição já
-  // pausada (o cursor anda, o funil não manda mais nada). Nunca derruba o webhook.
-  let automationOptOut: string | null = null;
-  if (parsed.direction === 'inbound') {
-    const keyword = detectAutomationOptOut(content);
-    if (keyword) {
-      automationOptOut = keyword;
-      const optOut = await admin.rpc('record_automation_opt_out', {
-        p_organization_id: connectionResult.data.organization_id,
-        p_contact_id: contactId,
-        p_thread_id: threadId,
-        p_occurred_at: parsed.sentAt,
-        p_keyword: keyword,
-      });
-      if (optOut.error) {
-        console.warn('[Evolution webhook] Falha ao registrar opt-out de automações', {
-          connectionId,
-          threadId,
-          error: optOut.error.message,
-        });
-      }
-    }
-  }
+  // 2c (decisão do Junior, 13/09): NÃO existe palavra de parada fixa. Quem reconhece que o lead
+  // não quer mais ("não tenho interesse", "já marquei com outro") é a IA de atendimento (1a),
+  // que então chama `record_automation_opt_out`; o gate no banco continua recusando envio real
+  // a contato com opt-out.
 
   if (parsed.direction === 'inbound' && parsed.providerMessageId) {
     const waitResolution = await admin.rpc('resolve_automation_wait_from_inbox', {
@@ -1060,8 +1039,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       ? inboundThreadStatus
       : threadResult.data?.status ?? 'resolved';
 
-  // Quem mandou a palavra de parada não recebe resposta da IA a essa mensagem.
-  if (parsed.direction === 'inbound' && threadStatus === 'ai_active' && !automationOptOut) {
+  if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {
     const aiDebounceMs = 7000;
     const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
 
@@ -1135,6 +1113,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     message_id: insertedMessage.data.id,
     direction: parsed.direction,
     ...(adAttributionError ? { ad_attribution_error: adAttributionError } : {}),
-    ...(automationOptOut ? { automation_opt_out: automationOptOut } : {}),
   });
 }

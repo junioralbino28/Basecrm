@@ -12,6 +12,11 @@ import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 import { BUSINESS_MESSAGING_EVENT_NAMES } from '@/lib/meta/conversionsApi';
+import {
+  BUSINESS_MESSAGING_EVENT_LABELS_PT,
+  CONVERSION_EVENT_TYPE_LABELS_PT,
+  DEFAULT_CONVERSION_EVENT_MAP,
+} from '@/lib/meta/conversionEventLabels';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -48,11 +53,10 @@ const UpdateSchema = z
   })
   .strict();
 
+// Escada padrão decidida pelo Junior em 13/09 (compareceu → InitiateCheckout); a tradução de
+// cada nome vive em lib/meta/conversionEventLabels.ts e no comentário da coluna.
 const DEFAULT_EVENT_MAP: Record<(typeof EVENT_TYPES)[number], string | null> = {
-  replied: 'LeadSubmitted',
-  scheduled: 'QualifiedLead',
-  attended: null,
-  won: 'Purchase',
+  ...DEFAULT_CONVERSION_EVENT_MAP,
 };
 
 function readEventMap(value: unknown) {
@@ -92,6 +96,9 @@ export async function GET() {
     eventMap: readEventMap(data?.meta_capi_event_map),
     regionDdds: Array.isArray(data?.conversion_region_ddds) ? data.conversion_region_ddds : [],
     supportedEventNames: BUSINESS_MESSAGING_EVENT_NAMES,
+    // Tradução para a tela: o nome da Meta é só um rótulo; o que ele significa para nós está aqui.
+    eventNameLabels: BUSINESS_MESSAGING_EVENT_LABELS_PT,
+    eventTypeLabels: CONVERSION_EVENT_TYPE_LABELS_PT,
   });
 }
 

@@ -73,7 +73,9 @@ export type ExecutorSummary = {
   failed: number;
   unknown: number;
   released: number;
-  errors: Array<{ jobId: string; error: string }>;
+  errors: Array<{ jobId: string; organizationId?: string; error: string }>;
+  /** Um registro por job reservado: quem era e o que aconteceu (vai para o log do tick). */
+  jobs: Array<{ jobId: string; organizationId: string; jobType: string; outcome: ExecutorOutcome }>;
   durationMs: number;
 };
 
@@ -461,6 +463,7 @@ export async function executeDueAutomationJobs(
     unknown: 0,
     released: 0,
     errors: [],
+    jobs: [],
     durationMs: 0,
   };
   const finish = () => {
@@ -512,13 +515,19 @@ export async function executeDueAutomationJobs(
       if (Date.now() - started >= deadlineMs) {
         // Sem tempo: o lease expira sozinho e o próximo executor pega o job.
         summary.released += 1;
+        summary.jobs.push({ jobId: job.id, organizationId: job.organization_id, jobType: job.job_type, outcome: 'released' });
         continue;
       }
       try {
         const outcome = await executeJobSafely(ctx, job);
         summary[outcome] += 1;
+        summary.jobs.push({ jobId: job.id, organizationId: job.organization_id, jobType: job.job_type, outcome });
       } catch (error) {
-        summary.errors.push({ jobId: job.id, error: errorMessage(error).slice(0, 500) });
+        summary.errors.push({
+          jobId: job.id,
+          organizationId: job.organization_id,
+          error: errorMessage(error).slice(0, 500),
+        });
       }
     }
     if (jobs.length < batchLimit) break;

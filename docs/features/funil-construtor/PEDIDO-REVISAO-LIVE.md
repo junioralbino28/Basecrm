@@ -7,6 +7,11 @@
 **Tipo:** revisão adversarial. **Não é pedido de execução: não altere código nem migrations.** O único
 arquivo que você escreve é `docs/features/funil-construtor/OPINIAO-LIVE.md`.
 
+> **Atualização (13/09, depois do commit `f45d8dc`):** por decisão do Junior, `lib/automations/optOut.ts`
+> e o bloco de palavra de parada no webhook foram **removidos** (opt-out será interpretado pela IA de
+> atendimento; `record_automation_opt_out` e o gate no `prepare` ficam). Ignore os pontos sobre
+> palavras de parada. Revise o restante no commit mais recente da branch.
+
 ## O que muda, em uma frase
 
 O motor de automações (Entregas A/B/C1/C2), que só sabia simular, agora manda a mensagem real pela

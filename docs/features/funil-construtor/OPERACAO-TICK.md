@@ -82,7 +82,7 @@ nunca o mesmo em teste e produção. Guarde em `WorkSync/.secrets` (fora do repo
 | Todo o ambiente | `AUTOMATION_LIVE_SENDS_ENABLED=false` + redeploy | nenhum job é reservado; tudo espera |
 | Um cliente | `POST /api/settings/automations-live` `{ "enabled": false }` | envios "live" desse cliente são adiados de hora em hora; simulação continua |
 | Uma automação | despublicar no construtor | novas inscrições param; as ativas seguem até o fim |
-| Uma conversa | o lead manda "PARAR" (ou a recepção pausa) | inscrições da conversa pausadas |
+| Uma conversa | a IA reconhece que o lead não quer mais (1a) ou a recepção pausa | inscrições da conversa pausadas |
 
 ## 5. O que olhar no dia a dia
 

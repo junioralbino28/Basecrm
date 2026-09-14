@@ -15,11 +15,11 @@ cliente
 | Migration 2a/2c | `supabase/migrations/20260913040000_funil_live_envio_real.sql` | `contacts.automation_opt_out_at`; `prepare_automation_outbound` aceita live (chave do cliente + sem opt-out); `complete_automation_live`; `open_automation_wait_for_job`; `execute_automation_create_task`; `execute_automation_move_deal`; `fail_automation_job_and_pause`; `defer_automation_jobs_before_claim`; `record_automation_opt_out`. Todas DEFINER, `search_path` vazio, EXECUTE só do service_role |
 | Migration (achado) | `supabase/migrations/20260913050000_funil_claim_sem_overflow.sql` | `claim_automation_jobs` limita a duração da tentativa antes do cast para `integer` (cabeçalho idêntico ao da F4) |
 | Executor | `lib/automations/executor.ts` | `executeDueAutomationJobs`: adia → reserva (10, lease 120 s) → executa por tipo → repete até esvaziar ou 35 s. Mensagem real com tempo limite de 15 s; `sent`/`failed`/`unknown` terminais; simulação também roda |
-| Opt-out (puro) | `lib/automations/optOut.ts` | `detectAutomationOptOut`: mensagem inteira = palavra de parada (sem acento/pontuação), até 48 caracteres |
+| Opt-out (puro) | ~~`lib/automations/optOut.ts`~~ | **Removido em 13/09 por decisão do Junior**: nunca haverá palavra de parada fixa; a IA de atendimento (1a) interpreta o desinteresse e chama `record_automation_opt_out`. A função e o gate no banco ficam |
 | Tick | `app/api/internal/automations/tick/route.ts` | chama o executor depois de materializar e antes da Meta, em `try/catch`; `maxDuration = 60` |
 | Rota interna | `app/api/internal/automations/execute/route.ts` | executor sob demanda com o Bearer do worker (cron externo / VPS) |
 | Rota admin (2b) | `app/api/settings/automations-live/route.ts` | GET estado + saúde; POST liga/desliga (`set_automation_live_enabled`, 409 com motivo quando o tick não está de pé), silêncio noturno e fuso |
-| Webhook (2c) | `app/api/public/channels/evolution/[connectionId]/webhook/route.ts` | opt-out em inbound antes de correlacionar a espera; cala a IA nessa mensagem; `automation_opt_out` na resposta |
+| Webhook (2c) | `app/api/public/channels/evolution/[connectionId]/webhook/route.ts` | ~~opt-out por palavra em inbound~~ **removido em 13/09** (decisão do Junior); só um comentário aponta para a IA (1a) |
 | Ambiente (2d) | `.env.example`, `OPERACAO-TICK.md` | três variáveis; procedimento Vercel + cofre + verificação + kill switches |
 | Fixture de teste | `test/helpers/funilTestFixture.ts` | `deliveryMode`, `extraStageNames`, contexto com `boardId`/`stageIdsByName`; **limpa a organização se a criação falhar** (era assim que o banco local acumulou 348 organizações órfãs de julho) |
 
@@ -82,9 +82,15 @@ com `definer=true`, `config=search_path=""`, `anon=false auth=false service=true
     banco local tinha resíduo de julho. Corrigido em migration própria.
 11. **Diff de cabeçalho** feito para as duas funções substituídas (seção 2). ACL conferida no
     catálogo, não na migration.
-12. **A IA continua respondendo a contato com opt-out** em mensagens seguintes; só a mensagem de
-    parada é calada. Opt-out é de automação/marketing, não de atendimento. Se o Junior quiser
-    calar a IA também, é uma linha no webhook (1a).
+12. ~~A IA continua respondendo a contato com opt-out~~ — item superado: o opt-out por palavra foi
+    removido (decisão do Junior, 13/09); quem marca opt-out passa a ser a própria IA (1a).
+13. **Achado na suíte completa (13/09, noite):** outros arquivos da suíte (`funilOutbox`,
+    `funilPublication`, `funilScheduler`, `funilWaits`...) apagam o usuário mas **não a organização**;
+    cada rodada deixa ~16 organizações "Funil F2 A / F3" com jobs pendentes ou com vencimento
+    próximo. O executor é global e os reservou no meio do meu teste (`claimed: 3`), derrubando 4
+    casos que passam sozinhos. Correção honesta: o resumo do executor ganhou `jobs[]` (job,
+    organização, tipo, desfecho: vai para o log do tick) e o teste conta só os da própria
+    organização. O lixo em si é dívida dos testes antigos (fora deste escopo): registrado.
 
 ## 5. Próximos passos
 
