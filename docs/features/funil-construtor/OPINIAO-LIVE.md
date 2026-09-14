@@ -6,7 +6,8 @@ estava em `4adbd04`, cujo único delta sobre a entrega é o próprio
 
 **Veredito:** não aprovar o LIVE neste estado. Há caminhos para opt-out forjado ou perdido,
 quatro POSTs para um único envio lógico, envio por canal inativo, persistência de erro externo sem
-redação e efeitos de banco que vencem uma pausa concorrente.
+redação, efeitos de banco que vencem uma pausa concorrente e um caminho de SSRF/exfiltração da
+credencial Evolution da agência por configuração de destino do tenant.
 
 ## 1. Bloqueantes
 
@@ -96,6 +97,29 @@ redação e efeitos de banco que vencem uma pausa concorrente.
   `status='active'` e `current_step_key=v_job.step_key` antes de qualquer INSERT/UPDATE externo ao
   estado do motor.
 
+### B7 — `apiUrl` do tenant pode exfiltrar a chave Evolution global da agência (G13/G22/G26)
+
+- **Severidade:** alta, bloqueante para LIVE.
+- **Onde:** `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts:24`,
+  `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts:44`–`45`,
+  `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts:92`,
+  `lib/channels/evolutionCredentials.ts:93`–`98`,
+  `lib/channels/evolutionCredentials.ts:125`–`131`, `lib/automations/executor.ts:273`–`320` e
+  `lib/channels/evolution.ts:368`–`424`.
+- **Cenário concreto:** um usuário com `whatsapp.manage_connection` grava somente
+  `config.apiUrl=https://host-do-atacante.example`, deixando `config.apiKey` vazio. O resolvedor
+  combina esse URL do tenant com `defaults.apiKey` da agência; quando o motor executa uma mensagem,
+  o adaptador envia um POST ao host escolhido com a chave global no header `apikey`. Isso permite
+  roubar a credencial compartilhada e, conforme o alcance dela, alcançar instâncias de outros
+  tenants. O mesmo controle de URL também cria SSRF contra destinos internos acessíveis ao runtime.
+- **Correção proposta:** nunca misturar URL de uma fonte com chave de outra: conexão só substitui o
+  par quando fornece `apiUrl` **e** `apiKey`; caso contrário, usar integralmente o par da agência.
+  Além disso, validar protocolo, host e porta por allowlist, bloquear IP privado/link-local/metadata
+  após resolução DNS, limitar redirects e manter timeout com aborto real.
+- **Mitigação/nota de falso positivo:** restringir temporariamente `apiUrl` a administradores da
+  agência reduz a explorabilidade, mas não elimina o SSRF. Se não houver binding com defaults de
+  agência, o roubo da chave global não ocorre; o destino arbitrário continua existindo.
+
 ## 2. Importantes
 
 ### I1 — erro de uma automação pausa todas as automações da conversa
@@ -182,6 +206,45 @@ e [Vercel — function limitations](https://vercel.com/docs/functions/limitation
 - **Correção proposta:** retirar verbos ambíguos isolados e cobrir frases explícitas de
   descadastro, com confirmação/contexto quando a intenção puder significar cancelar outra coisa.
 
+### I7 — o segredo do webhook é colocado na URL e pode vazar antes de autenticar (G10/G11/G22)
+
+- **Severidade:** alta se qualquer log/configuração do provedor for acessível; importante enquanto
+  não há evidência de vazamento real.
+- **Onde:** `app/api/public/channels/evolution/[connectionId]/webhook/route.ts:28`–`31`,
+  `app/api/platform/tenants/[tenantId]/channels/[connectionId]/connect/route.ts:122` e
+  `app/api/platform/tenants/[tenantId]/channels/[connectionId]/healthcheck/route.ts:83`.
+- **Cenário concreto:** connect e healthcheck cadastram na Evolution um URL com
+  `?secret=<bearer-estático>`; esse valor pode aparecer na configuração do provedor, access logs,
+  tracing, proxies e relatórios de erro. Quem obtém o URL pode repetir eventos indefinidamente,
+  porque não há timestamp/freshness nem assinatura do corpo. O efeito inclui o opt-out forjado de
+  B1 e as demais escritas realizadas pelo webhook.
+- **Correção proposta:** remover segredo de query string, autenticar por header quando o provedor
+  permitir e preferir HMAC do raw body com timestamp e ID de entrega. Rotacionar os segredos já
+  cadastrados e redigir query strings em observabilidade.
+- **Nota de falso positivo:** não observei vazamento real. Se todos os saltos redigem query e a
+  configuração da Evolution é estritamente protegida, a exposição pode não ter acontecido; o
+  desenho continua vulnerável a um vazamento futuro e a replay.
+
+### I8 — G12 falha globalmente: Next instalado possui advisories críticos abertos
+
+- **Severidade:** crítica no SCA; importante neste parecer por ser dívida global, fora do diff LIVE,
+  e por as precondições de exploração em produção não terem sido confirmadas.
+- **Onde:** `package.json:64` e `package-lock.json:9775`–`9782`.
+- **Evidência:** o baseline de 13/09/2026 encontrou o Next `16.2.12` dentro do intervalo vulnerável
+  `>=16.0.0 <16.3.3` dos advisories `GHSA-p293-qw3h-jr36` (RCE em servidor Windows) e
+  `GHSA-2xp9-vwfh-vxw4` (RCE no Image Optimization com AVIF). O `npm audit` totalizou 18 entradas:
+  1 critical, 5 high, 5 moderate e 7 low. Também há high em `@faker-js/faker`, `browserslist`,
+  `js-yaml`, `nanoid` e `sharp`. Fontes retornadas pelo próprio SCA:
+  [GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36) e
+  [GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4).
+- **Impacto e escopo:** é dívida do repositório, não regressão introduzida por `f45d8dc`, mas impede
+  marcar G12 como PASS antes de publicar o conjunto. A primeira RCE exige hosting Windows; o alvo
+  documentado é Vercel e não encontrei AVIF configurado em `next.config.*`, então a explorabilidade
+  concreta dessas duas variantes não ficou provada. O componente continua em versão afetada.
+- **Correção proposta:** atualizar lockfile para Next `>=16.3.3` e versões corrigidas das demais
+  dependências, rodar a suíte completa/build e repetir `npm audit`; não usar apenas a ausência das
+  precondições observadas como compensação permanente.
+
 ## 3. Sugestões
 
 1. **Amarrar os IDs da RPC de opt-out.**
@@ -203,6 +266,13 @@ e [Vercel — function limitations](https://vercel.com/docs/functions/limitation
    saído. A API Fetch não informa com confiabilidade se zero bytes deixaram o processo; `AbortSignal`
    reduz handle pendente, mas não prova não-entrega. Retry seguro cabe apenas antes de iniciar o
    POST, para falhas determinísticas locais; para o resto, tela de reconciliação/retomada explícita.
+5. **Generalizar erros devolvidos pela rota administrativa.**
+   `app/api/settings/automations-live/route.ts:90`,
+   `app/api/settings/automations-live/route.ts:137` e
+   `app/api/settings/automations-live/route.ts:151`–`160` devolvem mensagens internas de banco/RPC
+   ao administrador autenticado. É exposição de baixa severidade, mas facilita reconhecimento de
+   schema e regras. Devolver código/mensagem estável ao cliente e manter detalhe somente em log
+   estruturado com redação.
 
 ## 4. Conferências feitas
 
@@ -306,3 +376,161 @@ numeração atual de
 | Rota execute sem rate limit | **Achei I3.** O raio exato inclui execução global, exfiltração da fila via claim e corrupção por complete com o mesmo Bearer. `app/api/internal/automations/execute/route.ts:7`–`48`. |
 | `maxDuration = 60` | **Aceito pelo runtime atual; achei risco de margem I4.** Se estourar, a Vercel devolve 504 e `complete_automation_tick` não roda. `app/api/internal/automations/tick/route.ts:9` e `app/api/internal/automations/tick/route.ts:93`–`100`. |
 | G1–G25 | **Bati manualmente + baseline parcial.** Findings em B1/B2/B5/B6/I3; G12 falha global; G2/G4 não têm prova A↔B; G23 e G25 conferidos sem finding. `supabase/migrations/20260913040000_funil_live_envio_real.sql:35`–`40` e `.env.example:49`. |
+
+## 6. Complemento da skill customizada `/cibersecurity`
+
+### Âncora e cobertura
+
+- A execução que corresponde ao alvo ocorreu às 20:20, quando o `HEAD` era `4adbd04` e o código da
+  entrega ainda era `f45d8dc`. Resultado fora do projeto:
+  `C:/Users/PC Gamer/.cache/cenoura-sec/20260913-202006-Basecrm/status.json`.
+- Enquanto a skill rodava novamente, a branch avançou externamente para `773b791`, commit de
+  resposta a este parecer. A repetição em
+  `C:/Users/PC Gamer/.cache/cenoura-sec/20260913-210442-Basecrm/status.json` também terminou
+  `execution_ok=true`, mas não usei esse scan para reclassificar o alvo original. O commit corretivo
+  não faz parte desta revisão.
+- O passo do Supabase MCP foi **deliberadamente não executado**, porque o pedido proíbe banco remoto.
+  Para G2/G28 usei apenas o catálogo do Postgres local já documentado na seção 4; isso prova ACL e
+  `search_path` das nove RPCs, não isolamento A↔B/RLS completo.
+
+### Resultado do baseline automatizado
+
+| Ferramenta | Estado | Evidência e limite |
+|---|---|---|
+| npm audit 11.6.0 | **OK de execução; 18 findings** | 1 critical, 5 high, 5 moderate, 7 low. G12 **FAIL**; detalhes em I8. |
+| Semgrep 1.170.1 | **OK de execução; 0 findings** | Zero não significa PASS. Houve 2 warnings de parsing, ambos fora do recorte: `features/boards/components/Modals/CreateBoardModal.tsx:477` e `features/settings/components/CommissionsManager.test.tsx:7`. Nenhum arquivo LIVE ficou sem parse reportado. |
+| gitleaks 8.30.1 árvore | **OK; 85 detecções redigidas** | 57 em `supabase/.temp`, 27 em `.next` e 1 em `.env.local`; todos são locais/ignorados. Os matches de chunks estáticos inspecionados eram identificadores gerados como `AuthProvider`/`ApiKeysSection`; chaves com padrão GCP apareceram só no cache interno do Turbopack. Não confirmei segredo servido ao cliente. |
+| gitleaks 8.30.1 histórico | **OK; 0 detecções** | Nenhum segredo confirmado no histórico Git. Isso não anula B5/I7, que são caminhos de vazamento em runtime. |
+| Trivy | **SKIPPED** | Opt-in `AUDIT_TRIVY=1`; não foi pedido e não integra o baseline padrão. |
+| Snyk | **SKIPPED** | Opt-in `AUDIT_SNYK=1`; o `npm audit` foi o SCA efetivamente executado. |
+| snyk-agent-scan/MCP | **SKIPPED** | Opt-in inicia MCPs e não é read-only; incompatível com o pedido delimitado. |
+
+Os scanners, portanto, são apenas baseline parcial. Semgrep não encontrou padrão conhecido nos
+arquivos que conseguiu analisar; isso não prova ausência de falha lógica. B1–B7 e I1–I7 vieram de
+revisão manual/execução adversarial, exatamente nas classes em que a skill declara lacuna.
+
+### Estado por gate da fonte canônica atual (G1–G32)
+
+| Gate | Estado no recorte | Evidência |
+|---|---|---|
+| G1 segredo no navegador | **NÃO-TESTADO, sem finding confirmado no recorte** | gitleaks não confirmou segredo versionado; detecções em `.next` eram locais e as de chunks inspecionadas eram falsos positivos aparentes. Não executei inspeção de bundle de produção. |
+| G2 RLS A↔B | **NÃO-TESTADO** | Catálogo local confirmou ACL das RPCs, mas não houve CRUD anon/A/B em tabelas, views, Storage e Realtime. |
+| G3 authz server-side | **FAIL** | Webhook legado aceita request sem segredo e chega a `service_role`: B1, `lib/conversations/webhookAuth.ts:35`–`55`. |
+| G4 IDOR/BOLA | **NÃO-TESTADO** | Filtros por organização foram lidos, mas não houve prova runtime usuário A→objeto B nas rotas novas. |
+| G5 input runtime | **NÃO-TESTADO, sem finding adicional** | Execute e settings usam Zod estrito em `app/api/internal/automations/execute/route.ts:19`–`31` e `app/api/settings/automations-live/route.ts:21`–`36`; webhook lê JSON sem body limit em `app/api/public/channels/evolution/[connectionId]/webhook/route.ts:643`. |
+| G6 injeção | **NÃO-TESTADO, sem finding** | Semgrep retornou 0 e não há SQL/shell dinâmico no recorte; scanner/revisão estática não equivalem a teste adversarial do sink. |
+| G7 rate/resource limit | **FAIL** | I3/I4 e webhook sem rate/body limit; `app/api/internal/automations/execute/route.ts:19`–`48`. |
+| G8 XSS | **N/A no recorte** | Não há renderização/HTML nos arquivos LIVE revisados. |
+| G9 CORS | **NÃO-TESTADO em runtime; sem finding estático** | As rotas não habilitam CORS refletido; CORS não compensa autenticação/replay do webhook. |
+| G10 log/erro | **FAIL** | Erro da Evolution pode carregar segredo até log/banco (B5); rota admin expõe erro interno (sugestão 5). |
+| G11 webhook | **FAIL** | Sem HMAC do raw body, timestamp/freshness e body limit; legado fail-open (B1) e bearer em URL/replay (I7). |
+| G12 dependências | **FAIL global** | `npm audit`: 18; Next `16.2.12` sob dois advisories críticos. I8. |
+| G13 service role | **FAIL** | Webhook público legado usa cliente admin (B1) e tenant pode exfiltrar default global Evolution (B7). |
+| G14 slopsquatting | **N/A ao diff; NÃO-TESTADO globalmente** | `f45d8dc` não adiciona dependência; `npm audit` não verifica slopsquatting. |
+| G15 prompt injection | **N/A no recorte** | O pedido limita a revisão ao bloco de opt-out, sem prompt/tool de LLM novo. |
+| G16 saída LLM hostil | **N/A no recorte** | Nenhuma saída de LLM é consumida pelos arquivos/trechos novos delimitados. |
+| G17 excessive agency | **FAIL** | RPCs de efeito não revalidam pausa/cursor dentro da transação: B6. |
+| G18 denial of wallet | **FAIL** | Bearer global sem quota, até quatro POSTs e deadline sem cancelamento: B3/I3/I4. |
+| G19 BFLA/mass assignment | **NÃO-TESTADO, sem finding estático** | Settings usa contexto admin e schema allowlist; faltou teste negativo de papel/tenant. `app/api/settings/automations-live/route.ts:21`–`36`, `:95`–`102`. |
+| G20 lógica de negócio | **FAIL** | Opt-out pode se perder, pausa concorrente perde e erro de A pausa B: B2/B6/I1. |
+| G21 MCP poisoning | **N/A no recorte** | Nenhum MCP participa do motor em runtime. |
+| G22 ciclo de segredo | **FAIL** | Histórico Git ficou limpo, mas erro externo cru (B5), segredo de webhook na URL (I7) e mistura URL tenant/chave agência (B7) criam vazamento em runtime. |
+| G23 migration destrutiva | **NÃO-TESTADO operacionalmente; sem finding no SQL** | Migrations são aditivas/`create or replace`, sem DROP destrutivo em `supabase/migrations/20260913040000_funil_live_envio_real.sql:35`–`40`; backup/PITR de produção não foi tocado. |
+| G24 detecção/resposta | **FAIL** | Falha de opt-out vira somente `console.warn`, sem alerta/owner/reparo durável: B2. |
+| G25 defaults por plataforma | **NÃO-TESTADO globalmente; default LIVE seguro** | A chave nasce desligada em `.env.example:49`; headers/source maps/configuração de produção ficam fora do recorte. |
+| G26 SSRF/egress | **FAIL** | `config.apiUrl` chega a fetch e pode herdar a chave da agência: B7. |
+| G27 CSRF/sessão | **NÃO-TESTADO globalmente; sem finding na mutação nova** | Settings valida origem em `app/api/settings/automations-live/route.ts:95`; rotas internas usam Bearer. Rotação/revogação/MFA da sessão ficam fora do recorte. |
+| G28 superfície Supabase | **NÃO-TESTADO integralmente** | Catálogo local: 9/9 RPCs `SECURITY DEFINER`, `search_path=''`, anon/auth sem EXECUTE e service_role com EXECUTE; não houve A↔B em views/Storage/Realtime/Edge Functions. |
+| G29 cache/upload | **N/A no recorte** | Nenhuma rota cacheada por usuário ou upload foi adicionada. |
+| G30 n8n | **N/A no recorte** | O executor LIVE e as rotas novas não executam workflow/nó n8n. |
+| G31 CI/CD supply chain | **N/A ao pedido** | Workflows/actions não fazem parte do escopo delimitado. |
+| G32 backup/incidente | **NÃO-TESTADO** | Não houve acesso remoto nem prova de PITR/runbook; por instrução, nenhuma escrita de banco remoto foi feita. |
+
+### Saldo específico da `/cibersecurity`
+
+- **Novo bloqueante:** B7 (G26/G13/G22), ainda observável no `HEAD` `773b791` porque os arquivos que
+  controlam/resolvem `apiUrl` não mudaram nesse commit.
+- **Novos importantes:** I7 (segredo de webhook em URL/replay) e I8 (G12 global).
+- **Nova sugestão:** item 5, generalização dos erros administrativos.
+- **Onde a skill bateu e não achou algo novo:** SQL/shell injection, XSS, CORS refletido,
+  mass assignment, migration destrutiva, segredo confirmado no histórico Git e MCP em runtime.
+  “Não achou” não foi convertido em PASS quando faltou teste dinâmico.
+
+## 7. Complemento do Codex Security (`security-diff-scan`)
+
+### Resultado executivo
+
+O Codex Security **complementou** a `/cibersecurity`: em vez de repetir SCA/SAST/secret scan, fez
+modelo de ameaça, inventário imutável do diff, descoberta semântica, validação por
+source/control/sink e calibração de caminho de ataque. O scan `6bc5ae54-23a1-4878-85d4-6337248fc5dc`
+foi selado com cobertura `complete`, **2 findings `medium`, ambos com confiança alta**, no intervalo
+`9c146ef0ab9df659c0790cca326ffd0880ccb410..f45d8dc7c7cb6b653b4c3bb6362af623e6f5fc0a`.
+
+O relatório canônico ficou fora do projeto em
+`C:/Users/PC Gamer/AppData/Local/Temp/codex-security-scans-uWI9Ar/Basecrm/f45d8dc7c7cb6b653b4c3bb6362af623e6f5fc0a_20260914T040038Z_6vaiwvmm/report.md`;
+o SARIF está no subdiretório `exports/results.sarif`. O acesso Daybreak retornou
+`status=not_granted`, aviso apenas de exibição protegida; não bloqueou a execução nem a selagem.
+
+### Findings que sobreviveram
+
+1. **`medium`/confiança alta — webhook Evolution legado permite opt-out privilegiado sem
+   autenticação.** O controle raiz aceita qualquer chamada quando `webhookSecret` está vazio;
+   o bloco novo confia nessa decisão e chama `record_automation_opt_out` com `service_role`.
+   Cadeia: `lib/conversations/webhookAuth.ts:54`–`55` →
+   `app/api/public/channels/evolution/[connectionId]/webhook/route.ts:661`–`674` →
+   `app/api/public/channels/evolution/[connectionId]/webhook/route.ts:932`–`938` →
+   `supabase/migrations/20260913040000_funil_live_envio_real.sql:825`–`857`. Confirma B1;
+   severidade não foi elevada a high porque exige UUID válido e conexão legada.
+2. **`medium`/confiança alta — executor envia chave global e PII para URL controlada pelo
+   tenant.** O writer aceita `apiUrl` parcial, o resolvedor combina essa URL com a chave default da
+   agência e o executor novo envia `apikey`, telefone e texto ao host. Cadeia:
+   `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts:87`–`106` →
+   `lib/channels/evolutionCredentials.ts:125`–`131` →
+   `lib/automations/executor.ts:288`–`326` → `lib/channels/evolution.ts:424`–`432`.
+   Confirma B7 como risco de go-live, com CWE-918/CWE-441/CWE-522.
+
+### Correção de causalidade e triagem do parecer
+
+- **B7 é real no alvo, mas sua causa raiz não nasceu em `f45d8dc`.** Os blobs de
+  `lib/channels/evolutionCredentials.ts:93`–`131` e `lib/channels/evolution.ts:360`–`432` já eram
+  iguais em `9c146ef`; PATCH + DELETE também já davam um gatilho manual. O commit LIVE acrescentou
+  o consumidor automático em `lib/automations/executor.ts:271`–`326`, ampliando a exposição de
+  chave/PII. Portanto, “novo bloqueante” na seção 6 significa **finding novo nesta revisão**, não
+  vulnerabilidade criada integralmente por este commit.
+- **B2 continua bug confirmado e bloqueante de produto/consentimento**, mas o Codex Security o
+  marcou `ignore` na política de vulnerabilidade: a sequência fail-open é determinística em
+  `app/api/public/channels/evolution/[connectionId]/webhook/route.ts:924`–`946`, porém não há
+  evidência de que um atacante inferior consiga induzir a falha inicial do Postgres. Isso não
+  revoga o blocker de release.
+- **B5 continua recomendação defensiva**, mas foi suprimido como finding de segurança
+  independente. `lib/channels/evolution.ts:62`–`100` aceita erro textual remoto e
+  `lib/automations/executor.ts:329`–`333` o persiste sem redação; faltou prova de reflexão real da
+  chave e de leitor adicional. Quando o host já é malicioso, ele recebe a chave no request de B7,
+  então persistir o eco não cria uma segunda capacidade.
+
+### Conferências e onde não apareceu finding novo
+
+- O inventário nativo cobriu 9 fontes: as quatro rotas/bloco, executor, opt-out + teste e as duas
+  migrations. `test/**` e a fixture não entraram no inventário nativo; ficaram cobertos pelas
+  provas da seção 4, sem nova alegação de cobertura pelo plugin.
+- `rtk vitest run lib/conversations/webhookAuth.test.ts lib/automations/optOut.test.ts`:
+  **6/6, zero falhas**. O primeiro teste confirma explicitamente o fail-open legado em
+  `lib/conversations/webhookAuth.test.ts:39`–`48`.
+- **Sem finding novo:** autenticação/schema da rota execute
+  (`app/api/internal/automations/execute/route.ts:17`–`45`), identidade do tick
+  (`app/api/internal/automations/tick/route.ts:15`–`34`), authz/same-origin/allowlist de settings
+  (`app/api/settings/automations-live/route.ts:84`–`104`, `:122`–`154`), detector integral de
+  opt-out (`lib/automations/optOut.ts:29`–`53`) e privilégios/search path das RPCs
+  (`supabase/migrations/20260913040000_funil_live_envio_real.sql:54`–`57`, `:861`–`862` e
+  `supabase/migrations/20260913050000_funil_claim_sem_overflow.sql:105`–`108`).
+- Nenhum banco/serviço remoto foi acessado, nenhum segredo foi semeado e nenhum teste criou
+  fixture nova. Uso medido pelo workbench: `10.349.323` tokens totais, `10.300.979` de entrada,
+  `9.744.384` de entrada em cache e `48.344` de saída (`coverage=complete`, 2 threads).
+
+### Veredito sobre complementaridade
+
+**Sim, vale usar as duas em sequência.** A `/cibersecurity` é melhor como baseline amplo de gates,
+dependências e segredos; o Codex Security foi melhor para distinguir finding explorável de bug de
+produto, provar caminhos completos e calibrar severidade/causalidade do diff. Nesta entrega ele não
+adicionou um terceiro blocker: confirmou B1/B7, refinou a origem de B7 e evitou promover B2/B5 como
+vulnerabilidades independentes sem evidência suficiente.
