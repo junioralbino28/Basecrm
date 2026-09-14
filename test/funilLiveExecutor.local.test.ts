@@ -156,7 +156,14 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     const updated = await db()
       .from('channel_connections')
       .update({
-        config: { instanceName: 'inst-live', apiUrl: baseUrl, apiKey: 'chave-fake', sendMode: 'number_text' },
+        config: {
+          instanceName: 'inst-live',
+          apiUrl: baseUrl,
+          apiKey: 'chave-fake',
+          sendMode: 'number_text',
+          // Envio real exige webhook autenticado no canal (gate do parecer do Codex, B1/B4).
+          webhookSecret: 'segredo-teste',
+        },
       })
       .eq('id', fixture.channelConnectionId);
     expect(updated.error).toBeNull();
@@ -437,10 +444,11 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
 
     const resumo = await executar();
     expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
-    // Em 4xx a biblioteca da Evolution tenta os 4 formatos de corpo antes de desistir
-    // (em 5xx para na primeira, porque o resultado é desconhecido). Uma mensagem, 4 POSTs.
-    expect(requests.length).toBe(antes + 4);
-    expect(new Set(requests.slice(antes).map((r) => r.path))).toEqual(new Set(['/message/sendText/inst-live']));
+    // Formato único (parecer do Codex, B3): UM POST por mensagem, mesmo em 4xx. O caminho
+    // manual/IA continua com os quatro formatos; o executor nunca.
+    expect(requests.length).toBe(antes + 1);
+    expect(requests[antes].path).toBe('/message/sendText/inst-live');
+    expect(requests[antes].body).toEqual({ number: '5511999999999', text: 'Olá Maria' });
     const job = await jobDe(fixture, 0);
     expect(job?.status).toBe('dead_letter');
     const mensagem = await mensagemDoJob(job!.id);
@@ -569,6 +577,94 @@ describeLocal('2a/2c — executor live no Supabase local (Evolution simulada por
     expect(await jobDe(fixture, 0)).toMatchObject({ status: 'dead_letter' });
     expect(await inscricao(fixture)).toMatchObject({ status: 'paused', pause_reason: 'opt_out:PARAR' });
   }, 120_000);
+
+  // ------------------------------------------------------------------ gates do parecer do Codex
+  it('canal desconectado: o banco recusa o envio real, o job morre e só esta inscrição é pausada', async () => {
+    const fixture = await criarFixtureLive({ admin: db(), label: 'live canal off', steps: [{ type: 'send_message', config: ENVIAR }] });
+    await ligarLive(fixture.organizationId);
+    await materializar();
+    const off = await db().from('channel_connections').update({ status: 'disconnected' }).eq('id', fixture.channelConnectionId);
+    expect(off.error).toBeNull();
+    const antes = requests.length;
+
+    const resumo = await executar();
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
+    expect(requests.length).toBe(antes);
+    const job = await jobDe(fixture, 0);
+    expect(job?.status).toBe('dead_letter');
+    expect(job?.last_error).toContain('não está conectado');
+    expect(await mensagemDoJob(job!.id)).toBeNull();
+    expect(await inscricao(fixture)).toMatchObject({ status: 'paused', pause_reason: 'canal_inativo' });
+  }, 120_000);
+
+  it('canal sem segredo de webhook: envio real recusado (webhook legado aceita qualquer POST)', async () => {
+    const fixture = await criarFixtureLive({ admin: db(), label: 'live sem secret', steps: [{ type: 'send_message', config: ENVIAR }] });
+    await ligarLive(fixture.organizationId);
+    await materializar();
+    const semSegredo = await db()
+      .from('channel_connections')
+      .update({ config: { instanceName: 'inst-live', apiUrl: baseUrl, apiKey: 'chave-fake', sendMode: 'number_text' } })
+      .eq('id', fixture.channelConnectionId);
+    expect(semSegredo.error).toBeNull();
+    const antes = requests.length;
+
+    const resumo = await executar();
+    expect(meus(resumo, fixture)).toEqual({ claimed: 1, failed: 1, erros: [] });
+    expect(requests.length).toBe(antes);
+    expect((await jobDe(fixture, 0))?.last_error).toContain('segredo de webhook');
+    expect(await inscricao(fixture)).toMatchObject({ status: 'paused', pause_reason: 'canal_inativo' });
+  }, 120_000);
+
+  it('pausa concorrente: a RPC da tarefa trava a inscrição e recusa o efeito se ela não está mais ativa', async () => {
+    const fixture = await criarFixtureLive({
+      admin: db(),
+      label: 'live pausa concorrente',
+      steps: [{ type: 'create_task', config: { title: 'Não pode nascer' } }],
+    });
+    await materializar();
+    const job = await jobDe(fixture, 0);
+    const claimed = await db().rpc('claim_automation_jobs', {
+      p_worker_id: 'worker-concorrente',
+      p_batch_limit: 1,
+      p_lease_seconds: 60,
+      p_job_id: job!.id,
+    });
+    expect(claimed.error).toBeNull();
+    const lease = (claimed.data as Array<{ lease_owner: string; attempt_count: number }>)[0];
+
+    // Alguém pausa a inscrição depois da reserva e antes do efeito.
+    const pausada = await db()
+      .from('automation_enrollments')
+      .update({ status: 'paused', paused_at: new Date().toISOString(), paused_from_status: 'active', pause_reason: 'humano' })
+      .eq('id', fixture.enrollmentId);
+    expect(pausada.error).toBeNull();
+
+    const efeito = await db().rpc('execute_automation_create_task', {
+      p_job_id: job!.id,
+      p_lease_owner: lease.lease_owner,
+      p_attempt_count: lease.attempt_count,
+    });
+    expect(efeito.error?.code).toBe('55000');
+    expect(efeito.error?.message).toContain('não está ativa neste passo');
+    const tarefas = await db().from('tasks').select('id', { count: 'exact', head: true }).eq('organization_id', fixture.organizationId);
+    expect(tarefas.count).toBe(0);
+    expect(await inscricao(fixture)).toMatchObject({ status: 'paused', current_step_key: fixture.stepKeys[0] });
+  }, 120_000);
+
+  it('opt-out recusa conversa de outro contato/organização', async () => {
+    const fixture = await criarFixtureLive({ admin: db(), label: 'live optout thread', steps: [{ type: 'send_message', config: ENVIAR }] });
+    const outra = fixtures.find((f) => f.organizationId !== fixture.organizationId)!;
+    const cruzado = await db().rpc('record_automation_opt_out', {
+      p_organization_id: fixture.organizationId,
+      p_contact_id: fixture.contactId,
+      p_thread_id: outra.threadId,
+      p_occurred_at: new Date().toISOString(),
+      p_keyword: 'IA',
+    });
+    expect(cruzado.error?.code).toBe('23503');
+    const contato = await db().from('contacts').select('automation_opt_out_at').eq('id', fixture.contactId).single();
+    expect(contato.data?.automation_opt_out_at).toBeNull();
+  });
 
   it('anônimo não executa nenhuma função do caminho live', async () => {
     if (!config) throw new Error('config local ausente');

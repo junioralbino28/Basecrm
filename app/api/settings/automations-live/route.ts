@@ -114,6 +114,24 @@ export async function POST(req: Request) {
     return json({ error: 'O silêncio noturno precisa de começo e fim diferentes.' }, 400);
   }
 
+  // Ordem (parecer do Codex, I2): primeiro a chave, que pode ser recusada pelo gate de saúde;
+  // se ela falhar, nada é gravado. O silêncio noturno vai depois; se ele falhar, a resposta
+  // diz o que já foi aplicado.
+  if (updates.enabled !== undefined) {
+    const admin = createStaticAdminClient();
+    const toggled = await admin.rpc('set_automation_live_enabled', {
+      p_organization_id: auth.targetOrganizationId,
+      p_enabled: updates.enabled,
+    });
+    if (toggled.error) {
+      if (toggled.error.code === '55000') {
+        // O gate de saúde do tick recusou: a mensagem já vem com o motivo.
+        return json({ error: `Não dá para ligar o envio real agora: ${toggled.error.message}`, applied: {} }, 409);
+      }
+      return json({ error: toggled.error.message, applied: {} }, 500);
+    }
+  }
+
   const settingsUpdates: Record<string, unknown> = {};
   if (updates.timezone !== undefined) settingsUpdates.automation_timezone = updates.timezone;
   if (updates.quietHoursStart !== undefined) settingsUpdates.automation_quiet_hours_start = `${updates.quietHoursStart}:00`;
@@ -135,22 +153,8 @@ export async function POST(req: Request) {
       const message = error.code === '23514'
         ? 'O silêncio noturno precisa de começo e fim diferentes.'
         : error.message;
-      return json({ error: message }, error.code === '23514' ? 400 : 500);
-    }
-  }
-
-  if (updates.enabled !== undefined) {
-    const admin = createStaticAdminClient();
-    const toggled = await admin.rpc('set_automation_live_enabled', {
-      p_organization_id: auth.targetOrganizationId,
-      p_enabled: updates.enabled,
-    });
-    if (toggled.error) {
-      if (toggled.error.code === '55000') {
-        // O gate de saúde do tick recusou: a mensagem já vem com o motivo.
-        return json({ error: `Não dá para ligar o envio real agora: ${toggled.error.message}` }, 409);
-      }
-      return json({ error: toggled.error.message }, 500);
+      const applied = updates.enabled !== undefined ? { enabled: updates.enabled } : {};
+      return json({ error: message, applied }, error.code === '23514' ? 400 : 500);
     }
   }
 

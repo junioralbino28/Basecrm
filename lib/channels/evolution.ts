@@ -364,6 +364,14 @@ export async function sendEvolutionTextMessage(params: {
   phone: string;
   text: string;
   sendMode?: EvolutionSendMode;
+  /** Aborta o POST em curso (o executor de automações usa com tempo limite). */
+  signal?: AbortSignal;
+  /**
+   * UM único POST, no formato configurado (ou `number_text` quando "auto"), sem cair para os
+   * outros formatos em 4xx. Obrigatório para automação: um 4xx depois de o provedor ter
+   * processado o corpo viraria mensagem duplicada (parecer do Codex, B3).
+   */
+  singleFormat?: boolean;
 }): Promise<EvolutionSendMessageResult> {
   const baseUrl = params.apiUrl.replace(/\/+$/, '');
   const attempts: Array<{ mode: Exclude<EvolutionSendMode, 'auto'>; label: string; endpoint: string; body: Record<string, unknown> }> = [
@@ -409,13 +417,14 @@ export async function sendEvolutionTextMessage(params: {
       },
     },
   ];
-  const orderedAttempts =
+  const preferredFirst =
     params.sendMode && params.sendMode !== 'auto'
       ? [
           ...attempts.filter(attempt => attempt.mode === params.sendMode),
           ...attempts.filter(attempt => attempt.mode !== params.sendMode),
         ]
       : attempts;
+  const orderedAttempts = params.singleFormat ? preferredFirst.slice(0, 1) : preferredFirst;
 
   let lastError: Error | null = null;
 
@@ -430,6 +439,7 @@ export async function sendEvolutionTextMessage(params: {
         },
         cache: 'no-store',
         body: JSON.stringify(attempt.body),
+        signal: params.signal,
       });
 
       const payload = await parseEvolutionResponse(response);

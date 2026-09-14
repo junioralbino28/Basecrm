@@ -71,7 +71,8 @@ export async function POST(request: Request) {
   // registra o motivo.
   let executed: ExecutorSummary | { error: string } | null = null;
   try {
-    executed = await executeDueAutomationJobs({ admin, workerId: `tick:${tickAttemptId}` });
+    // 30 s para o executor + envio com margem; sobra para a Meta e o fechamento da saúde.
+    executed = await executeDueAutomationJobs({ admin, workerId: `tick:${tickAttemptId}`, deadlineMs: 30_000 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn('[tick] Executor de automações falhou', { tickAttemptId, error: message });
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
   // marco e o resumo vai na resposta.
   let conversions: DispatchSummary | { error: string } | null = null;
   try {
-    conversions = await dispatchPendingConversionEvents({ admin, batchLimit: 50 });
+    conversions = await dispatchPendingConversionEvents({ admin, batchLimit: 20 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn('[tick] Despacho de conversões falhou', { tickAttemptId, error: message });

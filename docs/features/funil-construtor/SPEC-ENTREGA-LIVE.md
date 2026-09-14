@@ -143,6 +143,14 @@ real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
   (nem antes desta entrega); hoje pausa é terminal na prática.
 - Tela de "conversas pausadas pela automação" com o motivo (dado já está em
   `automation_enrollments.pause_reason`).
+- **Webhook da Evolution: segredo obrigatório** (parecer do Codex, B1; G11). Hoje conexão legada sem
+  `webhookSecret` aceita qualquer POST com o `instanceName` certo. O envio real já exige canal com
+  segredo; falta migrar as conexões legadas e tirar o fallback.
+- **Rotas internas do worker: segredos por escopo + limite de taxa** (parecer do Codex, I3). Um único
+  Bearer executa, reserva e conclui jobs de todos os clientes; não há limitador de taxa no projeto.
+- **`npm audit`: 18 dependências com CVE** (1 crítica) fora deste diff (G12).
+- **Opt-out pela IA precisa ser durável** (parecer do Codex, B2, para a 1a): a marcação nasce junto
+  da mensagem e o caminho de duplicata repara se a primeira gravação falhar.
 - `condition` legado: sem executor; o construtor usa "Dividir caminho" (switch), que já é resolvido
   na materialização.
 - Modo "test" da publicação: sem semântica definida; tratado como "sem executor".

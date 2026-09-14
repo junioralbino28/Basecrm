@@ -74,6 +74,9 @@ nunca o mesmo em teste e produção. Guarde em `WorkSync/.secrets` (fora do repo
 5. **Por cliente, quando o Junior mandar:** `POST /api/settings/automations-live` com
    `{ "enabled": true }` (admin do tenant, na tela ou por chamada). O gate recusa com 409 se o
    tick não estiver saudável. Publicar a automação em modo **live** é o terceiro cadeado.
+6. **O canal precisa estar pronto:** conexão com `status = connected` **e** `webhookSecret`
+   configurado (o mesmo segredo no webhook da Evolution). Sem isso o envio real é recusado no
+   banco e a inscrição fica pausada com `canal_inativo`.
 
 ## 4. Desligar rápido (kill switch), do mais largo ao mais fino
 

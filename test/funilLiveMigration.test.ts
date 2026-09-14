@@ -121,11 +121,51 @@ describe('2a — claim_automation_jobs sem estouro de integer na reconciliação
   });
 });
 
+describe('Gates do parecer do Codex (migration 20260913070000)', () => {
+  const g = readFileSync(join(
+    process.cwd(), 'supabase', 'migrations', '20260913070000_funil_live_gates_revisao.sql',
+  ), 'utf8')
+    .split('\n')
+    .filter((linha) => !linha.trimStart().startsWith('--'))
+    .join('\n');
+
+  it('B1/B4: envio real exige canal conectado e com segredo de webhook', () => {
+    expect(g).toContain("if not found or v_channel_status is distinct from 'connected' then");
+    expect(g).toContain("canal do WhatsApp não está conectado (");
+    expect(g).toContain("coalesce(v_channel_config->>'webhookSecret', '')");
+    expect(g).toContain('envio real exige webhook autenticado');
+  });
+
+  it('B6: tarefa e movimentação travam a inscrição e exigem ativa no passo antes do efeito', () => {
+    const tarefa = g.slice(g.indexOf('function public.execute_automation_create_task'), g.indexOf('function public.execute_automation_move_deal'));
+    const mover = g.slice(g.indexOf('function public.execute_automation_move_deal'), g.indexOf('function public.fail_automation_job_and_pause'));
+    for (const corpo of [tarefa, mover]) {
+      expect(corpo).toContain('from public.automation_enrollments\n  where id = v_job.enrollment_id\n    and organization_id = v_job.organization_id\n  for update;');
+      expect(corpo).toContain("if v_enrollment.status <> 'active' or v_enrollment.current_step_key <> v_job.step_key then");
+      expect(corpo.indexOf('for update;', corpo.indexOf('automation_enrollments'))).toBeLessThan(corpo.indexOf('insert into public.tasks') > 0 ? corpo.indexOf('insert into public.tasks') : corpo.indexOf('update public.deals'));
+    }
+  });
+
+  it('I1: passo sem executor pausa só a própria inscrição; S1: opt-out valida a conversa', () => {
+    const pausa = g.slice(g.indexOf('function public.fail_automation_job_and_pause'), g.indexOf('function public.record_automation_opt_out'));
+    expect(pausa).toContain('where enrollment.id = v_job.enrollment_id');
+    expect(pausa).not.toContain('pause_automation_enrollments_for_thread');
+    expect(g).toContain("message = 'conversa não pertence ao contato desta organização'");
+  });
+
+  it('as cinco funções mantêm DEFINER, search_path vazio e EXECUTE só do service_role', () => {
+    expect((g.match(/security definer/g) ?? []).length).toBe(5);
+    expect((g.match(/set search_path = ''/g) ?? []).length).toBe(5);
+    expect((g.match(/from public, anon, authenticated;/g) ?? []).length).toBe(5);
+    expect((g.match(/to service_role;/g) ?? []).length).toBe(5);
+  });
+});
+
 describe('2a — encaixe do executor no tick e na rota interna', () => {
   it('o tick executa depois de materializar, antes das conversões, sem derrubar o tick', () => {
     const rota = read('app', 'api', 'internal', 'automations', 'tick', 'route.ts');
     expect(rota).toContain('export const maxDuration = 60;');
-    expect(rota).toContain("executeDueAutomationJobs({ admin, workerId: `tick:${tickAttemptId}` })");
+    expect(rota).toContain("executeDueAutomationJobs({ admin, workerId: `tick:${tickAttemptId}`, deadlineMs: 30_000 })");
     const materializou = rota.indexOf("rpc('materialize_automation_jobs'");
     const executou = rota.indexOf('executeDueAutomationJobs({');
     const conversoes = rota.indexOf('dispatchPendingConversionEvents({');
@@ -156,6 +196,12 @@ describe('2a — encaixe do executor no tick e na rota interna', () => {
     expect(exec).toContain("const status = isEvolutionDeliveryUnknown(error) ? 'unknown' : 'failed';");
     expect(exec).toContain("error: 'tentativa anterior não concluiu; revisão obrigatória'");
     expect(exec).not.toMatch(/console\.(log|warn|error)\([^)]*apiKey/);
+    // Parecer do Codex: B3 formato único, B4 releitura do canal, B5 redação, I4 margem e aborto.
+    expect(exec).toContain('singleFormat: true,');
+    expect(exec).toContain("if (connection.data.status !== 'connected') {");
+    expect(exec).toContain("redactChannelSecrets(error, secrets, 'falha no envio pela Evolution')");
+    expect(exec).toContain('if (ctx.deadlineAt - Date.now() < ctx.sendTimeoutMs + AUTOMATION_SEND_CLOSE_MARGIN_MS) {');
+    expect(exec).toContain('const controller = new AbortController();');
   });
 });
 
@@ -170,6 +216,9 @@ describe('2b — rota admin de ligar/desligar o envio real', () => {
     expect(rota).toContain('}, 409);');
     expect(rota).toContain("admin.rpc('automation_scheduler_health').single()");
     expect(rota).not.toContain('automation_live_enabled:');
+    // I2: a chave (que pode ser recusada) vem antes do silêncio; falha depois diz o que aplicou.
+    expect(rota.indexOf("admin.rpc('set_automation_live_enabled'")).toBeLessThan(rota.indexOf("from('organization_settings')\n      .upsert("));
+    expect(rota).toContain('const applied = updates.enabled !== undefined ? { enabled: updates.enabled } : {};');
   });
 
   it('silêncio noturno validado (HH:MM, fuso conhecido, começo ≠ fim) e gravado pelo cliente do usuário (RLS)', () => {

@@ -46,8 +46,12 @@ com `definer=true`, `config=search_path=""`, `anon=false auth=false service=true
 | `test/funilLiveMigration.test.ts` (estático) | 13/13: cabeçalho e gates do prepare; sent/failed/unknown; espera sem avançar; idempotência de tarefa; adiar antes de reservar; opt-out; ACL de todas; claim sem overflow; encaixe no tick (ordem materializar → executar → Meta, `try/catch`); rota interna sem tenant no corpo; rota admin (admin, mesma origem, 409, RLS); webhook (antes da correlação, sem `return`, cala a IA) |
 | `test/automationTickRoute.test.ts` (rota do tick) | 2/2: sequência `... materialize → defer → claim → claim_conversion_events → complete`; com a chave de ambiente desligada não adia nem reserva e o tick segue |
 | **`test/funilLiveExecutor.local.test.ts`** (funções reais + Evolution falsa em HTTP) | **12/12**: executor desligado por ambiente não reserva · live desligado adia 1 h sem gastar tentativa · silêncio noturno adia até o fim da janela no fuso (UTC no teste) · **mensagem real**: POST em `/message/sendText/inst-live` com `apikey`, `{number, text: "Olá Maria"}`, mensagem `sent` com `provider_message_id`, `lastOutboundAt` na conversa, inscrição avança; espera aberta citando `EVO-1`, expira em ~1 min, inscrição `waiting`, tick não cria job enquanto espera · **resposta do lead** fecha a espera, tarefa criada (título, contato, hora, marcador do job), negócio movido para "Agendado", funil `done`, follow-up do timeout nunca nasce · 4xx sem aresta: 4 POSTs (formatos da biblioteca), mensagem `failed` com o motivo da Evolution, job dead-letter, conversa pausada `delivery_failed` · 4xx **com** aresta "failed": o funil segue por ela e termina · 5xx: `unknown`, pausa `delivery_unknown`, **segunda execução não reenvia** · sem resposta em 400 ms: `unknown` "sem resposta da Evolution" · opt-out direto no contato: o banco recusa (`42501`), job dead-letter sem POST, pausa `opt_out` · `record_automation_opt_out`: marca uma vez, pausa 1, repetição devolve `already` e não altera a data; job pendente morre sem enviar · anônimo recebe `42501` nas três funções |
-| `tsc --noEmit` · ESLint `--max-warnings 0` nos arquivos tocados | limpos |
-| Suíte completa `npm run test:local` | **252 arquivos / 1.236 testes, zero falhas** (208 s). Eram 249 / 1.206: os +3 / +30 são exatamente os testes novos desta entrega (unitário 4, estático 13, local 12, +1 no tick). Saída em arquivo, lida em comando separado antes do commit |
+| **Depois do parecer do Codex** — `test/funilLiveExecutor.local.test.ts` | **16/16**: os 12 anteriores (4xx agora com **1 POST**, formato único) + canal `disconnected` recusado no banco sem POST e inscrição pausada `canal_inativo` · canal sem `webhookSecret` recusado · **pausa concorrente**: reserva → pausa → `execute_automation_create_task` responde `55000` e nenhuma tarefa nasce · opt-out com conversa de outra organização → `23503` |
+| `lib/channels/evolutionSingleFormat.test.ts` (unitário) | 3/3: `singleFormat` = um POST no formato configurado, sem cair para os outros em 4xx; sem a opção continuam 4 (manual/IA inalterado); `AbortSignal` chega ao fetch e o aborto vira entrega desconhecida |
+| Migration `20260913070000` no local | ledger em `20260913070000`; catálogo: 5/5 funções DEFINER, `search_path=""`, anon/auth sem EXECUTE, service_role com; `prepare_automation_outbound` contém o gate `is distinct from 'connected'` |
+| `tsc --noEmit` · ESLint `--max-warnings 0` nos arquivos tocados | limpos (antes e depois do parecer) |
+| Suíte completa `npm run test:local` (entrega) | **252 arquivos / 1.236 testes, zero falhas** (208 s). Eram 249 / 1.206: os +3 / +30 são exatamente os testes novos desta entrega. Saída em arquivo, lida em comando separado antes do commit |
+| Suíte completa (depois do parecer) | **253 arquivos / 1.247 testes: 1 falha**, e ela era texto: o estático da 3c (`conversaoEnvioMetaRotas.test.ts`) procurava `batchLimit: 50` na chamada da Meta no tick, que virou 20 (I4). Corrigido o teste e rerodado com os do tick e da entrega live: 3 arquivos / 23 testes verdes. Nenhuma outra alteração depois da suíte. Saída em arquivo, lida em comando separado antes do commit |
 
 ## 4. Auto-revisão adversarial (escrita antes de declarar pronto)
 
@@ -92,7 +96,32 @@ com `definer=true`, `config=search_path=""`, `anon=false auth=false service=true
     organização, tipo, desfecho: vai para o log do tick) e o teste conta só os da própria
     organização. O lixo em si é dívida dos testes antigos (fora deste escopo): registrado.
 
-## 5. Próximos passos
+## 5. Resposta ao parecer do Codex (`OPINIAO-LIVE.md`, 13/09)
+
+Cada ponto foi conferido no código antes de aceitar. "Corrigido" = no commit de resposta ao parecer
+(migration `20260913070000` + executor/rota/testes); provas na seção 3 atualizada abaixo.
+
+| Ponto | Veredito | O que foi feito |
+|---|---|---|
+| B1 opt-out forjado via webhook legado | **Sem objeto + gate novo** | O detector de palavra já tinha sido removido (decisão do Junior). O fato subjacente é real e pré-existente: conexão sem `webhookSecret` aceita qualquer POST. Envio real passa a exigir canal com segredo configurado (`prepare_automation_outbound`); a migração de conexões legadas para segredo obrigatório fica registrada como dívida (SPEC §7) |
+| B2 opt-out perdido em erro transitório | **Sem objeto, registrado para 1a** | Sem detector, não há caminho. Quando a IA marcar opt-out (1a), a marcação precisa ser durável junto da mensagem, com reparo no caminho de duplicata; anotado na SPEC da IA |
+| B3 quatro POSTs em 4xx | **Corrigido** | `sendEvolutionTextMessage` ganhou `singleFormat` (um POST, sem cair para outros formatos) e `signal`; o executor usa formato único: o configurado na conexão, senão o último que funcionou no canal (`delivery_attempt`), senão `number_text`. Teste local: 4xx = 1 POST; unitário novo `evolutionSingleFormat.test.ts`. Caminho manual/IA inalterado |
+| B4 canal inativo | **Corrigido** | `prepare_automation_outbound` exige `status = 'connected'` (e segredo de webhook, B1); o executor relê o status imediatamente antes do POST. Testes locais: canal `disconnected` e canal sem segredo → recusa sem POST, inscrição pausada `canal_inativo` |
+| B5 credencial em erro persistido | **Corrigido** | `redactChannelSecrets(error, [apiKey, apiUrl])` antes de gravar `delivery_error`/metadata |
+| B6 efeito depois de pausa concorrente | **Corrigido** | `execute_automation_create_task` / `execute_automation_move_deal` travam a inscrição (`for update`) e exigem `active` + cursor no passo antes de qualquer efeito; o executor trata o `55000` fechando o job como `failed` sem pausar de novo. Teste local reproduz a corrida (reserva → pausa → RPC recusa, tarefa não nasce) |
+| I1 pausa da conversa inteira por erro de uma automação | **Corrigido** | `fail_automation_job_and_pause` pausa só a inscrição do job; pausa da conversa fica para inbound, opt-out e entrega ambígua |
+| I2 POST admin parcial | **Corrigido** | Chave primeiro (pode ser recusada; nada gravado); silêncio depois; falha tardia devolve `applied` |
+| I3 Bearer único com raio global | **Registrado como dívida** | Não existe limitador de taxa no projeto; separar segredos/escopos e limitar taxa é trabalho próprio (SPEC §7). Os máximos já são fixados no servidor pelo zod |
+| I4 orçamento sem margem | **Corrigido** | Executor com prazo absoluto (30 s no tick), não inicia envio sem `timeout + 2 s` de margem (job fica reservado e volta), `AbortController` chega ao fetch; Meta com lote 20 depois |
+| I5 teste dependente do estado global | **Corrigido antes do parecer** | Resumo por job + contagem por organização (commit `b36511a`) |
+| I6 `CANCELAR` falso positivo | **Sem objeto** | Detector removido |
+| S1 amarrar conversa ao contato/organização | **Corrigido** | `record_automation_opt_out` recusa (`23503`) conversa de outra organização ou contato; teste local |
+| S2 testes de comportamento em vez de string | **Parcial** | Unitário do formato único/aborto e três casos locais novos (canal off, sem segredo, pausa concorrente). Testes de rota A→B para a rota admin continuam dívida |
+| S3 marcador da tarefa | **Mantido** | Como sugerido |
+| S4 sem retry de `unknown`; reconciliação humana | **Concorda** | É a caixa de falhas com Reenviar (requisito do Junior, SPEC §7) |
+| G12 `npm audit` 18 vulnerabilidades | **Dívida global** | Fora do diff; registrada para tratamento à parte |
+
+## 6. Próximos passos
 
 - **Codex:** revisão pontual (2 migrations + executor + 3 rotas + webhook + fixture + 4 testes).
 - **Junior:** OK para semear os segredos do tick em **teste** (`OPERACAO-TICK.md`), depois ligar o

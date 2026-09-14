@@ -9,7 +9,8 @@ describe('3c — encaixe do despacho no tick e rotas', () => {
   it('o tick despacha DEPOIS de materializar as automações e nunca cai por causa da Meta', () => {
     const tick = ler('app/api/internal/automations/tick/route.ts');
     const materializeAt = tick.indexOf("rpc('materialize_automation_jobs'");
-    const dispatchAt = tick.indexOf('dispatchPendingConversionEvents({ admin, batchLimit: 50 })');
+    // Lote 20 desde a Entrega LIVE (parecer do Codex, I4): o executor usa 30 s e a Meta fica com a sobra.
+    const dispatchAt = tick.indexOf('dispatchPendingConversionEvents({ admin, batchLimit: 20 })');
     const completeAt = tick.indexOf("rpc('complete_automation_tick', {\n    p_attempt_token: tickAttemptId,\n    p_http_status: 200");
     expect(materializeAt).toBeGreaterThan(0);
     expect(dispatchAt).toBeGreaterThan(materializeAt);

@@ -26,14 +26,25 @@ import {
   type EvolutionSendMode,
 } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
+import { redactChannelSecrets } from '@/lib/channels/redactChannelSecrets';
 import { dispatchAutomationSimulation } from '@/lib/conversations/dispatchConversationOutbound';
 import { toWhatsAppPhone } from '@/lib/phone';
 
 export const AUTOMATION_EXECUTOR_ENV = 'AUTOMATION_LIVE_SENDS_ENABLED';
 export const AUTOMATION_SEND_TIMEOUT_MS = 15_000;
+/** Margem para fechar o resultado no banco depois do tempo limite do envio. */
+export const AUTOMATION_SEND_CLOSE_MARGIN_MS = 2_000;
 export const AUTOMATION_EXECUTOR_DEFAULT_BATCH = 10;
 export const AUTOMATION_EXECUTOR_DEFAULT_LEASE_SECONDS = 120;
-export const AUTOMATION_EXECUTOR_DEFAULT_DEADLINE_MS = 35_000;
+/** Orçamento padrão: cabe dentro do tick (maxDuration 60 s) com a Meta e o fechamento depois. */
+export const AUTOMATION_EXECUTOR_DEFAULT_DEADLINE_MS = 30_000;
+
+const ATTEMPT_LABEL_TO_MODE: Record<string, Exclude<EvolutionSendMode, 'auto'>> = {
+  'sendText:number+text': 'number_text',
+  'sendText:number+textMessage': 'number_textMessage',
+  'sendText:number+message': 'number_message',
+  'sendText:number+body': 'number_body',
+};
 
 export function isAutomationExecutorEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env[AUTOMATION_EXECUTOR_ENV] ?? '').trim().toLowerCase() === 'true';
@@ -46,6 +57,8 @@ export type SendTextFn = (params: {
   phone: string;
   text: string;
   sendMode?: EvolutionSendMode;
+  signal?: AbortSignal;
+  singleFormat?: boolean;
 }) => Promise<EvolutionSendMessageResult>;
 
 export type ExecutorOutcome =
@@ -104,6 +117,8 @@ type ExecutorContext = {
   workerId: string;
   sendText: SendTextFn;
   sendTimeoutMs: number;
+  /** Instante absoluto em que o executor precisa ter terminado. */
+  deadlineAt: number;
   versionModes: Map<string, string | null>;
 };
 
@@ -155,16 +170,49 @@ async function rpc<T = unknown>(
   return result.data as T;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+/**
+ * Tempo limite com aborto de verdade: o `AbortSignal` chega ao fetch, então a requisição não
+ * fica viva depois do prazo. O resultado continua "desconhecido" (o POST pode ter saído).
+ */
+function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
+      controller.abort();
       reject(new EvolutionDeliveryUnknownError(`sem resposta da Evolution em ${ms} ms`));
     }, ms);
   });
-  return Promise.race([promise, timeout]).finally(() => {
+  return Promise.race([run(controller.signal), timeout]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+/**
+ * Formato único do POST (parecer do Codex, B3): o configurado na conexão; se "auto", o último
+ * formato que funcionou neste canal (gravado em `delivery_attempt` pelo caminho manual/IA);
+ * senão `number_text`. Nunca cai para outros formatos em 4xx.
+ */
+async function resolveSingleSendMode(
+  ctx: ExecutorContext,
+  organizationId: string,
+  connectionId: string,
+  configured: unknown,
+): Promise<Exclude<EvolutionSendMode, 'auto'>> {
+  const configuredMode = Object.values(ATTEMPT_LABEL_TO_MODE).find((mode) => mode === configured);
+  if (configuredMode) return configuredMode;
+  const last = await ctx.admin
+    .from('conversation_messages')
+    .select('delivery_attempt')
+    .eq('organization_id', organizationId)
+    .eq('channel_connection_id', connectionId)
+    .eq('delivery_status', 'sent')
+    .like('delivery_attempt', 'sendText:%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const label = typeof last.data?.delivery_attempt === 'string' ? last.data.delivery_attempt : '';
+  return ATTEMPT_LABEL_TO_MODE[label] ?? 'number_text';
 }
 
 async function readDeliveryMode(ctx: ExecutorContext, job: ClaimedJob): Promise<string | null> {
@@ -227,6 +275,13 @@ async function executeLiveSend(
   job: ClaimedJob,
   enrollment: EnrollmentRow,
 ): Promise<ExecutorOutcome> {
+  // Sem tempo para envio + fechamento, nem começa (parecer do Codex, I4): o job continua
+  // reservado, o lease expira e o próximo executor pega. Antes do prepare, para não deixar uma
+  // linha pendente que a próxima tentativa leria como "desconhecida".
+  if (ctx.deadlineAt - Date.now() < ctx.sendTimeoutMs + AUTOMATION_SEND_CLOSE_MARGIN_MS) {
+    return 'released';
+  }
+
   const prepared = await ctx.admin
     .rpc('prepare_automation_outbound', { p_job_id: job.id })
     .single();
@@ -234,12 +289,14 @@ async function executeLiveSend(
     const code = errorCode(prepared.error);
     const message = errorMessage(prepared.error);
     if (code === '42501') {
-      // O banco recusou o envio real: live desligado, opt-out ou modo sem executor.
+      // O banco recusou o envio real: live desligado, opt-out, canal inativo ou modo sem executor.
       const reason = /opt|não receber/i.test(message)
         ? 'opt_out'
         : /desligad/i.test(message)
           ? 'live_desligado'
-          : 'modo_sem_executor';
+          : /canal/i.test(message)
+            ? 'canal_inativo'
+            : 'modo_sem_executor';
       return failAndPause(ctx, job, reason, message);
     }
     throw new RpcError('prepare_automation_outbound', code, message);
@@ -273,7 +330,7 @@ async function executeLiveSend(
   const [connection, thread] = await Promise.all([
     ctx.admin
       .from('channel_connections')
-      .select('id, organization_id, config')
+      .select('id, organization_id, status, config')
       .eq('id', enrollment.channel_connection_id ?? '')
       .eq('organization_id', job.organization_id)
       .maybeSingle(),
@@ -301,6 +358,13 @@ async function executeLiveSend(
       error: 'conexão WhatsApp sem instância ou credencial Evolution configurada',
     });
   }
+  // O banco já recusou canal inativo no prepare; aqui é a releitura imediatamente antes do POST
+  // (parecer do Codex, B4), para a corrida "desconectou entre o prepare e o envio".
+  if (connection.data.status !== 'connected') {
+    return completeLive(ctx, job, row.message_id, 'failed', {
+      error: `canal do WhatsApp não está conectado (${String(connection.data.status ?? 'ausente')})`,
+    });
+  }
   const phone = toWhatsAppPhone(thread.data?.contact_phone ?? null);
   if (!phone) {
     return completeLive(ctx, job, row.message_id, 'failed', {
@@ -313,25 +377,29 @@ async function executeLiveSend(
       error: 'mensagem da automação vazia',
     });
   }
-  const sendMode = (typeof config.sendMode === 'string' ? config.sendMode : 'auto') as EvolutionSendMode;
+  const sendMode = await resolveSingleSendMode(ctx, job.organization_id, connection.data.id, config.sendMode);
+  // Nada que a Evolution devolver pode ser gravado com credencial dentro (parecer do Codex, B5).
+  const secrets = [credentials.apiKey, credentials.apiUrl];
 
   let result: EvolutionSendMessageResult;
   try {
     result = await withTimeout(
-      ctx.sendText({
+      (signal) => ctx.sendText({
         apiUrl: credentials.apiUrl,
         instanceName,
         apiKey: credentials.apiKey,
         phone,
         text: content,
         sendMode,
+        signal,
+        singleFormat: true,
       }),
       ctx.sendTimeoutMs,
     );
   } catch (error) {
     const status = isEvolutionDeliveryUnknown(error) ? 'unknown' : 'failed';
     return completeLive(ctx, job, row.message_id, status, {
-      error: errorMessage(error).slice(0, 2000),
+      error: redactChannelSecrets(error, secrets, 'falha no envio pela Evolution').slice(0, 2000),
     });
   }
 
@@ -438,6 +506,22 @@ async function executeJobSafely(ctx: ExecutorContext, job: ClaimedJob): Promise<
       if (error.code === '23505') {
         return failAndPause(ctx, job, 'espera_em_conflito', error.message);
       }
+      if (
+        error.code === '55000'
+        && ['execute_automation_create_task', 'execute_automation_move_deal', 'open_automation_wait_for_job'].includes(error.rpc)
+        && /inscrição/i.test(error.message)
+      ) {
+        // A inscrição mudou entre a leitura do executor e o efeito (pausa concorrente, cursor
+        // andou): o job morre sem tocar em nada e sem pausar de novo (parecer do Codex, B6).
+        await rpc(ctx.admin, 'complete_automation_job', {
+          p_job_id: job.id,
+          p_worker_id: job.lease_owner,
+          p_attempt_count: job.attempt_count,
+          p_outcome: 'failed',
+          p_error: error.message.slice(0, 500),
+        });
+        return 'failed';
+      }
     }
     throw error;
   }
@@ -484,6 +568,7 @@ export async function executeDueAutomationJobs(
     workerId: params.workerId,
     sendText: params.sendText ?? sendEvolutionTextMessage,
     sendTimeoutMs: params.sendTimeoutMs ?? AUTOMATION_SEND_TIMEOUT_MS,
+    deadlineAt: started + deadlineMs,
     versionModes: new Map(),
   };
 
