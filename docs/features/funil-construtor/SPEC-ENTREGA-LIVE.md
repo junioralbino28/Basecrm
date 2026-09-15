@@ -153,8 +153,8 @@ real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
   Endurecimento seguinte: aceitar só `https://`.
 - **Rotas internas do worker: segredos por escopo + limite de taxa** (parecer do Codex, I3). Um único
   Bearer executa, reserva e conclui jobs de todos os clientes; não há limitador de taxa no projeto.
-- **`npm audit`: 18 dependências com CVE** (1 crítica) fora deste diff (G12). Em 14/09 todas têm
-  correção sem subir versão maior (Next 16.3.5); próximo commit.
+- ~~`npm audit`: 18 dependências com CVE~~ Zerado em 15/09 (Next 16.3.5, trava do `sharp` em 0.35.4). Rotina:
+  rodar `npm audit` a cada entrega e manter a trava do `sharp` alinhada ao que o Next pede.
 - **Rota admin devolve erro interno do banco** (parecer, S5): mensagem estável ao cliente, detalhe no log.
 - **Cabeçalhos de segurança** (`X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy`) e
   comparação timing-safe do segredo na rota pública `ai-reply` (achados de 14/09).
