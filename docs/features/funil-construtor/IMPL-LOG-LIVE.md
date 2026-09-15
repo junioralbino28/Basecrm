@@ -121,6 +121,38 @@ Cada ponto foi conferido no código antes de aceitar. "Corrigido" = no commit de
 | S4 sem retry de `unknown`; reconciliação humana | **Concorda** | É a caixa de falhas com Reenviar (requisito do Junior, SPEC §7) |
 | G12 `npm audit` 18 vulnerabilidades | **Dívida global** | Fora do diff; registrada para tratamento à parte |
 
+## 5b. Resposta à 2ª rodada do parecer (`OPINIAO-LIVE.md` §6 `/cibersecurity` + §7 Codex Security, 14/09)
+
+A 2ª rodada foi ancorada em `f45d8dc`/`4adbd04`, ANTES da resposta `773b791`; por isso parte da
+tabela G1–G32 cita achados já tratados na seção 5. Cada ponto abaixo foi conferido no código antes de
+aceitar (permissões por papel no banco, `npm audit` rodado para arquivo, código-fonte da Evolution).
+
+| Ponto | Veredito | O que foi feito |
+|---|---|---|
+| **B7** `apiUrl` do tenant + chave global da agência (G26/G13/G22) | **Confirmado e corrigido** | Fato que agrava: `clinic_admin` tem `whatsapp.manage_connection` por padrão (migration `20260635000000`), logo o admin do próprio cliente gravava a URL. (1) `resolveEvolutionCredentials`: par parcial na conexão é IGNORADO por inteiro; ou o par completo da conexão, ou o par completo da agência, nunca uma URL com a chave da outra. (2) Rotas de criação e edição da conexão recusam `apiUrl` sem `apiKey` (nova ou já gravada) com mensagem leiga, só quando o pedido mexe no par (trocar a IA ou o modo de envio não reabre). (3) Guarda de destino `lib/channels/evolutionUrlGuard.ts` antes de TODO fetch do adaptador (8 pontos): só http(s), sem usuário/senha, host com domínio, nomes internos bloqueados, IP literal e todos os IPs resolvidos por DNS fora de privadas, loopback, link-local (metadados), CGNAT, documentação e multicast, inclusive IPv6 mapeado e NAT64; `redirect: 'error'` em todos os fetches. A mesma guarda vale para o endereço global da agência. (4) Liberação de host interno só por `EVOLUTION_ALLOW_PRIVATE_HOSTS` (testes locais com Evolution falsa em 127.0.0.1; documentado no `.env.example`). Recusa da guarda é falha determinística antes do POST (nunca "entrega desconhecida"). `send-test`: sem mudança, porque quem tem `whatsapp.access` já envia mensagens pela conversa e, com o par nunca misturado, o gatilho perde o objeto. **Limite conhecido:** o DNS é conferido antes do fetch e resolvido de novo por ele (janela de rebinding); fixar o IP no agente HTTP fica como dívida (SPEC §7) |
+| **I7** segredo do webhook na query string (G10/G11/G22) | **Real; próximo passo** | A Evolution aceita `webhook.headers` (conferido em `webhook.controller.ts:41,50` e `webhook.schema.ts:34` do repositório) e o CRM já lê `x-webhook-secret`. Plano: connect/healthcheck passam a registrar o segredo no header, query string fica só como legado com prazo, rotação pelo healthcheck; HMAC do corpo + timestamp na fase 2. Entra junto com o fechamento do webhook legado (abaixo) |
+| **I8** Next `16.2.12` sob 2 advisories críticos (G12) | **Real; próximo passo** | `npm audit` em 14/09: 18 (1 crítica, 5 altas, 5 médias, 7 baixas), TODAS com correção sem subir versão maior (Next 16.3.5 = `latest`, vitest 4.1.11, faker, ai-sdk). A RCE por AVIF é pouco explorável aqui (todas as imagens usam `unoptimized`, sem `remotePatterns`), mas a correção é barata: commit próprio com suíte + build + `npm audit` de novo |
+| **S5** erro interno devolvido pela rota admin (G10) | **Real; próximo passo** | `settings/automations-live` devolve `error.message` do banco em 4 pontos; passa a devolver mensagem estável e guardar o detalhe só no log |
+| **B1 / G3 / G11 / G13** webhook legado fail-open (raiz) | **Real; próximo passo** | `evaluateWebhookAuth` devolve autorizado para QUALQUER POST quando a conexão não tem `webhookSecret` (nem confere o `instanceName`). Sem o detector de palavra não existe opt-out forjado, mas um inbound forjado ainda dispara resposta da IA pelo número do cliente para qualquer telefone, resolve esperas ("Respondeu") e cria o marco 3d que vai para a Meta. Precisa do UUID da conexão e de uma conexão sem segredo; conexões nascem com segredo desde 03/2026 e PATCH/healthcheck preenchem. Correção: fail-closed + backfill de segredo + re-registro pelo healthcheck; em produção, 1 leitura autorizada para saber se existe conexão legada |
+| **I3** Bearer único sem limite de taxa (G7) | **Dívida mantida** | Comparação já é timing-safe; limite de taxa e escopos continuam na SPEC §7 (existe tabela de limite no banco para reaproveitar) |
+| Tabela G1–G32: G17, G18, G20, G24 e partes de G7/G10/G22 | **Desatualizados** | Referem B3/B4/B5/B6/I1/I2/I4, corrigidos em `773b791` (seção 5): formato único, gate `connected`+segredo, redação, `for update` + status ativo, pausa só da inscrição, prazo com aborto. B2/I6 sem objeto (detector removido). Restam de fato: G3/G11/G13 (webhook legado), G26/G13/G22 (B7, corrigido aqui), G22 (I7), G7 (I3), G10 (S5), G12 (I8) |
+| Codex Security: 2 medium (B1 e B7) | **Aceito** | B7 corrigido aqui; B1 é o webhook legado acima. Concordo com a triagem: B2 e B5 não são findings independentes (B5 já redigido em `773b791`) |
+| Achados meus além do parecer | **Registrados** | `next.config` sem cabeçalhos de segurança (só HSTS da Vercel); `ai-reply` pública compara o segredo com `!==`. Entram na higiene depois do I8 |
+
+**Provas desta resposta (B7):** `lib/channels/evolutionUrlGuard.test.ts` 14/14 (faixas IPv4/IPv6,
+sintaxe, DNS que resolve para IP interno, host sem resolução vira recusa e não "desconhecida", liberação
+para testes não consulta DNS, regra do par na escrita) · `lib/channels/evolutionCredentials.test.ts` 7/7
+(só URL → agência inteira; só chave → agência inteira; agência sem chave → null, nunca completa com a URL
+do tenant; fallback do admin da agência; chaves legadas) · rota PATCH 7/7 (URL sem chave → 400 sem gravar;
+IP de metadados → 400; host que resolve para 10.0.0.5 → 400; URL nova com chave gravada → par completo;
+apagar URL → volta à agência; trocar só a IA não reabre) · rota POST +3 · adaptador e mídia com DNS falso
+(sem rede) · `funilLiveExecutor.local.test.ts` 16/16 com host interno liberado só no processo do teste ·
+focais 7 arquivos / 45 testes · `tsc --noEmit` e ESLint `--max-warnings 0` limpos · suíte completa:
+**255 arquivos / 1.277 testes, zero falhas** (223 s). Eram 253 / 1.247: os +2 / +30 são exatamente os
+testes novos desta resposta (guarda 14, resolvedor 7, PATCH +6, POST +3). Depois da suíte, só a blindagem de ordem
+nos testes (variável de host interno apagada no `afterAll` do executor e no `beforeEach` das rotas), com os 4
+arquivos afetados rerodados: 43/43. Saída em arquivo, lida em comando separado antes do commit.
+
 ## 6. Próximos passos
 
 - **Codex:** revisão pontual (2 migrations + executor + 3 rotas + webhook + fixture + 4 testes).

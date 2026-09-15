@@ -5,6 +5,7 @@ import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { ensureTenantAgencyBinding } from '@/lib/channels/evolutionCredentials';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
+import { validateEvolutionPairForWrite } from '@/lib/channels/evolutionUrlGuard';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -99,6 +100,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       undefined,
     notes: parsed.data.metadata?.notes?.trim() || undefined,
   };
+
+  // Parecer do Codex, B7: endereço próprio só com a chave própria e nunca para a rede interna.
+  const pairError = await validateEvolutionPairForWrite(config);
+  if (pairError) return json({ error: pairError }, 400);
 
   const admin = createStaticAdminClient();
 

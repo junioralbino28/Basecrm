@@ -6,6 +6,12 @@ import {
   sendEvolutionTextMessage,
 } from './evolution';
 
+// A guarda de destino (B7) resolve o host antes do fetch: DNS falso, sem rede.
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
+
 describe('createEvolutionInstance', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

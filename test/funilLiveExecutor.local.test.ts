@@ -19,6 +19,13 @@ import {
 } from './helpers/funilTestFixture';
 import { executeDueAutomationJobs } from '@/lib/automations/executor';
 
+// A Evolution falsa mora em 127.0.0.1: liberar host interno SÓ neste processo de teste
+// (a guarda do B7 recusa rede interna por padrão; ver lib/channels/evolutionUrlGuard.ts).
+process.env.EVOLUTION_ALLOW_PRIVATE_HOSTS = 'true';
+afterAll(() => {
+  delete process.env.EVOLUTION_ALLOW_PRIVATE_HOSTS;
+});
+
 const config = loadE2SupabaseConfig();
 const describeLocal = config ? describe : describe.skip;
 

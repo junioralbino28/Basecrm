@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
+import { assertSafeEvolutionUrl } from '@/lib/channels/evolutionUrlGuard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -135,6 +136,15 @@ export async function PATCH(req: Request) {
       parsed.data.apiKey === undefined ? currentDefaults.apiKey : normalizeText(parsed.data.apiKey),
     updatedAt: now,
   };
+
+  // Parecer do Codex, B7/G26: o endereço global também não pode apontar para a rede interna.
+  if (nextDefaults.apiUrl) {
+    try {
+      await assertSafeEvolutionUrl(nextDefaults.apiUrl);
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Endereço da Evolution recusado.' }, 400);
+    }
+  }
 
   const nextMetadata: Record<string, unknown> = {
     ...currentMetadata,

@@ -1,3 +1,5 @@
+import { assertSafeEvolutionUrl } from './evolutionUrlGuard';
+
 export type EvolutionConnectionState = {
   raw: unknown;
   normalizedStatus: 'connected' | 'disconnected' | 'error';
@@ -103,6 +105,17 @@ async function parseEvolutionResponse(response: Response) {
   return payload;
 }
 
+/**
+ * Valida o destino ANTES de qualquer chamada com a chave `apikey` (parecer do Codex, B7 — G26):
+ * só http(s) público, sem credencial embutida, IP literal ou resolvido fora da rede interna.
+ * Lança `EvolutionUrlRejectedError` (não é "entrega desconhecida": nada saiu). Os fetches usam
+ * `redirect: 'error'` para um redirecionamento não levar a chave a outro host.
+ */
+async function safeBaseUrl(apiUrl: string): Promise<string> {
+  await assertSafeEvolutionUrl(apiUrl);
+  return apiUrl.replace(/\/+$/, '');
+}
+
 async function fetchEvolutionDelivery(input: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(input, init);
@@ -136,7 +149,7 @@ export async function createEvolutionInstance(params: {
   instanceName: string;
   apiKey: string;
 }): Promise<EvolutionCreateInstanceResult> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/instance/create`;
 
   const response = await fetch(endpoint, {
@@ -147,6 +160,7 @@ export async function createEvolutionInstance(params: {
       'content-type': 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
     body: JSON.stringify({
       instanceName: params.instanceName,
       qrcode: true,
@@ -187,7 +201,7 @@ export async function logoutEvolutionInstance(params: {
   instanceName: string;
   apiKey: string;
 }): Promise<unknown> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/instance/logout/${encodeURIComponent(params.instanceName)}`;
 
   const response = await fetch(endpoint, {
@@ -197,6 +211,7 @@ export async function logoutEvolutionInstance(params: {
       accept: 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
   });
   const payload = await parseEvolutionResponse(response);
   return payload;
@@ -211,7 +226,7 @@ export async function fetchEvolutionConnectionState(params: {
   instanceName: string;
   apiKey: string;
 }): Promise<EvolutionConnectionState> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/instance/connectionState/${encodeURIComponent(params.instanceName)}`;
 
   const response = await fetch(endpoint, {
@@ -221,6 +236,7 @@ export async function fetchEvolutionConnectionState(params: {
       accept: 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
   });
   const payload = await parseEvolutionResponse(response);
 
@@ -262,7 +278,7 @@ export async function fetchEvolutionPairingCode(params: {
   apiKey: string;
   number?: string;
 }): Promise<EvolutionPairingCode> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const url = new URL(`${baseUrl}/instance/connect/${encodeURIComponent(params.instanceName)}`);
 
   if (params.number) {
@@ -276,6 +292,7 @@ export async function fetchEvolutionPairingCode(params: {
       accept: 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
   });
   const payload = await parseEvolutionResponse(response);
 
@@ -308,7 +325,7 @@ export async function setEvolutionWebhook(params: {
   enabled?: boolean;
   events?: string[];
 }): Promise<EvolutionWebhookSetResult> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/webhook/set/${encodeURIComponent(params.instanceName)}`;
   const events = params.events?.length
     ? params.events
@@ -339,6 +356,7 @@ export async function setEvolutionWebhook(params: {
       'content-type': 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
     body: JSON.stringify(body),
   });
   const payload = await parseEvolutionResponse(response);
@@ -373,7 +391,7 @@ export async function sendEvolutionTextMessage(params: {
    */
   singleFormat?: boolean;
 }): Promise<EvolutionSendMessageResult> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const attempts: Array<{ mode: Exclude<EvolutionSendMode, 'auto'>; label: string; endpoint: string; body: Record<string, unknown> }> = [
     {
       mode: 'number_text',
@@ -438,6 +456,7 @@ export async function sendEvolutionTextMessage(params: {
           'content-type': 'application/json',
         },
         cache: 'no-store',
+        redirect: 'error',
         body: JSON.stringify(attempt.body),
         signal: params.signal,
       });
@@ -477,7 +496,7 @@ export async function sendEvolutionMediaMessage(params: {
   fileName?: string;
   mimetype?: string;
 }): Promise<EvolutionSendMessageResult> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/message/sendMedia/${encodeURIComponent(params.instanceName)}`;
 
   const body: Record<string, unknown> = {
@@ -497,6 +516,7 @@ export async function sendEvolutionMediaMessage(params: {
       'content-type': 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
     body: JSON.stringify(body),
   });
 
@@ -521,7 +541,7 @@ export async function sendEvolutionAudioMessage(params: {
   phone: string;
   audio: string;
 }): Promise<EvolutionSendMessageResult> {
-  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+  const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(params.instanceName)}`;
 
   const response = await fetchEvolutionDelivery(endpoint, {
@@ -532,6 +552,7 @@ export async function sendEvolutionAudioMessage(params: {
       'content-type': 'application/json',
     },
     cache: 'no-store',
+    redirect: 'error',
     body: JSON.stringify({
       number: params.phone,
       audio: params.audio,

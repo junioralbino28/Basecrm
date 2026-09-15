@@ -8,6 +8,7 @@ import {
   resolveEvolutionCredentials,
 } from '@/lib/channels/evolutionCredentials';
 import { logoutEvolutionInstance } from '@/lib/channels/evolution';
+import { validateEvolutionPairForWrite } from '@/lib/channels/evolutionUrlGuard';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 
 function json(body: unknown, status = 200) {
@@ -110,6 +111,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         return merged;
       })()
     : current.data.config;
+
+  // Parecer do Codex, B7: endereço próprio da Evolution só com a chave própria (nunca a URL do
+  // cliente com a chave da agência) e nunca apontando para a rede interna. Só quando o pedido
+  // mexe no par; trocar só a IA ou o modo de envio não reabre a validação.
+  if (parsed.data.config && (parsed.data.config.apiUrl !== undefined || parsed.data.config.apiKey !== undefined)) {
+    const pairError = await validateEvolutionPairForWrite(nextConfig as { apiUrl?: unknown; apiKey?: unknown });
+    if (pairError) return json({ error: pairError }, 400);
+  }
 
   const nextMetadata = parsed.data.metadata
     ? {

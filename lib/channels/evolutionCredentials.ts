@@ -93,6 +93,7 @@ export async function resolveEvolutionCredentials(
   const configApiUrl = normalizeText(params.connectionConfig?.apiUrl);
   const configApiKey = normalizeText(params.connectionConfig?.apiKey);
 
+  // Só o par COMPLETO da conexão substitui o da agência.
   if (configApiUrl && configApiKey) {
     return {
       apiUrl: configApiUrl,
@@ -121,15 +122,16 @@ export async function resolveEvolutionCredentials(
 
   if (agencyEdition.error) throw new Error(agencyEdition.error.message);
 
+  // Par parcial na conexão (só URL ou só chave) é IGNORADO por inteiro: nunca combinar a URL de
+  // uma fonte com a chave de outra (parecer do Codex, B7 — a URL do tenant levaria a chave global
+  // da agência para um host controlado por ele). Ou o par completo da conexão, ou o par completo
+  // da agência.
   const defaults = readAgencyDefaults(agencyEdition.data?.metadata);
-  const apiUrl = configApiUrl || defaults.apiUrl;
-  const apiKey = configApiKey || defaults.apiKey;
-
-  if (!apiUrl || !apiKey) return null;
+  if (!defaults.apiUrl || !defaults.apiKey) return null;
 
   return {
-    apiUrl,
-    apiKey,
+    apiUrl: defaults.apiUrl,
+    apiKey: defaults.apiKey,
     source: 'agency_defaults',
     agencyOrganizationId,
   };

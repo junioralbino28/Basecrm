@@ -1,18 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { lookup } from 'node:dns/promises';
 
 const requireTenantAccessMock = vi.fn();
 const updateMock = vi.fn();
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const CONNECTION = '22222222-2222-4222-8222-222222222222';
-const currentConfig = {
+const baseConfig = {
   apiUrl: 'https://evolution.example.com',
   instanceName: 'comercial-vitoria-a1b2c3d4',
   webhookSecret: 'WEBHOOK-SECRET',
   apiKey: 'EVOLUTION-KEY',
   sendMode: 'number_text',
 };
+// A configuração "gravada" é mutável para cada caso montar o cenário (com/sem chave própria).
+let currentConfig: Record<string, unknown> = { ...baseConfig };
 
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
 vi.mock('@/lib/platform/tenantAccess', () => ({
   requireTenantAccess: (...args: unknown[]) => requireTenantAccessMock(...args),
 }));
@@ -65,8 +72,21 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { PATCH } from './route';
 
+function patch(body: unknown) {
+  return PATCH(
+    new Request(`http://localhost:3000/api/platform/tenants/${TENANT}/channels/${CONNECTION}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ tenantId: TENANT, connectionId: CONNECTION }) },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  currentConfig = { ...baseConfig };
+  delete process.env.EVOLUTION_ALLOW_PRIVATE_HOSTS; // a guarda do B7 tem que estar ligada aqui
   requireTenantAccessMock.mockResolvedValue({
     profile: { role: 'clinic_admin', organization_id: TENANT },
     canManageChannelConfig: true,
@@ -75,14 +95,7 @@ beforeEach(() => {
 
 describe('PATCH channel connection — aiEnabled', () => {
   it('altera somente o gate de IA e preserva toda a configuração da Evolution', async () => {
-    const response = await PATCH(
-      new Request(`http://localhost:3000/api/platform/tenants/${TENANT}/channels/${CONNECTION}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ config: { aiEnabled: false } }),
-      }),
-      { params: Promise.resolve({ tenantId: TENANT, connectionId: CONNECTION }) },
-    );
+    const response = await patch({ config: { aiEnabled: false } });
 
     expect(response.status).toBe(200);
     expect(requireTenantAccessMock).toHaveBeenCalledWith(TENANT, {
@@ -90,7 +103,61 @@ describe('PATCH channel connection — aiEnabled', () => {
     });
     expect(updateMock).toHaveBeenCalledOnce();
     expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
-      config: { ...currentConfig, aiEnabled: false },
+      config: { ...baseConfig, aiEnabled: false },
     });
+  });
+
+  it('não reabre a validação do par quando o pedido não mexe em apiUrl/apiKey (conexão legada parcial)', async () => {
+    currentConfig = { ...baseConfig, apiKey: undefined };
+    const response = await patch({ config: { aiEnabled: false } });
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () => {
+  it('apiUrl sem chave (nem nova, nem gravada) é recusado com 400 e nada é gravado', async () => {
+    currentConfig = { ...baseConfig, apiKey: undefined };
+    const response = await patch({ config: { apiUrl: 'https://host-do-atacante.example', apiKey: '' } });
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(String(body.error)).toMatch(/informe também a chave/);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('apiUrl para rede interna é recusado mesmo com chave', async () => {
+    const response = await patch({ config: { apiUrl: 'http://169.254.169.254/latest', apiKey: 'nova' } });
+
+    expect(response.status).toBe(400);
+    expect(String((await response.json()).error)).toMatch(/rede interna/);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('host público que resolve para IP interno é recusado (DNS conferido)', async () => {
+    vi.mocked(lookup).mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }] as never);
+    const response = await patch({ config: { apiUrl: 'https://parece-publico.example.com', apiKey: 'nova' } });
+
+    expect(response.status).toBe(400);
+    expect(String((await response.json()).error)).toMatch(/rede interna/);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('apiUrl novo com a chave já gravada é aceito e o par completo fica na conexão', async () => {
+    const response = await patch({ config: { apiUrl: 'https://nova.example.com', apiKey: '' } });
+
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledOnce();
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: { ...baseConfig, apiUrl: 'https://nova.example.com', apiKey: 'EVOLUTION-KEY' },
+    });
+  });
+
+  it('apagar o endereço próprio é aceito: a conexão volta a usar o par da agência', async () => {
+    const response = await patch({ config: { apiUrl: '' } });
+
+    expect(response.status).toBe(200);
+    const saved = updateMock.mock.calls[0]?.[0] as { config: Record<string, unknown> };
+    expect(saved.config.apiUrl).toBeUndefined();
   });
 });

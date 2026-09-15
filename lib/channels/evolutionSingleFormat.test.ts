@@ -2,8 +2,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EvolutionDeliveryUnknownError, sendEvolutionTextMessage } from './evolution';
 
+// A guarda de destino (B7) resolve o host antes do fetch: DNS falso, sem rede.
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
+
 const base = {
-  apiUrl: 'http://evolution.local',
+  apiUrl: 'http://evolution.example.com',
   instanceName: 'inst',
   apiKey: 'chave',
   phone: '5511999999999',
@@ -39,7 +45,10 @@ describe('sendEvolutionTextMessage — formato único e aborto (executor de auto
 
   it('o AbortSignal chega ao fetch e o aborto vira entrega desconhecida (nunca reenvio)', async () => {
     const controller = new AbortController();
+    // Como o fetch real: sinal já abortado rejeita na hora (a guarda de destino do B7 roda
+    // antes do fetch, então o aborto pode chegar antes de o fetch ser chamado).
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+      if (init?.signal?.aborted) return reject(new Error('aborted'));
       init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
     }));
     vi.stubGlobal('fetch', fetchMock);

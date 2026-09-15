@@ -14,6 +14,10 @@ vi.mock('@/lib/platform/tenantAccess', () => ({
 vi.mock('@/lib/security/sameOrigin', () => ({ isAllowedOrigin: () => true }));
 vi.mock('@/lib/auth/scope', () => ({ isAgencyAdminRole: () => false }));
 vi.mock('@/lib/channels/evolutionCredentials', () => ({ ensureTenantAgencyBinding: vi.fn() }));
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
 vi.mock('@/lib/supabase/server', () => ({
   createStaticAdminClient: () => ({
     from: () => ({
@@ -56,6 +60,7 @@ const channelWithSecret = {
 beforeEach(() => {
   vi.clearAllMocks();
   channelsData = [channelWithSecret];
+  delete process.env.EVOLUTION_ALLOW_PRIVATE_HOSTS; // a guarda do B7 tem que estar ligada aqui
   insertedChannel = null;
 });
 
@@ -132,5 +137,46 @@ describe('POST /api/platform/tenants/[tenantId]/channels', () => {
     expect(config.webhookSecret).toMatch(/^[a-f0-9]{32}$/);
     expect(config.sendMode).toBe('auto');
     expect(config.aiEnabled).toBe(true);
+  });
+});
+
+describe('POST /api/platform/tenants/[tenantId]/channels — regra do par (parecer do Codex, B7)', () => {
+  function post(config: Record<string, unknown>) {
+    return POST(
+      new Request(`http://localhost:3000/api/platform/tenants/${TENANT}/channels`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'evolution', channel_type: 'whatsapp', name: 'Comercial', config }),
+      }),
+      makeCtx(),
+    );
+  }
+
+  beforeEach(() => {
+    requireTenantAccessMock.mockResolvedValue({
+      profile: { role: 'clinic_admin', organization_id: TENANT },
+      permissions: { 'whatsapp.manage_connection': true },
+      canManageChannelConfig: true,
+    });
+  });
+
+  it('apiUrl sem apiKey é recusado com 400 e nada é inserido', async () => {
+    const res = await post({ apiUrl: 'https://host-do-atacante.example' });
+    expect(res.status).toBe(400);
+    expect(String((await res.json()).error)).toMatch(/informe também a chave/);
+    expect(insertedChannel).toBeNull();
+  });
+
+  it('apiUrl de rede interna é recusado mesmo com apiKey', async () => {
+    const res = await post({ apiUrl: 'http://127.0.0.1:8080', apiKey: 'k' });
+    expect(res.status).toBe(400);
+    expect(String((await res.json()).error)).toMatch(/rede interna/);
+    expect(insertedChannel).toBeNull();
+  });
+
+  it('par completo e público é aceito', async () => {
+    const res = await post({ apiUrl: 'https://evolution.example.com', apiKey: 'CHAVE-PROPRIA' });
+    expect(res.status).toBe(201);
+    expect((insertedChannel?.config as Record<string, unknown>).apiUrl).toBe('https://evolution.example.com');
   });
 });

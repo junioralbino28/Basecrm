@@ -143,12 +143,23 @@ real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
   (nem antes desta entrega); hoje pausa é terminal na prática.
 - Tela de "conversas pausadas pela automação" com o motivo (dado já está em
   `automation_enrollments.pause_reason`).
-- **Webhook da Evolution: segredo obrigatório** (parecer do Codex, B1; G11). Hoje conexão legada sem
-  `webhookSecret` aceita qualquer POST com o `instanceName` certo. O envio real já exige canal com
-  segredo; falta migrar as conexões legadas e tirar o fallback.
+- **Webhook da Evolution: segredo obrigatório e no header** (parecer do Codex, B1 e I7; G3/G11).
+  Conferido em 14/09: conexão legada sem `webhookSecret` aceita QUALQUER POST (o `instanceName` nem é
+  conferido) e um inbound forjado dispara a IA pelo número do cliente, resolve esperas e cria marco
+  para a Meta. O envio real já exige canal com segredo. Falta: fail-closed no `evaluateWebhookAuth`,
+  backfill de segredo nas conexões sem ele com re-registro pelo healthcheck, segredo no header
+  `x-webhook-secret` (a Evolution aceita `webhook.headers`) com a query string só como legado com
+  prazo, e HMAC do corpo + timestamp na fase 2.
+- **Guarda de destino da Evolution: fixar o IP resolvido** (B7, resíduo). A guarda confere o DNS antes
+  do fetch e o fetch resolve de novo (janela de rebinding); fechar exige agente HTTP com IP fixado.
+  Endurecimento seguinte: aceitar só `https://`.
 - **Rotas internas do worker: segredos por escopo + limite de taxa** (parecer do Codex, I3). Um único
   Bearer executa, reserva e conclui jobs de todos os clientes; não há limitador de taxa no projeto.
-- **`npm audit`: 18 dependências com CVE** (1 crítica) fora deste diff (G12).
+- **`npm audit`: 18 dependências com CVE** (1 crítica) fora deste diff (G12). Em 14/09 todas têm
+  correção sem subir versão maior (Next 16.3.5); próximo commit.
+- **Rota admin devolve erro interno do banco** (parecer, S5): mensagem estável ao cliente, detalhe no log.
+- **Cabeçalhos de segurança** (`X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy`) e
+  comparação timing-safe do segredo na rota pública `ai-reply` (achados de 14/09).
 - **Opt-out pela IA precisa ser durável** (parecer do Codex, B2, para a 1a): a marcação nasce junto
   da mensagem e o caminho de duplicata repara se a primeira gravação falhar.
 - `condition` legado: sem executor; o construtor usa "Dividir caminho" (switch), que já é resolvido
