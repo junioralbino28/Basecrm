@@ -213,6 +213,10 @@ describe('2b — rota admin de ligar/desligar o envio real', () => {
     expect(rota).toContain('if (!isAllowedOrigin(req)) return json({ error: \'Forbidden\' }, 403);');
     expect(rota).toContain("admin.rpc('set_automation_live_enabled'");
     expect(rota).toContain("if (toggled.error.code === '55000') {");
+    // Parecer do Codex, S5 (G10): erro interno do banco não volta ao navegador (só o 55000, que é mensagem leiga da RPC).
+    expect(rota).toContain('const MENSAGEM_ERRO_INTERNO = ');
+    expect(rota).not.toMatch(/json\(\{ error: (toggled\.)?error\.message/);
+    expect(rota).not.toContain("error instanceof Error ? error.message");
     expect(rota).toContain('}, 409);');
     expect(rota).toContain("admin.rpc('automation_scheduler_health').single()");
     expect(rota).not.toContain('automation_live_enabled:');

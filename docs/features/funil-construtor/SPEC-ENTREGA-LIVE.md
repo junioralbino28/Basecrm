@@ -155,9 +155,8 @@ real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
   Bearer executa, reserva e conclui jobs de todos os clientes; não há limitador de taxa no projeto.
 - ~~`npm audit`: 18 dependências com CVE~~ Zerado em 15/09 (Next 16.3.5, trava do `sharp` em 0.35.4). Rotina:
   rodar `npm audit` a cada entrega e manter a trava do `sharp` alinhada ao que o Next pede.
-- **Rota admin devolve erro interno do banco** (parecer, S5): mensagem estável ao cliente, detalhe no log.
-- **Cabeçalhos de segurança** (`X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy`) e
-  comparação timing-safe do segredo na rota pública `ai-reply` (achados de 14/09).
+- **CSP completa** (`script-src` com nonce): hoje só `frame-ancestors 'none'`; os scripts inline do Next e do
+  Supabase exigem nonce para uma política completa. S5, cabeçalhos básicos e timing-safe da `ai-reply` feitos em 15/09.
 - **Opt-out pela IA precisa ser durável** (parecer do Codex, B2, para a 1a): a marcação nasce junto
   da mensagem e o caminho de duplicata repara se a primeira gravação falhar.
 - `condition` legado: sem executor; o construtor usa "Dividir caminho" (switch), que já é resolvido

@@ -81,13 +81,26 @@ async function readState(organizationId: string) {
   };
 }
 
+// Parecer do Codex (S5, G10): erro interno do banco/RPC não volta para o navegador. O administrador
+// recebe uma mensagem estável; o detalhe (código + mensagem) fica só no log do servidor. A única
+// exceção é o gate de saúde (55000), cuja mensagem é escrita para o usuário na própria função.
+const MENSAGEM_ERRO_INTERNO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise o suporte.';
+
+function internalError(context: string, error: unknown, extra: Record<string, unknown> = {}) {
+  const detail = error && typeof error === 'object'
+    ? { code: (error as { code?: unknown }).code, message: (error as { message?: unknown }).message }
+    : { message: String(error) };
+  console.error('[automations-live]', context, detail);
+  return json({ error: MENSAGEM_ERRO_INTERNO, ...extra }, 500);
+}
+
 export async function GET() {
   const auth = await requireAdminTenantContext();
   if ('error' in auth) return auth.error;
   try {
     return json(await readState(auth.targetOrganizationId));
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Falha ao ler configuração.' }, 500);
+    return internalError('ler configuração', error);
   }
 }
 
@@ -128,7 +141,7 @@ export async function POST(req: Request) {
         // O gate de saúde do tick recusou: a mensagem já vem com o motivo.
         return json({ error: `Não dá para ligar o envio real agora: ${toggled.error.message}`, applied: {} }, 409);
       }
-      return json({ error: toggled.error.message, applied: {} }, 500);
+      return internalError('ligar/desligar envio real', toggled.error, { applied: {} });
     }
   }
 
@@ -150,17 +163,17 @@ export async function POST(req: Request) {
         { onConflict: 'organization_id' },
       );
     if (error) {
-      const message = error.code === '23514'
-        ? 'O silêncio noturno precisa de começo e fim diferentes.'
-        : error.message;
       const applied = updates.enabled !== undefined ? { enabled: updates.enabled } : {};
-      return json({ error: message, applied }, error.code === '23514' ? 400 : 500);
+      if (error.code === '23514') {
+        return json({ error: 'O silêncio noturno precisa de começo e fim diferentes.', applied }, 400);
+      }
+      return internalError('gravar silêncio noturno/fuso', error, { applied });
     }
   }
 
   try {
     return json({ ok: true, ...(await readState(auth.targetOrganizationId)) });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Falha ao ler configuração.' }, 500);
+    return internalError('reler configuração depois de gravar', error);
   }
 }
