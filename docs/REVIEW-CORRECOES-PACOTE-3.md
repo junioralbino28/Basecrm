@@ -4,7 +4,7 @@
 **Data:** 2026-09-04
 **Branch:** `feat/funil-construtor`
 **Checkpoint revisado:** **`2793ff4`** — não `553303a`
-**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado · V-01 corrigida na branch (§0) · R-01 e R-08 corrigidos (§0b)**
+**Estado:** ✅ **fases 1 e 2 concluídas — parecer fechado · V-01 corrigida na branch (§0) e APLICADA EM PRODUÇÃO em 15/09 (§0-prod) · R-01 e R-08 corrigidos (§0b)**
 
 > Nenhuma linha de código foi alterada nesta revisão. Sem acesso a produção, sem push de
 > código, sem deploy, sem merge, sem `db reset`. Todo teste de escrita rodou em banco
@@ -107,11 +107,50 @@ sem checagem nenhuma).
    cita "GRANT … anon" e "SECURITY DEFINER" ao explicar o mecanismo). Corrigido para ignorar linhas
    de comentário. Defeito do teste, não da migration — registrado por honestidade.
 
-**⚠️ PRODUÇÃO CONTINUA EXPOSTA.** Esta correção existe na branch e no Supabase local. O hotfix
-anterior (`IMPL-LOG-HOTFIX-SEGURANCA.md`) também ficou só no local — produção está congelada desde
-antes dele. O buraco em `crm.basea2.com` só fecha com o rollout, que exige o preflight de 7 passos.
-**Decisão do Junior:** levar esta migration sozinha como hotfix (fora do ledger, em janela própria)
-ou junto com a cadeia do Pacote 3. Não faço isso por conta própria.
+~~**⚠️ PRODUÇÃO CONTINUA EXPOSTA.**~~ *(superado em 15/09, ver §0-prod logo abaixo)* Esta correção existia
+só na branch e no Supabase local. O hotfix anterior (`IMPL-LOG-HOTFIX-SEGURANCA.md`) também ficou só no
+local. **Decisão do Junior (13/09):** levar esta migration sozinha como hotfix; autorizada em 15/09.
+
+### §0-prod — V-01 aplicada em PRODUÇÃO em 15/09/2026 (autorização do Junior: *"pode aplicar a V-01 em produção"*)
+
+**O que foi feito:** só a migration `20260904000000_v01_fechar_rpcs_publicas.sql`, no banco de produção
+(Supabase `eqidsihasmwwamkaqfka`), numa **transação única** pela API de gerenciamento: o conteúdo da
+migration + a linha do ledger (`version`, `name` e os 12 `statements`, copiados da linha que o `supabase db push`
+gravou no ambiente de teste). As outras 12 migrations pendentes em produção **não** foram aplicadas (ficam
+para o rollout completo, app + banco juntos). O app de produção não mudou de deploy.
+
+**Antes de aplicar (só leitura):**
+- Ledger de produção em `20260727020000` com 54 linhas; linha `20260904000000` ausente; `anon`, `authenticated`
+  e `service_role` executavam as 4 funções (ACL `{=X/postgres,postgres=X,anon=X,authenticated=X,service_role=X}`,
+  `search_path=public, extensions`).
+- Revisão independente em 3 frentes, cada achado relevante verificado por um segundo agente:
+  1. *Código de produção* (`main` = `be7fe35`): nenhum chamador das 4 funções. A tela fecha negócio por
+     `UPDATE` direto em `deals` (`lib/supabase/deals.ts` → `update()`), a IA e a API pública v1 usam
+     `service_role` com `UPDATE` direto. Nada do app quebra.
+  2. *Catálogo prod × teste*: cadeia do gate (`can_operate_deal` → `can_operate_organization` →
+     `is_agency_role`/`current_profile_*`) com corpo idêntico nos dois; só o `search_path` difere
+     (`public, extensions` em prod), sem efeito porque tudo é qualificado. Donos = `postgres` (a API roda
+     como `postgres`). Parâmetros e defaults batem. Colunas de `deals` existem; nenhum trigger depende de
+     quem chama; nenhuma função, view ou job do `pg_cron` usa as 4. A API executa chamada com várias
+     instruções como transação única (provado só no teste, com `set_config` local e erro no meio).
+  3. *SQL*: os 12 `statements` do ledger reproduzem a migration byte a byte; assinaturas de `REVOKE`/`GRANT`
+     batem com produção; `search_path=''` não quebra nada (`coalesce`, `now` e `interval` vivem em `pg_catalog`).
+- Script de volta completo guardado antes (4 funções como estavam + as permissões antigas, incluindo `PUBLIC`,
+  + remoção da linha do ledger): cérebro, `06-References/basecrm-v01-prod-2026-09-15/`.
+
+**Depois de aplicar:**
+
+| Prova | Resultado |
+|---|---|
+| API de gerenciamento | HTTP 201 |
+| Catálogo (`has_function_privilege`, `proacl`) | `anon` **false** nas 4; `authenticated` só nas 3 de negócio; `service_role` nas 4; `PUBLIC` fora da ACL; `search_path=""`; `SECURITY DEFINER` mantido; gate `can_operate_deal` presente nas 3 |
+| Ledger | 55 linhas; `20260904000000` presente, nome certo, 12 statements |
+| **A exploração original, pela chave pública** (`POST /rest/v1/rpc/...` com a chave `anon`, uuid aleatório) | as 4 → **HTTP 401, `42501 permission denied`** |
+| Gate em produção, sem escrever (`BEGIN READ ONLY` + JWT simulado) | `clinic_staff` e `clinic_admin` da Jéssica no negócio dela → **25006** (gate liberou, escrita barrada pela transação) · `clinic_admin` de outra organização → **42501 acesso negado** · negócio inexistente → **42501 acesso negado** · `anon` → **42501 permission denied** · negócio usado na prova idêntico antes e depois |
+
+**Observação lateral (sem ação):** o banco de produção tem as organizações "Vitest Org A/B next-ai_…" com
+perfis e negócios de fixture. Algum teste já rodou apontando para produção (o `.env.local` aponta para lá);
+limpar é alteração e fica para decisão do Junior.
 
 ### §0b — R-01 e R-08 corrigidos em 04/09 (decisão do Junior: cada relatório numa régua só)
 
@@ -392,8 +431,8 @@ atendimento, `fixed` não recebe comissão, o rateio do salário fecha ao centav
 
 **Não aprovo para produção**, por três motivos independentes:
 
-1. **V-01** — **corrigida nesta branch e provada** (§0). Em produção o buraco continua até o
-   rollout com preflight — e passa a ser o motivo mais forte para esse rollout andar.
+1. **V-01** — **corrigida nesta branch e provada** (§0) e **aplicada em produção em 15/09** (§0-prod):
+   o buraco em `crm.basea2.com` está fechado.
 2. **R-02** — defeito de cálculo confirmado com número (a regra legada só com o nome da
    especialidade paga R$ 500 onde a canônica paga R$ 0). **R-01 já foi corrigido** (§0b).
 3. **R-09** — `anon`/`authenticated` mantêm `TRUNCATE` (que ignora RLS) nas tabelas centrais do
