@@ -4,6 +4,7 @@ const requireTenantAccessMock = vi.fn();
 const resolveEvolutionCredentialsMock = vi.fn();
 const fetchEvolutionConnectionStateMock = vi.fn();
 const setEvolutionWebhookMock = vi.fn();
+const findEvolutionWebhookMock = vi.fn();
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const CONNECTION = '22222222-2222-4222-8222-222222222222';
@@ -24,6 +25,7 @@ vi.mock('@/lib/channels/evolutionCredentials', () => ({
 vi.mock('@/lib/channels/evolution', () => ({
   fetchEvolutionConnectionState: (...args: unknown[]) => fetchEvolutionConnectionStateMock(...args),
   setEvolutionWebhook: (...args: unknown[]) => setEvolutionWebhookMock(...args),
+  findEvolutionWebhook: (...args: unknown[]) => findEvolutionWebhookMock(...args),
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createStaticAdminClient: () => ({
@@ -105,6 +107,7 @@ beforeEach(() => {
     },
   });
   setEvolutionWebhookMock.mockResolvedValue({ raw: { ok: true } });
+  findEvolutionWebhookMock.mockResolvedValue({ raw: {}, enabled: true, url: '', headers: { 'x-webhook-secret': WEBHOOK_SECRET }, events: [] });
 });
 
 function expectNoSecrets(body: unknown) {
@@ -130,6 +133,11 @@ describe('POST healthcheck', () => {
     expect(JSON.stringify(persistedUpdate?.metadata)).not.toContain(WEBHOOK_SECRET);
     expect(updateSelect).toBe('id');
     expectNoSecrets(body);
+    // Parecer do Codex, I7: o healthcheck re-registra o webhook com o segredo no cabeçalho, URL limpa.
+    const registered = setEvolutionWebhookMock.mock.calls[0]?.[0] as { webhookUrl: string; headers?: Record<string, string> };
+    expect(registered.webhookUrl).not.toContain('secret=');
+    expect(registered.headers).toEqual({ 'x-webhook-secret': WEBHOOK_SECRET });
+    expect(persistedUpdate?.metadata).toMatchObject({ lastWebhookTransport: 'header' });
   });
 
   it('redige segredos ecoados no warning do webhook', async () => {

@@ -10,7 +10,7 @@ import {
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
-import { evaluateWebhookAuth } from '@/lib/conversations/webhookAuth';
+import { evaluateWebhookAuth, readWebhookSecretFromRequest } from '@/lib/conversations/webhookAuth';
 import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
 
 function json(body: unknown, status = 200) {
@@ -22,21 +22,6 @@ function json(body: unknown, status = 200) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getSecretFromRequest(req: Request) {
-  const url = new URL(req.url);
-  const querySecret = url.searchParams.get('secret')?.trim();
-  if (querySecret) return querySecret;
-
-  const headerSecret = req.headers.get('x-webhook-secret')?.trim();
-  if (headerSecret) return headerSecret;
-
-  const auth = req.headers.get('authorization') || '';
-  const match = auth.match(/^Bearer\s+(.+)$/i);
-  if (match?.[1]?.trim()) return match[1].trim();
-
-  return '';
 }
 
 function getPayloadInstanceName(payload: unknown) {
@@ -657,7 +642,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   const connectionConfig = (connection.config as Record<string, unknown> | null) || {};
   const aiEnabled = connectionConfig.aiEnabled !== false;
 
-  const requestSecret = getSecretFromRequest(req);
+  const requestSecret = readWebhookSecretFromRequest(req);
   const expectedSecret = String(connectionConfig.webhookSecret || '').trim();
   const configuredInstanceName = String(connectionConfig.instanceName || '').trim();
   const payloadInstanceName = getPayloadInstanceName(payload);
@@ -670,6 +655,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   });
 
   if (!authorized) {
+    // Conexão sem segredo não é mais "legada": é recusada (parecer do Codex, B1/G11). A tela de
+    // conexões, ao rodar o healthcheck ou "Gerar QR code", registra o segredo na Evolution.
+    if (authMode === 'no_secret_configured') {
+      return json({ error: 'Conexao sem segredo de webhook. Abra a tela de conexoes do CRM e gere o QR code de novo.' }, 401);
+    }
     return json({ error: 'Secret invalido' }, 401);
   }
 

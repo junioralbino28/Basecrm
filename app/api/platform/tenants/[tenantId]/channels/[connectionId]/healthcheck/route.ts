@@ -1,6 +1,7 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { fetchEvolutionConnectionState, setEvolutionWebhook } from '@/lib/channels/evolution';
+import { fetchEvolutionConnectionState } from '@/lib/channels/evolution';
+import { registerCrmWebhook } from '@/lib/channels/evolutionWebhookRegistration';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import {
   redactChannelPayload,
@@ -79,16 +80,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     const webhookSecret = String((connection.config as any)?.webhookSecret || '').trim();
     let webhookWarning: string | null = null;
     let webhookConfigured = false;
+    let webhookTransport: 'header' | 'query' | null = null;
     if (webhookSecret) {
-      const crmWebhookUrl = `${requestOrigin}/api/public/channels/evolution/${connectionId}/webhook?secret=${encodeURIComponent(webhookSecret)}`;
       try {
-        await setEvolutionWebhook({
+        // Segredo no cabeçalho, não na URL (parecer do Codex, I7); cai para a URL só em Evolution antiga.
+        const registration = await registerCrmWebhook({
           apiUrl: resolved.apiUrl,
-          instanceName,
           apiKey: resolved.apiKey,
-          webhookUrl: crmWebhookUrl,
+          instanceName,
+          requestOrigin,
+          connectionId,
+          webhookSecret,
         });
         webhookConfigured = true;
+        webhookTransport = registration.transport;
+        webhookWarning = registration.warning;
       } catch (webhookError) {
         webhookWarning = `Webhook CRM nao configurado automaticamente: ${redactChannelSecrets(
           webhookError,
@@ -113,6 +119,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       ),
       lastWebhookConfiguredAt: webhookConfigured ? checkedAt : (connection.metadata as any)?.lastWebhookConfiguredAt || null,
       lastWebhookConfigError: webhookWarning,
+      lastWebhookTransport: webhookTransport ?? (connection.metadata as any)?.lastWebhookTransport ?? null,
       apiKeyLast4: String(resolved.apiKey).slice(-4) || (connection.metadata as any)?.apiKeyLast4,
       evolutionCredentialSource: resolved.source,
     };

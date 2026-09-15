@@ -21,10 +21,10 @@ export interface WebhookAuthResult {
 /**
  * Decide se um POST no webhook Evolution está autorizado.
  *
- * Regra de segurança (fix do achado Critical 3): se a conexão TEM `webhookSecret`
- * configurado, é obrigatório enviar o secret válido — o fallback por `instanceName`
- * NÃO autoriza, porque o instanceName vem do próprio payload (não é segredo).
- * O fallback só vale para conexões legadas que ainda não têm secret configurado.
+ * Regra (fix do achado Critical 3 + parecer do Codex B1/G3/G11, 15/09/2026): só entra com o
+ * segredo da conexão. Conexão sem `webhookSecret` é RECUSADA (antes era aceita "por legado", e
+ * o `instanceName` do payload nem era conferido; a migration `20260915000000` preencheu o segredo
+ * em toda conexão que não tinha). O `instanceName` nunca autoriza: vem do próprio payload.
  */
 export function evaluateWebhookAuth(input: WebhookAuthInput): WebhookAuthResult {
   const expectedSecret = input.expectedSecret.trim();
@@ -36,23 +36,33 @@ export function evaluateWebhookAuth(input: WebhookAuthInput): WebhookAuthResult 
     expectedSecret && requestSecret && timingSafeEqualString(requestSecret, expectedSecret)
   );
 
-  // Fallback por instanceName SÓ para conexões legadas sem secret configurado.
-  const authorizedByInstanceFallback = Boolean(
-    !expectedSecret &&
-      !requestSecret &&
-      configuredInstanceName &&
-      payloadInstanceName &&
-      configuredInstanceName.toLowerCase() === payloadInstanceName.toLowerCase()
-  );
+  // `instance_fallback` fica no tipo só por compatibilidade com metadata antiga; nunca autoriza.
+  void configuredInstanceName;
+  void payloadInstanceName;
 
-  const authMode: WebhookAuthMode = authorizedBySecret
-    ? 'secret'
-    : authorizedByInstanceFallback
-      ? 'instance_fallback'
-      : 'no_secret_configured';
+  const authMode: WebhookAuthMode = !expectedSecret ? 'no_secret_configured' : 'secret';
 
-  // Com secret configurado, exigir secret válido. Sem secret (legado), aceitar.
-  const authorized = expectedSecret ? authorizedBySecret : true;
+  return { authorized: authorizedBySecret, authMode };
+}
 
-  return { authorized, authMode };
+/** Nome do cabeçalho em que a Evolution manda o segredo do webhook (registrado pelo CRM). */
+export const WEBHOOK_SECRET_HEADER = 'x-webhook-secret';
+
+/**
+ * Lê o segredo enviado na request do webhook / ai-reply.
+ * Ordem: cabeçalho `x-webhook-secret` → `Authorization: Bearer` → query `?secret=` (só para
+ * registros antigos; a URL vaza em log/proxy/configuração, parecer do Codex I7).
+ */
+export function readWebhookSecretFromRequest(req: Request): string {
+  const headerSecret = req.headers.get(WEBHOOK_SECRET_HEADER)?.trim();
+  if (headerSecret) return headerSecret;
+
+  const auth = req.headers.get('authorization') || '';
+  const match = auth.match(/^Bearer\s+(.+)$/i);
+  if (match?.[1]?.trim()) return match[1].trim();
+
+  const querySecret = new URL(req.url).searchParams.get('secret')?.trim();
+  if (querySecret) return querySecret;
+
+  return '';
 }

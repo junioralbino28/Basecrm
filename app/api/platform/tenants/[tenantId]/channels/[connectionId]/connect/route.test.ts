@@ -5,6 +5,7 @@ const resolveEvolutionCredentialsMock = vi.fn();
 const createEvolutionInstanceMock = vi.fn();
 const fetchEvolutionPairingCodeMock = vi.fn();
 const setEvolutionWebhookMock = vi.fn();
+const findEvolutionWebhookMock = vi.fn();
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const CONNECTION = '22222222-2222-4222-8222-222222222222';
@@ -26,6 +27,7 @@ vi.mock('@/lib/channels/evolution', () => ({
   createEvolutionInstance: (...args: unknown[]) => createEvolutionInstanceMock(...args),
   fetchEvolutionPairingCode: (...args: unknown[]) => fetchEvolutionPairingCodeMock(...args),
   setEvolutionWebhook: (...args: unknown[]) => setEvolutionWebhookMock(...args),
+  findEvolutionWebhook: (...args: unknown[]) => findEvolutionWebhookMock(...args),
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createStaticAdminClient: () => ({
@@ -102,6 +104,7 @@ beforeEach(() => {
     source: 'agency_default',
   });
   setEvolutionWebhookMock.mockResolvedValue({ raw: { ok: true } });
+  findEvolutionWebhookMock.mockResolvedValue({ raw: {}, enabled: true, url: '', headers: { 'x-webhook-secret': WEBHOOK_SECRET }, events: [] });
 });
 
 describe('POST connect', () => {
@@ -130,12 +133,15 @@ describe('POST connect', () => {
       instanceName: 'comercial-vitoria-a1b2c3d4',
     });
     expect(fetchEvolutionPairingCodeMock).not.toHaveBeenCalled();
+    // Parecer do Codex, I7: segredo no cabeçalho, URL limpa.
     expect(setEvolutionWebhookMock).toHaveBeenCalledWith({
       apiUrl: 'https://evolution.example.com',
       apiKey: API_KEY,
       instanceName: 'comercial-vitoria-a1b2c3d4',
-      webhookUrl: `http://localhost:3000/api/public/channels/evolution/${CONNECTION}/webhook?secret=${WEBHOOK_SECRET}`,
+      webhookUrl: `http://localhost:3000/api/public/channels/evolution/${CONNECTION}/webhook`,
+      headers: { 'x-webhook-secret': WEBHOOK_SECRET },
     });
+    expect(persistedUpdate?.metadata).toMatchObject({ lastWebhookTransport: 'header' });
     expect(body.pairing).toMatchObject({
       qrBase64: 'data:image/png;base64,NEW_QR',
       pairingCode: 'PAIR-NEW',

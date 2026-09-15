@@ -324,6 +324,8 @@ export async function setEvolutionWebhook(params: {
   webhookUrl: string;
   enabled?: boolean;
   events?: string[];
+  /** Cabeçalhos que a Evolution manda em cada POST do webhook (ex.: o segredo do CRM; parecer I7). */
+  headers?: Record<string, string>;
 }): Promise<EvolutionWebhookSetResult> {
   const baseUrl = await safeBaseUrl(params.apiUrl);
   const endpoint = `${baseUrl}/webhook/set/${encodeURIComponent(params.instanceName)}`;
@@ -345,6 +347,7 @@ export async function setEvolutionWebhook(params: {
       byEvents: false,
       base64: false,
       events,
+      ...(params.headers ? { headers: params.headers } : {}),
     },
   };
 
@@ -373,6 +376,55 @@ function getProviderMessageId(payload: unknown) {
     null;
 
   return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+}
+
+export type EvolutionWebhookFindResult = {
+  raw: unknown;
+  enabled: boolean | null;
+  url: string | null;
+  headers: Record<string, string> | null;
+  events: string[] | null;
+};
+
+/**
+ * Lê o webhook registrado na Evolution (`GET /webhook/find/{instance}`). Aceita a resposta plana
+ * (v2) e a aninhada em `webhook`. Usado para conferir que o segredo ficou no cabeçalho (I7).
+ */
+export async function findEvolutionWebhook(params: {
+  apiUrl: string;
+  instanceName: string;
+  apiKey: string;
+}): Promise<EvolutionWebhookFindResult> {
+  const baseUrl = await safeBaseUrl(params.apiUrl);
+  const endpoint = `${baseUrl}/webhook/find/${encodeURIComponent(params.instanceName)}`;
+
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      apikey: params.apiKey,
+      accept: 'application/json',
+    },
+    cache: 'no-store',
+    redirect: 'error',
+  });
+  const payload = await parseEvolutionResponse(response);
+  const root = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const nested = root.webhook && typeof root.webhook === 'object' ? (root.webhook as Record<string, unknown>) : root;
+  const headersValue = nested.headers && typeof nested.headers === 'object' && !Array.isArray(nested.headers)
+    ? Object.fromEntries(
+        Object.entries(nested.headers as Record<string, unknown>)
+          .filter(([, value]) => typeof value === 'string')
+          .map(([key, value]) => [key.toLowerCase(), value as string]),
+      )
+    : null;
+
+  return {
+    raw: payload,
+    enabled: typeof nested.enabled === 'boolean' ? nested.enabled : null,
+    url: typeof nested.url === 'string' ? nested.url : null,
+    headers: headersValue,
+    events: Array.isArray(nested.events) ? nested.events.filter((e): e is string => typeof e === 'string') : null,
+  };
 }
 
 export async function sendEvolutionTextMessage(params: {

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { readWebhookSecretFromRequest } from '@/lib/conversations/webhookAuth';
+import { timingSafeEqualString } from '@/lib/security/timingSafeEqual';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { executeConversationAIReply } from '@/lib/conversations/aiReply';
 
@@ -7,21 +9,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
-}
-
-function getSecretFromRequest(req: Request) {
-  const url = new URL(req.url);
-  const querySecret = url.searchParams.get('secret')?.trim();
-  if (querySecret) return querySecret;
-
-  const headerSecret = req.headers.get('x-webhook-secret')?.trim();
-  if (headerSecret) return headerSecret;
-
-  const auth = req.headers.get('authorization') || '';
-  const match = auth.match(/^Bearer\s+(.+)$/i);
-  if (match?.[1]?.trim()) return match[1].trim();
-
-  return '';
 }
 
 const AIReplySchema = z.object({
@@ -36,7 +23,7 @@ const AIReplySchema = z.object({
 
 export async function POST(req: Request, ctx: { params: Promise<{ connectionId: string }> }) {
   const { connectionId } = await ctx.params;
-  const secret = getSecretFromRequest(req);
+  const secret = readWebhookSecretFromRequest(req);
   if (!secret) return json({ error: 'Secret ausente' }, 401);
 
   const body = await req.json().catch(() => null);
@@ -58,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   if (!connectionResult.data) return json({ error: 'Conexao nao encontrada' }, 404);
 
   const expectedSecret = String((connectionResult.data.config as Record<string, unknown> | null)?.webhookSecret || '').trim();
-  if (!expectedSecret || expectedSecret !== secret) return json({ error: 'Secret invalido' }, 401);
+  if (!expectedSecret || !timingSafeEqualString(secret, expectedSecret)) return json({ error: 'Secret invalido' }, 401);
 
   try {
     const result = await executeConversationAIReply({

@@ -143,13 +143,11 @@ real disputa o orçamento com a Meta (3c), que roda depois e é pequena.
   (nem antes desta entrega); hoje pausa é terminal na prática.
 - Tela de "conversas pausadas pela automação" com o motivo (dado já está em
   `automation_enrollments.pause_reason`).
-- **Webhook da Evolution: segredo obrigatório e no header** (parecer do Codex, B1 e I7; G3/G11).
-  Conferido em 14/09: conexão legada sem `webhookSecret` aceita QUALQUER POST (o `instanceName` nem é
-  conferido) e um inbound forjado dispara a IA pelo número do cliente, resolve esperas e cria marco
-  para a Meta. O envio real já exige canal com segredo. Falta: fail-closed no `evaluateWebhookAuth`,
-  backfill de segredo nas conexões sem ele com re-registro pelo healthcheck, segredo no header
-  `x-webhook-secret` (a Evolution aceita `webhook.headers`) com a query string só como legado com
-  prazo, e HMAC do corpo + timestamp na fase 2.
+- **Webhook da Evolution: HMAC do corpo + timestamp** (fase 2 do I7). Feito em 15/09: fail-closed
+  (conexão sem segredo é recusada), migration `20260915000000` preencheu o segredo onde faltava, segredo
+  no cabeçalho `x-webhook-secret` com a query string só para registros antigos. Falta: assinatura do
+  corpo com timestamp/janela de replay, e tirar a query string quando todas as conexões tiverem sido
+  re-registradas pelo healthcheck.
 - **Guarda de destino da Evolution: fixar o IP resolvido** (B7, resíduo). A guarda confere o DNS antes
   do fetch e o fetch resolve de novo (janela de rebinding); fechar exige agente HTTP com IP fixado.
   Endurecimento seguinte: aceitar só `https://`.
