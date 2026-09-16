@@ -582,4 +582,116 @@ describeLocal('P3 finance hardening - Supabase local real', () => {
     expect(persisted.error).toBeNull();
     expect(persisted.data).toHaveLength(0);
   });
+  // R-02 (docs/REVIEW-CORRECOES-PACOTE-3.md): regra no formato legado — nome da especialidade em
+  // texto, sem vínculo — precisa respeitar o produto, igual à regra canônica. O estado legado
+  // nasce quando a especialidade é criada DEPOIS da regra, que é o que este teste monta.
+  it('não paga regra legada por nome quando o procedimento não pertence àquela especialidade', async () => {
+    if (!admin) throw new Error('Admin Supabase não inicializado');
+
+    const nomeEspecialidade = `P3 R02 ${unique}`;
+
+    const profissional = requireSupabaseData(
+      await admin
+        .from('professionals')
+        .insert({
+          organization_id: organizationA,
+          name: `Profissional R02 ${unique}`,
+          pay_type: 'commission',
+          fixed_amount: 0,
+          active: true,
+        })
+        .select('id')
+        .single(),
+      'insert professional R02',
+    );
+
+    // A regra entra ANTES de a especialidade existir: por isso o vínculo fica nulo e o nome fica em texto.
+    assertNoSupabaseError(
+      await admin.from('commission_rules').insert({
+        organization_id: organizationA,
+        professional_id: profissional.id,
+        specialty: nomeEspecialidade,
+        amount_type: 'percent',
+        amount: 50,
+        percent: 50,
+        valid_from: '2020-01-01',
+      }),
+      'insert legacy commission rule R02',
+    );
+    const regra = requireSupabaseData(
+      await admin
+        .from('commission_rules')
+        .select('id, specialty, specialty_id')
+        .eq('professional_id', profissional.id)
+        .single(),
+      'select legacy commission rule R02',
+    );
+    expect(regra.specialty).toBe(nomeEspecialidade);
+    expect(regra.specialty_id).toBeNull();
+
+    const especialidade = requireSupabaseData(
+      await admin
+        .from('specialties')
+        .insert({ organization_id: organizationA, name: nomeEspecialidade })
+        .select('id')
+        .single(),
+      'insert specialty R02',
+    );
+    assertNoSupabaseError(
+      await admin.from('professional_specialties').insert({
+        organization_id: organizationA,
+        professional_id: profissional.id,
+        specialty_id: especialidade.id,
+      }),
+      'link specialty R02',
+    );
+
+    const produtos = requireSupabaseData(
+      await admin
+        .from('products')
+        .insert([
+          { organization_id: organizationA, name: `Dentro da especialidade ${unique}`, price: 1000, active: true },
+          { organization_id: organizationA, name: `Fora da especialidade ${unique}`, price: 1000, active: true },
+        ])
+        .select('id, name'),
+      'insert products R02',
+    );
+    const dentro = produtos.find((linha) => linha.name.startsWith('Dentro'));
+    const fora = produtos.find((linha) => linha.name.startsWith('Fora'));
+    if (!dentro || !fora) throw new Error('Fixture R02 não retornou os dois produtos');
+
+    // Só o primeiro produto pertence à especialidade.
+    assertNoSupabaseError(
+      await admin.from('specialty_products').insert({
+        organization_id: organizationA,
+        specialty_id: especialidade.id,
+        product_id: dentro.id,
+      }),
+      'link specialty product R02',
+    );
+
+    const procedimentoDeFora = await admin.rpc('resolve_commission_amount', {
+      p_organization_id: organizationA,
+      p_professional_id: profissional.id,
+      p_product_id: fora.id,
+      p_procedure_name: fora.name,
+      p_performed_at: PERFORMED_AT,
+      p_base_amount: 1000,
+    });
+    expect(procedimentoDeFora.error).toBeNull();
+    // Antes da correção do R-02 isto devolvia 500: a regra casava só por o colaborador ter a especialidade.
+    expect(Number(procedimentoDeFora.data)).toBe(0);
+
+    const procedimentoDaEspecialidade = await admin.rpc('resolve_commission_amount', {
+      p_organization_id: organizationA,
+      p_professional_id: profissional.id,
+      p_product_id: dentro.id,
+      p_procedure_name: dentro.name,
+      p_performed_at: PERFORMED_AT,
+      p_base_amount: 1000,
+    });
+    expect(procedimentoDaEspecialidade.error).toBeNull();
+    // A regra legada continua valendo quando o procedimento é da especialidade.
+    expect(Number(procedimentoDaEspecialidade.data)).toBe(500);
+  });
 });
