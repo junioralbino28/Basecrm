@@ -79,7 +79,13 @@ const FEATURES: FeatureItem[] = [
   },
 ];
 
-export const AIFeaturesSection: React.FC = () => {
+/**
+ * `podeEditarPrompt`: só a agência mexe no prompt (Junior, 17/09/2026) — é o comportamento que
+ * ela vende e pelo qual responde. O cliente continua ligando e desligando os recursos que usa.
+ */
+export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
+  podeEditarPrompt = true,
+}) => {
   const { profile } = useAuth();
   const isAdmin = canManageClinicSettings(profile?.role);
   const { aiFeatureFlags, setAIFeatureFlag } = useCRM();
@@ -116,7 +122,7 @@ export const AIFeaturesSection: React.FC = () => {
   };
 
   const openPromptEditor = async (feature: FeatureItem) => {
-    if (!isAdmin || !feature.promptKey) return;
+    if (!isAdmin || !podeEditarPrompt || !feature.promptKey) return;
 
     setEditingFeature(feature);
     setPromptEditorOpen(true);
@@ -254,7 +260,7 @@ export const AIFeaturesSection: React.FC = () => {
                   <div className="flex shrink-0 items-center gap-2">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : null}
 
-                    {feature.promptKey ? (
+                    {feature.promptKey && podeEditarPrompt ? (
                       <button
                         type="button"
                         onClick={() => openPromptEditor(feature)}

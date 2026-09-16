@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
 import { AIConfigSection } from './components/AIConfigSection';
 import { AIFeaturesSection } from './components/AIFeaturesSection';
-import { canManageClinicSettings } from '@/lib/auth/scope';
+import { canManageClinicSettings, isAgencyRole } from '@/lib/auth/scope';
 
 /**
  * Componente React `AICenterSettings`.
@@ -15,6 +15,9 @@ export const AICenterSettings: React.FC = () => {
   const { profile } = useAuth();
   const { aiOrgEnabled, setAiOrgEnabled } = useCRM();
   const isAdmin = canManageClinicSettings(profile?.role);
+  // Quem configura o motor (provedor, chave, modelo, prompt) é a agência. O cliente vê a
+  // chave geral para pausar a IA e os recursos que ele consome (Junior, 17/09/2026).
+  const podeConfigurarMotor = isAgencyRole(profile?.role);
 
   return (
     <div className="pb-10">
@@ -57,10 +60,10 @@ export const AICenterSettings: React.FC = () => {
         </div>
       </div>
 
-      <AIConfigSection />
+      {podeConfigurarMotor && <AIConfigSection />}
 
       <div className="mt-6">
-        <AIFeaturesSection />
+        <AIFeaturesSection podeEditarPrompt={podeConfigurarMotor} />
       </div>
     </div>
   );

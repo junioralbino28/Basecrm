@@ -36,6 +36,7 @@ export const APP_PERMISSIONS = [
   // IA
   'ai.use',
   'ai.configure',
+  'ai.pause',
   // Automações
   'automation.edit',
   'automation.operate',
@@ -101,7 +102,8 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'reports.professionals', label: 'Relatório por profissional', description: 'Ver o desempenho e os números por profissional.', group: 'Relatórios' },
   // IA
   { key: 'ai.use', label: 'Usar a IA', description: 'Usar o assistente de IA no dia a dia.', group: 'IA' },
-  { key: 'ai.configure', label: 'Configurar a IA', description: 'Editar persona, comportamento e chave da IA.', group: 'IA' },
+  { key: 'ai.configure', label: 'Configurar a IA', description: 'Escolher o provedor, a chave, o modelo e o prompt da IA. Fica com a agência.', group: 'IA' },
+  { key: 'ai.pause', label: 'Pausar a IA', description: 'Pausar ou retomar o atendimento automático, sem alterar a configuração.', group: 'IA' },
   // Automações
   { key: 'automation.edit', label: 'Editar automações', description: 'Criar e alterar fluxos, passos, arestas e templates de automação.', group: 'Automações' },
   { key: 'automation.operate', label: 'Operar automações', description: 'Acompanhar e operar automações publicadas sem alterar o grafo.', group: 'Automações' },
@@ -148,6 +150,7 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'reports.finance',
   'reports.professionals',
   'ai.configure',
+  'ai.pause',
   'automation.edit',
   'automation.operate',
   'tags.manage',
@@ -161,6 +164,15 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'settings.users.manage',
 ];
 
+/**
+ * Admin do cliente: manda em tudo do próprio negócio, MENOS a configuração do motor de IA.
+ * Decisão do Junior (17/09/2026): provedor, chave, modelo e prompt são da agência — o cliente
+ * fornece as informações do negócio e pode PAUSAR a IA (`ai.pause`), nunca reconfigurá-la.
+ * A chave de API é da agência e o custo corre por ela; o prompt é o comportamento que a agência
+ * vende e pelo qual responde.
+ */
+const CLINIC_ADMIN_DENIED: readonly AppPermission[] = ['ai.configure'];
+
 /** Equipe da agência: amplo, mas sem configurar conexão nem áreas mais sensíveis. */
 const AGENCY_STAFF_DENIED: readonly AppPermission[] = [
   'whatsapp.manage_connection',
@@ -172,7 +184,7 @@ const AGENCY_STAFF_DENIED: readonly AppPermission[] = [
 export const ROLE_PERMISSION_DEFAULTS: Record<string, Record<AppPermission, boolean>> = {
   agency_admin: fullPermissionMap(true),
   admin: fullPermissionMap(true),
-  clinic_admin: fullPermissionMap(true),
+  clinic_admin: permissionMapExcept(CLINIC_ADMIN_DENIED),
   agency_staff: permissionMapExcept(AGENCY_STAFF_DENIED),
   clinic_staff: permissionMapExcept(CLINIC_STAFF_DENIED),
   vendedor: permissionMapExcept(CLINIC_STAFF_DENIED),

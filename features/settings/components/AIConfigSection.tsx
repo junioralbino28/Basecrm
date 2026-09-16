@@ -19,9 +19,11 @@ const AI_PROVIDERS = [
         id: 'anthropic',
         name: 'Anthropic Claude',
         models: [
-            { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Recomendado - Best balance', price: '$3 / $15' },
-            { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fastest', price: '$1 / $5' },
-            { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', description: 'Premium intelligence', price: '$5 / $25' },
+            { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Recomendado - geracao atual', price: '—' },
+            { id: 'claude-opus-5', name: 'Claude Opus 5', description: 'Mais inteligente', price: '—' },
+            { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Mais rapido', price: '$1 / $5' },
+            { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Geracao anterior', price: '$3 / $15' },
+            { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', description: 'Geracao anterior', price: '$5 / $25' },
         ]
     },
     {
@@ -98,7 +100,11 @@ async function validateApiKey(provider: string, apiKey: string, model: string): 
                 headers: {
                     'Content-Type': 'application/json',
                     'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01'
+                    'anthropic-version': '2023-06-01',
+                    // SEM este cabecalho a Anthropic recusa a chamada vinda do navegador com
+                    // "Disallowed CORS origin" (400) e a tela acusa "chave invalida" numa chave
+                    // boa. Medido em 17/09/2026: com ele o preflight devolve 200.
+                    'anthropic-dangerous-direct-browser-access': 'true'
                 },
                 body: JSON.stringify({
                     model: model,

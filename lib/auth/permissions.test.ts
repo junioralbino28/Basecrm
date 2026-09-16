@@ -63,11 +63,15 @@ describe('ROLE_PERMISSION_DEFAULTS — completude e defaults', () => {
     }
   });
 
-  it('clinic_admin e agency_admin têm TUDO liberado', () => {
+  it('agency_admin tem TUDO liberado; clinic_admin tem tudo menos configurar a IA', () => {
     for (const key of APP_PERMISSIONS) {
-      expect(ROLE_PERMISSION_DEFAULTS.clinic_admin[key], `clinic_admin.${key}`).toBe(true);
       expect(ROLE_PERMISSION_DEFAULTS.agency_admin[key], `agency_admin.${key}`).toBe(true);
+      // C2B (Junior, 17/09/2026): o motor de IA é da agência — provedor, chave, modelo e
+      // prompt. O admin do cliente manda em todo o resto e pode PAUSAR a IA.
+      const esperado = key !== 'ai.configure';
+      expect(ROLE_PERMISSION_DEFAULTS.clinic_admin[key], `clinic_admin.${key}`).toBe(esperado);
     }
+    expect(ROLE_PERMISSION_DEFAULTS.clinic_admin['ai.pause']).toBe(true);
   });
 });
 

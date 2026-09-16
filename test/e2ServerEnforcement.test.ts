@@ -11,6 +11,23 @@ import {
 import { assertSafeE2SupabaseTarget } from './helpers/e2Supabase';
 import { shouldLoadTestEnvFiles } from './helpers/env';
 
+/**
+ * Desvio INTENCIONAL da C2B (Junior, 17/09/2026): `ai.configure` deixou de nascer ligada para
+ * o admin do cliente — provedor, chave, modelo e prompt da IA são da agência. Os snapshots
+ * v1/v2/v3 guardam o valor antigo, que é exatamente o que "congelado" significa. A v4 é quem
+ * carrega a decisão nova (ver test/c2bGovernancaIa.test.ts).
+ */
+const DESVIO_C2B_POR_CARGO: Record<string, Record<string, boolean>> = {
+  clinic_admin: { 'ai.configure': true },
+};
+
+function valoresCongelados(role: string): Record<string, boolean> {
+  return {
+    ...getDefaultPermissionMap(role),
+    ...(DESVIO_C2B_POR_CARGO[role] ?? {}),
+  };
+}
+
 const MIGRATION_NAME = '20260635000000_e2_server_permission_enforcement.sql';
 const migrationPath = resolve(process.cwd(), 'supabase/migrations', MIGRATION_NAME);
 const SNAPSHOT_MIGRATION_NAME = '20260718000000_funil_f1_authoring.sql';
@@ -123,7 +140,7 @@ describe('E2 S1 — snapshot de defaults sem drift', () => {
 
     for (const role of ROLES) {
       const expected = {
-        ...getDefaultPermissionMap(role),
+        ...valoresCongelados(role),
         ...(['clinic_staff', 'vendedor'].includes(role)
           ? { 'automation.operate': true }
           : {}),
@@ -172,7 +189,7 @@ describe('E3 — defaults paralelos com ponteiro ativo', () => {
       const actual = Object.fromEntries(
         roleTuples.map((tuple) => [tuple.permission, tuple.enabled]),
       );
-      const currentDefaults = getDefaultPermissionMap(role);
+      const currentDefaults = valoresCongelados(role);
       const expectedFrozen = Object.fromEntries(
         roleTuples.map((tuple) => [
           tuple.permission,
@@ -211,15 +228,22 @@ describe('C2A — defaults v3 para etiquetas e origens', () => {
       permission: match[2],
       enabled: match[3] === 'true',
     }));
-    expect(tuples).toHaveLength(ROLES.length * APP_PERMISSIONS.length);
+    // A v3 está congelada em 41 permissões; o catálogo cresceu depois com `ai.pause` (C2B).
+    expect(tuples).toHaveLength(ROLES.length * 41);
 
     for (const role of ROLES) {
+      const roleTuples = tuples.filter((tuple) => tuple.role === role);
       const actual = Object.fromEntries(
-        tuples
-          .filter((tuple) => tuple.role === role)
-          .map((tuple) => [tuple.permission, tuple.enabled]),
+        roleTuples.map((tuple) => [tuple.permission, tuple.enabled]),
       );
-      expect(actual).toEqual(getDefaultPermissionMap(role));
+      const congelado = valoresCongelados(role);
+      const esperado = Object.fromEntries(
+        roleTuples.map((tuple) => [
+          tuple.permission,
+          congelado[tuple.permission as keyof typeof congelado],
+        ]),
+      );
+      expect(actual).toEqual(esperado);
     }
   });
 

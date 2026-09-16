@@ -355,6 +355,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const canViewFinance = useHasPermission('settings.finance');
   const canViewIntegrations = useHasPermission('settings.integrations');
   const canConfigureAi = useHasPermission('ai.configure');
+  // O cliente não configura o motor, mas pode pausar a IA (Junior, 17/09/2026). Por isso a aba
+  // aparece para quem só tem `ai.pause` — só que sem a seção de provedor/chave/modelo.
+  const canPauseAi = useHasPermission('ai.pause');
+  const canOpenAiTab =
+    canConfigureAi === undefined && canPauseAi === undefined
+      ? undefined
+      : canConfigureAi === true || canPauseAi === true;
   const canManageUsers = useHasPermission('settings.users.manage');
   const canViewData = authLoading ? undefined : isAgencyRole(profile?.role);
 
@@ -376,7 +383,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     // do negócio. Por isso sai do Financeiro e vira aba própria (Junior, 24/07).
     ...(canViewFinance === true ? [{ id: 'planilhas' as SettingsTab, name: 'Planilhas', icon: FileSpreadsheet }] : []),
     ...(canViewIntegrations === true ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
-    ...(canConfigureAi === true ? [{ id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles }] : []),
+    ...(canOpenAiTab === true ? [{ id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles }] : []),
     ...(canViewData === true ? [{ id: 'data' as SettingsTab, name: 'Dados', icon: Database }] : []),
     ...(canManageUsers === true ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
   ];
@@ -389,7 +396,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     financeiro: canViewFinance,
     planilhas: canViewFinance,
     integrations: canViewIntegrations,
-    ai: canConfigureAi,
+    ai: canOpenAiTab,
     data: canViewData,
     users: canManageUsers,
   }[activeTab];

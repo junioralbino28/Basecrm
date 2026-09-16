@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-const DEFAULTS_VERSION = 3;
+const DEFAULTS_VERSION = 4;
 const EXPECTED_ROLES = [
   'agency_admin',
   'agency_staff',
@@ -12,12 +12,18 @@ const EXPECTED_ROLES = [
   'admin',
   'vendedor',
 ];
-const START_MARKER = '-- C2A_ROLE_PERMISSION_DEFAULTS_V3:START';
-const END_MARKER = '-- C2A_ROLE_PERMISSION_DEFAULTS_V3:END';
+const START_MARKER = '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:START';
+const END_MARKER = '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:END';
 const MIGRATION_PATH = resolve(
   process.cwd(),
-  'supabase/migrations/20260722000000_c2a_permission_defaults_v3.sql',
+  'supabase/migrations/20260917000000_c2b_permission_defaults_v4_governanca_ia.sql',
 );
+/**
+ * Mudança intencional da C2B (Junior, 17/09/2026): `ai.configure` deixa de nascer ligada para
+ * o admin do cliente — provedor, chave, modelo e prompt são da agência. Como os snapshots
+ * congelados guardam o valor antigo, o desvio precisa ser declarado em cada um deles.
+ */
+const DESVIO_C2B_GOVERNANCA_IA = 'clinic_admin:ai.configure';
 const FROZEN_SNAPSHOTS = [
   {
     version: 1,
@@ -31,6 +37,7 @@ const FROZEN_SNAPSHOTS = [
     allowedValueDrift: new Set([
       'clinic_staff:automation.operate',
       'vendedor:automation.operate',
+      DESVIO_C2B_GOVERNANCA_IA,
     ]),
   },
   {
@@ -42,7 +49,18 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260720020000_e3_role_defaults_v2.sql',
     ),
-    allowedValueDrift: new Set(),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA]),
+  },
+  {
+    version: 3,
+    permissionCount: 41,
+    startMarker: '-- C2A_ROLE_PERMISSION_DEFAULTS_V3:START',
+    endMarker: '-- C2A_ROLE_PERMISSION_DEFAULTS_V3:END',
+    path: resolve(
+      process.cwd(),
+      'supabase/migrations/20260722000000_c2a_permission_defaults_v3.sql',
+    ),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA]),
   },
 ];
 

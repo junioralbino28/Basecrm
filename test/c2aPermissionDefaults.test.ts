@@ -42,7 +42,8 @@ function tupleCount(sql: string, version: number): number {
 
 describe('C2A — defaults de permissões v3', () => {
   it('adiciona as quatro permissões próprias ao catálogo', () => {
-    expect(APP_PERMISSIONS).toHaveLength(41);
+    // 41 na C2A + `ai.pause` da C2B (governança do motor de IA, 17/09/2026).
+    expect(APP_PERMISSIONS).toHaveLength(42);
     expect(APP_PERMISSIONS).toEqual(expect.arrayContaining(NEW_PERMISSIONS));
   });
 
@@ -69,7 +70,8 @@ describe('C2A — defaults de permissões v3', () => {
 
     expect(tupleCount(v1, 1)).toBe(222);
     expect(tupleCount(v2, 2)).toBe(222);
-    expect(tupleCount(v3, 3)).toBe(ROLES.length * APP_PERMISSIONS.length);
+    // A v3 está CONGELADA em 41 permissões × 6 cargos; o catálogo cresceu depois (C2B).
+    expect(tupleCount(v3, 3)).toBe(ROLES.length * 41);
     for (const key of NEW_PERMISSIONS) {
       expect(v1).not.toContain(`'${key}'`);
       expect(v2).not.toContain(`'${key}'`);

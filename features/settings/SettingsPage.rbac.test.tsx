@@ -147,6 +147,34 @@ describe('SettingsPage permissions', () => {
     expect(screen.getByRole('button', { name: /^Dados$/i })).toBeInTheDocument()
   })
 
+  // C2B (Junior, 17/09/2026): o cliente não configura o motor, mas continua entrando na
+  // Central de I.A para PAUSAR a IA. Sem isto, tirar `ai.configure` dele tiraria a pausa junto.
+  it('abre a Central de I.A para quem só pode pausar a IA', () => {
+    testState.role = 'clinic_admin'
+    testState.permissions = {
+      ...testState.permissions,
+      'ai.configure': false,
+      'ai.pause': true,
+    }
+
+    render(<SettingsPage />)
+
+    expect(screen.getByRole('button', { name: /Central de I\.A/i })).toBeInTheDocument()
+  })
+
+  it('esconde a Central de I.A de quem não configura nem pausa', () => {
+    testState.role = 'clinic_staff'
+    testState.permissions = {
+      ...testState.permissions,
+      'ai.configure': false,
+      'ai.pause': false,
+    }
+
+    render(<SettingsPage />)
+
+    expect(screen.queryByRole('button', { name: /Central de I\.A/i })).not.toBeInTheDocument()
+  })
+
   it('permite que clinic_staff com override abra Profissionais', async () => {
     testState.role = 'clinic_staff'
 

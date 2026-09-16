@@ -47,6 +47,12 @@ export async function POST(req: Request) {
   const auth = await requireAdminTenantContext();
   if ('error' in auth) return auth.error;
 
+  // O prompt é o comportamento que a agência vende e pelo qual responde (Junior, 17/09/2026):
+  // o cliente fornece as informações do negócio, nunca o texto cru das instruções.
+  if (!auth.isAgencyAdmin) {
+    return json({ error: 'Forbidden' }, 403);
+  }
+
   const rawBody = await req.json().catch(() => null);
   const parsed = UpsertPromptSchema.safeParse(rawBody);
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);

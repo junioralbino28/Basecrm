@@ -37,6 +37,11 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ key: string 
   const auth = await requireAdminTenantContext();
   if ('error' in auth) return auth.error;
 
+  // Mesma regra do POST: desativar o prompt muda o comportamento da IA — é da agência.
+  if (!auth.isAgencyAdmin) {
+    return json({ error: 'Forbidden' }, 403);
+  }
+
   const { error } = await supabase
     .from('ai_prompt_templates')
     .update({ is_active: false, updated_at: new Date().toISOString() })

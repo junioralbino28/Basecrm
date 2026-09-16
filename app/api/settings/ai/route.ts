@@ -54,7 +54,9 @@ export async function GET() {
   if (orgError) return json({ error: orgError.message }, 500);
 
   const aiEnabled = typeof orgSettings?.ai_enabled === 'boolean' ? orgSettings.ai_enabled : true;
-  const canManageSecrets = auth.isAgencyAdmin || auth.isClinicAdmin;
+  // Governança (Junior, 17/09/2026): o motor de IA é da AGÊNCIA. O admin do cliente não escolhe
+  // provedor, não vê os últimos dígitos da chave e não reconfigura — ele só pode pausar a IA.
+  const canManageSecrets = auth.isAgencyAdmin;
 
   // Fix C1: a chave crua NUNCA vai pro browser (a IA agora infere no servidor via
   // /api/ai/chat). Ambos os papéis recebem só os booleans "configurada"; o admin
@@ -99,6 +101,20 @@ export async function POST(req: Request) {
   }
 
   const updates = parsed.data;
+
+  // Governança (Junior, 17/09/2026): configurar o MOTOR é da agência — provedor, modelo e chaves.
+  // O admin do cliente continua podendo PAUSAR a IA (`aiEnabled`), que é o único campo liberado
+  // para ele. Sem esta trava ele trocaria o modelo, mexendo no custo que corre pela agência.
+  const mexeNaConfiguracaoDoMotor =
+    updates.aiProvider !== undefined ||
+    updates.aiModel !== undefined ||
+    updates.aiGoogleKey !== undefined ||
+    updates.aiOpenaiKey !== undefined ||
+    updates.aiAnthropicKey !== undefined;
+
+  if (mexeNaConfiguracaoDoMotor && !auth.isAgencyAdmin) {
+    return json({ error: 'Forbidden' }, 403);
+  }
 
   const normalizeKey = (value: string | undefined) => {
     if (value === undefined) return undefined;
