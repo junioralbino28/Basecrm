@@ -322,7 +322,7 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
     // Footer text
     doc.setFontSize(7);
     doc.setTextColor(...COLORS.secondary);
-    doc.text('Base CRM', margin, pageHeight - 10);
+    doc.text('CENNO CRM', margin, pageHeight - 10);
     doc.text('Página 1', pageWidth / 2, pageHeight - 10, { align: 'center' });
     doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - margin, pageHeight - 10, { align: 'right' });
 
@@ -547,7 +547,7 @@ export const generateFinanceReportPDF = async (
     doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
     doc.setFontSize(7);
     doc.setTextColor(...COLORS.secondary);
-    doc.text('Base CRM', margin, pageHeight - 10);
+    doc.text('CENNO CRM', margin, pageHeight - 10);
     doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - margin, pageHeight - 10, { align: 'right' });
 
     // Output via Blob URL

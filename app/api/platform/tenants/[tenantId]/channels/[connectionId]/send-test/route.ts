@@ -69,7 +69,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const phone = toWhatsAppPhone(parsed.data.phone || (connection.metadata as any)?.phoneNumber);
   const text =
     parsed.data.text?.trim() ||
-    `Teste outbound Basecrm (${new Date().toLocaleString('pt-BR')})`;
+    `Teste de envio CENNO CRM (${new Date().toLocaleString('pt-BR')})`;
 
   if (!instanceName || !resolved?.apiUrl || !resolved.apiKey) {
     return json(

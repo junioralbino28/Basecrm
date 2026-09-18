@@ -73,7 +73,7 @@ export async function GET() {
 
   const branding = {
     ...editionBranding,
-    displayName: displayNameFromEdition || orgResult.data.name || 'BaseCRM Agencia',
+    displayName: displayNameFromEdition || orgResult.data.name || 'CENNO CRM',
   };
 
   return json({ branding });
@@ -111,7 +111,7 @@ export async function PATCH(req: Request) {
   const nextBranding = {
     ...((currentEdition.data?.branding_config || {}) as Record<string, unknown>),
     ...parsed.data,
-    displayName: normalizedDisplayName || orgResult.data.name || 'BaseCRM Agencia',
+    displayName: normalizedDisplayName || orgResult.data.name || 'CENNO CRM',
   };
 
   const editionUpsert = await admin

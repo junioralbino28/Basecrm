@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0ea5e9"/>
-      <stop offset="1" stop-color="#2563eb"/>
-    </linearGradient>
-  </defs>
-  <!-- Maskable: keep important content within the safe zone -->
-  <rect width="512" height="512" fill="url(#g)"/>
-  <circle cx="256" cy="256" r="180" fill="rgba(255,255,255,0.14)"/>
-  <path d="M206 184h100c12 0 22 10 22 22v100c0 12-10 22-22 22H206c-12 0-22-10-22-22V206c0-12 10-22 22-22z" fill="#ffffff"/>
-  <path d="M224 232h64M224 272h64M224 312h40" stroke="#0f172a" stroke-width="18" stroke-linecap="round" opacity="0.85"/>
-</svg>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="0" fill="#14170E"/><g transform="translate(112.64 155.78) scale(0.52609)"><path d="M322 30.5 L191.5 30.5 A161 161 0 0 0 191.5 352.5 L322 352.5" fill="none" stroke="#F87000" stroke-width="59"/><path d="M487 0 h58 v381 h-58 z M265 169 h280 v53 h-280 z" fill="#008810"/></g></svg>
