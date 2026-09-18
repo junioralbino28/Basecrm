@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
+import { BRAND_THEMES } from '@/lib/branding/brandTheme';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -14,6 +16,7 @@ const BrandingSchema = z.object({
   logoUrl: z.string().url().nullable().optional(),
   themeMode: z.enum(['light', 'dark']).optional(),
   accentColor: z.string().min(4).max(20).optional(),
+  brandTheme: z.enum(BRAND_THEMES).optional(),
 }).strict();
 
 async function requireAdminProfile() {
@@ -31,7 +34,9 @@ async function requireAdminProfile() {
     .single();
 
   if (error || !profile?.organization_id) return { error: json({ error: 'Profile not found' }, 404) };
-  if (profile.role !== 'admin') return { error: json({ error: 'Forbidden' }, 403) };
+  // Marca do cliente é configurada pela agência. Antes comparava com o papel legado 'admin'
+  // literal e barrava o agency_admin, que é quem de fato opera o painel.
+  if (!isAgencyAdminRole(normalizeAppUserRole(profile.role))) return { error: json({ error: 'Forbidden' }, 403) };
 
   return { profile };
 }

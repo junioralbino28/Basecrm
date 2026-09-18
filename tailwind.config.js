@@ -14,19 +14,7 @@ const config = {
     darkMode: 'class',
     theme: {
         extend: {
-            fontFamily: {
-                sans: ['var(--font-jakarta)', 'Plus Jakarta Sans', 'sans-serif'],
-                display: ['var(--font-fraunces)', 'Fraunces', 'serif'],
-                serif: ['var(--font-fraunces)', 'Fraunces', 'serif'],
-            },
-            colors: {
-                dark: {
-                    bg: '#020617',
-                    card: '#0f172a',
-                    border: '#1e293b',
-                    hover: '#334155',
-                },
-            },
+            // Fontes e cores moram só no @theme de app/globals.css (tema por organização).
             backgroundImage: {
                 'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
             }

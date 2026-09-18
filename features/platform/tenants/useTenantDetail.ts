@@ -11,6 +11,7 @@ export type TenantDetail = {
     logoUrl?: string | null;
     themeMode?: 'light' | 'dark';
     accentColor?: string;
+    brandTheme?: 'cenno' | 'clinica';
   };
   enabled_modules: string[];
   metadata: Record<string, unknown>;

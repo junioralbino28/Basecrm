@@ -6,43 +6,47 @@
  * Migrated from tailwind.config.js
  * ======================================== */
 @theme {
-  /* Font Families (mockup aprovado: Plus Jakarta Sans corpo + Fraunces titulos) */
-  --font-sans: var(--font-jakarta), 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: var(--font-fraunces), 'Fraunces', serif;
-  --font-serif: var(--font-fraunces), 'Fraunces', serif;
+  /* Tipografia — tema CENNO (padrão). Montserrat é corpo E título (a LP usa Montserrat 800
+   * como display); a serifa itálica fica em --font-serif, só para a "voz humana".
+   * Spec: docs/design/tema-cenno.md §4. A clínica sobrescreve em [data-brand="clinica"]. */
+  --font-sans: var(--font-montserrat), 'Montserrat', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-montserrat), 'Montserrat', 'Segoe UI', system-ui, sans-serif;
+  --font-serif: var(--font-instrument), 'Instrument Serif', Georgia, serif;
 
-  /* Brand — teal-emerald premium (mockup aprovado 2026-06-10).
-   * 300 não existia no mockup (bug: usado 2x sem definição) — definido aqui.
-   * 400 também não existia no mockup; interpolado entre 300 e 500 (app usa o tom 400). */
-  --color-brand-50: #eaf4f0;
-  --color-brand-100: #cfe7df;
-  --color-brand-200: #a6d3c6;
-  --color-brand-300: #5fd0b6;
-  --color-brand-400: #3cb69c;
-  --color-brand-500: #1a9b82;
-  --color-brand-600: #0e7d69;
-  --color-brand-700: #0b6354;
-  --color-brand-800: #0a4f43;
-  --color-brand-900: #083d34;
+  /* Brand — laranja CENNO (matiz 48). 600 = #F87000 exato (a marca, botões);
+   * 500 = #FF8417 (hover da LP); 700/800 = laranjas de texto que a LP já calibrou.
+   * Texto branco NÃO passa sobre 500/600 (2,45 e 2,87:1): use text-on-brand. */
+  --color-brand-50: #FFF3ED;
+  --color-brand-100: #FFE7DC;
+  --color-brand-200: #FFD1BA;
+  --color-brand-300: #FFBA97;
+  --color-brand-400: #FF9F6C;
+  --color-brand-500: #FF8417;
+  --color-brand-600: #F87000;
+  --color-brand-700: #CC5C00;
+  --color-brand-800: #AD4E00;
+  --color-brand-900: #753100;
 
-  /* Gold — dourado champanhe (luxo, CTA único) */
-  --color-gold-50: #f6efe1;
-  --color-gold-100: #ecdfc4;
-  --color-gold-500: #b0883f;
-  --color-gold-600: #946b2c;
-  --color-gold-700: #7c5a23;
+  /* Texto/ícone em cima de bg-brand-500/600. CENNO: tinta (6,31:1). Clínica: branco. */
+  --color-on-brand: #14170E;
+
+  /* Gold — no tema CENNO é o VERDE do CH (o nome do token fica para não tocar 17 arquivos).
+   * 600 = #008810 (verde da marca). 300 só para texto verde no escuro (8,02:1). */
+  --color-gold-50: #EBF9EA;
+  --color-gold-100: #D6F3D4;
+  --color-gold-300: #55C264;
+  --color-gold-500: #359D36;
+  --color-gold-600: #008810;
+  --color-gold-700: #00660C;
 
   /* WhatsApp */
   --color-wa: #1fa855;
 
-  /* Dark Theme Colors — marrom quente do tema (mockup aprovado).
-   * Antes era navy (slate-950/900/800/700 = a "base azul" legada) e vazava em
-   * todo componente que usa bg-dark-card/bg-dark-bg/border-dark-border. Agora
-   * casa com os tokens --canvas/--card/--line/hover do bloco `.dark`. */
-  --color-dark-bg: #13110f;
-  --color-dark-card: #1e1b18;
-  --color-dark-border: #332e28;
-  --color-dark-hover: #3a342d;
+  /* Dark shell — casado com --canvas/--card/--line do bloco .dark (tinta da LP, não preto puro). */
+  --color-dark-bg: #14170E;
+  --color-dark-card: #1D2116;
+  --color-dark-border: #363A2B;
+  --color-dark-hover: #40442F;
 }
 
 /* ========================================
@@ -59,30 +63,34 @@
   --color-muted: rgb(var(--muted));
   --color-faint: rgb(var(--faint));
 
-  --shadow-soft: 0 1px 2px rgba(27, 23, 20, .05), 0 8px 24px rgba(27, 23, 20, .08);
-  --shadow-hover: 0 12px 32px rgba(11, 99, 84, .12);
+  --shadow-soft: 0 1px 2px rgb(var(--shadow-ink) / .05), 0 8px 24px rgb(var(--shadow-ink) / .08);
+  --shadow-hover: 0 12px 32px rgb(var(--shadow-brand) / .12);
 }
 
 :root {
-  /* Light (mockup :root) */
-  --canvas: 236 226 210;
+  /* Light — CENNO: papel #F2EDE3 / tinta #14170E (spec §3.1) */
+  --canvas: 242 237 227;
   --card: 255 255 255;
-  --surface: 245 239 229;
-  --line: 226 215 197;
-  --ink: 27 23 20;
-  --muted: 95 87 78;
-  --faint: 156 146 134;
+  --surface: 250 247 240;
+  --line: 223 217 203;
+  --ink: 20 23 14;
+  --muted: 90 94 78;
+  --faint: 107 109 100;
+
+  /* Cor das sombras (tinta) e do brilho de hover (laranja 700) */
+  --shadow-ink: 20 23 14;
+  --shadow-brand: 204 92 0;
 }
 
 .dark {
-  /* Dark (mockup html.dark) */
-  --canvas: 19 17 15;
-  --card: 30 27 24;
-  --surface: 38 34 29;
-  --line: 51 46 40;
-  --ink: 243 237 227;
-  --muted: 179 168 153;
-  --faint: 125 116 104;
+  /* Dark — CENNO: tinta #14170E / tinta-2 #1D2116 (spec §3.2) */
+  --canvas: 20 23 14;
+  --card: 29 33 22;
+  --surface: 39 43 31;
+  --line: 54 58 43;
+  --ink: 242 237 227;
+  --muted: 175 178 160;
+  --faint: 135 137 127;
 }
 
 /* ========================================
@@ -123,12 +131,12 @@ svg.lucide {
   --app-safe-area-top: env(safe-area-inset-top, 0px);
   --app-bottom-nav-height: 0px;
 
-  /* Light Mode - Soft Cream (OKLCH) */
-  --color-bg: oklch(97% 0.005 90);
-  --color-surface: oklch(99% 0.002 90);
-  --color-muted: oklch(95% 0.008 90);
-  --color-border: oklch(90% 0.01 90);
-  --color-border-subtle: oklch(93% 0.008 90);
+  /* Light — CENNO (papel/tinta). Tema da clínica: bloco [data-brand="clinica"] mais abaixo. */
+  --color-bg: #F2EDE3;
+  --color-surface: #FFFFFF;
+  --color-muted: #EAE4D7;
+  --color-border: #DFD9CB;
+  --color-border-subtle: #E8E2D5;
 
   /* Status Colors - Light Mode */
   --color-success: oklch(65% 0.17 145);
@@ -155,19 +163,19 @@ svg.lucide {
   --color-orange-bg: oklch(70% 0.18 55 / 0.1);
   --color-orange-text: oklch(48% 0.16 55);
 
-  /* Text Colors - Light Mode */
-  --color-text-primary: oklch(25% 0.015 260);
-  --color-text-secondary: oklch(45% 0.02 260);
-  --color-text-muted: oklch(55% 0.025 260);
-  --color-text-subtle: oklch(62% 0.025 260);
+  /* Text Colors - Light Mode (CENNO: tinta e cinzas quentes da LP) */
+  --color-text-primary: #14170E;
+  --color-text-secondary: #3E4235;
+  --color-text-muted: #5A5E4E;
+  --color-text-subtle: #6B6D64;
 
   /* Glass effect - Light */
-  --glass-bg: oklch(99% 0.002 90 / 0.8);
-  --glass-border: oklch(90% 0.01 90 / 0.5);
+  --glass-bg: rgb(255 255 255 / 0.8);
+  --glass-border: rgb(223 217 203 / 0.5);
   --glass-blur: 10px;
 
   /* Dots background */
-  --dots-color: oklch(85% 0.01 90);
+  --dots-color: #D5CEBF;
 
   /* Chart Colors */
   --chart-text: #64748b;
@@ -183,13 +191,12 @@ html, body {
 }
 
 .dark {
-  /* Dark Mode — marrom quente do tema (era "Deep Slate" navy hue 260 = base azul
-   * legada; agora hue 65 casa com --canvas/--card do mockup aprovado). */
-  --color-bg: oklch(11% 0.02 65);
-  --color-surface: oklch(15% 0.018 65);
-  --color-muted: oklch(22% 0.014 65);
-  --color-border: oklch(26% 0.012 65);
-  --color-border-subtle: oklch(22% 0.01 65 / 0.6);
+  /* Dark — CENNO (tinta #14170E). Tema da clínica: bloco [data-brand="clinica"].dark mais abaixo. */
+  --color-bg: #14170E;
+  --color-surface: #1D2116;
+  --color-muted: #272B1F;
+  --color-border: #363A2B;
+  --color-border-subtle: rgb(54 58 43 / 0.6);
 
   /* Status Colors - Dark Mode */
   --color-success: oklch(70% 0.17 145);
@@ -216,20 +223,19 @@ html, body {
   --color-orange-bg: oklch(75% 0.17 55 / 0.1);
   --color-orange-text: oklch(75% 0.17 55);
 
-  /* Text Colors - Dark Mode */
-  --color-text-primary: oklch(98% 0.002 260);
-  --color-text-secondary: oklch(83% 0.015 260);
-  --color-text-muted: oklch(72% 0.02 260);
-  --color-text-subtle: oklch(62% 0.025 260);
+  /* Text Colors - Dark Mode (CENNO) */
+  --color-text-primary: #F2EDE3;
+  --color-text-secondary: #D3D2C6;
+  --color-text-muted: #AFB2A0;
+  --color-text-subtle: #87897F;
 
-  /* Glass effect - Dark (marrom quente do tema; hue 65 alinha ao canvas/card,
-   * antes era navy hue 260 = a "base azul" legada que vazava no Kanban/dashboard) */
-  --glass-bg: oklch(18% 0.014 65 / 0.72);
+  /* Glass effect - Dark (CENNO: tinta-2) */
+  --glass-bg: rgb(29 33 22 / 0.72);
   --glass-border: oklch(100% 0 0 / 0.05);
   --glass-blur: 12px;
 
   /* Dots background */
-  --dots-color: oklch(22% 0.012 65);
+  --dots-color: #272B1F;
 
   /* Chart Colors */
   --chart-text: #94a3b8;
@@ -237,6 +243,89 @@ html, body {
   --chart-tooltip-bg: #1e293b;
   --chart-tooltip-border: rgba(255, 255, 255, 0.1);
   --chart-tooltip-text: #f8fafc;
+}
+
+/* ========================================
+ * TEMA DA CLÍNICA — [data-brand="clinica"] no <html>
+ * É o tema aprovado no mockup de 2026-06-10 (teal-esmeralda + champanhe + creme/marrom,
+ * Plus Jakarta Sans + Fraunces), com os mesmos valores de antes do tema CENNO. Aplicado
+ * pelo BrandThemeApplier (app/(protected)/layout.tsx) a partir de branding_config.brandTheme
+ * da organização do usuário; agência sempre vê CENNO. Só cor e família tipográfica mudam.
+ * ======================================== */
+[data-brand="clinica"] {
+  --font-sans: var(--font-jakarta), 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-fraunces), 'Fraunces', serif;
+  --font-serif: var(--font-fraunces), 'Fraunces', serif;
+
+  --color-brand-50: #eaf4f0;
+  --color-brand-100: #cfe7df;
+  --color-brand-200: #a6d3c6;
+  --color-brand-300: #5fd0b6;
+  --color-brand-400: #3cb69c;
+  --color-brand-500: #1a9b82;
+  --color-brand-600: #0e7d69;
+  --color-brand-700: #0b6354;
+  --color-brand-800: #0a4f43;
+  --color-brand-900: #083d34;
+  --color-on-brand: #ffffff;
+
+  --color-gold-50: #f6efe1;
+  --color-gold-100: #ecdfc4;
+  --color-gold-300: #d4b77a;
+  --color-gold-500: #b0883f;
+  --color-gold-600: #946b2c;
+  --color-gold-700: #7c5a23;
+
+  --color-dark-bg: #13110f;
+  --color-dark-card: #1e1b18;
+  --color-dark-border: #332e28;
+  --color-dark-hover: #3a342d;
+
+  --canvas: 236 226 210;
+  --card: 255 255 255;
+  --surface: 245 239 229;
+  --line: 226 215 197;
+  --ink: 27 23 20;
+  --muted: 95 87 78;
+  --faint: 156 146 134;
+  --shadow-ink: 27 23 20;
+  --shadow-brand: 11 99 84;
+
+  --color-bg: oklch(97% 0.005 90);
+  --color-surface: oklch(99% 0.002 90);
+  --color-muted: oklch(95% 0.008 90);
+  --color-border: oklch(90% 0.01 90);
+  --color-border-subtle: oklch(93% 0.008 90);
+  --color-text-primary: oklch(25% 0.015 260);
+  --color-text-secondary: oklch(45% 0.02 260);
+  --color-text-muted: oklch(55% 0.025 260);
+  --color-text-subtle: oklch(62% 0.025 260);
+  --glass-bg: oklch(99% 0.002 90 / 0.8);
+  --glass-border: oklch(90% 0.01 90 / 0.5);
+  --dots-color: oklch(85% 0.01 90);
+}
+
+[data-brand="clinica"].dark {
+  --canvas: 19 17 15;
+  --card: 30 27 24;
+  --surface: 38 34 29;
+  --line: 51 46 40;
+  --ink: 243 237 227;
+  --muted: 179 168 153;
+  --faint: 125 116 104;
+
+  --color-bg: oklch(11% 0.02 65);
+  --color-surface: oklch(15% 0.018 65);
+  --color-muted: oklch(22% 0.014 65);
+  --color-border: oklch(26% 0.012 65);
+  --color-border-subtle: oklch(22% 0.01 65 / 0.6);
+  --color-text-primary: oklch(98% 0.002 260);
+  --color-text-secondary: oklch(83% 0.015 260);
+  --color-text-muted: oklch(72% 0.02 260);
+  --color-text-subtle: oklch(62% 0.025 260);
+  --glass-bg: oklch(18% 0.014 65 / 0.72);
+  --glass-border: oklch(100% 0 0 / 0.05);
+  --dots-color: oklch(22% 0.012 65);
 }
 
 /* ========================================

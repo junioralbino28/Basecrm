@@ -9,6 +9,7 @@ export const TenantBrandingPage: React.FC = () => {
     displayName: '',
     accentColor: '',
     themeMode: 'light' as 'light' | 'dark',
+    brandTheme: 'cenno' as 'cenno' | 'clinica',
     logoUrl: '',
   });
   const [saving, setSaving] = React.useState(false);
@@ -20,6 +21,7 @@ export const TenantBrandingPage: React.FC = () => {
       displayName: tenant.branding_config?.displayName || tenant.name,
       accentColor: tenant.branding_config?.accentColor || '#0f766e',
       themeMode: tenant.branding_config?.themeMode || 'light',
+      brandTheme: tenant.branding_config?.brandTheme === 'clinica' ? 'clinica' : 'cenno',
       logoUrl: tenant.branding_config?.logoUrl || '',
     });
   }, [tenant]);
@@ -36,6 +38,7 @@ export const TenantBrandingPage: React.FC = () => {
           displayName: form.displayName,
           accentColor: form.accentColor,
           themeMode: form.themeMode,
+          brandTheme: form.brandTheme,
           logoUrl: form.logoUrl || null,
         }),
       });
@@ -84,6 +87,15 @@ export const TenantBrandingPage: React.FC = () => {
             </label>
 
             <label className="space-y-2 md:col-span-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Identidade visual</span>
+              <select className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-card dark:text-white" value={form.brandTheme} onChange={(e) => setForm((current) => ({ ...current, brandTheme: e.target.value === 'clinica' ? 'clinica' : 'cenno' }))}>
+                <option value="cenno">CENNO (padrão da agência)</option>
+                <option value="clinica">Clínica (verde e bege)</option>
+              </select>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">É o que a equipe deste cliente vê ao entrar. A agência vê sempre o tema CENNO.</span>
+            </label>
+
+            <label className="space-y-2 md:col-span-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Logo URL</span>
               <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-card dark:text-white" value={form.logoUrl} onChange={(e) => setForm((current) => ({ ...current, logoUrl: e.target.value }))} />
             </label>
@@ -93,7 +105,7 @@ export const TenantBrandingPage: React.FC = () => {
         {saveError ? <div className="mt-4 text-sm text-rose-600 dark:text-rose-300">{saveError}</div> : null}
 
         <div className="mt-6 flex justify-end">
-          <button onClick={onSave} disabled={saving || loading || !tenant} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50">
+          <button onClick={onSave} disabled={saving || loading || !tenant} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand-500 disabled:opacity-50">
             <Save size={16} />
             {saving ? 'Salvando...' : 'Salvar branding'}
           </button>

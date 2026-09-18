@@ -12,6 +12,7 @@ type TenantState = {
     logoUrl?: string | null;
     themeMode?: 'light' | 'dark';
     accentColor?: string;
+    brandTheme?: 'cenno' | 'clinica';
   };
   enabledModules: string[];
   source: 'domain' | 'profile_fallback' | 'selected';

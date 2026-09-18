@@ -9,8 +9,9 @@ import { ThemeProvider, useTheme } from '@/context/ThemeContext'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { CRMProvider } from '@/context/CRMContext'
 import { AIProvider } from '@/context/AIContext'
-import { TenantProvider } from '@/context/TenantContext'
+import { TenantProvider, useTenant } from '@/context/TenantContext'
 import { isClinicRole } from '@/lib/auth/scope'
+import { applyBrandTheme, resolveBrandTheme } from '@/lib/branding/brandTheme'
 import Layout from '@/components/Layout'
 
 /**
@@ -26,6 +27,26 @@ function ThemeRoleDefault() {
         if (!profile?.role) return
         if (isClinicRole(profile.role)) applyRoleDefault(false)
     }, [profile?.role, applyRoleDefault])
+
+    return null
+}
+
+/**
+ * Pinta o tema de marca da organização do usuário (`<html data-brand>`): agência vê CENNO,
+ * cliente vê o tema declarado em branding_config.brandTheme. Regra em lib/branding/brandTheme.ts.
+ */
+function BrandThemeApplier() {
+    const { profile } = useAuth()
+    const { tenant, loading } = useTenant()
+    const brandTheme = resolveBrandTheme({
+        role: profile?.role,
+        tenantLoaded: !loading,
+        brandingConfig: tenant?.brandingConfig,
+    })
+
+    useEffect(() => {
+        if (brandTheme) applyBrandTheme(brandTheme)
+    }, [brandTheme])
 
     return null
 }
@@ -95,6 +116,7 @@ export default function ProtectedLayout({
                     <AuthProvider>
                         <ThemeRoleDefault />
                         <TenantProvider>
+                            <BrandThemeApplier />
                             <CRMProvider>
                                 <AIProvider>
                                     {shouldUseAppShell ? <Layout>{children}</Layout> : children}
