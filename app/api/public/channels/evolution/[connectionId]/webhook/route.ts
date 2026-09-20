@@ -232,6 +232,8 @@ export async function processDeferredAIReply(params: {
           handoffReason: nativeReply.object.handoffReason,
           requestedScheduleAt: nativeReply.object.requestedScheduleAt,
           requestedScheduleText: nativeReply.object.requestedScheduleText,
+          leadEmail: nativeReply.object.leadEmail,
+          leadSegment: nativeReply.object.leadSegment,
           notificationEventId: insertedMessageId,
           authorName: agentName,
           metadata: {

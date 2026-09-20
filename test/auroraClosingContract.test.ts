@@ -23,6 +23,12 @@ describe('encerramento depois do handoff — contrato do executor', () => {
     expect(source).not.toContain('SITUACAO DA CONVERSA: ${conversationStageContext}');
   });
 
+  it('grava e-mail e segmento do lead no contato sem sobrescrever e-mail existente', () => {
+    expect(source).toContain('leadEmail: normalizeLeadEmail(generated.leadEmail)');
+    expect(source).toContain('buildContactProfileUpdate({');
+    expect(source).toContain(".from('contacts')");
+  });
+
   it('tenta a geracao de novo quando o modelo nao devolve o objeto, com reparo do texto cru', () => {
     expect(source).toContain('NoObjectGeneratedError.isInstance(error)');
     expect(source).toContain('repairStructuredOutputText(rawText)');

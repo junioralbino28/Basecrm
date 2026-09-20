@@ -24,6 +24,7 @@ import {
   resolveClosingReplyEligibility,
 } from '@/lib/conversations/closingReply';
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
+import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
@@ -90,6 +91,11 @@ export const ConversationAutoReplySchema = z.object({
   requestedScheduleAt: z.string().max(64).nullable().optional()
     .describe('Data e hora ISO 8601 com offset (ex.: 2026-09-22T10:00:00-03:00) ou null'),
   requestedScheduleText: z.string().max(160).nullable().optional(),
+  // Dados minimos antes da reuniao (Junior, 20/09): e-mail para o convite e segmento da empresa.
+  leadEmail: z.string().max(160).nullable().optional()
+    .describe('E-mail que o lead informou nesta conversa, ou null'),
+  leadSegment: z.string().max(120).nullable().optional()
+    .describe('Segmento ou nicho da empresa do lead, ou null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -107,6 +113,9 @@ export type ConversationAIReplyPayload = {
   automationSource?: string;
   /** Resposta de encerramento depois do handoff: a conversa fica na fila humana e nada de novo e aberto. */
   closingReply?: boolean;
+  /** E-mail e segmento informados pelo lead; vao para o contato (sem sobrescrever e-mail ja cadastrado). */
+  leadEmail?: string | null;
+  leadSegment?: string | null;
 };
 
 function formatRecentMessages(messages: RecentMessage[]) {
@@ -500,6 +509,8 @@ export async function generateConversationAutoReply(params: {
       handoffReason: generated.handoffReason?.trim() || null,
       requestedScheduleAt,
       requestedScheduleText: generated.requestedScheduleText?.trim() || null,
+      leadEmail: normalizeLeadEmail(generated.leadEmail),
+      leadSegment: normalizeLeadSegment(generated.leadSegment),
     },
   };
 }
@@ -777,6 +788,38 @@ export async function executeConversationAIReply(params: {
     .select('id');
 
   if (insertedMessages.error) throw new Error(insertedMessages.error.message);
+
+  // E-mail e segmento que o lead informou vao para o contato. Nunca sobrescreve e-mail existente;
+  // falha aqui nao derruba a resposta (ja enviada), so avisa.
+  if (thread.contact_id && (payload.leadEmail || payload.leadSegment)) {
+    const contactResult = await admin
+      .from('contacts')
+      .select('email, notes')
+      .eq('id', thread.contact_id)
+      .eq('organization_id', activeConnection.organization_id)
+      .maybeSingle();
+    const profileUpdate = contactResult.error
+      ? null
+      : buildContactProfileUpdate({
+          contact: contactResult.data,
+          leadEmail: payload.leadEmail,
+          leadSegment: payload.leadSegment,
+        });
+    if (profileUpdate) {
+      const contactUpdate = await admin
+        .from('contacts')
+        .update({ ...profileUpdate, updated_at: now })
+        .eq('id', thread.contact_id)
+        .eq('organization_id', activeConnection.organization_id);
+      if (contactUpdate.error) {
+        console.warn('[Conversation AI] Failed to save lead profile on contact', {
+          organizationId: activeConnection.organization_id,
+          contactId: thread.contact_id,
+          error: contactUpdate.error.message,
+        });
+      }
+    }
+  }
 
   const deliveryFailed = Boolean(deliveryWarning);
   const requiresHumanAttention = shouldHandoff || deliveryFailed;

@@ -27,6 +27,8 @@ O agente deve usar a mesma camada de conversas do CRM. O provedor de WhatsApp é
 - Reuniões duram 40 minutos e os horários de início ficam separados por 60 minutos.
 - O expediente padrão é de segunda a sexta, das 09:00 às 19:00, editável por dia e por faixa.
 - A Aurora oferece primeiro o mesmo dia, depois o dia seguinte, e só avança quando necessário, até 14 dias.
+- O segmento (nicho) da empresa entra no diagnóstico, de forma natural, logo no começo (ajuste do Junior). Antes de confirmar o horário, a Aurora completa só o que faltar, um dado por vez: e-mail (para o convite da reunião) e se o WhatsApp é o melhor telefone; e-mail e segmento vão para o contato (`contacts.email` só se vazio; `Segmento: X` nas notas). Se o lead não quiser dar o e-mail, ela confirma mesmo assim.
+- Confirmação no modelo do Junior: "Perfeito, {nome}, nossa reunião está marcada para {dia}, {data}, às {hora}; nosso especialista Junior vai conduzir seu diagnóstico. No dia, te envio o link aqui mesmo no WhatsApp alguns minutinhos antes (Google Meet). Mais alguma dúvida?". Sem promessa de e-mail de confirmação até a integração com o Google Agenda (que envia o convite com o link do Meet automaticamente).
 - No máximo 2 horários por mensagem. Se o lead recusar, ela pergunta "fica melhor de manhã ou de tarde?" e, se o dia não servir, propõe o dia seguinte pelo nome ("terça-feira funciona para você?"), em vez de despejar outra lista.
 - O prompt recebe a data local com dia da semana (`{{currentDateTimeLocal}}`) além do instante UTC, para "amanhã" e "terça" caírem no dia certo.
 - Sábado nunca é confirmado automaticamente: a preferência vira handoff para confirmação humana.

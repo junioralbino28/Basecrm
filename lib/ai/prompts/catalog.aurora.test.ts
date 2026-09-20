@@ -54,7 +54,13 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('ENCERRAMENTO:');
     expect(template).toContain('sem abrir assunto novo, sem oferecer horario nem ligacao');
     expect(template).toContain('feche deixando a porta aberta');
-    expect(template).toContain('explica como funciona (cerca de 40 minutos');
+    expect(template).toContain('o nicho entra de forma natural no diagnostico, nunca como formulario no fim');
+    expect(template).toContain('antes de confirmar o horario, complete so o que ainda faltar');
+    expect(template).toContain('nosso especialista {{meetingHostName}} vai conduzir seu diagnostico');
+    expect(template).toContain('Mais alguma duvida?');
+    expect(template).toContain('nunca prometa e-mail de confirmacao');
+    expect(template).toContain('- leadEmail:');
+    expect(template).toContain('- leadSegment:');
     expect(template).toContain('nunca corte seco');
     expect(template).toContain('{{conversationStageContext}}');
     expect(template).toContain('REUNIAO JA CONFIRMADA');
