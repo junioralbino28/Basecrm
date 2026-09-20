@@ -2,6 +2,7 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { authorizeAutomationInternalRequest } from '@/lib/automations/internalAuth';
 import { executeDueAutomationJobs, type ExecutorSummary } from '@/lib/automations/executor';
 import { dispatchPendingConversionEvents, type DispatchSummary } from '@/lib/meta/conversionDispatch';
+import { sendDueConversationNudges, type IdleNudgeRunSummary } from '@/lib/conversations/idleNudgeRunner';
 import { z } from 'zod';
 
 // 2a: o tick passou a executar jobs (envio real com tempo limite por mensagem). O executor
@@ -91,6 +92,18 @@ export async function POST(request: Request) {
     conversions = { error: message };
   }
 
+  // Cutucada de inatividade da IA de atendimento (Aurora): o webhook so agenda; este relogio de
+  // 5 min envia as vencidas. Nao pertence ao funil de automacao, e da conversa e do numero.
+  // Nunca derruba o tick.
+  let idleNudges: IdleNudgeRunSummary | { error: string } | null = null;
+  try {
+    idleNudges = await sendDueConversationNudges({ admin, batchLimit: 10, deadlineMs: 8_000 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Cutucadas de inatividade falharam', { tickAttemptId, error: message });
+    idleNudges = { error: message };
+  }
+
   const completed = await admin.rpc('complete_automation_tick', {
     p_attempt_token: tickAttemptId,
     p_http_status: 200,
@@ -108,5 +121,6 @@ export async function POST(request: Request) {
     materialized: materializedCount,
     executed,
     conversions,
+    idleNudges,
   });
 }

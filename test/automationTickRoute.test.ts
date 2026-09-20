@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   createStaticAdminClient: vi.fn(),
+  sendNudges: vi.fn(),
 }));
 
 vi.mock('@/lib/automations/internalAuth', () => ({
@@ -11,6 +12,10 @@ vi.mock('@/lib/automations/internalAuth', () => ({
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createStaticAdminClient: mocks.createStaticAdminClient,
+}));
+// A cutucada de inatividade da IA roda no relogio do tick; aqui so importa a ordem e a blindagem.
+vi.mock('@/lib/conversations/idleNudgeRunner', () => ({
+  sendDueConversationNudges: mocks.sendNudges,
 }));
 
 import { POST } from '@/app/api/internal/automations/tick/route';
@@ -39,6 +44,10 @@ describe('endpoint interno do tick', () => {
   beforeEach(() => {
     mocks.authorize.mockReset();
     mocks.createStaticAdminClient.mockReset();
+    mocks.sendNudges.mockReset();
+    mocks.sendNudges.mockResolvedValue({
+      due: 0, sent: 0, skipped: { disabled: 0, replied: 0, state: 0, claimed: 0, ignored: 0 }, failed: 0, errors: [], truncated: false,
+    });
     process.env.AUTOMATION_LIVE_SENDS_ENABLED = 'true';
   });
 
@@ -67,6 +76,7 @@ describe('endpoint interno do tick', () => {
       materialized: 2,
       executed: { enabled: true, skippedReason: null, deferred: 0, claimed: 0, sent: 0, errors: [] },
       conversions: { claimed: 0, sent: 0, skipped: 0, retried: 0, failed: 0 },
+      idleNudges: { due: 0, sent: 0, failed: 0 },
     });
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
       'mark_automation_tick_received',
@@ -90,6 +100,30 @@ describe('endpoint interno do tick', () => {
       p_materialized_count: 2,
       p_error: null,
     });
+    // a cutucada roda depois das conversoes e antes de fechar o tick
+    expect(mocks.sendNudges).toHaveBeenCalledWith({ admin: expect.anything(), batchLimit: 10, deadlineMs: 8_000 });
+    const nudgeOrder = mocks.sendNudges.mock.invocationCallOrder[0];
+    const rpcNames = rpc.mock.calls.map(([name]) => name);
+    expect(nudgeOrder).toBeGreaterThan(rpc.mock.invocationCallOrder[rpcNames.indexOf('claim_conversion_events')]);
+    expect(nudgeOrder).toBeLessThan(rpc.mock.invocationCallOrder[rpcNames.indexOf('complete_automation_tick')]);
+  });
+
+  it('cutucada que estoura nao derruba o tick: o erro vai na resposta e o tick fecha', async () => {
+    mocks.sendNudges.mockRejectedValue(new Error('cutucada quebrou'));
+    const rpc = buildRpc();
+    mocks.authorize.mockReturnValue(true);
+    mocks.createStaticAdminClient.mockReturnValue({ rpc });
+    const attemptToken = '10000000-0000-4000-8000-000000000003';
+
+    const response = await POST(new Request('http://localhost/api/internal/automations/tick', {
+      method: 'POST',
+      headers: { authorization: 'Bearer local' },
+      body: JSON.stringify({ tick_attempt_id: attemptToken }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, idleNudges: { error: 'cutucada quebrou' } });
+    expect(rpc.mock.calls.map(([name]) => name).at(-1)).toBe('complete_automation_tick');
   });
 
   it('com AUTOMATION_LIVE_SENDS_ENABLED desligada o executor não adia nem reserva nada, e o tick segue', async () => {

@@ -10,6 +10,12 @@ import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
+import {
+  DEFAULT_MEETING_HOST_NAME,
+  formatLocalDateTimeForPrompt,
+  pickMeetingHostName,
+  readConfiguredMeetingHostName,
+} from '@/lib/conversations/aiPromptContext';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
@@ -239,6 +245,36 @@ async function loadAvailableMeetingSlots(input: {
   return { calendar, availableMeetingSlots, calendarContext };
 }
 
+/**
+ * Quem conduz as reunioes, para o prompt: nome configurado no numero (`config.meetingHostName`),
+ * senao o nome do responsavel da agenda, senao um padrao neutro (o login por e-mail nunca entra).
+ */
+async function resolveMeetingHostName(input: {
+  admin: AdminClient;
+  organizationId: string;
+  connectionConfig: Record<string, unknown> | null | undefined;
+  ownerId: string | null;
+}) {
+  const configured = readConfiguredMeetingHostName(input.connectionConfig);
+  if (configured) return configured;
+  if (!input.ownerId) return DEFAULT_MEETING_HOST_NAME;
+
+  const owner = await input.admin
+    .from('profiles')
+    .select('email, first_name, last_name, nickname')
+    .eq('id', input.ownerId)
+    .eq('organization_id', input.organizationId)
+    .maybeSingle();
+  if (owner.error) {
+    console.warn('[Conversation AI] Failed to load meeting host profile', {
+      organizationId: input.organizationId,
+      error: owner.error.message,
+    });
+    return DEFAULT_MEETING_HOST_NAME;
+  }
+  return pickMeetingHostName({ connectionConfig: input.connectionConfig, ownerProfile: owner.data });
+}
+
 export async function generateConversationAutoReply(params: {
   admin: AdminClient;
   organizationId: string;
@@ -321,15 +357,25 @@ export async function generateConversationAutoReply(params: {
     connectionConfig: generationConnectionConfig,
     now: currentDateTime,
   });
+  const timezone = calendarAvailability.calendar?.timezone
+    || (typeof orgSettings?.automation_timezone === 'string' && orgSettings.automation_timezone.trim()
+      ? orgSettings.automation_timezone.trim().slice(0, 64)
+      : 'America/Sao_Paulo');
+  const meetingHostName = await resolveMeetingHostName({
+    admin,
+    organizationId,
+    connectionConfig: generationConnectionConfig,
+    ownerId: calendarAvailability.calendar?.ownerId ?? null,
+  });
   const prompt = renderPromptTemplate(resolvedPrompt.content, {
     organizationName: organization?.name || 'Organizacao',
     contactName: contactName || 'Lead',
     contactPhone,
     currentDateTime,
-    timezone: calendarAvailability.calendar?.timezone
-      || (typeof orgSettings?.automation_timezone === 'string' && orgSettings.automation_timezone.trim()
-        ? orgSettings.automation_timezone.trim().slice(0, 64)
-        : 'America/Sao_Paulo'),
+    // Data local com dia da semana: "amanha" e "terca" so fazem sentido no fuso da agenda.
+    currentDateTimeLocal: formatLocalDateTimeForPrompt(currentDateTime, timezone),
+    timezone,
+    meetingHostName,
     recentMessagesText: formatRecentMessages(recentMessages),
     calendarContext: calendarAvailability.calendarContext,
   });

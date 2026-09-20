@@ -27,4 +27,22 @@ describe('prompt da Aurora', () => {
     expect(prompt.defaultTemplate).toContain('{{timezone}}');
     expect(prompt.defaultTemplate).toContain('{{recentMessagesText}}');
   });
+
+  it('aplica os ajustes de 20/09: nome e concordancia esporadicos, 2 horarios, sem oferecer ligacao, quem conduz e data local', () => {
+    const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+    expect(template).toContain('use o nome do lead na primeira mensagem e depois so de vez em quando');
+    expect(template).toContain('nao abra a resposta com concordancia');
+    expect(template).toContain('"bora"');
+    expect(template).toContain('no maximo 2 horarios por mensagem');
+    expect(template).toContain('fica melhor de manha ou de tarde');
+    expect(template).toContain('terca-feira funciona para voce?');
+    expect(template).toContain('nunca ofereca ligacao por conta propria');
+    expect(template).toContain('So se o proprio lead pedir para ser ligado');
+    expect(template).toContain('call_accepted');
+    expect(template).toContain('voce nao participa dela');
+    expect(template).toContain('{{meetingHostName}}');
+    expect(template).toContain('{{currentDateTimeLocal}}');
+    expect(template).not.toContain('se o lead aceitar uma ligacao');
+  });
 });

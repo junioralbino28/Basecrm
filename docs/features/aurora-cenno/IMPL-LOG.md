@@ -138,3 +138,15 @@ Branch: `feat/aurora-implantacao`
 - Sondas no domínio de teste: webhook sem segredo 401, segredo errado 401, id inexistente 404, ai-reply sem segredo 401.
 - Falta: parear o WhatsApp Business do Junior na conexão de teste (QR pela tela), ligar os três gates só durante o teste, rodar o roteiro ponta a ponta e o adversarial, desligar os gates.
 - Produção intocada: `crm.basea2.com` segue em `a792399`; nenhuma migration em produção; número da campanha e Pandora não foram tocados.
+
+## Ajustes do Junior (20/09) — aplicados pelo Claude
+
+Origem: 1ª rodada no preview (20/09, 00h20). Junior ditou: nome e concordância só de vez em quando (cara de bot e "puxa-saquismo"), 2 horários em vez de 3 e, na recusa, "manhã ou tarde?" + "terça funciona para você?" (dia seguinte), nunca oferecer ligação (é follow-up humano; a intenção é sempre a reunião), cutucada aos 15 minutos em vez de 90 s e fora do módulo de follow-up.
+
+- **Prompt** (`lib/ai/prompts/catalog.ts`): regras de nome/concordância/"bora"; seção "OBJETIVO E REUNIAO" (quem conduz é `{{meetingHostName}}`, a Aurora não participa; máximo 2 horários; recusa → manhã/tarde e dia seguinte pelo nome; ligação só se o lead pedir → `call_accepted`); `{{currentDateTimeLocal}}` (data local com dia da semana) ao lado do UTC.
+- **Contexto do prompt** (`lib/conversations/aiPromptContext.ts` + `aiReply.ts`): `formatLocalDateTimeForPrompt` e `meetingHostName` (nome configurado no número `config.meetingHostName` > nome do responsável da agenda > "a equipe comercial"; perfil só com e-mail nunca expõe o login).
+- **Cutucada de inatividade** (`lib/conversations/idleNudge.ts`, `idleNudgeRunner.ts`): o webhook só agenda (`aiInactivityNudgeDueAt`, 15 min por padrão, por número em `config.aiIdleNudge`); o tick de 5 min envia as vencidas com reivindicação atômica (token + `lastDirection=outbound` + `status=ai_active`), pela mesma esteira `executeConversationAIReply` (`automation_source=native_crm_idle_nudge`). O bloco de `sleep(90_000)` do webhook foi removido. O tick não derruba se a cutucada falhar; resumo em `idleNudges` na resposta.
+- **PATCH da conexão**: aceita `aiIdleNudge` (parcial, completa com o atual/padrão) e `meetingHostName`.
+- **Testes**: 36 novos (config, agendamento, runner com cliente falso, webhook só agenda, PATCH, prompt, tick em ordem e blindado). Suíte completa: 251 arquivos / 1220 testes aprovados, 45/232 pulados; `tsc --noEmit` 0; ESLint 0.
+- **Preview** (banco `zvw`, conexão "Aurora (teste)"): bloqueio de almoço 12:00–13:00 seg–sex criado; `meetingHostName=Junior` gravado. Gates continuam desligados.
+- **Fora deste lote**: agenda visual (Junior perguntou se não é melhor espelhar o Google Agenda via OAuth; proposta registrada no cérebro, aguarda o "vai").

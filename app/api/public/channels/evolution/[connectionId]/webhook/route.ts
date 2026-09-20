@@ -16,6 +16,11 @@ import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetada
 import { loadFreshConversationAIGate } from '@/lib/conversations/conversationAIGate';
 import { recordConversationAIFailure } from '@/lib/conversations/conversationAIFailure';
 import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
+import {
+  buildIdleNudgeScheduleMetadata,
+  resolveIdleNudgeConfig,
+  shouldScheduleIdleNudge,
+} from '@/lib/conversations/idleNudge';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -54,54 +59,6 @@ function getPayloadInstanceName(payload: unknown) {
 
 function buildThreadTitle(contactName: string | null, contactPhone: string) {
   return `WhatsApp - ${contactName || contactPhone}`;
-}
-
-function toIsoStringOrNull(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function shouldScheduleInactivityNudge(metadata: Record<string, unknown>) {
-  const lastInboundAt = toIsoStringOrNull(metadata.lastInboundAt);
-  const lastNudgeSentAt = toIsoStringOrNull(metadata.aiInactivityNudgeSentAt);
-
-  if (!lastInboundAt) return false;
-  if (!lastNudgeSentAt) return true;
-
-  return new Date(lastInboundAt).getTime() > new Date(lastNudgeSentAt).getTime();
-}
-
-async function clearInactivityNudgeToken(params: {
-  admin: ReturnType<typeof createStaticAdminClient>;
-  organizationId: string;
-  threadId: string;
-  metadata: Record<string, unknown>;
-  sentAt?: string | null;
-}) {
-  const { admin, organizationId, threadId, metadata, sentAt } = params;
-  const nextMetadata = {
-    ...metadata,
-    aiInactivityNudgeToken: null,
-    aiInactivityNudgeDueAt: null,
-    aiInactivityNudgeScheduledAt: null,
-    aiInactivityNudgeSentAt: sentAt ?? metadata.aiInactivityNudgeSentAt ?? null,
-  };
-
-  const result = await admin
-    .from('conversation_threads')
-    .update({
-      updated_at: new Date().toISOString(),
-      metadata: nextMetadata,
-    })
-    .eq('id', threadId)
-    .eq('organization_id', organizationId);
-
-  if (result.error) {
-    console.warn('[Evolution webhook] Failed to clear inactivity nudge token', {
-      threadId,
-      organizationId,
-      error: result.error.message,
-    });
-  }
 }
 
 export async function processDeferredAIReply(params: {
@@ -369,28 +326,31 @@ export async function processDeferredAIReply(params: {
     return;
   }
 
+  // Cutucada de inatividade: aqui so se AGENDA. Quinze minutos nao cabem numa espera dentro do
+  // pedido do webhook, entao quem envia e o relogio do tick (sendDueConversationNudges), lendo
+  // aiInactivityNudgeDueAt. Prazo, texto e liga/desliga sao por numero (config.aiIdleNudge).
   if (
     executedReply &&
     'thread' in executedReply &&
     executedReply.thread &&
     !executedReply.warning &&
-    executedReply.status === 'ai_active' &&
-    shouldScheduleInactivityNudge(executedReply.thread.metadata as Record<string, unknown>)
+    executedReply.status === 'ai_active'
   ) {
-    const idleNudgeDelayMs = 90_000;
-    const idleNudgeToken = `${insertedMessageId}:idle-nudge:${Date.now()}`;
-    const nudgeScheduledAt = new Date().toISOString();
+    const threadMetadata = (executedReply.thread.metadata as Record<string, unknown> | null) || {};
+    const idleNudge = resolveIdleNudgeConfig(freshConnectionConfig);
+    if (!idleNudge.enabled || !shouldScheduleIdleNudge(threadMetadata)) return;
 
+    const nudgeScheduledAt = new Date().toISOString();
     const markNudgeResult = await admin
       .from('conversation_threads')
       .update({
         updated_at: nudgeScheduledAt,
-        metadata: {
-          ...(executedReply.thread.metadata as Record<string, unknown>),
-          aiInactivityNudgeToken: idleNudgeToken,
-          aiInactivityNudgeScheduledAt: nudgeScheduledAt,
-          aiInactivityNudgeDueAt: new Date(Date.now() + idleNudgeDelayMs).toISOString(),
-        },
+        metadata: buildIdleNudgeScheduleMetadata({
+          metadata: threadMetadata,
+          token: `${insertedMessageId}:idle-nudge:${Date.now()}`,
+          scheduledAt: nudgeScheduledAt,
+          delayMinutes: idleNudge.delayMinutes,
+        }),
       })
       .eq('id', threadId)
       .eq('organization_id', organizationId);
@@ -400,116 +360,6 @@ export async function processDeferredAIReply(params: {
         connectionId,
         threadId,
         error: markNudgeResult.error.message,
-      });
-      return;
-    }
-
-    await sleep(idleNudgeDelayMs);
-
-    const nudgeCheckResult = await admin
-      .from('conversation_threads')
-      .select('status, metadata')
-      .eq('id', threadId)
-      .eq('organization_id', organizationId)
-      .maybeSingle();
-
-    if (nudgeCheckResult.error) {
-      console.warn('[Evolution webhook] Failed to validate inactivity nudge state', {
-        connectionId,
-        threadId,
-        error: nudgeCheckResult.error.message,
-      });
-      return;
-    }
-
-    const nudgeMetadata =
-      (nudgeCheckResult.data?.metadata as Record<string, unknown> | null) || {};
-
-    if (nudgeCheckResult.data?.status !== 'ai_active') {
-      await clearInactivityNudgeToken({
-        admin,
-        organizationId,
-        threadId,
-        metadata: nudgeMetadata,
-      });
-      return;
-    }
-
-    if (nudgeMetadata.aiInactivityNudgeToken !== idleNudgeToken) {
-      return;
-    }
-
-    if (nudgeMetadata.lastDirection === 'inbound') {
-      await clearInactivityNudgeToken({
-        admin,
-        organizationId,
-        threadId,
-        metadata: nudgeMetadata,
-      });
-      return;
-    }
-
-    const idleNudgeText =
-      `Se quiser, eu continuo te ajudando por aqui 😊\n\n` +
-      `Posso te explicar melhor e tirar suas duvidas sem pressa.`;
-
-    try {
-      const nudgeResult = await executeConversationAIReply({
-        admin,
-        connection: {
-          id: connectionId,
-          organization_id: organizationId,
-          name: connectionName,
-          config: connectionConfig,
-        },
-        payload: {
-          threadId,
-          replyText: idleNudgeText,
-          metadata: {
-            idle_nudge: true,
-            idle_nudge_delay_ms: idleNudgeDelayMs,
-            idle_nudge_token: idleNudgeToken,
-          },
-          automationSource: 'native_crm_idle_nudge',
-        },
-      });
-
-      if ('ignored' in nudgeResult && nudgeResult.ignored) {
-        await clearInactivityNudgeToken({
-          admin,
-          organizationId,
-          threadId,
-          metadata: nudgeMetadata,
-        });
-        return;
-      }
-      if (nudgeResult.warning) return;
-
-      await clearInactivityNudgeToken({
-        admin,
-        organizationId,
-        threadId,
-        metadata: {
-          ...nudgeMetadata,
-          aiInactivityNudgeSentAt: new Date().toISOString(),
-        },
-        sentAt: new Date().toISOString(),
-      });
-    } catch (idleNudgeError) {
-      console.warn('[Evolution webhook] Failed to send inactivity nudge', {
-        connectionId,
-        threadId,
-        error: idleNudgeError instanceof Error ? idleNudgeError.message : String(idleNudgeError),
-      });
-      await recordConversationAIFailure({
-        admin,
-        organizationId,
-        threadId,
-        eventId: idleNudgeToken,
-        contactLabel: contactName || canonicalPhone,
-        stage: 'delivery',
-        metadata: nudgeMetadata,
-        errorMessage: idleNudgeError instanceof Error ? idleNudgeError.message : String(idleNudgeError),
       });
     }
   }

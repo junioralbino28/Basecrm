@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { lookup } from 'node:dns/promises';
+import { DEFAULT_IDLE_NUDGE_TEXT } from '@/lib/conversations/idleNudge';
 
 const requireTenantAccessMock = vi.fn();
 const updateMock = vi.fn();
@@ -244,5 +245,38 @@ describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () 
     expect(response.status).toBe(200);
     const saved = updateMock.mock.calls[0]?.[0] as { config: Record<string, unknown> };
     expect(saved.config.apiUrl).toBeUndefined();
+  });
+
+  it('configura a cutucada de inatividade e quem conduz por numero, completando o que faltar com o padrao', async () => {
+    const response = await patch({
+      config: { aiIdleNudge: { delayMinutes: 20 }, meetingHostName: 'Junior' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: {
+        ...baseConfig,
+        aiIdleNudge: { enabled: true, delayMinutes: 20, text: DEFAULT_IDLE_NUDGE_TEXT },
+        meetingHostName: 'Junior',
+      },
+    });
+  });
+
+  it('desligar a cutucada preserva o prazo e o texto ja gravados no numero', async () => {
+    currentConfig = { ...baseConfig, aiIdleNudge: { enabled: true, delayMinutes: 25, text: 'Ainda por aqui?' } };
+
+    const response = await patch({ config: { aiIdleNudge: { enabled: false } } });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: { aiIdleNudge: { enabled: false, delayMinutes: 25, text: 'Ainda por aqui?' } },
+    });
+  });
+
+  it('recusa cutucada e nome de quem conduz fora do contrato', async () => {
+    expect((await patch({ config: { aiIdleNudge: { delayMinutes: 0 } } })).status).toBe(400);
+    expect((await patch({ config: { aiIdleNudge: { campoDesconhecido: 1 } } })).status).toBe(400);
+    expect((await patch({ config: { meetingHostName: '<script>Junior</script>' } })).status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

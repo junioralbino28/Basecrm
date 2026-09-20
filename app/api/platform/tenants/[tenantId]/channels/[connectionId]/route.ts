@@ -12,6 +12,7 @@ import { validateEvolutionPairForWrite } from '@/lib/channels/evolutionUrlGuard'
 import { isConversationAIPromptKey } from '@/lib/conversations/aiAgentConfig';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
 import { ConversationCalendarConfigSchema } from '@/lib/conversations/meetingAvailability';
+import { IdleNudgeConfigSchema, resolveIdleNudgeConfig } from '@/lib/conversations/idleNudge';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -34,6 +35,10 @@ const ChannelUpdateSchema = z.object({
     aiAgentName: z.string().trim().regex(/^[\p{L}\p{N} .'-]{1,80}$/u).optional(),
     aiPromptKey: z.string().trim().refine(isConversationAIPromptKey).optional(),
     calendar: ConversationCalendarConfigSchema.optional(),
+    // Cutucada de inatividade por numero (parcial: o que faltar herda o valor atual ou o padrao).
+    aiIdleNudge: IdleNudgeConfigSchema.partial().optional(),
+    // Quem conduz as reunioes que a IA marca; vazio limpa e volta ao nome do responsavel da agenda.
+    meetingHostName: z.string().trim().regex(/^(?:[\p{L}\p{N} .'-]{1,80})?$/u).optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -114,6 +119,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         if (incoming.aiAgentName !== undefined) merged.aiAgentName = incoming.aiAgentName;
         if (incoming.aiPromptKey !== undefined) merged.aiPromptKey = incoming.aiPromptKey;
         if (incoming.calendar !== undefined) merged.calendar = incoming.calendar;
+        if (incoming.aiIdleNudge !== undefined) {
+          const currentNudge = resolveIdleNudgeConfig(merged);
+          merged.aiIdleNudge = {
+            enabled: incoming.aiIdleNudge.enabled ?? currentNudge.enabled,
+            delayMinutes: incoming.aiIdleNudge.delayMinutes ?? currentNudge.delayMinutes,
+            text: incoming.aiIdleNudge.text ?? currentNudge.text,
+          };
+        }
+        if (incoming.meetingHostName !== undefined) merged.meetingHostName = incoming.meetingHostName || undefined;
         if (incoming.webhookSecret !== undefined) {
           merged.webhookSecret =
             incoming.webhookSecret.trim() ||
