@@ -56,7 +56,7 @@ describe('toPublicChannelConnection', () => {
     expect(dto.config.apiKey).toBeUndefined();
   });
 
-  it('expõe aiEnabled para qualquer usuário e aplica default true sem expor segredos', () => {
+  it('expõe aiEnabled para qualquer usuário e falha fechado quando ausente', () => {
     const disabled = toPublicChannelConnection(
       { ...connection, config: { ...connection.config, aiEnabled: false } },
       { canManageChannelConfig: false },
@@ -67,7 +67,7 @@ describe('toPublicChannelConnection', () => {
     );
 
     expect(disabled.config.aiEnabled).toBe(false);
-    expect(defaulted.config.aiEnabled).toBe(true);
+    expect(defaulted.config.aiEnabled).toBe(false);
     expect(disabled.config.apiKey).toBeUndefined();
     expect(disabled.config.webhookSecret).toBeUndefined();
   });

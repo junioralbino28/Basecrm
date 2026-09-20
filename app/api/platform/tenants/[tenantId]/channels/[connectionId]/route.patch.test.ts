@@ -113,6 +113,91 @@ describe('PATCH channel connection — aiEnabled', () => {
     expect(response.status).toBe(200);
     expect(updateMock).toHaveBeenCalledOnce();
   });
+
+  it('configura a identidade e o prompt da Aurora sem apagar a Evolution', async () => {
+    const response = await patch({
+      config: {
+        aiAgentName: 'Aurora',
+        aiPromptKey: 'task_conversations_whatsapp_cenno_aurora',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: {
+        ...baseConfig,
+        aiAgentName: 'Aurora',
+        aiPromptKey: 'task_conversations_whatsapp_cenno_aurora',
+      },
+    });
+  });
+
+  it('recusa nome ou chave de prompt fora do contrato', async () => {
+    const response = await patch({
+      config: { aiAgentName: '<script>Aurora</script>', aiPromptKey: '../../prompt' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('recusa uma chave bem formada que nao existe no catalogo', async () => {
+    const response = await patch({
+      config: { aiAgentName: 'Aurora', aiPromptKey: 'task_prompt_inexistente' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH channel connection — agenda da IA', () => {
+  it('salva uma agenda valida sem apagar a configuracao da Evolution', async () => {
+    const calendar = {
+      enabled: true,
+      timezone: 'America/Sao_Paulo',
+      ownerId: '33333333-3333-4333-8333-333333333333',
+      minimumNoticeMinutes: 60,
+      schedulingHorizonDays: 14,
+      weeklyHours: {
+        monday: [{ start: '09:00', end: '18:00' }],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+      },
+    };
+
+    const response = await patch({ config: { calendar } });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: { ...baseConfig, calendar },
+    });
+  });
+
+  it('recusa agenda habilitada sem faixa de atendimento', async () => {
+    const response = await patch({
+      config: {
+        calendar: {
+          enabled: true,
+          timezone: 'America/Sao_Paulo',
+          ownerId: '33333333-3333-4333-8333-333333333333',
+          minimumNoticeMinutes: 60,
+          schedulingHorizonDays: 14,
+          weeklyHours: {
+            monday: [], tuesday: [], wednesday: [], thursday: [],
+            friday: [], saturday: [], sunday: [],
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () => {

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -26,6 +27,8 @@ import { Modal } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 import { MessageBubble } from './conversations/MessageBubble';
+import { ConversationHandoffCard } from './conversations/ConversationHandoffCard';
+import type { ConversationMeetingAction } from '@/lib/conversations/meetingHandoffAction';
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
 import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
@@ -239,6 +242,8 @@ function extractPairingDisplay(metadata?: Record<string, unknown>) {
 
 export const TenantConversationsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const requestedThreadId = searchParams.get('thread');
   const { tenantId, tenant, access, reload } = useTenantDetail();
   const { profile } = useAuth();
   const canReply = access.canReplyConversations;
@@ -280,6 +285,7 @@ export const TenantConversationsPage: React.FC = () => {
   } | null>(null);
   const messagesViewportRef = React.useRef<HTMLDivElement | null>(null);
   const messagesBottomRef = React.useRef<HTMLDivElement | null>(null);
+  const handledDeepLinkRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     setComposer(current => ({
@@ -316,10 +322,18 @@ export const TenantConversationsPage: React.FC = () => {
       return;
     }
 
+    if (requestedThreadId && handledDeepLinkRef.current !== requestedThreadId) {
+      handledDeepLinkRef.current = requestedThreadId;
+      if (inboxQuery.data.threads.some(thread => thread.id === requestedThreadId)) {
+        setSelectedThreadId(requestedThreadId);
+        return;
+      }
+    }
+
     if (!selectedThreadId || !inboxQuery.data.threads.some(thread => thread.id === selectedThreadId)) {
       setSelectedThreadId(inboxQuery.data.threads[0].id);
     }
-  }, [inboxQuery.data?.threads, selectedThreadId]);
+  }, [inboxQuery.data?.threads, requestedThreadId, selectedThreadId]);
 
   const messagesQuery = useQuery<MessagesResponse>({
     queryKey: queryKeys.conversations.messages(selectedThreadId || ''),
@@ -382,6 +396,7 @@ export const TenantConversationsPage: React.FC = () => {
         assign_next_human?: boolean;
         handoff_reason?: string | null;
         mark_as_read?: boolean;
+        handoff_action?: ConversationMeetingAction;
       };
     }) => {
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${payload.threadId}`, {
@@ -1155,6 +1170,31 @@ export const TenantConversationsPage: React.FC = () => {
                 </div>
                 ) : null}
               </div>
+
+              {selectedThread.metadata.lastHandoff ? (
+                <ConversationHandoffCard
+                  handoff={selectedThread.metadata.lastHandoff}
+                  phone={selectedThread.contact_phone}
+                  disabled={!canReply || updateThreadMutation.isPending}
+                  error={updateThreadMutation.error?.message || null}
+                  onConfirm={() =>
+                    updateThreadMutation.mutate({
+                      threadId: selectedThread.id,
+                      body: {
+                        handoff_action: { type: 'confirm_meeting' },
+                      },
+                    })
+                  }
+                  onAdjust={scheduledAt =>
+                    updateThreadMutation.mutate({
+                      threadId: selectedThread.id,
+                      body: {
+                        handoff_action: { type: 'adjust_meeting', scheduledAt },
+                      },
+                    })
+                  }
+                />
+              ) : null}
 
               <div
                 ref={messagesViewportRef}

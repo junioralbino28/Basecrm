@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { Modal, ModalForm } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
+import { ChannelCalendarSettings } from './conversations/ChannelCalendarSettings';
 
 const FIELD_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
@@ -1056,13 +1057,24 @@ export const TenantChannelsPage: React.FC = () => {
                         type="checkbox"
                         checked={
                           aiOverrides[connection.id] ??
-                          (connection.config?.aiEnabled !== false)
+                          (connection.config?.aiEnabled === true)
                         }
                         disabled={!canManageChannelConfig || savingAIConnectionId === connection.id}
                         onChange={(event) => void updateAIEnabled(connection.id, event.target.checked)}
                         className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                     </label>
+
+                    {tenantId ? (
+                      <ChannelCalendarSettings
+                        tenantId={tenantId}
+                        connectionId={connection.id}
+                        initialCalendar={connection.config?.calendar}
+                        assignees={tenant.calendar_assignees || []}
+                        disabled={!canManageChannelConfig}
+                        onSaved={reload}
+                      />
+                    ) : null}
 
                     {canManageInfrastructure ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-card">

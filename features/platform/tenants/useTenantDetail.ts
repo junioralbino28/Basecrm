@@ -15,6 +15,7 @@ export type TenantDetail = {
   };
   enabled_modules: string[];
   metadata: Record<string, unknown>;
+  calendar_assignees: Array<{ id: string; display_name: string }>;
   domains: Array<{
     id: string;
     host: string;

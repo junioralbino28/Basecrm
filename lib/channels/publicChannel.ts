@@ -48,7 +48,7 @@ export function toPublicChannelConnection(
     metadata: safeMetadata,
     config: {
       ...sanitizedConfig,
-      aiEnabled: config.aiEnabled !== false,
+      aiEnabled: config.aiEnabled === true,
       hasApiKey: Boolean(apiKey),
       hasWebhookSecret: Boolean(webhookSecret),
       apiKeyLast4:

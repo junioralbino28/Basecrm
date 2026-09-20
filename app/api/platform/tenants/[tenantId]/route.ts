@@ -1,6 +1,7 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
+import { getConversationAssigneeDisplayName } from '@/lib/conversations/server';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -24,6 +25,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       organization_editions(edition_key, branding_config, enabled_modules, metadata),
       organization_domains(id, host, is_primary, status, created_at),
       channel_connections(id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at),
+      profiles(id, email, first_name, last_name, nickname),
       provisioning_runs(id, status, input_payload, result_payload, created_at)
     `)
     .eq('id', tenantId)
@@ -46,6 +48,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       branding_config: edition?.branding_config || {},
       enabled_modules: edition?.enabled_modules || [],
       metadata: edition?.metadata || {},
+      calendar_assignees: ((data as any).profiles || []).map((profile: any) => ({
+        id: profile.id,
+        display_name: getConversationAssigneeDisplayName(profile),
+      })),
       domains: (data as any).organization_domains || [],
       channel_connections: ((data as any).channel_connections || []).map((connection: any) =>
         toPublicChannelConnection(connection, { canManageChannelConfig: auth.canManageChannelConfig })

@@ -1,4 +1,5 @@
 import { normalizePhoneE164 } from '@/lib/phone';
+import { readConversationHandoff, type ConversationHandoff } from './handoff';
 import type {
   ConversationMessageDirection,
   ConversationThreadAdClick,
@@ -49,6 +50,7 @@ export function readConversationThreadMetadata(value: unknown): ConversationThre
     aiLockedReason: toSafeString(source.aiLockedReason),
     handoffRequestedAt: toSafeString(source.handoffRequestedAt),
     handoffReason: toSafeString(source.handoffReason),
+    lastHandoff: readConversationHandoff(source.lastHandoff),
     resolvedAt: toSafeString(source.resolvedAt),
     resolvedBy: toSafeString(source.resolvedBy),
     queueAssignedUserId: toSafeString(source.queueAssignedUserId),
@@ -78,6 +80,7 @@ export function buildConversationThreadMetadataUpdate(
     aiLockedReason?: string | null;
     handoffRequestedAt?: string | null;
     handoffReason?: string | null;
+    handoff?: ConversationHandoff | null;
     resolvedAt?: string | null;
     resolvedBy?: string | null;
     queueAssignedUserId?: string | null;
@@ -106,6 +109,7 @@ export function buildConversationThreadMetadataUpdate(
     aiLockedReason: update.aiLockedReason ?? current.aiLockedReason ?? null,
     handoffRequestedAt: update.handoffRequestedAt ?? current.handoffRequestedAt ?? null,
     handoffReason: update.handoffReason ?? current.handoffReason ?? null,
+    lastHandoff: update.handoff ?? current.lastHandoff ?? null,
     resolvedAt: update.resolvedAt ?? current.resolvedAt ?? null,
     resolvedBy: update.resolvedBy ?? current.resolvedBy ?? null,
     queueAssignedUserId: update.queueAssignedUserId ?? current.queueAssignedUserId ?? null,

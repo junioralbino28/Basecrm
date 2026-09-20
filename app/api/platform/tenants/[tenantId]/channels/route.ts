@@ -87,7 +87,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     instanceName: parsed.data.config?.instanceName?.trim() || createInstanceName(parsed.data.name),
     webhookUrl: parsed.data.config?.webhookUrl?.trim() || undefined,
     sendMode: parsed.data.config?.sendMode || 'auto',
-    aiEnabled: parsed.data.config?.aiEnabled ?? true,
+    aiEnabled: parsed.data.config?.aiEnabled ?? false,
     webhookSecret:
       parsed.data.config?.webhookSecret?.trim() || crypto.randomUUID().replace(/-/g, ''),
     apiKey: parsed.data.config?.apiKey?.trim() || undefined,

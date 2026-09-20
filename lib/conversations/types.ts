@@ -1,3 +1,5 @@
+import type { ConversationHandoff } from './handoff';
+
 export type ConversationThreadStatus =
   | 'ai_active'
   | 'human_queue'
@@ -70,6 +72,7 @@ export type ConversationThreadMetadata = {
   aiLockedReason?: string | null;
   handoffRequestedAt?: string | null;
   handoffReason?: string | null;
+  lastHandoff?: ConversationHandoff | null;
   resolvedAt?: string | null;
   resolvedBy?: string | null;
   queueAssignedUserId?: string | null;

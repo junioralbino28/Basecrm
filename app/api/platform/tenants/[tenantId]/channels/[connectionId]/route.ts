@@ -9,7 +9,9 @@ import {
 } from '@/lib/channels/evolutionCredentials';
 import { logoutEvolutionInstance } from '@/lib/channels/evolution';
 import { validateEvolutionPairForWrite } from '@/lib/channels/evolutionUrlGuard';
+import { isConversationAIPromptKey } from '@/lib/conversations/aiAgentConfig';
 import { toPublicChannelConnection } from '@/lib/channels/publicChannel';
+import { ConversationCalendarConfigSchema } from '@/lib/conversations/meetingAvailability';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -29,6 +31,9 @@ const ChannelUpdateSchema = z.object({
     apiKey: z.string().max(300).optional(),
     sendMode: z.enum(['auto', 'number_text', 'number_textMessage', 'number_message', 'number_body']).optional(),
     aiEnabled: z.boolean().optional(),
+    aiAgentName: z.string().trim().regex(/^[\p{L}\p{N} .'-]{1,80}$/u).optional(),
+    aiPromptKey: z.string().trim().refine(isConversationAIPromptKey).optional(),
+    calendar: ConversationCalendarConfigSchema.optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -85,6 +90,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   if (current.error) return json({ error: current.error.message }, 500);
   if (!current.data) return json({ error: 'Channel not found' }, 404);
 
+  if (parsed.data.config?.calendar?.enabled) {
+    const owner = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', parsed.data.config.calendar.ownerId)
+      .eq('organization_id', tenantId)
+      .maybeSingle();
+    if (owner.error) return json({ error: owner.error.message }, 500);
+    if (!owner.data) return json({ error: 'Responsavel da agenda nao pertence a esta organizacao.' }, 400);
+  }
+
   const nextConfig = parsed.data.config
     ? (() => {
         const incoming = parsed.data.config;
@@ -95,6 +111,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         if (incoming.webhookUrl !== undefined) merged.webhookUrl = incoming.webhookUrl.trim() || undefined;
         if (incoming.sendMode !== undefined) merged.sendMode = incoming.sendMode;
         if (incoming.aiEnabled !== undefined) merged.aiEnabled = incoming.aiEnabled;
+        if (incoming.aiAgentName !== undefined) merged.aiAgentName = incoming.aiAgentName;
+        if (incoming.aiPromptKey !== undefined) merged.aiPromptKey = incoming.aiPromptKey;
+        if (incoming.calendar !== undefined) merged.calendar = incoming.calendar;
         if (incoming.webhookSecret !== undefined) {
           merged.webhookSecret =
             incoming.webhookSecret.trim() ||

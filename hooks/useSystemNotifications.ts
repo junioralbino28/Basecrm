@@ -24,14 +24,14 @@ export const useSystemNotifications = () => {
 
     const sb = supabase;
 
-    const { data: notifications = [] } = useQuery({
+    const { data: notifications = [], isFetched: notificationsReady } = useQuery({
         queryKey: ['system_notifications'],
         queryFn: async () => {
             if (!sb) return [];
             // Fetch System Notifications
             const { data, error } = await sb
                 .from('system_notifications')
-                .select('*')
+                .select('id,type,title,message,created_at,link,severity,read_at')
                 .order('created_at', { ascending: false })
                 .limit(20);
 
@@ -60,7 +60,9 @@ export const useSystemNotifications = () => {
             }));
         },
         enabled: !!user && !!sb,
-        staleTime: 1000 * 60 * 5, // 5 minutes
+        refetchInterval: 15_000,
+        refetchIntervalInBackground: true,
+        staleTime: 10_000,
     });
 
     // Derived state
@@ -105,6 +107,7 @@ export const useSystemNotifications = () => {
 
     return {
         notifications,
+        notificationsReady,
         count: unreadCount,
         hasHighSeverity,
         markAsRead: markAsRead.mutate,

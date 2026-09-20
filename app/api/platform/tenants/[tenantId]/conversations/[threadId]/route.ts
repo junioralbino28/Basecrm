@@ -1,7 +1,17 @@
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { buildConversationThreadMetadataUpdate, getCanonicalConversationPhone } from '@/lib/conversations/threadMetadata';
+import {
+  buildConversationThreadMetadataUpdate,
+  getCanonicalConversationPhone,
+  readConversationThreadMetadata,
+} from '@/lib/conversations/threadMetadata';
+import {
+  ConversationMeetingActionSchema,
+  resolveConversationMeetingAction,
+} from '@/lib/conversations/meetingHandoffAction';
+import { buildConversationMeetingActivity } from '@/lib/conversations/meetingRequest';
+import { resolveConversationCalendarConfig } from '@/lib/conversations/meetingAvailability';
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { pickNextHumanAssignee } from '@/lib/conversations/routing';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
@@ -23,6 +33,7 @@ const ThreadPatchSchema = z.object({
   assign_next_human: z.boolean().optional(),
   handoff_reason: z.string().max(240).nullable().optional(),
   mark_as_read: z.boolean().optional(),
+  handoff_action: ConversationMeetingActionSchema.optional(),
 }).strict();
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: string; threadId: string }> }) {
@@ -34,7 +45,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
 
   const { tenantId, threadId } = await ctx.params;
   const auth = await requireTenantAccess(tenantId, {
-    requiredPermissions: ['conversations.access'],
+    requiredPermissions: parsed.data.handoff_action
+      ? ['conversations.reply']
+      : ['conversations.access'],
   });
   if ('error' in auth) return auth.error;
 
@@ -42,7 +55,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
 
   const existingThread = await admin
     .from('conversation_threads')
-    .select('id, assigned_user_id, metadata, status')
+    .select('id, assigned_user_id, channel_connection_id, contact_id, deal_id, metadata, status')
     .eq('id', threadId)
     .eq('organization_id', tenantId)
     .maybeSingle();
@@ -71,6 +84,101 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
+
+  if (parsed.data.handoff_action) {
+    const currentMetadata = readConversationThreadMetadata(existingThread.data.metadata);
+    if (!currentMetadata.lastHandoff) {
+      return json({ error: 'Esta conversa nao possui um handoff ativo.' }, 409);
+    }
+
+    let resolvedMeeting;
+    try {
+      resolvedMeeting = resolveConversationMeetingAction({
+        organizationId: tenantId,
+        threadId,
+        handoff: currentMetadata.lastHandoff,
+        action: parsed.data.handoff_action,
+        performedAt: updates.updated_at as string,
+        performedBy: auth.profile.id,
+      });
+    } catch (error) {
+      return json({
+        error: error instanceof Error ? error.message : 'Acao de reuniao invalida.',
+      }, 422);
+    }
+
+    let meetingOwnerId = existingThread.data.assigned_user_id ?? auth.profile.id;
+    let meetingTimezone = 'America/Sao_Paulo';
+    if (existingThread.data.channel_connection_id) {
+      const connectionResult = await admin
+        .from('channel_connections')
+        .select('config')
+        .eq('id', existingThread.data.channel_connection_id)
+        .eq('organization_id', tenantId)
+        .maybeSingle();
+      if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
+      const calendar = resolveConversationCalendarConfig(
+        connectionResult.data?.config as Record<string, unknown> | null,
+      );
+      if (calendar) {
+        meetingOwnerId = calendar.ownerId ?? meetingOwnerId;
+        meetingTimezone = calendar.timezone;
+      }
+    }
+
+    const meetingActivity = buildConversationMeetingActivity({
+      organizationId: tenantId,
+      eventId: resolvedMeeting.activityId,
+      contactId: existingThread.data.contact_id,
+      dealId: existingThread.data.deal_id,
+      ownerId: meetingOwnerId,
+      agentName: 'Atendimento humano',
+      handoff: resolvedMeeting.handoff,
+    });
+    if (!meetingActivity) {
+      return json({ error: 'Nao foi possivel montar a atividade da reuniao.' }, 422);
+    }
+
+    const currentActivity = await admin
+      .from('activities')
+      .select('id, contact_id, deal_id')
+      .eq('id', resolvedMeeting.activityId)
+      .eq('organization_id', tenantId)
+      .maybeSingle();
+    if (currentActivity.error) return json({ error: currentActivity.error.message }, 500);
+    if (
+      currentActivity.data
+      && (
+        currentActivity.data.contact_id !== meetingActivity.contact_id
+        || currentActivity.data.deal_id !== meetingActivity.deal_id
+      )
+    ) {
+      return json({ error: 'A atividade da reuniao pertence a outro contexto.' }, 409);
+    }
+
+    const reservation = await admin.rpc('reserve_conversation_meeting', {
+      p_activity_id: meetingActivity.id,
+      p_organization_id: tenantId,
+      p_channel_connection_id: existingThread.data.channel_connection_id,
+      p_owner_id: meetingActivity.owner_id,
+      p_contact_id: meetingActivity.contact_id,
+      p_deal_id: meetingActivity.deal_id,
+      p_title: meetingActivity.title,
+      p_description: meetingActivity.description,
+      p_date: meetingActivity.date,
+      p_created_at: meetingActivity.created_at,
+      p_timezone: meetingTimezone,
+      p_allow_update: true,
+    });
+    if (reservation.error) return json({ error: reservation.error.message }, 500);
+    if (reservation.data !== true) {
+      return json({ error: 'Este horario nao esta mais disponivel para o responsavel.' }, 409);
+    }
+
+    updates.metadata = buildConversationThreadMetadataUpdate(existingThread.data.metadata, {
+      handoff: resolvedMeeting.handoff,
+    });
+  }
 
   if (parsed.data.title !== undefined) updates.title = parsed.data.title.trim();
   if (parsed.data.contact_name !== undefined) updates.contact_name = parsed.data.contact_name?.trim() || null;

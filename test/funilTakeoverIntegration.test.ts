@@ -35,6 +35,6 @@ describe('F5 — integração do takeover humano', () => {
 
   it('pausa inscrições no handoff iniciado pela IA', () => {
     expect(aiReply).toContain("rpc('pause_automation_enrollments_for_thread'");
-    expect(aiReply).toContain("p_reason: 'ai_handoff'");
+    expect(aiReply).toContain("deliveryFailed ? 'ai_delivery_failure' : 'ai_handoff'");
   });
 });

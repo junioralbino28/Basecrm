@@ -167,7 +167,7 @@ export function useConversasNaoLidas(tenantId: string | null, habilitado: boolea
 }
 
 /** Som curto de duas notas, gerado na hora — sem arquivo de áudio. */
-function tocarSom() {
+export function tocarSom() {
   try {
     type JanelaComAudio = Window & { webkitAudioContext?: typeof AudioContext };
     const Ctx = window.AudioContext || (window as JanelaComAudio).webkitAudioContext;

@@ -248,6 +248,10 @@ export async function cleanupFixtures(runId: string): Promise<void> {
 
     // Order matters due to FK constraints.
     assertNoSupabaseError(
+      await supabase.from('conversation_calendar_blocks').delete().eq('organization_id', organizationId),
+      'delete conversation calendar blocks',
+    );
+    assertNoSupabaseError(
       await supabase.from('activities').delete().eq('organization_id', organizationId),
       'delete activities',
     );

@@ -3,6 +3,12 @@ import { Bell, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { useSystemNotifications, SystemNotification } from '@/hooks/useSystemNotifications';
 import Link from 'next/link';
 import { useTenantScopedHref } from '@/components/navigation/useTenantScopedHref';
+import { useAuth } from '@/context/AuthContext';
+import {
+    tocarSom,
+    usePreferenciasNotificacao,
+} from '@/components/notificacoes/NotificacoesDeConversa';
+import { getNewHighPrioritySystemAlerts } from '@/lib/notifications/systemAlerts';
 
 const getTimeAgo = (date: Date) => {
     const now = new Date();
@@ -19,10 +25,61 @@ const getTimeAgo = (date: Date) => {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const NotificationPopover = () => {
-    const { notifications, count, hasHighSeverity, markAsRead, markAllAsRead } = useSystemNotifications();
+    const { user } = useAuth();
+    const notificationPreferences = usePreferenciasNotificacao(user?.id);
+    const {
+        notifications,
+        notificationsReady,
+        count,
+        hasHighSeverity,
+        markAsRead,
+        markAllAsRead,
+    } = useSystemNotifications();
     const dashboardHref = useTenantScopedHref('/dashboard');
     const [isOpen, setIsOpen] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
+    const observedNotificationIds = useRef<Set<string> | null>(null);
+
+    useEffect(() => {
+        if (!notificationsReady) return;
+
+        const newAlerts = getNewHighPrioritySystemAlerts(
+            observedNotificationIds.current,
+            notifications
+        );
+        observedNotificationIds.current = new Set(
+            notifications.map(notification => notification.id)
+        );
+
+        if (!newAlerts.length || !notificationPreferences.ativas) return;
+
+        const canNotify = typeof window !== 'undefined'
+            && 'Notification' in window
+            && Notification.permission === 'granted';
+
+        if (canNotify) {
+            for (const notification of newAlerts) {
+                try {
+                    const browserNotification = new Notification(notification.title, {
+                        body: notification.message,
+                        tag: `basecrm-handoff-${notification.id}`,
+                        icon: '/favicon.ico',
+                    });
+                    browserNotification.onclick = () => {
+                        window.focus();
+                        if (notification.actionLink?.startsWith('/')) {
+                            window.location.assign(notification.actionLink);
+                        }
+                        browserNotification.close();
+                    };
+                } catch {
+                    // Alguns navegadores móveis bloqueiam a construção direta.
+                }
+            }
+        }
+
+        if (notificationPreferences.som) tocarSom();
+    }, [notificationPreferences.ativas, notificationPreferences.som, notifications, notificationsReady]);
 
     // Close on click outside
     useEffect(() => {

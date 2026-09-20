@@ -10,8 +10,12 @@ import {
 import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
+import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import { evaluateWebhookAuth, readWebhookSecretFromRequest } from '@/lib/conversations/webhookAuth';
 import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
+import { loadFreshConversationAIGate } from '@/lib/conversations/conversationAIGate';
+import { recordConversationAIFailure } from '@/lib/conversations/conversationAIFailure';
+import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -141,11 +145,21 @@ export async function processDeferredAIReply(params: {
     requestOrigin,
   } = params;
 
-  if (connectionConfig.aiEnabled === false) return;
+  if (connectionConfig.aiEnabled !== true) return;
 
   const admin = createStaticAdminClient();
 
   await sleep(aiDebounceMs);
+
+  const gate = await loadFreshConversationAIGate({
+    admin,
+    connectionId,
+    organizationId,
+  });
+  if (!gate.ok) return;
+  const freshConnection = gate.connection;
+  const freshConnectionConfig = freshConnection.config || {};
+  const { agentName, promptKey } = resolveConversationAIAgentConfig(freshConnectionConfig);
 
   const debounceCheckResult = await admin
     .from('conversation_threads')
@@ -193,35 +207,45 @@ export async function processDeferredAIReply(params: {
 
   const recentMessages = (recentMessagesResult.data || []).slice().reverse();
   let nativeReplySucceeded = false;
+  let nativeExecutionStarted = false;
+  let fallbackSucceeded = false;
+  let nativeFailureStage: 'configuration' | 'generation' | 'provider' = 'generation';
   let executedReply:
     | Awaited<ReturnType<typeof executeConversationAIReply>>
     | null = null;
 
   try {
-    const nativeReply = await generateConversationAutoReply({
+    const nativeReply = promptKey ? await generateConversationAutoReply({
       admin,
       organizationId,
+      connectionId,
       contactName,
       contactPhone: canonicalPhone,
       recentMessages,
-    });
+      promptKey,
+    }) : { ok: false as const, reason: 'missing_prompt' as const };
 
     if (nativeReply.ok) {
+      nativeExecutionStarted = true;
       executedReply = await executeConversationAIReply({
         admin,
         connection: {
           id: connectionId,
           organization_id: organizationId,
-          name: connectionName,
-          config: connectionConfig,
+          name: freshConnection.name,
+          config: freshConnectionConfig,
         },
         payload: {
           threadId,
           replyText: nativeReply.object.replyText,
           summary: nativeReply.object.summary,
           shouldHandoff: nativeReply.object.shouldHandoff,
+          handoffType: nativeReply.object.handoffType,
           handoffReason: nativeReply.object.handoffReason,
-          authorName: 'Julia',
+          requestedScheduleAt: nativeReply.object.requestedScheduleAt,
+          requestedScheduleText: nativeReply.object.requestedScheduleText,
+          notificationEventId: insertedMessageId,
+          authorName: agentName,
           metadata: {
             trigger_message_id: insertedMessageId,
             native_ai: true,
@@ -234,6 +258,9 @@ export async function processDeferredAIReply(params: {
       });
       nativeReplySucceeded = true;
     } else {
+      nativeFailureStage = nativeReply.reason === 'missing_api_key' || nativeReply.reason === 'missing_prompt'
+        ? 'configuration'
+        : 'generation';
       console.warn('[Evolution webhook] Native AI reply skipped', {
         connectionId,
         threadId,
@@ -241,6 +268,26 @@ export async function processDeferredAIReply(params: {
       });
     }
   } catch (nativeAiError) {
+    if (nativeExecutionStarted) {
+      const failureResult = await recordConversationAIFailure({
+        admin,
+        organizationId,
+        threadId,
+        eventId: insertedMessageId,
+        contactLabel: contactName || canonicalPhone,
+        stage: 'delivery',
+        metadata: latestThreadMetadata,
+      });
+      console.warn('[Evolution webhook] Native AI execution failed after taking ownership', {
+        connectionId,
+        threadId,
+        error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
+        threadError: failureResult.threadError,
+        notificationError: failureResult.notificationError,
+      });
+      return;
+    }
+    nativeFailureStage = 'provider';
     console.warn('[Evolution webhook] Native AI reply failed', {
       connectionId,
       threadId,
@@ -275,7 +322,7 @@ export async function processDeferredAIReply(params: {
       connection: {
         provider: connectionProvider,
         channelType: connectionChannelType,
-        name: connectionName,
+        name: freshConnection.name,
       },
       aiReplyUrl: `${requestOrigin}/api/public/channels/evolution/${connectionId}/ai-reply`,
     };
@@ -286,6 +333,7 @@ export async function processDeferredAIReply(params: {
         secret: expectedSecret || requestSecret,
         payload: automationPayload,
       });
+      fallbackSucceeded = true;
     } catch (automationError) {
       console.warn('[Evolution webhook] Failed to notify automation webhook', {
         connectionId,
@@ -293,6 +341,27 @@ export async function processDeferredAIReply(params: {
         error: automationError instanceof Error ? automationError.message : String(automationError),
       });
     }
+  }
+
+  if (!nativeReplySucceeded && !fallbackSucceeded) {
+    const failureResult = await recordConversationAIFailure({
+      admin,
+      organizationId,
+      threadId,
+      eventId: insertedMessageId,
+      contactLabel: contactName || canonicalPhone,
+      stage: nativeFailureStage,
+      metadata: latestThreadMetadata,
+    });
+    if (!failureResult.ok) {
+      console.warn('[Evolution webhook] Failed to persist AI failure handoff', {
+        connectionId,
+        threadId,
+        threadError: failureResult.threadError,
+        notificationError: failureResult.notificationError,
+      });
+    }
+    return;
   }
 
   if (
@@ -380,7 +449,7 @@ export async function processDeferredAIReply(params: {
       `Posso te explicar melhor e tirar suas duvidas sem pressa.`;
 
     try {
-      await executeConversationAIReply({
+      const nudgeResult = await executeConversationAIReply({
         admin,
         connection: {
           id: connectionId,
@@ -391,7 +460,6 @@ export async function processDeferredAIReply(params: {
         payload: {
           threadId,
           replyText: idleNudgeText,
-          authorName: 'Julia',
           metadata: {
             idle_nudge: true,
             idle_nudge_delay_ms: idleNudgeDelayMs,
@@ -400,6 +468,17 @@ export async function processDeferredAIReply(params: {
           automationSource: 'native_crm_idle_nudge',
         },
       });
+
+      if ('ignored' in nudgeResult && nudgeResult.ignored) {
+        await clearInactivityNudgeToken({
+          admin,
+          organizationId,
+          threadId,
+          metadata: nudgeMetadata,
+        });
+        return;
+      }
+      if (nudgeResult.warning) return;
 
       await clearInactivityNudgeToken({
         admin,
@@ -416,6 +495,15 @@ export async function processDeferredAIReply(params: {
         connectionId,
         threadId,
         error: idleNudgeError instanceof Error ? idleNudgeError.message : String(idleNudgeError),
+      });
+      await recordConversationAIFailure({
+        admin,
+        organizationId,
+        threadId,
+        eventId: idleNudgeToken,
+        contactLabel: contactName || canonicalPhone,
+        stage: 'delivery',
+        metadata: nudgeMetadata,
       });
     }
   }
@@ -636,11 +724,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .eq('channel_type', 'whatsapp')
     .maybeSingle();
 
-  if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
+  if (connectionResult.error) {
+    console.error('[Evolution webhook] Failed to load connection', { connectionId, error: connectionResult.error.message });
+    return json({ error: 'Falha interna ao carregar a conexao.' }, 500);
+  }
   if (!connectionResult.data) return json({ error: 'Conexao nao encontrada' }, 404);
   const connection = connectionResult.data;
   const connectionConfig = (connection.config as Record<string, unknown> | null) || {};
-  const aiEnabled = connectionConfig.aiEnabled !== false;
+  const aiEnabled = connectionConfig.aiEnabled === true;
 
   const requestSecret = readWebhookSecretFromRequest(req);
   const expectedSecret = String(connectionConfig.webhookSecret || '').trim();
@@ -661,6 +752,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       return json({ error: 'Conexao sem segredo de webhook. Abra a tela de conexoes do CRM e gere o QR code de novo.' }, 401);
     }
     return json({ error: 'Secret invalido' }, 401);
+  }
+
+  const rateLimit = await consumeConversationRateLimit({
+    admin,
+    scopeKey: `evolution-webhook:${connectionId}`,
+    limit: 180,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.allowed) {
+    return new Response(JSON.stringify({ error: 'Muitas requisicoes. Tente novamente em instantes.' }), {
+      status: 429,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'retry-after': String(rateLimit.retryAfterSeconds),
+      },
+    });
   }
 
   const parsed = parseEvolutionWebhookPayload(payload);
@@ -702,7 +809,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .limit(1)
       .maybeSingle();
 
-    if (existingMessage.error) return json({ error: existingMessage.error.message }, 500);
+    if (existingMessage.error) {
+      console.error('[Evolution webhook] Failed to check duplicate message', { connectionId, error: existingMessage.error.message });
+      return json({ error: 'Falha interna ao verificar a mensagem.' }, 500);
+    }
     if (existingMessage.data) {
       if (parsed.direction === 'inbound') {
         const waitResolution = await admin.rpc('resolve_automation_wait_from_inbox', {
@@ -744,7 +854,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     contactId = contact.contactId;
     resolvedContactName = contact.contactName;
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Falha ao materializar contato.' }, 500);
+    console.error('[Evolution webhook] Failed to materialize contact', {
+      connectionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return json({ error: 'Falha interna ao materializar o contato.' }, 500);
   }
 
   const threadResult = await admin
@@ -757,7 +871,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .limit(1)
     .maybeSingle();
 
-  if (threadResult.error) return json({ error: threadResult.error.message }, 500);
+  if (threadResult.error) {
+    console.error('[Evolution webhook] Failed to load thread', { connectionId, error: threadResult.error.message });
+    return json({ error: 'Falha interna ao carregar a conversa.' }, 500);
+  }
 
   let threadId = threadResult.data?.id ?? null;
   const inboundThreadStatus = getConversationStatusAfterInbound(threadResult.data?.status, aiEnabled);
@@ -813,7 +930,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .select('id')
       .single();
 
-    if (createdThread.error) return json({ error: createdThread.error.message }, 500);
+    if (createdThread.error) {
+      console.error('[Evolution webhook] Failed to create thread', { connectionId, error: createdThread.error.message });
+      return json({ error: 'Falha interna ao criar a conversa.' }, 500);
+    }
     threadId = createdThread.data.id;
   } else {
     const updatedThread = await admin
@@ -864,7 +984,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .eq('id', threadId)
       .eq('organization_id', connection.organization_id);
 
-    if (updatedThread.error) return json({ error: updatedThread.error.message }, 500);
+    if (updatedThread.error) {
+      console.error('[Evolution webhook] Failed to update thread', { connectionId, error: updatedThread.error.message });
+      return json({ error: 'Falha interna ao atualizar a conversa.' }, 500);
+    }
   }
 
   const insertedMessage = await admin
@@ -907,7 +1030,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         });
       }
     }
-    return json({ error: insertedMessage.error.message }, 500);
+    console.error('[Evolution webhook] Failed to insert message', { connectionId, error: insertedMessage.error.message });
+    return json({ error: 'Falha interna ao registrar a mensagem.' }, 500);
   }
 
   // 2c (decisão do Junior, 13/09): NÃO existe palavra de parada fixa. Quem reconhece que o lead
@@ -944,7 +1068,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         now,
       });
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : 'Falha ao criar oportunidade.' }, 500);
+      console.error('[Evolution webhook] Failed to create opportunity', {
+        connectionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json({ error: 'Falha interna ao criar a oportunidade.' }, 500);
     }
   }
 
@@ -1021,7 +1149,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     .eq('id', connectionId)
     .eq('organization_id', connection.organization_id);
 
-  if (connectionUpdate.error) return json({ error: connectionUpdate.error.message }, 500);
+  if (connectionUpdate.error) {
+    console.error('[Evolution webhook] Failed to update connection metadata', { connectionId, error: connectionUpdate.error.message });
+    return json({ error: 'Falha interna ao atualizar a conexao.' }, 500);
+  }
 
   const automationWebhookUrl = String(connectionConfig.webhookUrl || '').trim();
   const threadStatus =
@@ -1048,7 +1179,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .maybeSingle();
 
     if (threadMetadataResult.error) {
-      return json({ error: threadMetadataResult.error.message }, 500);
+      console.error('[Evolution webhook] Failed to update thread metadata', { connectionId, error: threadMetadataResult.error.message });
+      return json({ error: 'Falha interna ao atualizar a conversa.' }, 500);
     }
 
     const currentThreadMetadata =
@@ -1070,7 +1202,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       .eq('organization_id', connectionResult.data.organization_id);
 
     if (debounceMarkResult.error) {
-      return json({ error: debounceMarkResult.error.message }, 500);
+      console.error('[Evolution webhook] Failed to schedule AI reply', { connectionId, error: debounceMarkResult.error.message });
+      return json({ error: 'Falha interna ao preparar a resposta automatica.' }, 500);
     }
     after(async () => {
       await processDeferredAIReply({

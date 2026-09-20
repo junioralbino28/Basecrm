@@ -99,7 +99,7 @@ describe('GET /api/platform/tenants/[tenantId]/channels', () => {
 });
 
 describe('POST /api/platform/tenants/[tenantId]/channels', () => {
-  it('aceita cadastro simples e gera instanceName, segredo e aiEnabled=true', async () => {
+  it('aceita cadastro simples e gera instanceName, segredo e IA desativada por padrao', async () => {
     requireTenantAccessMock.mockResolvedValue({
       profile: { role: 'clinic_admin', organization_id: TENANT },
       permissions: { 'whatsapp.manage_connection': true },
@@ -136,7 +136,7 @@ describe('POST /api/platform/tenants/[tenantId]/channels', () => {
     expect(config.instanceName).toMatch(/^comercial-vitoria-[a-f0-9]{8}$/);
     expect(config.webhookSecret).toMatch(/^[a-f0-9]{32}$/);
     expect(config.sendMode).toBe('auto');
-    expect(config.aiEnabled).toBe(true);
+    expect(config.aiEnabled).toBe(false);
   });
 });
 

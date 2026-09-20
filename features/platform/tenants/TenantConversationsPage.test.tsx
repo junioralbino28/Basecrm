@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Espião compartilhado de TODAS as mutations da página (uma só basta pra
 // afirmar o payload de mark_as_read do auto-marcar-lida).
 const mutateSpy = vi.hoisted(() => vi.fn());
+const searchParamsState = vi.hoisted(() => ({ query: '' }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const RECEPTION = '22222222-2222-4222-8222-222222222222';
@@ -138,6 +139,9 @@ vi.mock('next/link', () => ({
     <a href={String(href)} {...props}>{children}</a>
   ),
 }));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(searchParamsState.query),
+}));
 vi.mock('@/components/ui/Modal', () => ({
   Modal: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) =>
     isOpen ? <div role="dialog">{children}</div> : null,
@@ -148,6 +152,7 @@ import { TenantConversationsPage } from './TenantConversationsPage';
 
 beforeEach(() => {
   mutateSpy.mockClear();
+  searchParamsState.query = '';
   resetThreads();
 });
 
@@ -173,6 +178,22 @@ describe('TenantConversationsPage — caixa unificada', () => {
     expect(mutateSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ body: { mark_as_read: true } }),
     );
+  });
+
+  it('abre diretamente a conversa indicada pelo alerta de handoff', async () => {
+    searchParamsState.query = 'thread=thread-commercial';
+    threads[1].unread_count = 1;
+
+    render(<TenantConversationsPage />);
+
+    await waitFor(() => {
+      expect(mutateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: 'thread-commercial',
+          body: { mark_as_read: true },
+        }),
+      );
+    });
   });
 
   it('mostra todos os números, identifica a origem e filtra sem reutilizar o pareamento', () => {
