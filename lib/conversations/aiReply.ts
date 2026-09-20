@@ -65,13 +65,16 @@ type RecentMessage = {
   sent_at?: string | null;
 };
 
-const ConversationAutoReplySchema = z.object({
+export const ConversationAutoReplySchema = z.object({
   replyText: z.string().min(1).max(4000),
   summary: z.string().max(2000).nullable().optional(),
   shouldHandoff: z.boolean().optional().default(false),
   handoffType: ConversationHandoffTypeSchema.nullable().optional(),
   handoffReason: z.string().max(240).nullable().optional(),
-  requestedScheduleAt: z.string().datetime({ offset: true }).nullable().optional(),
+  // Sem `.datetime()` aqui de proposito: uma data fora do formato ("amanha 10h", sem offset) vira
+  // null na normalizacao logo abaixo, em vez de derrubar a resposta inteira por formato.
+  requestedScheduleAt: z.string().max(64).nullable().optional()
+    .describe('Data e hora ISO 8601 com offset (ex.: 2026-09-22T10:00:00-03:00) ou null'),
   requestedScheduleText: z.string().max(160).nullable().optional(),
 });
 
@@ -334,7 +337,9 @@ export async function generateConversationAutoReply(params: {
   const result = await generateText({
     model,
     maxRetries: 2,
-    maxOutputTokens: 1200,
+    // No Gemini 3 os tokens de raciocinio contam neste teto; 1.200 truncava o JSON e derrubava a
+    // resposta (falha "provider" no ensaio de 20/09). A resposta util continua limitada pelo prompt.
+    maxOutputTokens: 4096,
     output: Output.object({ schema: ConversationAutoReplySchema }),
     prompt,
   });
@@ -669,6 +674,7 @@ export async function executeConversationAIReply(params: {
       contactLabel: thread.contact_name || thread.contact_phone || 'Lead',
       stage: 'delivery',
       metadata: nextMetadata,
+      errorMessage: deliveryWarning,
     });
     if (!failureResult.ok) {
       const warning = 'Falha ao registrar alerta operacional da resposta automatica.';

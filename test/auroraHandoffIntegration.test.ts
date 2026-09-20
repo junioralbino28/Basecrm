@@ -11,7 +11,7 @@ describe('Aurora handoff integration', () => {
     expect(source).toContain("import { generateText, Output } from 'ai'");
     expect(source).not.toContain('generateObject(');
     expect(source).toContain('Output.object({');
-    expect(source).toContain('maxOutputTokens: 1200');
+    expect(source).toContain('maxOutputTokens: 4096');
     expect(source).toContain('handoffType');
     expect(source).toContain('requestedScheduleAt');
     expect(source).toContain('requestedScheduleText');

@@ -210,6 +210,7 @@ export async function processDeferredAIReply(params: {
   let nativeExecutionStarted = false;
   let fallbackSucceeded = false;
   let nativeFailureStage: 'configuration' | 'generation' | 'provider' = 'generation';
+  let nativeFailureError: string | null = null;
   let executedReply:
     | Awaited<ReturnType<typeof executeConversationAIReply>>
     | null = null;
@@ -261,6 +262,7 @@ export async function processDeferredAIReply(params: {
       nativeFailureStage = nativeReply.reason === 'missing_api_key' || nativeReply.reason === 'missing_prompt'
         ? 'configuration'
         : 'generation';
+      nativeFailureError = `skipped: ${nativeReply.reason}`;
       console.warn('[Evolution webhook] Native AI reply skipped', {
         connectionId,
         threadId,
@@ -277,6 +279,7 @@ export async function processDeferredAIReply(params: {
         contactLabel: contactName || canonicalPhone,
         stage: 'delivery',
         metadata: latestThreadMetadata,
+        errorMessage: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
       });
       console.warn('[Evolution webhook] Native AI execution failed after taking ownership', {
         connectionId,
@@ -288,6 +291,7 @@ export async function processDeferredAIReply(params: {
       return;
     }
     nativeFailureStage = 'provider';
+    nativeFailureError = nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError);
     console.warn('[Evolution webhook] Native AI reply failed', {
       connectionId,
       threadId,
@@ -352,6 +356,7 @@ export async function processDeferredAIReply(params: {
       contactLabel: contactName || canonicalPhone,
       stage: nativeFailureStage,
       metadata: latestThreadMetadata,
+      errorMessage: nativeFailureError,
     });
     if (!failureResult.ok) {
       console.warn('[Evolution webhook] Failed to persist AI failure handoff', {
@@ -504,6 +509,7 @@ export async function processDeferredAIReply(params: {
         contactLabel: contactName || canonicalPhone,
         stage: 'delivery',
         metadata: nudgeMetadata,
+        errorMessage: idleNudgeError instanceof Error ? idleNudgeError.message : String(idleNudgeError),
       });
     }
   }

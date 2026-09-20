@@ -40,8 +40,13 @@ export async function recordConversationAIFailure(input: {
   contactLabel: string;
   stage: ConversationAIFailureStage;
   metadata: Record<string, unknown> | null | undefined;
+  /** Mensagem do erro, so para diagnostico no CRM (cortada; nunca inclui segredo). */
+  errorMessage?: string | null;
 }) {
   const now = new Date().toISOString();
+  const errorMessage = typeof input.errorMessage === 'string' && input.errorMessage.trim()
+    ? input.errorMessage.replace(/\s+/g, ' ').trim().slice(0, 300)
+    : null;
   const nextMetadata = {
     ...buildConversationThreadMetadataUpdate(input.metadata, {
       routingMode: 'human',
@@ -52,6 +57,7 @@ export async function recordConversationAIFailure(input: {
     }),
     aiFailureStage: input.stage,
     aiFailureAt: now,
+    aiFailureError: errorMessage,
   };
 
   const [threadResult, notificationResult] = await Promise.all([
