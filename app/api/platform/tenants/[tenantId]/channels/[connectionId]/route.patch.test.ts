@@ -279,4 +279,17 @@ describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () 
     expect((await patch({ config: { meetingHostName: '<script>Junior</script>' } })).status).toBe(400);
     expect(updateMock).not.toHaveBeenCalled();
   });
+
+  it('grava o formato da reuniao por numero e recusa texto longo demais', async () => {
+    const ok = await patch({ config: { meetingChannelText: ' videochamada pelo Google Meet, o link chega por aqui ' } });
+    expect(ok.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: { ...baseConfig, meetingChannelText: 'videochamada pelo Google Meet, o link chega por aqui' },
+    });
+
+    updateMock.mockClear();
+    const longo = await patch({ config: { meetingChannelText: 'x'.repeat(201) } });
+    expect(longo.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
 });

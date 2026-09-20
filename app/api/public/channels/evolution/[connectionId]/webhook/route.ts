@@ -21,6 +21,7 @@ import {
   resolveIdleNudgeConfig,
   shouldScheduleIdleNudge,
 } from '@/lib/conversations/idleNudge';
+import { resolveClosingReplyEligibility } from '@/lib/conversations/closingReply';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -80,6 +81,8 @@ export async function processDeferredAIReply(params: {
   expectedSecret: string;
   requestSecret: string;
   requestOrigin: string;
+  /** Encerramento: a conversa esta na fila humana por handoff da propria IA e o lead escreveu de novo. */
+  closingReply?: boolean;
 }) {
   const {
     connectionId,
@@ -100,6 +103,7 @@ export async function processDeferredAIReply(params: {
     expectedSecret,
     requestSecret,
     requestOrigin,
+    closingReply = false,
   } = params;
 
   if (connectionConfig.aiEnabled !== true) return;
@@ -142,7 +146,12 @@ export async function processDeferredAIReply(params: {
     return;
   }
 
-  if (latestThreadStatus !== 'ai_active') {
+  // Encerramento (decisao do Junior, 20/09): depois do handoff da propria IA a conversa esta na fila
+  // humana, mas o lead nao fica no vacuo: ela ainda responde curto, ate 2 vezes, e encerra.
+  const closingEligibility = closingReply
+    ? resolveClosingReplyEligibility({ status: latestThreadStatus, metadata: latestThreadMetadata })
+    : null;
+  if (closingReply ? !closingEligibility?.eligible : latestThreadStatus !== 'ai_active') {
     return;
   }
 
@@ -181,6 +190,9 @@ export async function processDeferredAIReply(params: {
       contactPhone: canonicalPhone,
       recentMessages,
       promptKey,
+      closing: closingEligibility?.eligible
+        ? { handoff: closingEligibility.handoff, repliesUsed: closingEligibility.repliesUsed }
+        : null,
     }) : { ok: false as const, reason: 'missing_prompt' as const };
 
     if (nativeReply.ok) {
@@ -210,8 +222,10 @@ export async function processDeferredAIReply(params: {
             prompt_source: nativeReply.source,
             ai_debounce_ms: aiDebounceMs,
             ai_pending_token: aiPendingToken,
+            closing_reply: closingReply,
           },
           automationSource: 'native_crm',
+          closingReply,
         },
       });
       nativeReplySucceeded = true;
@@ -254,6 +268,12 @@ export async function processDeferredAIReply(params: {
       threadId,
       error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
     });
+  }
+
+  if (!nativeReplySucceeded && closingReply) {
+    // Encerramento que nao saiu nao vira alerta nem n8n: a conversa ja esta na fila humana.
+    console.warn('[Evolution webhook] Closing reply skipped', { connectionId, threadId, reason: nativeFailureError });
+    return;
   }
 
   if (!nativeReplySucceeded && automationWebhookUrl) {
@@ -1016,7 +1036,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       ? inboundThreadStatus
       : threadResult.data?.status ?? 'resolved';
 
-  if (parsed.direction === 'inbound' && threadStatus === 'ai_active') {
+  // Encerramento: conversa na fila humana por handoff da IA, lead escreveu de novo, humano ainda nao assumiu.
+  const closingCandidate =
+    parsed.direction === 'inbound' && aiEnabled && threadStatus === 'human_queue'
+      ? resolveClosingReplyEligibility({
+          status: threadStatus,
+          metadata: (threadResult.data?.metadata as Record<string, unknown> | null) ?? null,
+        })
+      : null;
+  const closingReply = Boolean(closingCandidate?.eligible);
+
+  if (parsed.direction === 'inbound' && (threadStatus === 'ai_active' || closingReply)) {
     const aiDebounceMs = 7000;
     const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
 
@@ -1081,6 +1111,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         expectedSecret,
         requestSecret,
         requestOrigin,
+        closingReply,
       });
     });
   }

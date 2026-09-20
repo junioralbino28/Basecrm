@@ -45,4 +45,15 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('{{currentDateTimeLocal}}');
     expect(template).not.toContain('se o lead aceitar uma ligacao');
   });
+
+  it('confirma a reuniao com formato e quem conduz, e sabe encerrar depois do handoff', () => {
+    const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+    expect(template).toContain('nunca diga que voce estara na reuniao');
+    expect(template).toContain('{{meetingChannelText}}');
+    expect(template).toContain('ENCERRAMENTO:');
+    expect(template).toContain('sem abrir assunto novo, sem oferecer horario nem ligacao');
+    expect(template).toContain('nunca corte seco nem prolongue');
+    expect(template).toContain('{{conversationStageContext}}');
+  });
 });

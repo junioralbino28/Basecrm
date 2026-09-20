@@ -32,6 +32,13 @@ O agente deve usar a mesma camada de conversas do CRM. O provedor de WhatsApp é
 - Sábado nunca é confirmado automaticamente: a preferência vira handoff para confirmação humana.
 - Almoço recorrente, período ocupado e folga pontual podem ser bloqueados no painel do próprio número.
 
+## Encerramento depois do handoff
+
+- Decisão do Junior (20/09): "deixar lead no vácuo nunca é bom". Depois de um handoff feito pela própria Aurora (reunião confirmada, pedido de pessoa, ligação pedida pelo lead, alta intenção), se o lead escrever de novo antes de alguém assumir, ela responde curto o que foi perguntado, agradece e encerra, sem corte seco e sem prolongar.
+- Limites: só em `human_queue` (nunca em `human_active`, que é um humano falando); só quando o handoff foi da IA (um humano que moveu a conversa para a fila deixa a IA muda); nunca depois de falha da IA; no máximo 2 respostas, dentro de 60 minutos do handoff. A resposta de encerramento não abre handoff novo, não mexe na agenda e mantém a conversa na fila humana.
+- A mensagem de confirmação da reunião já fecha direito: dia e hora, quem conduz, como será (`config.meetingChannelText`, por número; padrão "o formato é combinado por aqui antes do horário") e agradecimento; nunca diz que a Aurora estará na reunião.
+- Implementação: `lib/conversations/closingReply.ts` (elegibilidade + situação no prompt), `{{conversationStageContext}}` e seção ENCERRAMENTO no prompt, `payload.closingReply` em `executeConversationAIReply`, webhook agenda o encerramento a partir do inbound em `human_queue`.
+
 ## Cutucada de inatividade
 
 - 15 minutos sem resposta do lead, uma cutucada por silêncio. Prazo, texto e liga/desliga são por número (`channel_connections.config.aiIdleNudge`); ligada por padrão.
@@ -95,6 +102,6 @@ Estado atual: o contrato de agenda é configurado no próprio número do WhatsAp
 - aplicar configuração no tenant de produção;
 - enviar mensagem real;
 - trocar Evolution;
-- integrar agenda externa (Google Agenda, Microsoft 365 ou outro provedor);
+- integrar agenda externa: **decisão de 20/09 (Junior): opção B, as duas coisas** — espelho do Google Agenda via OAuth (free/busy + evento empurrado na confirmação; o CRM continua dono da reserva) para a CENNO, e a grade estilo Google Agenda dentro do CRM para clientes que não usam o Google (a clínica). Lotes seguintes, nesta ordem: grade do CRM, depois OAuth do Google;
 - push com o app fechado;
 - deploy/merge em produção ou conexão com o WhatsApp real.

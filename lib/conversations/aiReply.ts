@@ -16,6 +16,12 @@ import {
   pickMeetingHostName,
   readConfiguredMeetingHostName,
 } from '@/lib/conversations/aiPromptContext';
+import {
+  buildClosingReplyMetadata,
+  buildClosingStageContext,
+  readClosingRepliesUsed,
+  readMeetingChannelText,
+} from '@/lib/conversations/closingReply';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
@@ -97,6 +103,8 @@ export type ConversationAIReplyPayload = {
   authorName?: string;
   metadata?: Record<string, unknown>;
   automationSource?: string;
+  /** Resposta de encerramento depois do handoff: a conversa fica na fila humana e nada de novo e aberto. */
+  closingReply?: boolean;
 };
 
 function formatRecentMessages(messages: RecentMessage[]) {
@@ -283,6 +291,8 @@ export async function generateConversationAutoReply(params: {
   contactPhone: string;
   recentMessages: RecentMessage[];
   promptKey?: string;
+  /** Encerramento depois do handoff (ver closingReply.ts): muda a situacao no prompt e proibe novo handoff. */
+  closing?: { handoff: ConversationHandoff; repliesUsed: number } | null;
 }) {
   const {
     admin,
@@ -292,6 +302,7 @@ export async function generateConversationAutoReply(params: {
     contactPhone,
     recentMessages,
     promptKey = 'task_conversations_whatsapp_auto_reply',
+    closing = null,
   } = params;
 
   const generationGate = await loadFreshConversationAIGate({
@@ -367,7 +378,17 @@ export async function generateConversationAutoReply(params: {
     connectionConfig: generationConnectionConfig,
     ownerId: calendarAvailability.calendar?.ownerId ?? null,
   });
-  const prompt = renderPromptTemplate(resolvedPrompt.content, {
+  const meetingChannelText = readMeetingChannelText(generationConnectionConfig);
+  const conversationStageContext = closing
+    ? buildClosingStageContext({
+        handoff: closing.handoff,
+        repliesUsed: closing.repliesUsed,
+        meetingHostName,
+        timezone,
+        meetingChannelText,
+      })
+    : 'ATENDIMENTO EM ANDAMENTO.';
+  let prompt = renderPromptTemplate(resolvedPrompt.content, {
     organizationName: organization?.name || 'Organizacao',
     contactName: contactName || 'Lead',
     contactPhone,
@@ -376,9 +397,15 @@ export async function generateConversationAutoReply(params: {
     currentDateTimeLocal: formatLocalDateTimeForPrompt(currentDateTime, timezone),
     timezone,
     meetingHostName,
+    meetingChannelText,
+    conversationStageContext,
     recentMessagesText: formatRecentMessages(recentMessages),
     calendarContext: calendarAvailability.calendarContext,
   });
+  if (closing && !resolvedPrompt.content.includes('{{conversationStageContext}}')) {
+    // Prompt sem o marcador (Julia, override antigo): a situacao entra no topo mesmo assim.
+    prompt = `SITUACAO DA CONVERSA: ${conversationStageContext}\n\n${prompt}`;
+  }
 
   const result = await generateText({
     model,
@@ -410,15 +437,21 @@ export async function generateConversationAutoReply(params: {
     }),
   );
 
-  ({ replyText, handoffType, requestedScheduleAt } = applyMeetingReplyPolicy({
-    replyText,
-    handoffType,
-    requestedScheduleAt: normalizedScheduleAt,
-    requestedScheduleText: generated.requestedScheduleText,
-    requiresHumanConfirmation,
-    availableSlots: calendarAvailability.availableMeetingSlots,
-    confirmedSlotIsAvailable: Boolean(confirmedSlotIsAvailable),
-  }));
+  if (closing) {
+    // Encerramento nunca abre handoff novo nem mexe na agenda.
+    handoffType = null;
+    requestedScheduleAt = null;
+  } else {
+    ({ replyText, handoffType, requestedScheduleAt } = applyMeetingReplyPolicy({
+      replyText,
+      handoffType,
+      requestedScheduleAt: normalizedScheduleAt,
+      requestedScheduleText: generated.requestedScheduleText,
+      requiresHumanConfirmation,
+      availableSlots: calendarAvailability.availableMeetingSlots,
+      confirmedSlotIsAvailable: Boolean(confirmedSlotIsAvailable),
+    }));
+  }
   const shouldHandoff = Boolean(handoffType);
 
   return {
@@ -500,7 +533,9 @@ export async function executeConversationAIReply(params: {
   if (!threadResult.data) throw new Error('Thread nao encontrada');
 
   const thread = threadResult.data as ConversationThreadRow;
-  if (thread.status === 'human_active' || thread.status === 'human_queue') {
+  const closingReply = payload.closingReply === true;
+  // Encerramento (closingReply) so passa em human_queue: human_active e um humano falando.
+  if (thread.status === 'human_active' || (thread.status === 'human_queue' && !closingReply)) {
     return { ok: true as const, ignored: true as const, reason: 'thread_em_atendimento_humano' };
   }
 
@@ -530,9 +565,9 @@ export async function executeConversationAIReply(params: {
   const agentName = payload.authorName?.trim()
     || resolveConversationAIAgentConfig(activeConnection.config).agentName;
   let effectiveReplyText = payload.replyText;
-  let effectiveHandoffType = payload.handoffType ?? null;
-  let effectiveScheduleAt = payload.requestedScheduleAt ?? null;
-  let shouldHandoff = Boolean(payload.shouldHandoff || effectiveHandoffType);
+  let effectiveHandoffType = closingReply ? null : payload.handoffType ?? null;
+  let effectiveScheduleAt = closingReply ? null : payload.requestedScheduleAt ?? null;
+  let shouldHandoff = !closingReply && Boolean(payload.shouldHandoff || effectiveHandoffType);
   const handoffEventId = shouldHandoff
     ? buildConversationScopedEventId({
         organizationId: activeConnection.organization_id,
@@ -680,23 +715,39 @@ export async function executeConversationAIReply(params: {
   const deliveryFailed = Boolean(deliveryWarning);
   const requiresHumanAttention = shouldHandoff || deliveryFailed;
   const failureReason = deliveryFailed ? 'ai_delivery_failure' : null;
-  const nextStatus = requiresHumanAttention ? 'human_queue' : 'ai_active';
-  const nextMetadata = buildConversationThreadMetadataUpdate(thread.metadata, {
-    direction: 'outbound',
-    preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
-    messageType: 'text',
-    sentAt: now,
-    authorName: agentName,
-    unreadCount: 0,
-    routingMode: requiresHumanAttention ? 'human' : 'ai',
-    humanLocked: requiresHumanAttention,
-    aiLockedReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
-    handoffRequestedAt: requiresHumanAttention ? now : null,
-    handoffReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
-    handoff,
-    queueAssignedUserId: shouldHandoff ? thread.assigned_user_id ?? null : null,
-    provider: 'evolution',
-  });
+  // Encerramento: a conversa continua na fila humana, com travas, motivo e nao lidas como estavam;
+  // so se registra a saida e se conta a resposta.
+  const nextStatus = requiresHumanAttention || closingReply ? 'human_queue' : 'ai_active';
+  const nextMetadata = closingReply
+    ? buildClosingReplyMetadata(
+        buildConversationThreadMetadataUpdate(thread.metadata, {
+          direction: 'outbound',
+          preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
+          messageType: 'text',
+          sentAt: now,
+          authorName: agentName,
+          routingMode: 'human',
+          humanLocked: true,
+          provider: 'evolution',
+        }),
+        { sentAt: now, repliesUsed: readClosingRepliesUsed(thread.metadata) },
+      )
+    : buildConversationThreadMetadataUpdate(thread.metadata, {
+        direction: 'outbound',
+        preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
+        messageType: 'text',
+        sentAt: now,
+        authorName: agentName,
+        unreadCount: 0,
+        routingMode: requiresHumanAttention ? 'human' : 'ai',
+        humanLocked: requiresHumanAttention,
+        aiLockedReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
+        handoffRequestedAt: requiresHumanAttention ? now : null,
+        handoffReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
+        handoff,
+        queueAssignedUserId: shouldHandoff ? thread.assigned_user_id ?? null : null,
+        provider: 'evolution',
+      });
 
   const threadUpdate = await admin
     .from('conversation_threads')

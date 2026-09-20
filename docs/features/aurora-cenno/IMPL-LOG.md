@@ -150,3 +150,15 @@ Origem: 1ª rodada no preview (20/09, 00h20). Junior ditou: nome e concordância
 - **Testes**: 36 novos (config, agendamento, runner com cliente falso, webhook só agenda, PATCH, prompt, tick em ordem e blindado). Suíte completa: 251 arquivos / 1220 testes aprovados, 45/232 pulados; `tsc --noEmit` 0; ESLint 0.
 - **Preview** (banco `zvw`, conexão "Aurora (teste)"): bloqueio de almoço 12:00–13:00 seg–sex criado; `meetingHostName=Junior` gravado. Gates continuam desligados.
 - **Fora deste lote**: agenda visual (Junior perguntou se não é melhor espelhar o Google Agenda via OAuth; proposta registrada no cérebro, aguarda o "vai").
+
+## Encerramento depois do handoff (20/09, madrugada) — Claude
+
+Decisão do Junior: nunca deixar o lead no vácuo; sempre encerrar; se o lead mandar mais alguma mensagem, responder, agradecer e encerrar, sem corte seco e sem prolongar.
+
+- `lib/conversations/closingReply.ts`: `resolveClosingReplyEligibility` (só `human_queue`; handoff da própria IA, provado por `handoffRequestedAt` = `lastHandoff.requestedAt`; nunca em falha da IA; janela de 60 min; máximo 2 respostas via `aiClosingReplies`), `buildClosingStageContext` (situação por tipo de handoff, com data local, quem conduz e formato), `readMeetingChannelText` (`config.meetingChannelText`).
+- `aiReply.ts`: `generateConversationAutoReply({ closing })` injeta `{{conversationStageContext}}` e `{{meetingChannelText}}` (prefixo `SITUACAO DA CONVERSA:` quando o prompt não tem o marcador), pula a política de reunião e zera handoff; `executeConversationAIReply({ closingReply })` passa em `human_queue`, nunca em `human_active`, não abre handoff, mantém a conversa na fila com travas e não lidas como estavam e conta a resposta.
+- Webhook: inbound em `human_queue` elegível agenda `processDeferredAIReply({ closingReply: true })`; a elegibilidade é re-checada com a metadata fresca depois do debounce; falha de geração em encerramento não vira alerta nem n8n. A cutucada não é agendada (status ≠ `ai_active`).
+- Prompt da Aurora: regra da mensagem de confirmação (dia/hora, quem conduz, formato, agradecimento, nunca dizer que estará na reunião) e seção ENCERRAMENTO.
+- PATCH da conexão: `meetingChannelText` (≤200).
+- Testes: `closingReply.test.ts` (7), `webhook/route.closing.test.ts` (4), contrato estático `test/auroraClosingContract.test.ts` (3), prompt e PATCH ampliados. Focados 53/53; `tsc` 0; ESLint 0; suíte completa e revisão adversarial (workflow de 4 lentes + refutadores) registradas abaixo quando terminarem.
+- Decisão da agenda (20/09): opção B — grade no CRM (clínica) + espelho do Google Agenda via OAuth (CENNO); lotes seguintes.

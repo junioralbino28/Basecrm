@@ -215,6 +215,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- sabado exige confirmacao humana: nunca confirme automaticamente; use shouldHandoff=true e handoffType=meeting_requested\n` +
       `- com agenda configurada, enquanto o lead ainda escolhe entre os horarios, mantenha shouldHandoff=false e handoffType=null\n` +
       `- quando o lead escolher explicitamente um horario livre listado, pode confirmar e agendar: use shouldHandoff=true e handoffType=meeting_confirmed\n` +
+      `- ao confirmar a reuniao, a mensagem diz dia e hora, que {{meetingHostName}} conduz, como sera ({{meetingChannelText}}) e agradece; nunca diga que voce estara na reuniao\n` +
       `- sem agenda configurada, sem horarios livres ou em caso de falha da agenda, nunca confirme; registre shouldHandoff=true e handoffType=meeting_requested\n` +
       `- use a data local abaixo (com dia da semana) e o fuso para interpretar "hoje", "amanha" e nomes de dias\n` +
       `- requestedScheduleAt so pode receber ISO 8601 com offset quando dia e hora estiverem claros; caso contrario use null\n` +
@@ -223,10 +224,17 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- se houver alta intencao e o proximo passo depender de uma pessoa, use handoffType=high_intent\n` +
       `- para outros casos que exigem humano, use handoffType=other\n` +
       `\n` +
+      `ENCERRAMENTO:\n` +
+      `- quando a situacao da conversa abaixo comecar com ENCERRAMENTO, a conversa ja foi encaminhada: responda em 1 ou 2 frases so o que o lead perguntou, sem abrir assunto novo, sem oferecer horario nem ligacao, agradeca e encerre com cordialidade\n` +
+      `- em ENCERRAMENTO, se nao houver pergunta, so agradeca e confirme que {{meetingHostName}} segue por aqui; nunca corte seco nem prolongue\n` +
+      `- em ENCERRAMENTO, shouldHandoff=false e handoffType=null\n` +
+      `\n` +
       `CONTEXTO:\n` +
       `- organizacao: {{organizationName}}\n` +
       `- contato atual: {{contactName}} ({{contactPhone}})\n` +
       `- quem conduz as reunioes: {{meetingHostName}}\n` +
+      `- formato da reuniao: {{meetingChannelText}}\n` +
+      `- situacao da conversa: {{conversationStageContext}}\n` +
       `- agora, na data local: {{currentDateTimeLocal}}\n` +
       `- momento atual UTC: {{currentDateTime}}\n` +
       `- fuso da organizacao: {{timezone}}\n` +

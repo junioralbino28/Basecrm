@@ -39,6 +39,8 @@ const ChannelUpdateSchema = z.object({
     aiIdleNudge: IdleNudgeConfigSchema.partial().optional(),
     // Quem conduz as reunioes que a IA marca; vazio limpa e volta ao nome do responsavel da agenda.
     meetingHostName: z.string().trim().regex(/^(?:[\p{L}\p{N} .'-]{1,80})?$/u).optional(),
+    // Como a reuniao acontece ("videochamada pelo Google Meet, o link chega por aqui"); vazio volta ao padrao.
+    meetingChannelText: z.string().trim().max(200).optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -128,6 +130,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
           };
         }
         if (incoming.meetingHostName !== undefined) merged.meetingHostName = incoming.meetingHostName || undefined;
+        if (incoming.meetingChannelText !== undefined) merged.meetingChannelText = incoming.meetingChannelText || undefined;
         if (incoming.webhookSecret !== undefined) {
           merged.webhookSecret =
             incoming.webhookSecret.trim() ||
