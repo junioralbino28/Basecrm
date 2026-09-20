@@ -53,7 +53,9 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('{{meetingChannelText}}');
     expect(template).toContain('ENCERRAMENTO:');
     expect(template).toContain('sem abrir assunto novo, sem oferecer horario nem ligacao');
-    expect(template).toContain('nunca corte seco nem prolongue');
+    expect(template).toContain('feche deixando a porta aberta');
+    expect(template).toContain('explica como funciona (cerca de 40 minutos');
+    expect(template).toContain('nunca corte seco');
     expect(template).toContain('{{conversationStageContext}}');
     expect(template).toContain('REUNIAO JA CONFIRMADA');
     expect(template).toContain('diga o dia da semana ("tenho segunda-feira as 9h ou as 10h")');

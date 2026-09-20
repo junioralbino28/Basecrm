@@ -112,7 +112,10 @@ describe('encerramento — situacao que entra no prompt', () => {
     expect(context).toContain('terça-feira, 22/09/2026 14:00');
     expect(context).toContain('conduzida por Junior');
     expect(context).toContain('videochamada pelo Google Meet');
+    expect(context).toContain('Como funciona: uma conversa de cerca de 40 minutos conduzida por Junior');
     expect(context).toContain('sem oferecer horario nem ligacao');
+    expect(context).toContain('deixando a porta aberta');
+    expect(context).toContain('nunca diga "te vejo"');
     expect(context).not.toContain('ultima mensagem');
   });
 
@@ -128,6 +131,8 @@ describe('encerramento — situacao que entra no prompt', () => {
     });
     expect(last).toContain('pediu uma pessoa');
     expect(last).toContain('ultima mensagem');
+    expect(last).toContain('segue com o lead por aqui');
+    expect(last).not.toContain('Como funciona');
   });
 
   it('contabiliza a resposta e le o formato configurado no numero', () => {
@@ -148,6 +153,7 @@ describe('lead que volta com reuniao ja confirmada', () => {
     const context = buildConfirmedMeetingStageContext({ ...base, metadata: aiHandoffMetadata(), now: '2026-09-21T12:00:00.000Z' });
     expect(context).toContain('REUNIAO JA CONFIRMADA para terça-feira, 22/09/2026 14:00');
     expect(context).toContain('conduzida por Junior');
+    expect(context).toContain('Como funciona: cerca de 40 minutos');
     expect(context).toContain('Nao ofereca outros horarios nem refaca o diagnostico');
     expect(context).toContain('handoffType=meeting_requested');
   });

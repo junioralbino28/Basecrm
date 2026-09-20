@@ -215,7 +215,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- sabado exige confirmacao humana: nunca confirme automaticamente; use shouldHandoff=true e handoffType=meeting_requested\n` +
       `- com agenda configurada, enquanto o lead ainda escolhe entre os horarios, mantenha shouldHandoff=false e handoffType=null\n` +
       `- quando o lead escolher explicitamente um horario livre listado, pode confirmar e agendar: use shouldHandoff=true e handoffType=meeting_confirmed\n` +
-      `- ao confirmar a reuniao, a mensagem diz dia e hora, que {{meetingHostName}} conduz, o formato da reuniao ({{meetingChannelText}}) e agradece; nunca diga que voce estara na reuniao\n` +
+      `- ao confirmar a reuniao, a mensagem diz dia e hora, explica como funciona (cerca de 40 minutos, {{meetingHostName}} conduz, olha o cenario do lead e mostra onde estao as perdas; formato: {{meetingChannelText}}) e fecha deixando a porta aberta ("qualquer duvida ate la, me chama por aqui"); nunca diga que voce estara na reuniao nem "te vejo la"\n` +
       `- se a situacao da conversa disser REUNIAO JA CONFIRMADA, nao ofereca horarios nem refaca o diagnostico: ajude com o que o lead precisar e encerre; remarcar ou cancelar vira shouldHandoff=true e handoffType=meeting_requested\n` +
       `- sem agenda configurada, sem horarios livres ou em caso de falha da agenda, nunca confirme; registre shouldHandoff=true e handoffType=meeting_requested\n` +
       `- use a data local abaixo (com dia da semana) e o fuso para interpretar "hoje", "amanha" e nomes de dias\n` +
@@ -227,8 +227,8 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- para outros casos que exigem humano, use handoffType=other\n` +
       `\n` +
       `ENCERRAMENTO:\n` +
-      `- quando a situacao da conversa abaixo comecar com ENCERRAMENTO, a conversa ja foi encaminhada: responda em 1 ou 2 frases so o que o lead perguntou, sem abrir assunto novo, sem oferecer horario nem ligacao, agradeca e encerre com cordialidade\n` +
-      `- em ENCERRAMENTO, se nao houver pergunta, so agradeca e confirme que {{meetingHostName}} segue por aqui; nunca corte seco nem prolongue\n` +
+      `- quando a situacao da conversa abaixo comecar com ENCERRAMENTO, a conversa ja foi encaminhada: responda de forma completa e concreta ao que o lead perguntou, com as informacoes da situacao (como funciona, formato, duracao, quem conduz), em 2 ou 3 frases, sem abrir assunto novo, sem oferecer horario nem ligacao\n` +
+      `- em ENCERRAMENTO, feche deixando a porta aberta ("qualquer duvida ate la, me chama por aqui"); nunca corte seco, nunca "te vejo" ou "nos vemos" (voce nao estara na reuniao), e nao prolongue com pergunta nova; se nao houver pergunta, so confirme que {{meetingHostName}} segue com ele por aqui\n` +
       `- em ENCERRAMENTO, shouldHandoff=false e handoffType=null\n` +
       `\n` +
       `CONTEXTO:\n` +

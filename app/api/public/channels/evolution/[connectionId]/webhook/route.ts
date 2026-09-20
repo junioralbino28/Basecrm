@@ -197,6 +197,23 @@ export async function processDeferredAIReply(params: {
     }) : { ok: false as const, reason: 'missing_prompt' as const };
 
     if (nativeReply.ok) {
+      // 2a janela de 20/09: duas mensagens do lead com 9 s de intervalo (fora do debounce) geraram duas
+      // respostas, a primeira ja obsoleta. Se chegou mensagem nova enquanto esta resposta era gerada,
+      // ela nao sai: a geracao da mensagem nova responde com o contexto completo.
+      const staleCheck = await admin
+        .from('conversation_threads')
+        .select('metadata')
+        .eq('id', threadId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      const latestPendingToken = (staleCheck.data?.metadata as Record<string, unknown> | null)?.aiPendingToken;
+      if (!staleCheck.error && latestPendingToken !== aiPendingToken) {
+        console.warn('[Evolution webhook] Reply discarded: a newer inbound message arrived during generation', {
+          connectionId,
+          threadId,
+        });
+        return;
+      }
       nativeExecutionStarted = true;
       executedReply = await executeConversationAIReply({
         admin,

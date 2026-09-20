@@ -100,10 +100,13 @@ export function buildClosingStageContext(input: {
     default:
       situation = `ENCERRAMENTO. A conversa ja foi encaminhada para ${host}, que assume por aqui.`;
   }
-  const last = input.repliesUsed >= CLOSING_REPLY_MAX - 1
-    ? ' Esta e a sua ultima mensagem nesta conversa: encerre de vez, agradecendo.'
+  const comoFunciona = input.handoff.type === 'meeting_confirmed' || input.handoff.type === 'meeting_requested'
+    ? ` Como funciona: uma conversa de cerca de 40 minutos conduzida por ${host}, para ele olhar o cenario do lead (anuncios, WhatsApp e comercial) e mostrar onde estao as perdas; formato da reuniao: ${input.meetingChannelText}.`
     : '';
-  return `${situation} Responda em 1 ou 2 frases so o que o lead perguntou, sem abrir assunto novo, sem oferecer horario nem ligacao; agradeca e encerre com cordialidade.${last}`;
+  const fechamento = input.repliesUsed >= CLOSING_REPLY_MAX - 1
+    ? ' Esta e a sua ultima mensagem nesta conversa: responda o que foi perguntado e despeca-se com cordialidade, dizendo que ' + host + ' segue com o lead por aqui.'
+    : ` Depois de responder, feche deixando a porta aberta (por exemplo: "qualquer duvida ate la, me chama por aqui"); nao seja seco.`;
+  return `${situation}${comoFunciona} Responda de forma completa e concreta ao que o lead perguntou, usando so as informacoes acima (nunca invente formato, link ou horario); em 2 ou 3 frases, sem abrir assunto novo, sem oferecer horario nem ligacao. Voce nao estara na reuniao: nunca diga "te vejo", "nos vemos" ou "ate la" em primeira pessoa; quem conduz e ${host}.${fechamento}`;
 }
 
 /**
@@ -125,8 +128,9 @@ export function buildConfirmedMeetingStageContext(input: {
   const now = new Date(input.now ?? new Date().toISOString()).getTime();
   if (!Number.isFinite(at) || at < now) return null;
   const when = formatLocalDateTimeForPrompt(handoff.requestedScheduleAt, input.timezone);
-  return `REUNIAO JA CONFIRMADA para ${when}, conduzida por ${input.meetingHostName}; formato da reuniao: ${input.meetingChannelText}. `
-    + 'Nao ofereca outros horarios nem refaca o diagnostico; responda o que o lead precisar e encerre com cordialidade. '
+  return `REUNIAO JA CONFIRMADA para ${when}, conduzida por ${input.meetingHostName}. `
+    + `Como funciona: cerca de 40 minutos, ${input.meetingHostName} olha o cenario do lead (anuncios, WhatsApp e comercial) e mostra onde estao as perdas; formato da reuniao: ${input.meetingChannelText}. `
+    + 'Nao ofereca outros horarios nem refaca o diagnostico; responda o que o lead precisar de forma completa e concreta, usando so essas informacoes, e feche deixando a porta aberta. '
     + 'Se ele quiser remarcar ou cancelar, registre com shouldHandoff=true e handoffType=meeting_requested.';
 }
 

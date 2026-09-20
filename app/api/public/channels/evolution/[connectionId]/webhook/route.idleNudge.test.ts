@@ -34,6 +34,9 @@ const THREAD = '33333333-3333-4333-8333-333333333333';
 const MESSAGE = '44444444-4444-4444-8444-444444444444';
 
 /** So o que processDeferredAIReply toca: checagem do debounce, historico e a gravacao do agendamento. */
+let pendingTokenSeenByStaleCheck = 'pending-token';
+let maybeSingleCalls = 0;
+
 function buildFakeAdmin() {
   return {
     from(table: string) {
@@ -50,10 +53,12 @@ function buildFakeAdmin() {
           payload = next;
           return builder;
         },
-        maybeSingle: () => Promise.resolve({
-          data: { status: 'ai_active', metadata: { aiPendingToken: 'pending-token' } },
-          error: null,
-        }),
+        maybeSingle: () => {
+          maybeSingleCalls += 1;
+          // 1a leitura: checagem do debounce; 2a: guarda de resposta obsoleta (token pode ter mudado)
+          const token = maybeSingleCalls === 1 ? 'pending-token' : pendingTokenSeenByStaleCheck;
+          return Promise.resolve({ data: { status: 'ai_active', metadata: { aiPendingToken: token } }, error: null });
+        },
         then(resolve: (value: unknown) => unknown) {
           if (op === 'update' && payload) threadUpdates.push({ table, payload });
           return Promise.resolve({ data: table === 'conversation_messages' ? [] : null, error: null }).then(resolve);
@@ -109,6 +114,8 @@ beforeEach(() => {
   executeMock.mockReset();
   gateMock.mockReset();
   threadUpdates.length = 0;
+  pendingTokenSeenByStaleCheck = 'pending-token';
+  maybeSingleCalls = 0;
   gateMock.mockResolvedValue(gateConnection());
   generateMock.mockResolvedValue({
     ok: true,
@@ -201,6 +208,16 @@ describe('Evolution webhook — cutucada de inatividade so e agendada, nunca env
 
     await runDeferredReply();
 
+    expect(threadUpdates.filter((update) => update.table === 'conversation_threads')).toHaveLength(0);
+  });
+
+  it('descarta a resposta quando chegou mensagem nova do lead durante a geracao', async () => {
+    pendingTokenSeenByStaleCheck = 'pending-token-mais-novo';
+
+    await runDeferredReply();
+
+    expect(generateMock).toHaveBeenCalledTimes(1);
+    expect(executeMock).not.toHaveBeenCalled();
     expect(threadUpdates.filter((update) => update.table === 'conversation_threads')).toHaveLength(0);
   });
 });
