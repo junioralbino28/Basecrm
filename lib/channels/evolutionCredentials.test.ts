@@ -103,6 +103,30 @@ describe('resolveEvolutionCredentials — nunca misturar URL de uma fonte com ch
     expect(resolved?.agencyOrganizationId).toBe(OTHER_AGENCY);
   });
 
+  it('organização sem agência acima usa o par completo da PRÓPRIA edição (a agência conectando o número dela)', async () => {
+    const admin = fakeAdmin({ [TENANT]: agencyDefaults });
+    const resolved = await resolveEvolutionCredentials({ admin, tenantId: TENANT, connectionConfig: {} });
+    expect(resolved).toEqual({
+      apiUrl: 'https://agencia.example.com',
+      apiKey: 'CHAVE-AGENCIA',
+      source: 'agency_defaults',
+      agencyOrganizationId: TENANT,
+    });
+  });
+
+  it('organização sem agência acima com par próprio incompleto: null', async () => {
+    const admin = fakeAdmin({ [TENANT]: { evolutionDefaults: { apiUrl: 'https://agencia.example.com', apiKey: '' } } });
+    expect(await resolveEvolutionCredentials({ admin, tenantId: TENANT, connectionConfig: {} })).toBeNull();
+  });
+
+  it('tenant vinculado a uma agência sem chave NÃO cai no par próprio', async () => {
+    const admin = fakeAdmin({
+      [TENANT]: { ...boundTenant, ...agencyDefaults },
+      [AGENCY]: { evolutionDefaults: { apiUrl: 'https://agencia.example.com', apiKey: '' } },
+    });
+    expect(await resolveEvolutionCredentials({ admin, tenantId: TENANT, connectionConfig: {} })).toBeNull();
+  });
+
   it('aceita as chaves legadas de defaults da agência', async () => {
     const admin = fakeAdmin({
       [TENANT]: boundTenant,

@@ -111,7 +111,17 @@ export async function resolveEvolutionCredentials(
 
   const agencyOrganizationId = binding.agencyOrganizationId || fallbackAgencyOrgId;
   if (!agencyOrganizationId) {
-    return null;
+    // Organização sem agência acima (a própria agência conectando o número dela, caso da
+    // CENNO na Base A²): usa o par COMPLETO guardado na própria edição. Par parcial continua
+    // sendo ignorado por inteiro (B7). Tenant vinculado a uma agência nunca chega aqui.
+    const own = readAgencyDefaults(binding.tenantMetadata);
+    if (!own.apiUrl || !own.apiKey) return null;
+    return {
+      apiUrl: own.apiUrl,
+      apiKey: own.apiKey,
+      source: 'agency_defaults',
+      agencyOrganizationId: params.tenantId,
+    };
   }
 
   const agencyEdition = await params.admin
