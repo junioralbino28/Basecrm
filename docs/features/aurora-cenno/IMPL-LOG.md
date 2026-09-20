@@ -127,3 +127,14 @@ Branch: `feat/aurora-implantacao`
 - A conexão real da CENNO ainda não recebeu o nome/prompt da Aurora.
 - A flag `ai_conversation_auto_reply` da organização precisa ser ativada explicitamente junto da conexão e da IA da organização; enquanto qualquer um dos três gates estiver desligado, nenhuma resposta é gerada ou enviada.
 - Nenhuma mudança foi aplicada à produção ou ao WhatsApp real; a publicação seguinte deste branch é limitada ao preview isolado.
+
+## Preview (19/09, noite) — publicado pelo Claude
+
+- Branch `feat/aurora-implantacao` no GitHub: `1b7ce22` (lote revisado; vitest 1184/1184, eslint 0, tsc 0) e `4f290ec` (gatilho da prévia).
+- Vercel: 9 variáveis de Preview restritas à branch, apontando para o Supabase de preview `zvwngsrflkicbbzfmrgy` (`AUTOMATION_LIVE_SENDS_ENABLED=false`).
+- Deploy pela CLI **não recebe** as variáveis por branch: o bundle saiu apontando para produção e o deploy foi removido. A prévia válida nasceu do push: `dpl_CLfSQf8BfpifAY2soYNKtswYtdx1` (`basecrm-60s9fjcvw…`); `teste.crm.basea2.com` aponta para ela. Prova: o JS servido referencia só `zvw`, nenhuma vez `eqid`.
+- Migrations no preview via `supabase db push --linked`: 3 pendentes da `main` (`20260916000000`, `20260916010000`, `20260917000000`) + 5 da Aurora; ledger em `20260919063000`; RPCs, triggers e tabelas conferidas no catálogo.
+- Banco de preview: organização de teste da agência (`bd43a9bc…`) com chave do Gemini e modelo `gemini-3-flash-preview`; conexão de teste `Aurora (teste)` (`ec659bef-a093-4232-a8c7-db194c8ca493`, instância `aurora-teste-3e146689`, **IA desligada**, nome e prompt da Aurora, agenda seg–sex 09:00–19:00 com o Junior como responsável). Os três gates seguem desligados até a janela do teste.
+- Sondas no domínio de teste: webhook sem segredo 401, segredo errado 401, id inexistente 404, ai-reply sem segredo 401.
+- Falta: parear o WhatsApp Business do Junior na conexão de teste (QR pela tela), ligar os três gates só durante o teste, rodar o roteiro ponta a ponta e o adversarial, desligar os gates.
+- Produção intocada: `crm.basea2.com` segue em `a792399`; nenhuma migration em produção; número da campanha e Pandora não foram tocados.

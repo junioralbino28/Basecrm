@@ -20,7 +20,7 @@ Regra: TDD, sem produção; push e deploy permitidos somente para o preview isol
 - [x] Fazer `aiEnabled=false` bloquear tanto o webhook nativo quanto a rota externa e o executor central.
 - [x] Rodar testes focados, regressão de conversas, typecheck e lint.
 - [x] Revisão independente do diff e correção dos achados confirmados.
-- [ ] Configurar tenant/conexão da CENNO em ambiente não produtivo.
+- [x] Configurar tenant/conexão de teste em ambiente não produtivo (preview `zvw…`, conexão `Aurora (teste)`, IA desligada). Falta parear o número de teste e rodar o ensaio.
 
 ## Fase 2 — agendamento autônomo com fallback humano
 
