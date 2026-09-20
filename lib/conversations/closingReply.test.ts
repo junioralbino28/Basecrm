@@ -7,6 +7,7 @@ import {
   DEFAULT_MEETING_CHANNEL_TEXT,
   buildClosingReplyMetadata,
   buildClosingStageContext,
+  buildConfirmedMeetingStageContext,
   readMeetingChannelText,
   resolveClosingReplyEligibility,
 } from './closingReply';
@@ -137,5 +138,26 @@ describe('encerramento — situacao que entra no prompt', () => {
     });
     expect(readMeetingChannelText({ meetingChannelText: '  ligacao pelo WhatsApp  ' })).toBe('ligacao pelo WhatsApp');
     expect(readMeetingChannelText({})).toBe(DEFAULT_MEETING_CHANNEL_TEXT);
+  });
+});
+
+describe('lead que volta com reuniao ja confirmada', () => {
+  const base = { meetingHostName: 'Junior', timezone: 'America/Sao_Paulo', meetingChannelText: DEFAULT_MEETING_CHANNEL_TEXT };
+
+  it('com reuniao futura confirmada, a situacao manda nao reofertar horario nem refazer diagnostico', () => {
+    const context = buildConfirmedMeetingStageContext({ ...base, metadata: aiHandoffMetadata(), now: '2026-09-21T12:00:00.000Z' });
+    expect(context).toContain('REUNIAO JA CONFIRMADA para terça-feira, 22/09/2026 14:00');
+    expect(context).toContain('conduzida por Junior');
+    expect(context).toContain('Nao ofereca outros horarios nem refaca o diagnostico');
+    expect(context).toContain('handoffType=meeting_requested');
+  });
+
+  it('sem handoff, com reuniao passada, pendente ou de outro tipo, nao muda a situacao', () => {
+    expect(buildConfirmedMeetingStageContext({ ...base, metadata: {} })).toBeNull();
+    expect(buildConfirmedMeetingStageContext({ ...base, metadata: aiHandoffMetadata(), now: '2026-09-23T12:00:00.000Z' })).toBeNull();
+    expect(buildConfirmedMeetingStageContext({ ...base, metadata: aiHandoffMetadata('human_requested'), now: '2026-09-21T12:00:00.000Z' })).toBeNull();
+    const pendente = aiHandoffMetadata();
+    (pendente.lastHandoff as { scheduleStatus: string }).scheduleStatus = 'pending';
+    expect(buildConfirmedMeetingStageContext({ ...base, metadata: pendente, now: '2026-09-21T12:00:00.000Z' })).toBeNull();
   });
 });

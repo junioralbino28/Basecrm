@@ -55,5 +55,8 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('sem abrir assunto novo, sem oferecer horario nem ligacao');
     expect(template).toContain('nunca corte seco nem prolongue');
     expect(template).toContain('{{conversationStageContext}}');
+    expect(template).toContain('REUNIAO JA CONFIRMADA');
+    expect(template).toContain('diga o dia da semana ("tenho segunda-feira as 9h ou as 10h")');
+    expect(template).toContain('use "amanha" so quando o dia seguinte for dia util');
   });
 });

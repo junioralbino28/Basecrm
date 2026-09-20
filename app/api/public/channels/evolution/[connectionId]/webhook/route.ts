@@ -81,8 +81,6 @@ export async function processDeferredAIReply(params: {
   expectedSecret: string;
   requestSecret: string;
   requestOrigin: string;
-  /** Encerramento: a conversa esta na fila humana por handoff da propria IA e o lead escreveu de novo. */
-  closingReply?: boolean;
 }) {
   const {
     connectionId,
@@ -103,7 +101,6 @@ export async function processDeferredAIReply(params: {
     expectedSecret,
     requestSecret,
     requestOrigin,
-    closingReply = false,
   } = params;
 
   if (connectionConfig.aiEnabled !== true) return;
@@ -147,11 +144,14 @@ export async function processDeferredAIReply(params: {
   }
 
   // Encerramento (decisao do Junior, 20/09): depois do handoff da propria IA a conversa esta na fila
-  // humana, mas o lead nao fica no vacuo: ela ainda responde curto, ate 2 vezes, e encerra.
-  const closingEligibility = closingReply
+  // humana, mas o lead nao fica no vacuo: ela ainda responde curto, ate 2 vezes, e encerra. A decisao
+  // e tomada pelo estado FRESCO (depois do debounce), nunca pelo que o inbound viu: se um humano
+  // devolveu a conversa para a IA nesse meio tempo, a resposta e normal; se a moveu para a fila, silencio.
+  const closingEligibility = latestThreadStatus === 'human_queue'
     ? resolveClosingReplyEligibility({ status: latestThreadStatus, metadata: latestThreadMetadata })
     : null;
-  if (closingReply ? !closingEligibility?.eligible : latestThreadStatus !== 'ai_active') {
+  const closingReply = Boolean(closingEligibility?.eligible);
+  if (latestThreadStatus !== 'ai_active' && !closingReply) {
     return;
   }
 
@@ -193,6 +193,7 @@ export async function processDeferredAIReply(params: {
       closing: closingEligibility?.eligible
         ? { handoff: closingEligibility.handoff, repliesUsed: closingEligibility.repliesUsed }
         : null,
+      threadMetadata: latestThreadMetadata,
     }) : { ok: false as const, reason: 'missing_prompt' as const };
 
     if (nativeReply.ok) {
@@ -262,7 +263,12 @@ export async function processDeferredAIReply(params: {
       return;
     }
     nativeFailureStage = 'provider';
-    nativeFailureError = nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError);
+    // O texto cru do modelo (quando o SDK nao conseguiu interpretar) fica no registro da falha, cortado:
+    // sem isso nao da para saber POR QUE o JSON nao veio (ensaio de 20/09).
+    const rawModelText = nativeAiError && typeof nativeAiError === 'object' && typeof (nativeAiError as { text?: unknown }).text === 'string'
+      ? ` | texto: ${String((nativeAiError as { text: string }).text).replace(/\s+/g, ' ').slice(0, 160)}`
+      : '';
+    nativeFailureError = (nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError)) + rawModelText;
     console.warn('[Evolution webhook] Native AI reply failed', {
       connectionId,
       threadId,
@@ -1111,7 +1117,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         expectedSecret,
         requestSecret,
         requestOrigin,
-        closingReply,
       });
     });
   }

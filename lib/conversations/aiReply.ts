@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import { generateText, Output } from 'ai';
+import { generateText, NoObjectGeneratedError, Output } from 'ai';
 import { z } from 'zod';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { getModel, type AIProvider } from '@/lib/ai/config';
@@ -19,9 +19,11 @@ import {
 import {
   buildClosingReplyMetadata,
   buildClosingStageContext,
-  readClosingRepliesUsed,
+  buildConfirmedMeetingStageContext,
   readMeetingChannelText,
+  resolveClosingReplyEligibility,
 } from '@/lib/conversations/closingReply';
+import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
@@ -293,6 +295,8 @@ export async function generateConversationAutoReply(params: {
   promptKey?: string;
   /** Encerramento depois do handoff (ver closingReply.ts): muda a situacao no prompt e proibe novo handoff. */
   closing?: { handoff: ConversationHandoff; repliesUsed: number } | null;
+  /** Metadata da conversa (lastHandoff): a IA reconhece lead que volta com reuniao ja confirmada. */
+  threadMetadata?: Record<string, unknown> | null;
 }) {
   const {
     admin,
@@ -303,6 +307,7 @@ export async function generateConversationAutoReply(params: {
     recentMessages,
     promptKey = 'task_conversations_whatsapp_auto_reply',
     closing = null,
+    threadMetadata = null,
   } = params;
 
   const generationGate = await loadFreshConversationAIGate({
@@ -378,6 +383,11 @@ export async function generateConversationAutoReply(params: {
     connectionConfig: generationConnectionConfig,
     ownerId: calendarAvailability.calendar?.ownerId ?? null,
   });
+  // Encerramento so vale para prompt desenhado para ele (tem {{conversationStageContext}}). A Julia e
+  // overrides antigos continuam mudos depois do handoff, como antes; nada de instrucao colada no topo.
+  if (closing && !/\{\{\s*conversationStageContext\s*\}\}/.test(resolvedPrompt.content)) {
+    return { ok: false as const, reason: 'closing_unsupported' as const };
+  }
   const meetingChannelText = readMeetingChannelText(generationConnectionConfig);
   const conversationStageContext = closing
     ? buildClosingStageContext({
@@ -387,8 +397,14 @@ export async function generateConversationAutoReply(params: {
         timezone,
         meetingChannelText,
       })
-    : 'ATENDIMENTO EM ANDAMENTO.';
-  let prompt = renderPromptTemplate(resolvedPrompt.content, {
+    : buildConfirmedMeetingStageContext({
+        metadata: threadMetadata,
+        meetingHostName,
+        timezone,
+        meetingChannelText,
+        now: currentDateTime,
+      }) ?? 'ATENDIMENTO EM ANDAMENTO.';
+  const prompt = renderPromptTemplate(resolvedPrompt.content, {
     organizationName: organization?.name || 'Organizacao',
     contactName: contactName || 'Lead',
     contactPhone,
@@ -402,12 +418,8 @@ export async function generateConversationAutoReply(params: {
     recentMessagesText: formatRecentMessages(recentMessages),
     calendarContext: calendarAvailability.calendarContext,
   });
-  if (closing && !resolvedPrompt.content.includes('{{conversationStageContext}}')) {
-    // Prompt sem o marcador (Julia, override antigo): a situacao entra no topo mesmo assim.
-    prompt = `SITUACAO DA CONVERSA: ${conversationStageContext}\n\n${prompt}`;
-  }
 
-  const result = await generateText({
+  const generateOnce = () => generateText({
     model,
     maxRetries: 2,
     // No Gemini 3 os tokens de raciocinio contam neste teto; 1.200 truncava o JSON e derrubava a
@@ -417,7 +429,30 @@ export async function generateConversationAutoReply(params: {
     prompt,
   });
 
-  const generated = result.output;
+  // 2a janela de 20/09: o Gemini devolveu, de vez em quando, algo que nao era o objeto esperado
+  // (`AI_NoObjectGeneratedError: could not parse the response`) e a conversa caia na fila humana.
+  // Primeiro tenta-se recortar o objeto do texto cru (cerca de markdown, raciocinio em volta); se nao
+  // der, uma segunda geracao. So a segunda falha vira falha de provedor.
+  let generated: z.infer<typeof ConversationAutoReplySchema>;
+  try {
+    generated = (await generateOnce()).output;
+  } catch (error) {
+    if (!NoObjectGeneratedError.isInstance(error)) throw error;
+    const rawText = typeof error.text === 'string' ? error.text : null;
+    const repairedText = repairStructuredOutputText(rawText);
+    const repaired = repairedText ? ConversationAutoReplySchema.safeParse(JSON.parse(repairedText)) : null;
+    if (repaired?.success) {
+      console.warn('[Conversation AI] Structured output repaired from raw text', { organizationId });
+      generated = repaired.data;
+    } else {
+      console.warn('[Conversation AI] Structured output could not be parsed; retrying once', {
+        organizationId,
+        finishReason: error.finishReason ?? null,
+        text: rawText ? rawText.slice(0, 300) : null,
+      });
+      generated = (await generateOnce()).output;
+    }
+  }
   let replyText = generated.replyText.trim();
   let handoffType = generated.handoffType ?? null;
   let requestedScheduleAt = generated.requestedScheduleAt ?? null;
@@ -539,6 +574,38 @@ export async function executeConversationAIReply(params: {
     return { ok: true as const, ignored: true as const, reason: 'thread_em_atendimento_humano' };
   }
 
+  const now = new Date().toISOString();
+  let closingMetadata: Record<string, unknown> | null = null;
+  if (closingReply) {
+    // Revisao de 20/09: a elegibilidade e re-checada no estado fresco e a resposta e REIVINDICADA de
+    // forma atomica antes do envio (compare-and-set no contador e no status). Duas geracoes sobrepostas
+    // nunca passam do limite; um humano que assumiu, resolveu ou devolveu a conversa no meio do
+    // caminho faz a reivindicacao falhar e nada e enviado.
+    const eligibility = resolveClosingReplyEligibility({ status: thread.status, metadata: thread.metadata, now });
+    if (!eligibility.eligible) {
+      return { ok: true as const, ignored: true as const, reason: 'closing_not_eligible' as const };
+    }
+    const claimedMetadata = buildClosingReplyMetadata(
+      (thread.metadata || {}) as Record<string, unknown>,
+      { sentAt: now, repliesUsed: eligibility.repliesUsed },
+    );
+    const claimBase = admin
+      .from('conversation_threads')
+      .update({ updated_at: now, metadata: claimedMetadata })
+      .eq('id', thread.id)
+      .eq('organization_id', activeConnection.organization_id)
+      .eq('status', 'human_queue');
+    const claim = await (eligibility.repliesUsed === 0
+      ? claimBase.or('metadata->>aiClosingReplies.is.null,metadata->>aiClosingReplies.eq.0')
+      : claimBase.eq('metadata->>aiClosingReplies', String(eligibility.repliesUsed))
+    ).select('id');
+    if (claim.error) throw new Error(claim.error.message);
+    if (!claim.data || claim.data.length === 0) {
+      return { ok: true as const, ignored: true as const, reason: 'closing_claimed' as const };
+    }
+    closingMetadata = claimedMetadata;
+  }
+
   const instanceName = String((activeConnection.config || {}).instanceName || '').trim();
   const resolved = await resolveEvolutionCredentials({
     admin,
@@ -561,7 +628,6 @@ export async function executeConversationAIReply(params: {
     throw new Error('Thread sem telefone valido para envio.');
   }
 
-  const now = new Date().toISOString();
   const agentName = payload.authorName?.trim()
     || resolveConversationAIAgentConfig(activeConnection.config).agentName;
   let effectiveReplyText = payload.replyText;
@@ -719,19 +785,16 @@ export async function executeConversationAIReply(params: {
   // so se registra a saida e se conta a resposta.
   const nextStatus = requiresHumanAttention || closingReply ? 'human_queue' : 'ai_active';
   const nextMetadata = closingReply
-    ? buildClosingReplyMetadata(
-        buildConversationThreadMetadataUpdate(thread.metadata, {
-          direction: 'outbound',
-          preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
-          messageType: 'text',
-          sentAt: now,
-          authorName: agentName,
-          routingMode: 'human',
-          humanLocked: true,
-          provider: 'evolution',
-        }),
-        { sentAt: now, repliesUsed: readClosingRepliesUsed(thread.metadata) },
-      )
+    ? buildConversationThreadMetadataUpdate(closingMetadata ?? thread.metadata, {
+        direction: 'outbound',
+        preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
+        messageType: 'text',
+        sentAt: now,
+        authorName: agentName,
+        routingMode: 'human',
+        humanLocked: true,
+        provider: 'evolution',
+      })
     : buildConversationThreadMetadataUpdate(thread.metadata, {
         direction: 'outbound',
         preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
@@ -749,7 +812,7 @@ export async function executeConversationAIReply(params: {
         provider: 'evolution',
       });
 
-  const threadUpdate = await admin
+  const threadUpdateBase = admin
     .from('conversation_threads')
     .update({
       status: nextStatus,
@@ -759,8 +822,19 @@ export async function executeConversationAIReply(params: {
     })
     .eq('id', payload.threadId)
     .eq('organization_id', activeConnection.organization_id);
+  // Encerramento: se um humano assumiu, resolveu ou devolveu a conversa durante o envio, o estado dele
+  // fica; so o registro da saida e perdido (a mensagem ja esta na conversa).
+  const threadUpdate = closingReply && !deliveryFailed
+    ? await threadUpdateBase.eq('status', 'human_queue').select('id')
+    : await threadUpdateBase;
 
   if (threadUpdate.error) throw new Error(threadUpdate.error.message);
+  if (closingReply && !deliveryFailed && 'data' in threadUpdate && Array.isArray(threadUpdate.data) && threadUpdate.data.length === 0) {
+    console.warn('[Conversation AI] Closing reply sent but the thread state changed meanwhile', {
+      organizationId: activeConnection.organization_id,
+      threadId: payload.threadId,
+    });
+  }
 
   if (deliveryFailed) {
     const failureResult = await recordConversationAIFailure({

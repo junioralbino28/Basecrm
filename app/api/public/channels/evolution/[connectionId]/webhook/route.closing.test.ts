@@ -79,7 +79,7 @@ function handoffMetadata(extra: Record<string, unknown> = {}) {
   };
 }
 
-async function runDeferredReply(closingReply: boolean) {
+async function runDeferredReply() {
   await processDeferredAIReply({
     connectionId: CONNECTION,
     organizationId: TENANT,
@@ -99,7 +99,6 @@ async function runDeferredReply(closingReply: boolean) {
     expectedSecret: 'secret',
     requestSecret: 'secret',
     requestOrigin: 'http://localhost:3000',
-    closingReply,
   });
 }
 
@@ -136,7 +135,7 @@ describe('Evolution webhook — encerramento depois do handoff', () => {
   it('na fila humana por handoff da IA, responde em modo encerramento e nao agenda cutucada', async () => {
     debounceRow = { status: 'human_queue', metadata: handoffMetadata() };
 
-    await runDeferredReply(true);
+    await runDeferredReply();
 
     expect(generateMock).toHaveBeenCalledTimes(1);
     expect(generateMock.mock.calls[0]?.[0]).toMatchObject({
@@ -148,10 +147,10 @@ describe('Evolution webhook — encerramento depois do handoff', () => {
     });
   });
 
-  it('sem a marca de encerramento, a fila humana continua muda (comportamento antigo)', async () => {
-    debounceRow = { status: 'human_queue', metadata: handoffMetadata() };
+  it('na fila humana por decisao de um humano (sem handoff da IA) continua muda, como antes', async () => {
+    debounceRow = { status: 'human_queue', metadata: { aiPendingToken: 'pending-token', humanLocked: true, handoffReason: 'human_handoff', handoffRequestedAt: new Date().toISOString() } };
 
-    await runDeferredReply(false);
+    await runDeferredReply();
 
     expect(generateMock).not.toHaveBeenCalled();
     expect(executeMock).not.toHaveBeenCalled();
@@ -159,15 +158,15 @@ describe('Evolution webhook — encerramento depois do handoff', () => {
 
   it('depois de duas respostas de encerramento, ou quando um humano moveu a conversa, fica quieta', async () => {
     debounceRow = { status: 'human_queue', metadata: handoffMetadata({ aiClosingReplies: 2 }) };
-    await runDeferredReply(true);
+    await runDeferredReply();
     expect(generateMock).not.toHaveBeenCalled();
 
     debounceRow = { status: 'human_queue', metadata: handoffMetadata({ handoffRequestedAt: new Date().toISOString(), handoffReason: 'human_handoff' }) };
-    await runDeferredReply(true);
+    await runDeferredReply();
     expect(generateMock).not.toHaveBeenCalled();
 
     debounceRow = { status: 'human_active', metadata: handoffMetadata() };
-    await runDeferredReply(true);
+    await runDeferredReply();
     expect(generateMock).not.toHaveBeenCalled();
     expect(executeMock).not.toHaveBeenCalled();
   });
@@ -175,9 +174,9 @@ describe('Evolution webhook — encerramento depois do handoff', () => {
   it('em modo normal (ai_active) a chamada nao carrega encerramento', async () => {
     debounceRow = { status: 'ai_active', metadata: { aiPendingToken: 'pending-token' } };
 
-    await runDeferredReply(false);
+    await runDeferredReply();
 
-    expect(generateMock.mock.calls[0]?.[0]).toMatchObject({ closing: null });
+    expect(generateMock.mock.calls[0]?.[0]).toMatchObject({ closing: null, threadMetadata: { aiPendingToken: 'pending-token' } });
     expect(executeMock.mock.calls[0]?.[0]).toMatchObject({ payload: { closingReply: false } });
   });
 });

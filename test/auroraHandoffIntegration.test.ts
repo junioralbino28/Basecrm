@@ -8,7 +8,7 @@ describe('Aurora handoff integration', () => {
   it('usa o contrato estruturado do AI SDK v6 e limita a geracao', () => {
     const source = fs.readFileSync(path.join(root, 'lib/conversations/aiReply.ts'), 'utf8');
 
-    expect(source).toContain("import { generateText, Output } from 'ai'");
+    expect(source).toContain("import { generateText, NoObjectGeneratedError, Output } from 'ai'");
     expect(source).not.toContain('generateObject(');
     expect(source).toContain('Output.object({');
     expect(source).toContain('maxOutputTokens: 4096');

@@ -17,8 +17,23 @@ describe('encerramento depois do handoff — contrato do executor', () => {
     expect(source).toContain('buildClosingReplyMetadata(');
   });
 
-  it('na geracao, o encerramento pula a politica de reuniao e zera o handoff', () => {
+  it('na geracao, o encerramento pula a politica de reuniao, zera o handoff e so vale para prompt com o marcador', () => {
     expect(source).toContain('if (closing) {\n    // Encerramento nunca abre handoff novo nem mexe na agenda.');
-    expect(source).toContain("prompt = `SITUACAO DA CONVERSA: ${conversationStageContext}");
+    expect(source).toContain("reason: 'closing_unsupported' as const");
+    expect(source).not.toContain('SITUACAO DA CONVERSA: ${conversationStageContext}');
+  });
+
+  it('tenta a geracao de novo quando o modelo nao devolve o objeto, com reparo do texto cru', () => {
+    expect(source).toContain('NoObjectGeneratedError.isInstance(error)');
+    expect(source).toContain('repairStructuredOutputText(rawText)');
+    expect(source).toContain('generated = (await generateOnce()).output;');
+  });
+
+  it('reivindica a resposta de encerramento de forma atomica antes de enviar e respeita mudanca de estado feita por humano', () => {
+    expect(source).toContain("resolveClosingReplyEligibility({ status: thread.status, metadata: thread.metadata, now })");
+    expect(source).toContain("claimBase.or('metadata->>aiClosingReplies.is.null,metadata->>aiClosingReplies.eq.0')");
+    expect(source).toContain("claimBase.eq('metadata->>aiClosingReplies', String(eligibility.repliesUsed))");
+    expect(source).toContain("reason: 'closing_claimed' as const");
+    expect(source).toContain("await threadUpdateBase.eq('status', 'human_queue').select('id')");
   });
 });

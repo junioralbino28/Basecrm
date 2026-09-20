@@ -13,8 +13,7 @@ import { formatLocalDateTimeForPrompt } from '@/lib/conversations/aiPromptContex
  */
 export const CLOSING_REPLY_MAX = 2;
 export const CLOSING_REPLY_WINDOW_MINUTES = 60;
-export const DEFAULT_MEETING_CHANNEL_TEXT =
-  'o formato (videochamada ou ligacao) e combinado por aqui antes do horario';
+export const DEFAULT_MEETING_CHANNEL_TEXT = 'a combinar por aqui antes do horario';
 
 const MAX_MEETING_CHANNEL_TEXT_LENGTH = 200;
 
@@ -87,7 +86,7 @@ export function buildClosingStageContext(input: {
   let situation: string;
   switch (input.handoff.type) {
     case 'meeting_confirmed':
-      situation = `ENCERRAMENTO. A reuniao ja esta confirmada para ${when}, conduzida por ${host}; formato: ${input.meetingChannelText}.`;
+      situation = `ENCERRAMENTO. A reuniao ja esta confirmada para ${when}, conduzida por ${host}; formato da reuniao: ${input.meetingChannelText}.`;
       break;
     case 'meeting_requested':
       situation = `ENCERRAMENTO. O pedido de reuniao (${input.handoff.requestedScheduleText || 'horario a confirmar'}) ja foi registrado e ${host} confirma por aqui.`;
@@ -105,6 +104,30 @@ export function buildClosingStageContext(input: {
     ? ' Esta e a sua ultima mensagem nesta conversa: encerre de vez, agradecendo.'
     : '';
   return `${situation} Responda em 1 ou 2 frases so o que o lead perguntou, sem abrir assunto novo, sem oferecer horario nem ligacao; agradeca e encerre com cordialidade.${last}`;
+}
+
+/**
+ * Situacao para a IA quando a conversa esta com ela, mas ja existe reuniao confirmada (o lead voltou
+ * depois do handoff, ou a conversa foi resolvida e reaberta). Sem isto a IA reoferece horarios e refaz
+ * o diagnostico, como aconteceu na 2a janela de 20/09. Null quando nao ha reuniao futura confirmada.
+ */
+export function buildConfirmedMeetingStageContext(input: {
+  metadata: Record<string, unknown> | null | undefined;
+  meetingHostName: string;
+  timezone: string;
+  meetingChannelText: string;
+  now?: string;
+}) {
+  const handoff = readConversationHandoff(input.metadata?.lastHandoff);
+  if (!handoff || handoff.type !== 'meeting_confirmed' || !handoff.requestedScheduleAt) return null;
+  if (handoff.scheduleStatus === 'pending') return null;
+  const at = new Date(handoff.requestedScheduleAt).getTime();
+  const now = new Date(input.now ?? new Date().toISOString()).getTime();
+  if (!Number.isFinite(at) || at < now) return null;
+  const when = formatLocalDateTimeForPrompt(handoff.requestedScheduleAt, input.timezone);
+  return `REUNIAO JA CONFIRMADA para ${when}, conduzida por ${input.meetingHostName}; formato da reuniao: ${input.meetingChannelText}. `
+    + 'Nao ofereca outros horarios nem refaca o diagnostico; responda o que o lead precisar e encerre com cordialidade. '
+    + 'Se ele quiser remarcar ou cancelar, registre com shouldHandoff=true e handoffType=meeting_requested.';
 }
 
 /** Contabiliza uma resposta de encerramento na metadata da conversa. */

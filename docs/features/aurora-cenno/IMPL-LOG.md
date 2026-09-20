@@ -162,3 +162,22 @@ Decisão do Junior: nunca deixar o lead no vácuo; sempre encerrar; se o lead ma
 - PATCH da conexão: `meetingChannelText` (≤200).
 - Testes: `closingReply.test.ts` (7), `webhook/route.closing.test.ts` (4), contrato estático `test/auroraClosingContract.test.ts` (3), prompt e PATCH ampliados. Focados 53/53; `tsc` 0; ESLint 0; suíte completa e revisão adversarial (workflow de 4 lentes + refutadores) registradas abaixo quando terminarem.
 - Decisão da agenda (20/09): opção B — grade no CRM (clínica) + espelho do Google Agenda via OAuth (CENNO); lotes seguintes.
+
+### Revisão adversarial do encerramento (workflow de 4 lentes + 2 refutadores por achado) e correções
+
+Achados **confirmados** pelos refutadores e corrigidos antes do push:
+
+- **Humano assume/resolve/devolve durante a geração** (alta): o executor só checava o status uma vez e a gravação final forçava `human_queue`, desfazendo a ação humana. Correção: a resposta de encerramento é **reivindicada de forma atômica antes do envio** (`UPDATE ... WHERE status='human_queue' AND metadata->>aiClosingReplies = <valor lido>`, com `select('id')`); reivindicação vazia = nada enviado (`closing_claimed`); a gravação final também é condicional ao status (`.eq('status','human_queue')`) e, se o estado mudou no meio do envio, o estado do humano fica.
+- **Limite de 2 respostas não atômico** com mensagens sobrepostas (alta): coberto pela mesma reivindicação (compare-and-set no contador).
+- **Marca `closingReply` congelada no inbound** (média): se um humano devolvesse a conversa para a IA nos 7 s de debounce, a mensagem ficava sem resposta. Correção: `processDeferredAIReply` decide pelo **estado fresco** (`ai_active` → resposta normal; `human_queue` elegível → encerramento; senão silêncio); o parâmetro sumiu.
+- **Vazamento para prompts sem a seção** (Julia, overrides antigos) (alta): o encerramento agora só vale para prompt que tem `{{conversationStageContext}}` (regex tolerante a espaços); sem o marcador a geração devolve `closing_unsupported` e o webhook silencia sem alerta. O prefixo `SITUACAO DA CONVERSA:` foi removido.
+- **Texto padrão do formato** lido como "formato: o formato…" (média): padrão virou "a combinar por aqui antes do horário" e o prompt diz "o formato da reuniao (...)".
+- O executor também **re-checa a elegibilidade** (janela de 60 min, limite, handoff humano, falha da IA) no estado fresco antes de reivindicar.
+
+Aceitos como limite conhecido (baixa): o texto livre do modelo em encerramento não é validado contra promessa de reagendar (só instrução de prompt; o handoff estrutural está bloqueado); falha de entrega da cutucada de encerramento mantém o contador incrementado (conservador: menos mensagens, não mais).
+
+Achado da 2ª janela (04h10): lead que volta depois de reunião confirmada fazia a Aurora reofertar horários e, no resumo, ela inventou "via Google Meet". Correção: `buildConfirmedMeetingStageContext` (situação REUNIAO JA CONFIRMADA quando há `lastHandoff` `meeting_confirmed` futuro) e o formato da reunião vem de `meetingChannelText`, nunca do modelo. E às 04h17, domingo de madrugada, "amanhã, segunda-feira" estava certo mas confundiu o Junior: regra nova no prompt — citar dia da semana + data e evitar "hoje/amanhã" entre 0h e 6h.
+
+- **Saida estruturada do Gemini (04h17, 2a janela):** `AI_NoObjectGeneratedError: could not parse the response` na mensagem "mas amanha e domingo" -> fila humana. Correcao: `lib/conversations/aiOutputRepair.ts` recorta o objeto do texto cru (cerca de markdown, raciocinio em volta) e valida no schema; se nao der, **segunda geracao**; so a segunda falha vira falha de provedor. O texto cru (160 caracteres) passa a ser gravado em `aiFailureError` para diagnostico.
+- **Regra do dia no prompt (Junior):** "tenho segunda-feira as 9h ou as 10h"; "amanha" so quando o dia seguinte for dia util e a conversa estiver em horario comercial; de madrugada ou fim de semana, so o nome do dia.
+- Suite completa final: 255 arquivos / 1244 testes aprovados; tsc 0; eslint 0.

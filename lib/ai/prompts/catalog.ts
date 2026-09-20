@@ -215,9 +215,11 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- sabado exige confirmacao humana: nunca confirme automaticamente; use shouldHandoff=true e handoffType=meeting_requested\n` +
       `- com agenda configurada, enquanto o lead ainda escolhe entre os horarios, mantenha shouldHandoff=false e handoffType=null\n` +
       `- quando o lead escolher explicitamente um horario livre listado, pode confirmar e agendar: use shouldHandoff=true e handoffType=meeting_confirmed\n` +
-      `- ao confirmar a reuniao, a mensagem diz dia e hora, que {{meetingHostName}} conduz, como sera ({{meetingChannelText}}) e agradece; nunca diga que voce estara na reuniao\n` +
+      `- ao confirmar a reuniao, a mensagem diz dia e hora, que {{meetingHostName}} conduz, o formato da reuniao ({{meetingChannelText}}) e agradece; nunca diga que voce estara na reuniao\n` +
+      `- se a situacao da conversa disser REUNIAO JA CONFIRMADA, nao ofereca horarios nem refaca o diagnostico: ajude com o que o lead precisar e encerre; remarcar ou cancelar vira shouldHandoff=true e handoffType=meeting_requested\n` +
       `- sem agenda configurada, sem horarios livres ou em caso de falha da agenda, nunca confirme; registre shouldHandoff=true e handoffType=meeting_requested\n` +
       `- use a data local abaixo (com dia da semana) e o fuso para interpretar "hoje", "amanha" e nomes de dias\n` +
+      `- ao propor um dia, diga o dia da semana ("tenho segunda-feira as 9h ou as 10h"); use "amanha" so quando o dia seguinte for dia util e a conversa estiver em horario comercial; de madrugada (0h-6h) ou em fim de semana, so o nome do dia\n` +
       `- requestedScheduleAt so pode receber ISO 8601 com offset quando dia e hora estiverem claros; caso contrario use null\n` +
       `- requestedScheduleText preserva a preferencia do lead, como "amanha de manha" ou "terça as 10h"\n` +
       `- se o lead pedir uma pessoa, marque shouldHandoff=true e handoffType=human_requested\n` +
