@@ -25,6 +25,11 @@ export type EvolutionAdClick = {
   mediaUrl: string | null;
 };
 
+export type EvolutionMediaEnvelope = {
+  key: { id: string; remoteJid: string; fromMe: boolean; participant?: string };
+  message: Record<string, unknown>;
+};
+
 type ParsedEvolutionMessage = {
   event: string | null;
   providerMessageId: string | null;
@@ -38,8 +43,11 @@ type ParsedEvolutionMessage = {
   adClick: EvolutionAdClick | null;
   /** Só vem preenchido com a chave de mídia da conexão ligada (`record` / `understand`). */
   media: InboundMediaInfo | null;
-  /** Envelope desta mensagem (`key` + `message`), que a Evolution pede para baixar a mídia. */
-  envelope: Record<string, unknown>;
+  /**
+   * O que a Evolution pede para baixar a mídia, em lista fechada: a chave da mensagem e só o corpo
+   * da mídia já desembrulhado. Vive só em memória, nunca é gravado (carrega `mediaKey` e `url`).
+   */
+  mediaEnvelope: EvolutionMediaEnvelope | null;
   raw: Record<string, unknown>;
 };
 
@@ -381,7 +389,18 @@ export function parseEvolutionWebhookPayload(
           placeholder: !text,
         }
       : null,
-    envelope: candidate.envelope,
+    mediaEnvelope:
+      detectedMedia && providerMessageId && remoteJid
+        ? {
+            key: {
+              id: providerMessageId,
+              remoteJid,
+              fromMe,
+              ...(typeof candidate.key?.participant === 'string' ? { participant: candidate.key.participant } : {}),
+            },
+            message: { [detectedMedia.key]: message?.[detectedMedia.key] },
+          }
+        : null,
     raw: root,
   };
 }

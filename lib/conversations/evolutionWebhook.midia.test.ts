@@ -174,10 +174,27 @@ describe('parser com a chave de mídia ligada: o resto do contrato', () => {
     expect(parsed).toMatchObject({ direction: 'outbound', content: 'Áudio', media: { kind: 'audio' } });
   });
 
-  it('devolve o envelope da mensagem (key + message), que a Evolution pede para baixar a mídia', () => {
-    const body = payload({ audioMessage: { seconds: 21 } });
+  it('devolve o envelope de download em lista fechada: chave da mensagem + só o corpo da mídia', () => {
+    const body = payload(
+      { messageContextInfo: { deviceListMetadataVersion: 2 }, audioMessage: { seconds: 21, url: 'https://mmg.whatsapp.net/x', mediaKey: 'K' } },
+      { pushName: 'Maria', contextInfo: { externalAdReply: { ctwaClid: 'abc' } } },
+    );
     const parsed = parseEvolutionWebhookPayload(body, { mediaMode: 'understand' });
-    expect(parsed?.envelope).toBe(body.data);
+    expect(parsed?.mediaEnvelope).toEqual({
+      key: { id: 'MSG-1', remoteJid: JID, fromMe: false },
+      message: { audioMessage: { seconds: 21, url: 'https://mmg.whatsapp.net/x', mediaKey: 'K' } },
+    });
+  });
+
+  it('envelope de download sai de dentro do embrulho; texto puro e mídia sem id não têm envelope', () => {
+    const wrapped = parse({ ephemeralMessage: { message: { imageMessage: { mimetype: 'image/jpeg', mediaKey: 'K' } } } });
+    expect(wrapped?.mediaEnvelope?.message).toEqual({ imageMessage: { mimetype: 'image/jpeg', mediaKey: 'K' } });
+    expect(parse({ conversation: 'oi' })?.mediaEnvelope).toBeNull();
+    const semId = parseEvolutionWebhookPayload(
+      { event: 'messages.upsert', data: { key: { remoteJid: JID, fromMe: false }, message: { audioMessage: { seconds: 3 } } } },
+      { mediaMode: 'understand' },
+    );
+    expect(semId?.mediaEnvelope).toBeNull();
   });
 
   it('nome do WhatsApp entra numa linha só, com no máximo 80 caracteres', () => {
