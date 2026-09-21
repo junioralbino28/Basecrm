@@ -60,23 +60,31 @@ export async function recordConversationAIFailure(input: {
     aiFailureError: errorMessage,
   };
 
-  const [threadResult, notificationResult] = await Promise.all([
-    input.admin
-      .from('conversation_threads')
-      .update({ status: 'human_queue', metadata: nextMetadata, updated_at: now })
-      .eq('id', input.threadId)
-      .eq('organization_id', input.organizationId),
-    input.admin
-      .from('system_notifications')
-      .upsert(buildConversationAIFailureNotification({
-        organizationId: input.organizationId,
-        threadId: input.threadId,
-        eventId: input.eventId,
-        contactLabel: input.contactLabel,
-        stage: input.stage,
-        createdAt: now,
-      }), { onConflict: 'id' }),
-  ]);
+  // So vai para a fila humana a conversa que ainda estava com a IA (ou ja na fila). Quem um humano
+  // assumiu (human_active) ou encerrou (resolved/closed) no meio do caminho fica como esta, e o sino
+  // nao avisa "precisa de voce" para quem ja esta atendendo (decisao do Junior, 21/09: nada atropela
+  // o "assumir").
+  const threadResult = await input.admin
+    .from('conversation_threads')
+    .update({ status: 'human_queue', metadata: nextMetadata, updated_at: now })
+    .eq('id', input.threadId)
+    .eq('organization_id', input.organizationId)
+    .in('status', ['open', 'ai_active', 'human_queue'])
+    .select('id');
+  const movedToQueue = !threadResult.error && Array.isArray(threadResult.data) && threadResult.data.length > 0;
+
+  const notificationResult = movedToQueue
+    ? await input.admin
+        .from('system_notifications')
+        .upsert(buildConversationAIFailureNotification({
+          organizationId: input.organizationId,
+          threadId: input.threadId,
+          eventId: input.eventId,
+          contactLabel: input.contactLabel,
+          stage: input.stage,
+          createdAt: now,
+        }), { onConflict: 'id' })
+    : { error: null };
 
   return {
     ok: !threadResult.error && !notificationResult.error,

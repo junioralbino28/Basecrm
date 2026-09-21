@@ -26,6 +26,7 @@ import {
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
 import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
 import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
+import { buildIdleNudgeClearedMetadata } from '@/lib/conversations/idleNudge';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
   buildConversationHandoff,
@@ -411,8 +412,8 @@ export async function generateConversationAutoReply(params: {
     connectionConfig: generationConnectionConfig,
     ownerId: calendarAvailability.calendar?.ownerId ?? null,
   });
-  // Encerramento so vale para prompt desenhado para ele (tem {{conversationStageContext}}). A Julia e
-  // overrides antigos continuam mudos depois do handoff, como antes; nada de instrucao colada no topo.
+  // Encerramento so vale para prompt desenhado para ele (tem {{conversationStageContext}}). O prompt
+  // padrao e overrides antigos continuam mudos depois do handoff, como antes; nada de instrucao colada no topo.
   if (closing && !/\{\{\s*conversationStageContext\s*\}\}/.test(resolvedPrompt.content)) {
     return { ok: false as const, reason: 'closing_unsupported' as const };
   }
@@ -860,21 +861,26 @@ export async function executeConversationAIReply(params: {
         humanLocked: true,
         provider: 'evolution',
       })
-    : buildConversationThreadMetadataUpdate(thread.metadata, {
-        direction: 'outbound',
-        preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
-        messageType: 'text',
-        sentAt: now,
-        authorName: agentName,
-        unreadCount: 0,
-        routingMode: requiresHumanAttention ? 'human' : 'ai',
-        humanLocked: requiresHumanAttention,
-        aiLockedReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
-        handoffRequestedAt: requiresHumanAttention ? now : null,
-        handoffReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
-        handoff,
-        queueAssignedUserId: shouldHandoff ? thread.assigned_user_id ?? null : null,
-        provider: 'evolution',
+    // Toda resposta da IA torna obsoleta a cutucada pendente do silencio anterior: ela sai limpa daqui
+    // e processDeferredAIReply agenda a do silencio novo. Sem isso, a foto lida antes do envio podia
+    // ressuscitar uma cutucada que o tick ja tinha cancelado porque o lead respondeu (21/09).
+    : buildIdleNudgeClearedMetadata({
+        metadata: buildConversationThreadMetadataUpdate(thread.metadata, {
+          direction: 'outbound',
+          preview: replyParts.at(-1)?.trim().slice(0, 160) || effectiveReplyText.trim().slice(0, 160),
+          messageType: 'text',
+          sentAt: now,
+          authorName: agentName,
+          unreadCount: 0,
+          routingMode: requiresHumanAttention ? 'human' : 'ai',
+          humanLocked: requiresHumanAttention,
+          aiLockedReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
+          handoffRequestedAt: requiresHumanAttention ? now : null,
+          handoffReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
+          handoff,
+          queueAssignedUserId: shouldHandoff ? thread.assigned_user_id ?? null : null,
+          provider: 'evolution',
+        }),
       });
 
   const threadUpdateBase = admin
@@ -889,13 +895,18 @@ export async function executeConversationAIReply(params: {
     .eq('organization_id', activeConnection.organization_id);
   // Encerramento: se um humano assumiu, resolveu ou devolveu a conversa durante o envio, o estado dele
   // fica; so o registro da saida e perdido (a mensagem ja esta na conversa).
+  // Resposta comum (decisao do Junior, 21/09): a mesma regra. O envio leva segundos; se nesse meio tempo
+  // o operador assumiu ou resolveu a conversa, a escrita final nao devolve a conversa para a IA.
   const threadUpdate = closingReply && !deliveryFailed
     ? await threadUpdateBase.eq('status', 'human_queue').select('id')
-    : await threadUpdateBase;
+    : await threadUpdateBase.eq('status', thread.status).select('id');
 
   if (threadUpdate.error) throw new Error(threadUpdate.error.message);
-  if (closingReply && !deliveryFailed && 'data' in threadUpdate && Array.isArray(threadUpdate.data) && threadUpdate.data.length === 0) {
-    console.warn('[Conversation AI] Closing reply sent but the thread state changed meanwhile', {
+  const threadStateChanged = Array.isArray(threadUpdate.data) && threadUpdate.data.length === 0;
+  if (threadStateChanged) {
+    console.warn(closingReply
+      ? '[Conversation AI] Closing reply sent but the thread state changed meanwhile'
+      : '[Conversation AI] Reply sent but the thread state changed meanwhile; the human state was kept', {
       organizationId: activeConnection.organization_id,
       threadId: payload.threadId,
     });
@@ -1015,6 +1026,7 @@ export async function executeConversationAIReply(params: {
     ok: true as const,
     warning: deliveryWarning,
     thread: threadItem,
-    status: nextStatus,
+    // Se o estado mudou durante o envio, quem chama (ex.: agendar a cutucada) ve o status de verdade.
+    status: threadStateChanged ? threadItem?.status ?? nextStatus : nextStatus,
   };
 }

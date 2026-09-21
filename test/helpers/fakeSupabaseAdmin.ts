@@ -1,8 +1,8 @@
 /**
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
- * Imita só o que as rotas de conversa usam: select / eq / lt / in / is / order / limit / maybeSingle / single /
- * insert / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
+ * Imita só o que as rotas de conversa usam: select / eq / neq / lt / in / is / order / limit / maybeSingle / single /
+ * insert (uma linha ou várias) / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
  */
@@ -53,6 +53,12 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
         return Promise.resolve({ data: [row], error: null });
       }
 
+      if (operation === 'insert' && Array.isArray(payload)) {
+        const inserted = (payload as Row[]).map((value) => ({ id: value.id ?? `fake-${table}-${++sequence}`, ...value }));
+        rowsOf(table).push(...inserted);
+        return Promise.resolve({ data: inserted, error: null });
+      }
+
       if (operation === 'insert' && payload) {
         const row: Row = { id: payload.id ?? `fake-${table}-${++sequence}`, ...payload };
         if (table === 'conversation_messages' && row.provider_message_id) {
@@ -95,14 +101,16 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
         });
       }
       if (limitCount !== null) selected = selected.slice(0, limitCount);
-      return Promise.resolve({ data: selected, error: null });
+      // Como o banco de verdade, a leitura devolve CÓPIA: quem leu fica com a foto daquele instante,
+      // e uma escrita posterior de outro processo não muda o que ele tem em mãos.
+      return Promise.resolve({ data: selected.map((row) => structuredClone(row)), error: null });
     }
 
     const builder = {
       select: () => builder,
-      insert: (value: Row) => {
+      insert: (value: Row | Row[]) => {
         operation = 'insert';
-        payload = value;
+        payload = value as Row;
         return builder;
       },
       update: (value: Row) => {
@@ -122,6 +130,14 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
       },
       eq: (column: string, value: unknown) => {
         filters.push((row) => readColumn(row, column) === value);
+        return builder;
+      },
+      neq: (column: string, value: unknown) => {
+        // Como no SQL: NULL <> valor não é verdadeiro, então a linha com a coluna vazia fica de fora.
+        filters.push((row) => {
+          const current = readColumn(row, column);
+          return current !== null && current !== undefined && current !== value;
+        });
         return builder;
       },
       lt: (column: string, value: string | number) => {

@@ -171,12 +171,16 @@ export async function processDeferredAIReply(params: {
     await waitForPendingInboundMedia({ admin, organizationId, threadId });
   }
 
+  // `sent_at` do lead vem do WhatsApp com resolução de SEGUNDO: duas mensagens no mesmo segundo
+  // (vídeo + texto + figurinha em rajada) empatam. O desempate pela hora de gravação mantém a ordem
+  // real, da qual dependem a regra da figurinha e a trava do e-mail ditado (21/09).
   const recentMessagesResult = await admin
     .from('conversation_messages')
     .select('id, direction, message_type, author_name, content, sent_at, metadata')
     .eq('organization_id', organizationId)
     .eq('thread_id', threadId)
     .order('sent_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(12);
 
   if (recentMessagesResult.error) {
