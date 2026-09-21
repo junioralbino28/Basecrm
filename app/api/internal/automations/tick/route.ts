@@ -3,6 +3,7 @@ import { authorizeAutomationInternalRequest } from '@/lib/automations/internalAu
 import { executeDueAutomationJobs, type ExecutorSummary } from '@/lib/automations/executor';
 import { dispatchPendingConversionEvents, type DispatchSummary } from '@/lib/meta/conversionDispatch';
 import { sendDueConversationNudges, type IdleNudgeRunSummary } from '@/lib/conversations/idleNudgeRunner';
+import { expireStalePendingInboundMedia } from '@/lib/conversations/inboundMediaPending';
 import { z } from 'zod';
 
 // 2a: o tick passou a executar jobs (envio real com tempo limite por mensagem). O executor
@@ -104,6 +105,16 @@ export async function POST(request: Request) {
     idleNudges = { error: message };
   }
 
+  // Mídia recebida presa em "entendendo…" há mais de 3 min (função que morreu no meio). Nunca derruba o tick.
+  let staleMedia: { expired: number } | { error: string } | null = null;
+  try {
+    staleMedia = await expireStalePendingInboundMedia({ admin });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Varredura de mídia pendente falhou', { tickAttemptId, error: message });
+    staleMedia = { error: message };
+  }
+
   const completed = await admin.rpc('complete_automation_tick', {
     p_attempt_token: tickAttemptId,
     p_http_status: 200,
@@ -122,5 +133,6 @@ export async function POST(request: Request) {
     executed,
     conversions,
     idleNudges,
+    staleMedia,
   });
 }

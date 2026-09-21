@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeSupabaseAdmin, type FakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
 
 /**
- * POST do webhook com a chave de mídia da conexão LIGADA (SPEC-midia-recebida v2, Passo 1).
+ * POST do webhook com a chave de mídia em `record` (SPEC-midia-recebida v2, Passo 1): grava e não entende.
  * O comportamento com a chave ausente ou `off` está travado em `route.post.test.ts`.
  */
 
@@ -90,7 +90,8 @@ beforeEach(() => {
   seed();
 });
 
-describe.each(['record', 'understand'])('POST do webhook com config.media.mode = %s', (mode) => {
+// `understand` tem arquivo próprio (route.mediaUnderstand.test.ts): desde o Passo 2 ele entende e responde.
+describe.each(['record'])('POST do webhook com config.media.mode = %s', (mode) => {
   beforeEach(() => seed({ media: { mode } }));
 
   it('nota de voz de número novo: grava com selo, conta como mensagem do lead, NÃO agenda a IA e avisa no sino', async () => {

@@ -1,7 +1,7 @@
 /**
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
- * Imita só o que as rotas de conversa usam: select / eq / in / is / order / limit / maybeSingle / single /
+ * Imita só o que as rotas de conversa usam: select / eq / lt / in / is / order / limit / maybeSingle / single /
  * insert / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
@@ -20,6 +20,17 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
   let sequence = 0;
 
   const rowsOf = (table: string) => (tables[table] ??= []);
+
+  /** Aceita caminho JSON do PostgREST (`metadata->media->>status`). */
+  const readColumn = (row: Row, column: string) => {
+    if (!column.includes('->')) return row[column];
+    let current: unknown = row;
+    for (const part of column.split(/->>?/)) {
+      if (!current || typeof current !== 'object') return undefined;
+      current = (current as Row)[part];
+    }
+    return current;
+  };
 
   function from(table: string) {
     const filters: Array<(row: Row) => boolean> = [];
@@ -110,7 +121,14 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
         return builder;
       },
       eq: (column: string, value: unknown) => {
-        filters.push((row) => row[column] === value);
+        filters.push((row) => readColumn(row, column) === value);
+        return builder;
+      },
+      lt: (column: string, value: string | number) => {
+        filters.push((row) => {
+          const current = readColumn(row, column) as string | number | null | undefined;
+          return current !== null && current !== undefined && current < value;
+        });
         return builder;
       },
       in: (column: string, values: unknown[]) => {

@@ -146,7 +146,9 @@ export function formatRecentMessages(messages: RecentMessage[]) {
       if (media) hasMedia = true;
       const label = media ? `${direction} (${describeInboundMediaForAI(media)})` : direction;
       const author = String(message.author_name || direction).trim();
-      const content = (media?.placeholder ? '' : String(message.content || '').trim()) || '[sem texto]';
+      const typed = (media?.placeholder ? '' : String(message.content || '').trim()) || '[sem texto]';
+      // Foto com legenda: o que o lead digitou vem primeiro; a descricao automatica vai a parte.
+      const content = media?.description ? `${typed} [descricao automatica da midia: ${media.description}]` : typed;
       const sentAt = String(message.sent_at || '').trim();
       return `- ${label} | ${author}${sentAt ? ` | ${sentAt}` : ''}: ${content}`;
     })

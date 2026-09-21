@@ -316,6 +316,10 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
           </p>
         ) : null}
 
+        {media?.description ? (
+          <p className="mt-1.5 border-l-2 border-slate-200 pl-2 text-[12px] italic text-slate-600">{media.description}</p>
+        ) : null}
+
         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
           {time}
           <DeliveryTicks meta={meta} direction={direction} />

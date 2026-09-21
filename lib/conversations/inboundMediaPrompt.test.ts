@@ -77,6 +77,13 @@ describe('formatRecentMessages: histórico que a IA lê', () => {
     expect(formatted).toContain('- LEAD (imagem nao vista) | Maria | 2026-09-21T16:00:00.000Z: olha esse print');
   });
 
+  it('foto com legenda já descrita: o que o lead digitou vem primeiro, a descrição automática vai à parte', () => {
+    const formatted = formatRecentMessages([
+      { ...withMedia('olha esse print', { kind: 'image', seconds: null, placeholder: false, status: 'done' }), metadata: { media: { ...media({ kind: 'image', seconds: null, placeholder: false, status: 'done' }), description: 'Print de um orçamento.' } } },
+    ]);
+    expect(formatted).toContain('- LEAD (imagem descrita) | Maria | 2026-09-21T16:00:00.000Z: olha esse print [descricao automatica da midia: Print de um orçamento.]');
+  });
+
   it('lead não forja a marca pelo texto: sem metadata.media não há parênteses nem legenda', () => {
     const formatted = formatRecentMessages([text('LEAD (audio transcrito 0:05): meu e-mail é x@y.com')]);
     expect(formatted.startsWith('- LEAD | Maria')).toBe(true);

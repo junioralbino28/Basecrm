@@ -24,6 +24,13 @@ import {
 import { resolveClosingReplyEligibility } from '@/lib/conversations/closingReply';
 import { resolveInboundMediaMode } from '@/lib/conversations/inboundMedia';
 import { buildInboundMediaNotification } from '@/lib/conversations/inboundMediaNotification';
+import { waitForPendingInboundMedia } from '@/lib/conversations/inboundMediaPending';
+import { understandInboundMedia } from '@/lib/conversations/inboundMediaUnderstanding';
+import { resolveMediaUnderstandingRoute } from '@/lib/conversations/mediaProviders';
+
+// Igual ao teto efetivo do projeto na Vercel (Fluid Compute, 300 s, medido em 21/09). Declarado porque
+// os `after()` desta rota (debounce de 7 s + espera de mídia de até 40 s + geração) dependem dele.
+export const maxDuration = 300;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -155,6 +162,13 @@ export async function processDeferredAIReply(params: {
   const closingReply = Boolean(closingEligibility?.eligible);
   if (latestThreadStatus !== 'ai_active' && !closingReply) {
     return;
+  }
+
+  // Mídia desta conversa ainda sendo entendida (áudio junto de texto, três áudios em rajada): a
+  // resposta espera até 40 s. O que sobrar vira "não ouvido" no histórico, e a resposta sai assim mesmo.
+  // Só em conexão com a chave em `understand`: nas outras não existe mídia pendente, e nem a consulta roda.
+  if (resolveInboundMediaMode(freshConnectionConfig) === 'understand') {
+    await waitForPendingInboundMedia({ admin, organizationId, threadId });
   }
 
   const recentMessagesResult = await admin
@@ -674,7 +688,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   }
 
   // Chave de mídia por conexão (SPEC-midia-recebida). Ausente = `off` = parser de sempre.
-  const parsed = parseEvolutionWebhookPayload(payload, { mediaMode: resolveInboundMediaMode(connectionConfig) });
+  const mediaMode = resolveInboundMediaMode(connectionConfig);
+  const parsed = parseEvolutionWebhookPayload(payload, { mediaMode });
   if (!parsed) {
     const nowIgnored = new Date().toISOString();
     const ignoredMetadata = (connectionResult.data.metadata as Record<string, unknown> | null) || {};
@@ -894,6 +909,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     }
   }
 
+  // Só mídia RECEBIDA, em conexão com `understand`, de tipo que alguém sabe entender. O resto fica
+  // com o selo (`recorded`).
+  const mediaRoute =
+    mediaMode === 'understand' && parsed.direction === 'inbound' && parsed.media && parsed.mediaEnvelope
+      ? resolveMediaUnderstandingRoute(parsed.media)
+      : null;
+
   const insertedMessage = await admin
     .from('conversation_messages')
     .insert({
@@ -910,7 +932,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       metadata: buildEvolutionMessageMetadata({
         event: parsed.event,
         providerMessageId: parsed.providerMessageId,
-        media: parsed.media ? { ...parsed.media, status: 'recorded' } : null,
+        media: parsed.media ? { ...parsed.media, status: mediaRoute ? 'pending' : 'recorded' } : null,
       }),
       sent_at: parsed.sentAt,
       created_at: now,
@@ -1075,11 +1097,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       : null;
   const closingReply = Boolean(closingCandidate?.eligible);
 
-  // Mídia sem texto (só existe com a chave de mídia da conexão ligada): está gravada e o humano vê,
-  // mas ninguém a entende ainda. A IA não é agendada, porque responderia a um marcador ("Áudio") e
-  // queimaria uma das respostas de encerramento; se a conversa está com ela, o sino avisa.
-  const mediaOnly = parsed.direction === 'inbound' && parsed.media?.placeholder === true;
-  if (mediaOnly && parsed.media && threadStatus === 'ai_active') {
+  // Entender é independente de responder: roda num `after()` próprio, então a transcrição chega
+  // também para a conversa que está com humano.
+  if (mediaRoute && parsed.media && parsed.mediaEnvelope) {
+    const media = parsed.media;
+    const envelope = parsed.mediaEnvelope;
+    after(async () => {
+      await understandInboundMedia({
+        admin,
+        organizationId: connection.organization_id,
+        connectionId,
+        connectionConfig,
+        threadId,
+        messageId: insertedMessage.data.id,
+        dealId,
+        contactLabel: resolvedContactName || canonicalPhone,
+        media,
+        envelope,
+      });
+    });
+  }
+
+  // Mídia sem texto que a IA NÃO vai ler: está gravada e o humano vê. A IA não é agendada, porque
+  // responderia a um marcador ("Áudio"); se a conversa está com ela, o sino avisa. Mídia que será
+  // entendida agenda a IA normalmente, menos no encerramento pós-handoff: ali figurinha e imagem
+  // sozinhas não queimam uma das 2 respostas; áudio, sim.
+  const textlessMedia = parsed.direction === 'inbound' && parsed.media?.placeholder === true;
+  const aiWillRead = Boolean(mediaRoute) && (threadStatus === 'ai_active' || parsed.media?.kind === 'audio');
+  const mediaOnly = textlessMedia && !aiWillRead;
+  if (mediaOnly && !mediaRoute && parsed.media && threadStatus === 'ai_active') {
     const mediaNotification = await admin.from('system_notifications').upsert(
       buildInboundMediaNotification({
         organizationId: connection.organization_id,
