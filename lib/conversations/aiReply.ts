@@ -48,6 +48,12 @@ import {
   type MeetingSlot,
 } from '@/lib/conversations/meetingAvailability';
 import { mapConversationCalendarBlockRow } from '@/lib/conversations/calendarBlocks';
+import { readInboundMediaMetadata } from '@/lib/conversations/inboundMedia';
+import {
+  describeInboundMediaForAI,
+  hasInboundAudioSinceLastReply,
+  INBOUND_MEDIA_AI_RULES,
+} from '@/lib/conversations/inboundMediaPrompt';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 
@@ -78,6 +84,8 @@ type RecentMessage = {
   author_name?: string | null;
   content?: string | null;
   sent_at?: string | null;
+  /** So `metadata.media` e lido aqui (selo de midia recebida, escrito pelo servidor). */
+  metadata?: unknown;
 };
 
 export const ConversationAutoReplySchema = z.object({
@@ -118,12 +126,13 @@ export type ConversationAIReplyPayload = {
   leadSegment?: string | null;
 };
 
-function formatRecentMessages(messages: RecentMessage[]) {
+export function formatRecentMessages(messages: RecentMessage[]) {
   if (!messages.length) {
     return 'Sem historico anterior. Considere que pode ser o primeiro contato.';
   }
 
-  return messages
+  let hasMedia = false;
+  const lines = messages
     .map((message) => {
       const direction =
         message.direction === 'outbound'
@@ -131,12 +140,20 @@ function formatRecentMessages(messages: RecentMessage[]) {
           : message.direction === 'internal'
             ? 'INTERNO'
             : 'LEAD';
+      // Midia recebida: a marca vem de `metadata.media`, nunca do texto; mensagem so de midia nao
+      // tem texto do lead (o `content` e um marcador do sistema), entao entra como [sem texto].
+      const media = readInboundMediaMetadata(message.metadata);
+      if (media) hasMedia = true;
+      const label = media ? `${direction} (${describeInboundMediaForAI(media)})` : direction;
       const author = String(message.author_name || direction).trim();
-      const content = String(message.content || '').trim() || '[sem texto]';
+      const content = (media?.placeholder ? '' : String(message.content || '').trim()) || '[sem texto]';
       const sentAt = String(message.sent_at || '').trim();
-      return `- ${direction} | ${author}${sentAt ? ` | ${sentAt}` : ''}: ${content}`;
+      return `- ${label} | ${author}${sentAt ? ` | ${sentAt}` : ''}: ${content}`;
     })
     .join('\n');
+
+  // Sem midia no historico o texto e identico ao de sempre, para qualquer agente.
+  return hasMedia ? `${INBOUND_MEDIA_AI_RULES}\n${lines}` : lines;
 }
 
 function splitReplyIntoParts(replyText: string) {
@@ -509,7 +526,9 @@ export async function generateConversationAutoReply(params: {
       handoffReason: generated.handoffReason?.trim() || null,
       requestedScheduleAt,
       requestedScheduleText: generated.requestedScheduleText?.trim() || null,
-      leadEmail: normalizeLeadEmail(generated.leadEmail),
+      // Trava em codigo (SPEC-midia-recebida): e-mail ditado por audio nunca vai para o contato, mesmo
+      // que o modelo o devolva. O prompt pede para o lead digitar; o turno seguinte, sem audio, grava.
+      leadEmail: hasInboundAudioSinceLastReply(recentMessages) ? null : normalizeLeadEmail(generated.leadEmail),
       leadSegment: normalizeLeadSegment(generated.leadSegment),
     },
   };

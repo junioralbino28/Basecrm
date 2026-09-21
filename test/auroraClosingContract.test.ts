@@ -24,7 +24,8 @@ describe('encerramento depois do handoff — contrato do executor', () => {
   });
 
   it('grava e-mail e segmento do lead no contato sem sobrescrever e-mail existente', () => {
-    expect(source).toContain('leadEmail: normalizeLeadEmail(generated.leadEmail)');
+    // 21/09 (midia recebida): e-mail ditado por audio nunca vai para o contato; o turno sem audio grava.
+    expect(source).toContain('leadEmail: hasInboundAudioSinceLastReply(recentMessages) ? null : normalizeLeadEmail(generated.leadEmail),');
     expect(source).toContain('buildContactProfileUpdate({');
     expect(source).toContain(".from('contacts')");
   });
