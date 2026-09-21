@@ -103,11 +103,11 @@ describe('createEvolutionInstance', () => {
     await expect(createEvolutionInstance({
       apiUrl: 'https://evolution.example.com',
       apiKey: 'KEY',
-      instanceName: 'ia-julia-123abc',
+      instanceName: 'ia-atendimento-123abc',
     })).resolves.toMatchObject({
       qrBase64: 'iVBOR_FLAT',
       pairingCode: '887766',
-      instanceName: 'ia-julia-123abc',
+      instanceName: 'ia-atendimento-123abc',
     });
   });
 });

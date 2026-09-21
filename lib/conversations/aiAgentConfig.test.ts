@@ -14,9 +14,10 @@ describe('conversation AI agent config', () => {
     });
   });
 
-  it('mantem a Julia como fallback para conexoes existentes', () => {
+  // 21/09/2026: o Junior tirou do CRM o nome antigo da IA; o padrao sem configuracao e neutro.
+  it('usa um nome neutro como fallback para conexoes sem nome configurado', () => {
     expect(resolveConversationAIAgentConfig({})).toEqual({
-      agentName: 'Julia',
+      agentName: 'Assistente',
       promptKey: 'task_conversations_whatsapp_auto_reply',
     });
   });
@@ -28,7 +29,7 @@ describe('conversation AI agent config', () => {
         aiPromptKey: '../../segredo',
       })
     ).toEqual({
-      agentName: 'Julia',
+      agentName: 'Assistente',
       promptKey: null,
     });
   });

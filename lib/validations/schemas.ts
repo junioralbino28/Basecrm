@@ -208,7 +208,7 @@ export const taskFormSchema = z.object({
     .optional()
     .transform(val => val || '')
     .refine(val => val === '' || /^\d{2}:\d{2}$/.test(val), 'Hora inválida'),
-  /** Toggle "Julia avisa primeiro no WhatsApp" — v1 só persiste a intenção. */
+  /** Toggle "IA avisa primeiro no WhatsApp" — v1 só persiste a intenção. */
   juliaFirst: z.boolean().default(false),
 });
 

@@ -42,11 +42,12 @@
   /* WhatsApp */
   --color-wa: #1fa855;
 
-  /* Dark shell — casado com --canvas/--card/--line do bloco .dark (tinta da LP, não preto puro). */
-  --color-dark-bg: #14170E;
-  --color-dark-card: #1D2116;
-  --color-dark-border: #363A2B;
-  --color-dark-hover: #40442F;
+  /* Dark shell — casado com --canvas/--card/--line do bloco .dark. Preto profundo quente
+   * (decisão do Junior, 21/09/2026: a tinta oliva #14170E deixava o fundo esverdeado). */
+  --color-dark-bg: #0A0908;
+  --color-dark-card: #161412;
+  --color-dark-border: #2E2B27;
+  --color-dark-hover: #3A3632;
 }
 
 /* ========================================
@@ -83,14 +84,14 @@
 }
 
 .dark {
-  /* Dark — CENNO: tinta #14170E / tinta-2 #1D2116 (spec §3.2) */
-  --canvas: 20 23 14;
-  --card: 29 33 22;
-  --surface: 39 43 31;
-  --line: 54 58 43;
+  /* Dark — CENNO: preto profundo #0A0908 / cartão #161412 (spec §3.2, emenda de 21/09/2026) */
+  --canvas: 10 9 8;
+  --card: 22 20 18;
+  --surface: 31 29 26;
+  --line: 46 43 39;
   --ink: 242 237 227;
-  --muted: 175 178 160;
-  --faint: 135 137 127;
+  --muted: 177 173 164;
+  --faint: 139 135 127;
 }
 
 /* ========================================
@@ -191,12 +192,12 @@ html, body {
 }
 
 .dark {
-  /* Dark — CENNO (tinta #14170E). Tema da clínica: bloco [data-brand="clinica"].dark mais abaixo. */
-  --color-bg: #14170E;
-  --color-surface: #1D2116;
-  --color-muted: #272B1F;
-  --color-border: #363A2B;
-  --color-border-subtle: rgb(54 58 43 / 0.6);
+  /* Dark — CENNO (preto profundo #0A0908). Tema da clínica: bloco [data-brand="clinica"].dark mais abaixo. */
+  --color-bg: #0A0908;
+  --color-surface: #161412;
+  --color-muted: #1F1D1A;
+  --color-border: #2E2B27;
+  --color-border-subtle: rgb(46 43 39 / 0.6);
 
   /* Status Colors - Dark Mode */
   --color-success: oklch(70% 0.17 145);
@@ -225,17 +226,17 @@ html, body {
 
   /* Text Colors - Dark Mode (CENNO) */
   --color-text-primary: #F2EDE3;
-  --color-text-secondary: #D3D2C6;
-  --color-text-muted: #AFB2A0;
-  --color-text-subtle: #87897F;
+  --color-text-secondary: #D4D0C8;
+  --color-text-muted: #B1ADA4;
+  --color-text-subtle: #8B877F;
 
-  /* Glass effect - Dark (CENNO: tinta-2) */
-  --glass-bg: rgb(29 33 22 / 0.72);
+  /* Glass effect - Dark (CENNO: cartão) */
+  --glass-bg: rgb(22 20 18 / 0.72);
   --glass-border: oklch(100% 0 0 / 0.05);
   --glass-blur: 12px;
 
   /* Dots background */
-  --dots-color: #272B1F;
+  --dots-color: #1F1D1A;
 
   /* Chart Colors */
   --chart-text: #94a3b8;

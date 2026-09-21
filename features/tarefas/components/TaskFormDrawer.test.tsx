@@ -29,7 +29,7 @@ const baseProps = {
 };
 
 describe('TaskFormDrawer (mockup drawer-task)', () => {
-  it('renderiza os campos do mockup: lead, tipo, motivo, nota, data, hora, toggle Julia', () => {
+  it('renderiza os campos do mockup: lead, tipo, motivo, nota, data, hora, toggle da IA', () => {
     render(<TaskFormDrawer {...baseProps} />);
     expect(screen.getByText(/nova tarefa \/ lembrete/i)).toBeTruthy();
     expect(screen.getByLabelText(/lead/i)).toBeTruthy();
@@ -40,15 +40,15 @@ describe('TaskFormDrawer (mockup drawer-task)', () => {
     expect(screen.getByLabelText(/nota/i)).toBeTruthy();
     expect(screen.getByLabelText(/quando/i)).toBeTruthy();
     expect(screen.getByLabelText(/hora \(opcional\)/i)).toBeTruthy();
-    expect(screen.getByRole('checkbox', { name: /julia avisa primeiro no whatsapp/i })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /ia avisa primeiro no whatsapp/i })).toBeTruthy();
     expect(screen.getByText(/pode ficar vazio — tarefa geral da recepção/i)).toBeTruthy();
   });
 
-  it('toggle Julia grava juliaFirst no formData (v1 só persiste a intenção)', async () => {
+  it('toggle da IA grava juliaFirst no formData (v1 só persiste a intenção)', async () => {
     const setFormData = vi.fn();
     render(<TaskFormDrawer {...baseProps} setFormData={setFormData} />);
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /julia avisa primeiro no whatsapp/i })
+      screen.getByRole('checkbox', { name: /ia avisa primeiro no whatsapp/i })
     );
     expect(setFormData).toHaveBeenCalledWith(expect.objectContaining({ juliaFirst: false }));
   });

@@ -21,7 +21,7 @@ const TYPE_OPTIONS: { value: TaskType; label: string; icon: React.ComponentType<
 /**
  * Drawer "Nova tarefa / lembrete" — espelho do mockup `drawer-task`.
  * Lead opcional ("tarefa geral da recepção") · tipo (ligação/lembrete/
- * mensagem) · motivo · nota · data · hora opcional · toggle "Julia avisa
+ * mensagem) · motivo · nota · data · hora opcional · toggle "IA avisa
  * primeiro no WhatsApp" (v1 só persiste `julia_first` — automação é posterior).
  */
 export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
@@ -182,11 +182,11 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
                 className="w-4 h-4 accent-brand-600 shrink-0"
               />
               <span className="text-[13px] font-semibold text-brand-700 dark:text-brand-300">
-                Julia avisa primeiro no WhatsApp
+                IA avisa primeiro no WhatsApp
               </span>
             </label>
             <p className="text-xs text-muted mt-2 leading-relaxed pl-7">
-              Na data, a Julia manda a mensagem pro lead.{' '}
+              Na data, a IA manda a mensagem pro lead.{' '}
               <b>Se ele não responder em 24h, vira tarefa de ligação</b> na sua lista —
               ninguém fica esquecido.
             </p>

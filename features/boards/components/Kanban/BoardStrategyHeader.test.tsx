@@ -29,7 +29,7 @@ const BOARD: Board = {
     kpi: 'Taxa de conversão de leads em avaliações realizadas',
     description: 'contexto',
   },
-  agentPersona: { name: 'Julia', role: 'Consultora', behavior: 'cordial' },
+  agentPersona: { name: 'Sofia', role: 'Consultora', behavior: 'cordial' },
   entryTrigger: 'Lead preenche formulário',
 } as unknown as Board;
 

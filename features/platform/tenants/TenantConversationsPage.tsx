@@ -57,7 +57,7 @@ type InboxFilter = 'all' | 'ai_active' | 'human_queue' | 'human_active' | 'resol
 // das 6 pills escritas por extenso que ocupavam duas linhas do cabeçalho).
 const FILTER_OPTIONS: { id: InboxFilter; label: string }[] = [
   { id: 'all', label: 'Tudo' },
-  { id: 'ai_active', label: 'Julia' },
+  { id: 'ai_active', label: 'IA' },
   { id: 'human_queue', label: 'Fila humana' },
   { id: 'human_active', label: 'Humano' },
   { id: 'resolved', label: 'Resolvidas' },
@@ -1136,7 +1136,7 @@ export const TenantConversationsPage: React.FC = () => {
                     <CheckCheck size={16} />
                     Marcar como resolvido
                   </button>
-                  {/* Devolver pra Julia: libera a thread de volta pra IA (status ai_active). Reusa o modelo de handoff existente. */}
+                  {/* Devolver para a IA: libera a thread de volta pra IA (status ai_active). Reusa o modelo de handoff existente. */}
                   <button
                     type="button"
                     onClick={() =>
@@ -1149,7 +1149,7 @@ export const TenantConversationsPage: React.FC = () => {
                     className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Bot size={16} />
-                    Devolver pra Julia
+                    Devolver para a IA
                   </button>
                   {selectedThread.contact_id ? (
                     <Link

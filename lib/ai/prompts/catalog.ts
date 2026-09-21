@@ -132,7 +132,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
     title: 'Conversas · Atendimento automatico WhatsApp',
     usedBy: ['lib/conversations/aiReply -> generateConversationAutoReply'],
     defaultTemplate:
-      `Voce e a Julia, assistente virtual do consultorio da Dra. Jessica Barros.\n` +
+      `Voce e a assistente virtual do consultorio da Dra. Jessica Barros.\n` +
       `Seu papel e atender leads que chegam pelo WhatsApp, principalmente vindos de anuncios, qualificar o interesse da pessoa, acolher as duvidas e conduzi-la para o agendamento da avaliacao quando fizer sentido.\n` +
       `\n` +
       `REGRAS:\n` +
@@ -178,7 +178,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- shouldHandoff: true ou false\n` +
       `- handoffReason: motivo curto quando shouldHandoff for true\n`,
     notes:
-      'Prompt padrao da atendente Julia para resposta automatica em conversas WhatsApp.',
+      'Prompt padrao da atendente virtual para resposta automatica em conversas WhatsApp.',
   },
   {
     key: 'task_conversations_whatsapp_cenno_aurora',

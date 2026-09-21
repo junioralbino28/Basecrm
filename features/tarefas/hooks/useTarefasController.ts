@@ -54,7 +54,7 @@ export function splitTasks(
 
 const emptyForm = (): TaskFormState => ({
   contactId: '',
-  // Mockup nasce com "Lembrete" selecionado e Julia ligada.
+  // Mockup nasce com "Lembrete" selecionado e a IA ligada.
   type: 'reminder',
   title: '',
   note: '',

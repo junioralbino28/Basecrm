@@ -8,7 +8,7 @@ import { TaskNudgeSettingsSelect } from './components/TaskNudgeSettingsSelect';
 /**
  * Tela "Tarefas & lembretes" (N2) — espelho do mockup aprovado.
  * Seções "Vence hoje" (inclui atrasadas) e "Próximas"; drawer "Nova tarefa"
- * com o toggle "Julia avisa primeiro no WhatsApp" (v1 só persiste julia_first).
+ * com o toggle "IA avisa primeiro no WhatsApp" (v1 só persiste julia_first).
  */
 export const TarefasPage: React.FC = () => {
   const {

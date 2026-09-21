@@ -604,3 +604,21 @@ Zero de oito no bloco crítico. Passa.
 **Senku** implementa, na ordem da seção 8.1. Os valores estão todos em hex e tripla RGB, prontos para colar.
 
 **Vegapunk** entra só se os arquivos de ícone (`icon.svg`, `maskable.svg`, `favicon.svg`, `apple-touch-icon.png`) tiverem que ser gerados em vez de derivados do `ch.svg` por composição direta. A especificação de canvas, proporção e engrossamento de traço está na seção 6.1.
+
+## Emenda de 21/09/2026: fundo escuro em preto profundo
+
+Decisão do Junior depois de ver o CRM na prévia: "o fundo do CRM ficou meio esverdeado, quero ele mais puxado para o preto a versão escura". A tinta `#14170E` tem o verde (23) acima do vermelho (20) e do azul (14). Ele escolheu, entre quatro opções comparadas em tamanho real, a **D, preto profundo**. Vale só para o modo escuro do tema CENNO; a tinta `#14170E` continua sendo o texto do modo claro, o texto sobre o laranja (`on-brand`) e o fundo dos ícones do app. O tema da clínica não muda.
+
+| Token (dark) | Antes | Agora |
+|---|---|---|
+| `--canvas` / `--color-bg` / `--color-dark-bg` | `#14170E` | `#0A0908` (`10 9 8`) |
+| `--card` / `--color-surface` / `--color-dark-card` | `#1D2116` | `#161412` (`22 20 18`) |
+| `--surface` / `--color-muted` / `--dots-color` | `#272B1F` | `#1F1D1A` (`31 29 26`) |
+| `--line` / `--color-border` / `--color-dark-border` | `#363A2B` | `#2E2B27` (`46 43 39`) |
+| `--color-dark-hover` | `#40442F` | `#3A3632` |
+| `--muted` / `--color-text-muted` | `#AFB2A0` | `#B1ADA4` (`177 173 164`) |
+| `--faint` / `--color-text-subtle` | `#87897F` | `#8B877F` (`139 135 127`) |
+| `--color-text-secondary` | `#D3D2C6` | `#D4D0C8` |
+| `manifest` `theme_color` / `background_color` | `#14170E` | `#0A0908` |
+
+Contraste medido na página de comparação (cálculo WCAG a partir das próprias cores): texto principal `#F2EDE3` sobre o fundo acima de 17:1; texto secundário e fraco sobre o cartão acima de 4,5:1.

@@ -84,8 +84,8 @@ describe('TarefasPage (mockup: Vence hoje / Próximas)', () => {
     expect(screen.getByText('whatsapp')).toBeTruthy();
     // hora opcional vira chip
     expect(screen.getByText('15:00')).toBeTruthy();
-    // toggle persiste → badge "Julia avisa antes"
-    expect(screen.getAllByText('Julia avisa antes').length).toBeGreaterThan(0);
+    // toggle persiste → badge "IA avisa antes" (21/09: sem o nome antigo da IA)
+    expect(screen.getAllByText('IA avisa antes').length).toBeGreaterThan(0);
   });
 
   it('dispara nova tarefa, concluir e adiar', async () => {

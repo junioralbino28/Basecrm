@@ -195,7 +195,7 @@ const RecebidoNoMesCard: React.FC = () => {
  * data-roles="clinica agencia"). Leitura inteligente determinística:
  * leads parados por etapa (last_stage_change_date) com CTA "mandar pra fila"
  * (tasks em lote) e notas de atenção com botão resolver → ação concreta.
- * Insights da Julia (IA) = v1.1, card atrás de flag.
+ * Insights da IA = v1.1, card atrás de flag.
  */
 const VisaoGeralPage: React.FC = () => {
   const router = useRouter();
@@ -472,7 +472,7 @@ const VisaoGeralPage: React.FC = () => {
           )}
         </div>
 
-        {/* Insights da Julia — v1.1, atrás de flag (NÃO gera nada por IA no v1) */}
+        {/* Insights da IA — v1.1, atrás de flag (NÃO gera nada por IA no v1) */}
         {juliaInsightsOn ? (
           <div className="glass p-5 rounded-xl border border-brand-100 dark:border-brand-500/20 shadow-sm relative overflow-hidden">
             <span className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-brand-500 via-brand-500/50 to-transparent" aria-hidden="true" />
@@ -482,11 +482,11 @@ const VisaoGeralPage: React.FC = () => {
               </span>
               <h2 className="text-base font-bold text-slate-900 dark:text-white font-display">Insights</h2>
               <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 rounded-full px-1.5 py-0.5">
-                Julia
+                IA
               </span>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Os insights semanais da Julia sobre os dados do mês chegam na v1.1.
+              Os insights semanais da IA sobre os dados do mês chegam na v1.1.
             </p>
           </div>
         ) : null}

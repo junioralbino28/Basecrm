@@ -278,7 +278,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     const agentNames = [
       'Sofia',
       'Valeria',
-      'Julia',
       'Cecilia',
       'Livia',
       'Vitoria',
@@ -717,7 +716,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     const agentNames = [
       'Sofia',
       'Valeria',
-      'Julia',
       'Cecilia',
       'Livia',
       'Vitoria',

@@ -216,7 +216,7 @@ export interface Task {
   dueTime?: string;
   status: TaskStatus;
   /**
-   * Toggle "Julia avisa primeiro no WhatsApp" (mockup drawer-task).
+   * Toggle "IA avisa primeiro no WhatsApp" (mockup drawer-task).
    * v1 só persiste a intenção — automação é fase posterior atrás de flag.
    */
   juliaFirst: boolean;

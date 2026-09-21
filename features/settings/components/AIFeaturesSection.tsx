@@ -56,7 +56,7 @@ const FEATURES: FeatureItem[] = [
   {
     key: 'ai_conversation_auto_reply',
     title: 'Atendimento WhatsApp',
-    description: 'Resposta automática da Julia nas conversas inbound do WhatsApp.',
+    description: 'Resposta automática da IA nas conversas recebidas no WhatsApp.',
     promptKey: 'task_conversations_whatsapp_auto_reply',
   },
   {

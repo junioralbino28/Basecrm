@@ -211,7 +211,7 @@ describe('VisaoGeralPage', () => {
     expect(screen.getAllByRole('button', { name: /resolver/i }).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('card de Insights da Julia fica OCULTO sem a flag (v1.1)', () => {
+  it('card de Insights da IA fica OCULTO sem a flag (v1.1)', () => {
     useAuthMock.mockReturnValue({
       profile: { id: 'u1', role: 'clinic_admin', organization_id: 'org-1', email: 'adel@clinica.com' },
     } as any);

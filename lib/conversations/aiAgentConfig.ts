@@ -1,6 +1,7 @@
 import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
 
-export const DEFAULT_CONVERSATION_AI_AGENT_NAME = 'Julia';
+// Nome neutro quando a conexão não configura `aiAgentName` (21/09/2026: o Junior tirou do CRM o nome antigo da IA).
+export const DEFAULT_CONVERSATION_AI_AGENT_NAME = 'Assistente';
 export const DEFAULT_CONVERSATION_AI_PROMPT_KEY = 'task_conversations_whatsapp_auto_reply';
 
 const AGENT_NAME_PATTERN = /^[\p{L}\p{N} .'-]{1,80}$/u;

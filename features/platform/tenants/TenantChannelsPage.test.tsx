@@ -181,7 +181,7 @@ describe('TenantChannelsPage — multi-numero', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar número' }));
     const dialog = screen.getByRole('dialog', { name: 'Adicionar número' });
     fireEvent.change(within(dialog).getByLabelText('Nome de identificação'), {
-      target: { value: 'IA – Julia' },
+      target: { value: 'IA – Atendimento' },
     });
     fireEvent.change(within(dialog).getByLabelText('Número'), {
       target: { value: '+55 11 98888-0000' },
@@ -198,7 +198,7 @@ describe('TenantChannelsPage — multi-numero', () => {
     expect(JSON.parse(String(createInit.body))).toEqual({
       provider: 'evolution',
       channel_type: 'whatsapp',
-      name: 'IA – Julia',
+      name: 'IA – Atendimento',
       metadata: { phoneNumber: '+55 11 98888-0000' },
     });
     expect(within(dialog).getByRole('img', { name: 'QR code do WhatsApp' })).toHaveAttribute(

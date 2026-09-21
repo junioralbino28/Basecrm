@@ -87,7 +87,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       {task.juliaFirst && (
         <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium text-brand-700 bg-brand-50 dark:text-brand-300 dark:bg-brand-500/15 rounded-full px-2 py-0.5 shrink-0">
           <Bot size={12} aria-hidden="true" />
-          Julia avisa antes
+          IA avisa antes
         </span>
       )}
 

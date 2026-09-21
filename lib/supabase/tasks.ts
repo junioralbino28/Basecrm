@@ -8,7 +8,7 @@
  * (lição F4 dos atendimentos).
  *
  * ## julia_first
- * Só persiste a intenção do toggle "Julia avisa primeiro no WhatsApp".
+ * Só persiste a intenção do toggle "IA avisa primeiro no WhatsApp".
  * A automação (Evolution + cron 24h) é fase posterior atrás de flag.
  *
  * ## Segurança Multi-Tenant

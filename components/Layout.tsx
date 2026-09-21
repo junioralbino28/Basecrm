@@ -332,7 +332,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
     ? (isClientMounted ? agencyDisplayName.trim() : '') || 'Agencia'
-    : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Base CRM');
+    : (tenant?.brandingConfig?.displayName || tenant?.organizationName || 'CENNO CRM');
   const { items: tenantWorkspaceNav, tenantId: workspaceTenantId } = usePlatformTenantWorkspaceNav();
 
   // Não-vistas no menu + notificação de mensagem (pedido do Junior, 28/07).

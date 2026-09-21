@@ -7,8 +7,9 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'CRM Inteligente para Gestão de Vendas',
     start_url: '/boards',
     display: 'standalone',
-    background_color: '#14170E',
-    theme_color: '#14170E',
+    // Casado com o canvas escuro (modo padrão do app): preto profundo, emenda de 21/09/2026.
+    background_color: '#0A0908',
+    theme_color: '#0A0908',
     icons: [
       // SVG icons keep the repo text-only. If you need iOS splash/touch icons later,
       // add PNGs in a follow-up.
