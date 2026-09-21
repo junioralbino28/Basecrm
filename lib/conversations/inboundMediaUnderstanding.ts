@@ -36,7 +36,15 @@ const BREAKER_FAILURES = 5;
 const BREAKER_WINDOW_SECONDS = 600;
 const PREVIEW_MAX_CHARS = 160;
 
-type Outcome = { status: InboundMediaStatus; text: string | null; provider: string | null; model: string | null; ms: number | null; error: string | null };
+type Outcome = {
+  status: InboundMediaStatus;
+  text: string | null;
+  provider: string | null;
+  model: string | null;
+  ms: number | null;
+  error: string | null;
+  signals?: { noSpeechProb: number | null; avgLogprob: number | null; wordsPerSecond: number | null } | null;
+};
 
 export type InboundMediaUnderstandingDeps = {
   consumeQuota: typeof consumeConversationRateLimit;
@@ -174,6 +182,8 @@ export async function understandInboundMedia(input: {
             model: result.model,
             ms: result.ms,
             error: result.error,
+            // Números do provedor (sem texto): servem para calibrar o filtro de "sem fala" com áudio real.
+            signals: result.signals ?? null,
           },
         },
       })

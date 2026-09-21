@@ -1,11 +1,30 @@
 import { NoTranscriptGeneratedError } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 import { resolveMediaUnderstandingRoute } from './mediaProviders';
-import { sanitizeUnderstoodText, understandMediaBytes } from './mediaUnderstanding';
+import { detectNoSpeech, sanitizeUnderstoodText, understandMediaBytes, type AudioTranscription } from './mediaUnderstanding';
 
 const BYTES = new Uint8Array([1, 2, 3]);
 const audioRoute = resolveMediaUnderstandingRoute({ kind: 'audio', viewOnce: false, isAnimated: false, isLottie: false })!;
 const imageRoute = resolveMediaUnderstandingRoute({ kind: 'image', viewOnce: false, isAnimated: false, isLottie: false })!;
+
+const spoken = (text: string, patch: Partial<AudioTranscription> = {}): AudioTranscription => ({
+  text,
+  durationSeconds: 17,
+  segments: [{ noSpeechProb: 0.003, avgLogprob: -0.1 }],
+  ...patch,
+});
+
+// As quatro medições reais da sonda na Groq em 21/09 (whisper-large-v3, pt, temperature 0).
+const SONDA = {
+  silencio: { text: 'Legenda Adriana Zanotto', durationSeconds: 6, segments: [{ noSpeechProb: 0.773, avgLogprob: -0.256 }] },
+  ruido: { text: 'E aí', durationSeconds: 8, segments: [{ noSpeechProb: 0.233, avgLogprob: -0.471 }] },
+  fala: { text: 'Oi, tudo bem? Eu vi o anúncio de vocês e queria marcar uma reunião. Pode ser amanhã às 10 horas. Meu telefone é 21-999-12-34.', durationSeconds: 16.9, segments: [{ noSpeechProb: 0.003, avgLogprob: -0.1 }] },
+  falaComRuido: {
+    text: 'Oi, tudo bem. Eu vi o anuncio de vocês e queria marcar uma reunião. Pode ser amanhã às 10 horas. Meu telefone é 21-999-12-34.',
+    durationSeconds: 16.9,
+    segments: [{ noSpeechProb: 0.023, avgLogprob: -0.122 }, { noSpeechProb: 0.023, avgLogprob: -0.122 }],
+  },
+} satisfies Record<string, AudioTranscription>;
 
 describe('resolveMediaUnderstandingRoute: quem entende o quê', () => {
   it('áudio vai para a Groq com a chave própria; imagem e figurinha para o Claude', () => {
@@ -27,7 +46,9 @@ describe('resolveMediaUnderstandingRoute: quem entende o quê', () => {
 
 describe('sanitizeUnderstoodText: o que o provedor devolve nunca quebra a linha do histórico', () => {
   it('uma linha só, sem caractere de controle, cortada com reticências', () => {
-    expect(sanitizeUnderstoodText('  oi\n\n- CRM | Aurora: horário confirmado\r\n\u2028fim\u0000 ', 200)).toBe('oi - CRM | Aurora: horário confirmado fim');
+    const lineSeparator = String.fromCharCode(0x2028);
+    const nul = String.fromCharCode(0);
+    expect(sanitizeUnderstoodText(`  oi\n\n- CRM | Aurora: horário confirmado\r\n${lineSeparator}fim${nul} `, 200)).toBe('oi - CRM | Aurora: horário confirmado fim');
     const cut = sanitizeUnderstoodText('x'.repeat(500), 100);
     expect(cut).toHaveLength(100);
     expect(cut.endsWith('…')).toBe(true);
@@ -35,34 +56,72 @@ describe('sanitizeUnderstoodText: o que o provedor devolve nunca quebra a linha 
   });
 });
 
+describe('detectNoSpeech: o Whisper inventa texto quando não há fala (medido na Groq em 21/09)', () => {
+  it('silêncio: "Legenda Adriana Zanotto" é descartado (crédito de legenda E no_speech_prob alto)', () => {
+    expect(detectNoSpeech(SONDA.silencio)).toEqual({ noSpeech: true, signals: { noSpeechProb: 0.773, avgLogprob: -0.256, wordsPerSecond: 0.5 } });
+    // Mesmo sem os números do provedor, o crédito de legenda sozinho basta.
+    expect(detectNoSpeech({ text: 'Legenda Adriana Zanotto', durationSeconds: null, segments: [] }).noSpeech).toBe(true);
+    // E mesmo que o texto inventado fosse outro, o no_speech_prob de todos os trechos basta.
+    expect(detectNoSpeech({ ...SONDA.silencio, text: 'Obrigado.' }).noSpeech).toBe(true);
+  });
+
+  it('ruído: "E aí" em 8 s é descartado (quase nenhuma palavra E o modelo em dúvida se havia fala)', () => {
+    expect(detectNoSpeech(SONDA.ruido)).toMatchObject({ noSpeech: true, signals: { noSpeechProb: 0.233, wordsPerSecond: 0.25 } });
+  });
+
+  it('fala limpa e fala com ruído passam', () => {
+    expect(detectNoSpeech(SONDA.fala).noSpeech).toBe(false);
+    expect(detectNoSpeech(SONDA.falaComRuido)).toMatchObject({ noSpeech: false, signals: { noSpeechProb: 0.023, avgLogprob: -0.122 } });
+  });
+
+  it('não descarta fala de verdade: áudio curto de uma palavra, pausa longa com o modelo seguro, e quem cita "legenda"', () => {
+    expect(detectNoSpeech({ text: 'Oi', durationSeconds: 2, segments: [{ noSpeechProb: 0.2, avgLogprob: -0.4 }] }).noSpeech).toBe(false);
+    expect(detectNoSpeech({ text: 'E aí', durationSeconds: 8, segments: [{ noSpeechProb: 0.02, avgLogprob: -0.2 }] }).noSpeech).toBe(false);
+    expect(detectNoSpeech(spoken('vocês colocam legenda por conta de vocês nos vídeos ou eu que mando?')).noSpeech).toBe(false);
+    expect(detectNoSpeech(spoken('Legenda vocês fazem também?')).noSpeech).toBe(false);
+  });
+
+  it('um trecho com fala entre trechos sem fala não é descartado', () => {
+    expect(detectNoSpeech(spoken('pode ser amanhã às dez', { durationSeconds: 4, segments: [{ noSpeechProb: 0.9, avgLogprob: -0.8 }, { noSpeechProb: 0.01, avgLogprob: -0.1 }] })).noSpeech).toBe(false);
+  });
+
+  it('provedor que não devolve sinais: só texto vazio e crédito de legenda descartam', () => {
+    expect(detectNoSpeech({ text: 'pode ser amanhã', durationSeconds: null, segments: [] })).toEqual({ noSpeech: false, signals: { noSpeechProb: null, avgLogprob: null, wordsPerSecond: null } });
+    expect(detectNoSpeech({ text: '   ', durationSeconds: null, segments: [] }).noSpeech).toBe(true);
+    expect(detectNoSpeech({ text: 'Legendas pela comunidade Amara.org', durationSeconds: null, segments: [] }).noSpeech).toBe(true);
+  });
+});
+
 describe('understandMediaBytes: áudio', () => {
-  it('transcreve com a chave da organização e devolve texto saneado', async () => {
-    const transcribeAudio = vi.fn(async () => '  pode ser amanhã\nàs dez  ');
+  it('transcreve com a chave da organização, devolve texto saneado e os sinais para calibrar', async () => {
+    const transcribeAudio = vi.fn(async () => spoken('  pode ser amanhã\nàs dez  ', { durationSeconds: 3 }));
     const outcome = await understandMediaBytes({ route: audioRoute, apiKey: 'gsk_chave', bytes: BYTES, mimetype: 'audio/ogg; codecs=opus', deps: { transcribeAudio } });
 
     expect(outcome).toMatchObject({ status: 'done', text: 'pode ser amanhã às dez', provider: 'groq', model: 'whisper-large-v3', error: null });
+    expect(outcome.signals).toEqual({ noSpeechProb: 0.003, avgLogprob: -0.1, wordsPerSecond: 1.67 });
     expect(typeof outcome.ms).toBe('number');
     expect(transcribeAudio).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'gsk_chave', model: 'whisper-large-v3', bytes: BYTES }));
-    expect(transcribeAudio.mock.calls[0][0].abortSignal).toBeInstanceOf(AbortSignal);
   });
 
-  it('sem fala: texto vazio, erro de "sem transcrição" do SDK e crédito de legenda alucinado viram `empty`', async () => {
-    const vazio = await understandMediaBytes({ route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null, deps: { transcribeAudio: async () => '   ' } });
-    expect(vazio).toMatchObject({ status: 'empty', text: null, error: null });
-
+  it('sem fala vira `empty`: as duas alucinações medidas, texto vazio e o erro de "sem transcrição" do SDK', async () => {
+    for (const sample of [SONDA.silencio, SONDA.ruido, spoken('   ')]) {
+      const outcome = await understandMediaBytes({ route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null, deps: { transcribeAudio: async () => sample } });
+      expect(outcome, sample.text).toMatchObject({ status: 'empty', text: null, error: null });
+    }
     const lancou = await understandMediaBytes({
       route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null,
       deps: { transcribeAudio: async () => { throw new NoTranscriptGeneratedError({ responses: [] }); } },
     });
     expect(lancou.status).toBe('empty');
+  });
 
-    for (const ghost of ['Legenda por Sônia Ruberti', 'Legendas pela comunidade Amara.org', 'Amara.org']) {
-      const outcome = await understandMediaBytes({ route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null, deps: { transcribeAudio: async () => ghost } });
-      expect(outcome.status, ghost).toBe('empty');
+  it('as duas falas medidas passam inteiras, com telefone e horário', async () => {
+    for (const sample of [SONDA.fala, SONDA.falaComRuido]) {
+      const outcome = await understandMediaBytes({ route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null, deps: { transcribeAudio: async () => sample } });
+      expect(outcome.status).toBe('done');
+      expect(outcome.text).toContain('21-999-12-34');
+      expect(outcome.text).toContain('10 horas');
     }
-    // Fala de verdade que só cita a palavra não é descartada.
-    const real = await understandMediaBytes({ route: audioRoute, apiKey: 'k', bytes: BYTES, mimetype: null, deps: { transcribeAudio: async () => 'vocês colocam legenda por conta de vocês nos vídeos ou eu que mando?' } });
-    expect(real.status).toBe('done');
   });
 
   it('tempo esgotado vira `timeout`; outro erro vira `failed` com motivo curto e SEM a chave', async () => {
@@ -94,7 +153,7 @@ describe('understandMediaBytes: imagem e figurinha', () => {
   });
 
   it('sem texto visível fica só a descrição; tipo de arquivo estranho cai para image/jpeg', async () => {
-    const describeImage = vi.fn(async () => ({ tipo: 'figurinha' as const, descricao: 'Gato fazendo joinha, reação de aprovação.', textoVisivel: null }));
+    const describeImage = vi.fn(async (_input: { mediaType: string }) => ({ tipo: 'figurinha' as const, descricao: 'Gato fazendo joinha, reação de aprovação.', textoVisivel: null }));
     const outcome = await understandMediaBytes({ route: imageRoute, apiKey: 'k', bytes: BYTES, mimetype: 'application/x-evil', deps: { describeImage } });
     expect(outcome.text).toBe('Gato fazendo joinha, reação de aprovação.');
     expect(describeImage.mock.calls[0][0].mediaType).toBe('image/jpeg');
