@@ -240,7 +240,8 @@ describe('2c — opt-out é decisão da IA de atendimento, nunca palavra fixa (J
     expect(rota).not.toContain("rpc('record_automation_opt_out'");
     // 20/09: o encerramento pos-handoff (closingReply) tambem agenda a IA, so em human_queue por handoff da
     // propria IA (resolveClosingReplyEligibility). A parada continua no banco, fora do webhook.
-    expect(rota).toContain("if (parsed.direction === 'inbound' && (threadStatus === 'ai_active' || closingReply)) {");
+    // 21/09: mensagem so de midia (so existe com a chave de midia da conexao ligada) nao agenda a IA.
+    expect(rota).toContain("if (parsed.direction === 'inbound' && !mediaOnly && (threadStatus === 'ai_active' || closingReply)) {");
     expect(rota).toContain('resolveClosingReplyEligibility({');
 
     const s = sql();

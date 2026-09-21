@@ -293,3 +293,28 @@ describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () 
     expect(updateMock).not.toHaveBeenCalled();
   });
 });
+
+// SPEC-midia-recebida, D2: a chave de mídia entra por script no banco, não pela tela. Editar a conexão
+// pela tela não pode apagá-la, e o admin do cliente não pode ligá-la por aqui (é porta de gasto com IA).
+describe('PATCH channel connection — chave de mídia recebida (config.media)', () => {
+  const media = { mode: 'understand', enabledAt: '2026-09-21T16:00:00.000Z', enabledBy: 'script' };
+
+  it('editar a conexão pela tela preserva config.media', async () => {
+    currentConfig = { ...baseConfig, media };
+    const response = await patch({ config: { aiEnabled: true, meetingHostName: 'Junior' } });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({ config: { ...baseConfig, media, aiEnabled: true } });
+  });
+
+  it('a tela não liga nem troca a chave: `media` no pedido é descartado e o valor gravado fica', async () => {
+    const semChave = await patch({ config: { aiEnabled: true, media: { mode: 'understand' } } });
+    expect(semChave.status).toBe(200);
+    expect((updateMock.mock.calls[0]?.[0] as { config: Record<string, unknown> }).config).not.toHaveProperty('media');
+
+    updateMock.mockClear();
+    currentConfig = { ...baseConfig, media: { mode: 'record' } };
+    await patch({ config: { aiEnabled: true, media: { mode: 'understand' } } });
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({ config: { media: { mode: 'record' } } });
+  });
+});

@@ -1,8 +1,27 @@
 'use client';
 
 import React from 'react';
-import { ArrowDown, Check, CheckCheck, FileText, Loader2, Play } from 'lucide-react';
+import {
+  ArrowDown,
+  Check,
+  CheckCheck,
+  FileText,
+  Film,
+  Image as ImageIcon,
+  Loader2,
+  MapPin,
+  Mic,
+  Play,
+  Sticker,
+  UserRound,
+} from 'lucide-react';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
+import {
+  describeInboundMediaBadge,
+  readInboundMediaMetadata,
+  type InboundMediaKind,
+  type InboundMediaMetadata,
+} from '@/lib/conversations/inboundMedia';
 import type {
   ConversationMessage,
   ConversationMessageDirection,
@@ -46,6 +65,43 @@ function inboundMediaKind(messageType: string): AttachmentMeta['kind'] | null {
   if (messageType === 'documentMessage') return 'document';
   if (messageType === 'audioMessage' || messageType === 'pttMessage') return 'audio';
   return null;
+}
+
+const MEDIA_ICONS: Record<InboundMediaKind, React.ComponentType<{ className?: string }>> = {
+  audio: Mic,
+  image: ImageIcon,
+  sticker: Sticker,
+  gif: Film,
+  video: Film,
+  document: FileText,
+  location: MapPin,
+  contact: UserRound,
+};
+
+/**
+ * Selo de mídia do WhatsApp (SPEC-midia-recebida). Montado só a partir de `metadata.media`, que o
+ * servidor escreve; o texto da mensagem nunca vira selo.
+ */
+function MediaBadge({ media }: { media: InboundMediaMetadata }) {
+  const badge = describeInboundMediaBadge(media);
+  const Icon = MEDIA_ICONS[media.kind];
+  return (
+    <div className="rounded-xl bg-surface px-3 py-2 text-[12.5px] font-medium text-muted">
+      <div className="flex items-center gap-2">
+        {media.status === 'pending' ? (
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+        ) : (
+          <Icon className="h-4 w-4 shrink-0" />
+        )}
+        {badge.label}
+      </div>
+      {badge.note ? (
+        <div className={`mt-0.5 text-[11px] font-normal ${badge.tone === 'warning' ? 'text-amber-700' : 'text-faint'}`}>
+          {badge.note}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function DeliveryTicks({
@@ -201,7 +257,8 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
   const meta = (message.metadata || {}) as ConversationMessageMetadata;
   const direction = message.direction;
   const attachment = readAttachment(message);
-  const inboundKind = attachment ? null : inboundMediaKind(message.message_type);
+  const media = attachment ? null : readInboundMediaMetadata(message.metadata);
+  const inboundKind = attachment || media ? null : inboundMediaKind(message.message_type);
 
   const time = new Date(message.sent_at).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
@@ -225,7 +282,9 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
     ? message.content && message.content !== attachment.file_name && message.content !== `[${attachment.kind}]`
       ? message.content
       : ''
-    : message.content;
+    : media?.placeholder
+      ? ''
+      : message.content;
 
   return (
     <div className={`flex ${align}`}>
@@ -242,6 +301,8 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
           <DocumentBubble attachment={attachment} />
         ) : attachment?.kind === 'image' ? (
           <ImageBubble attachment={attachment} />
+        ) : media ? (
+          <MediaBadge media={media} />
         ) : inboundKind ? (
           <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-[12.5px] font-medium text-muted">
             <FileText className="h-4 w-4 shrink-0" />
@@ -250,7 +311,7 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
         ) : null}
 
         {captionText ? (
-          <p className={`whitespace-pre-wrap text-[13.5px] ${attachment || inboundKind ? 'mt-2' : ''}`}>
+          <p className={`whitespace-pre-wrap text-[13.5px] ${attachment || media || inboundKind ? 'mt-2' : ''}`}>
             {captionText}
           </p>
         ) : null}

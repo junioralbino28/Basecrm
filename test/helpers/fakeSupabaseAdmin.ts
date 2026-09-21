@@ -2,7 +2,7 @@
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
  * Imita só o que as rotas de conversa usam: select / eq / in / is / order / limit / maybeSingle / single /
- * insert / update e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
+ * insert / update / upsert e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
  */
@@ -24,11 +24,24 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
   function from(table: string) {
     const filters: Array<(row: Row) => boolean> = [];
     const orders: Array<{ column: string; ascending: boolean }> = [];
-    let operation: 'select' | 'insert' | 'update' = 'select';
+    let operation: 'select' | 'insert' | 'update' | 'upsert' = 'select';
     let payload: Row | null = null;
     let limitCount: number | null = null;
+    let conflictColumn = 'id';
 
     function run(): Promise<Result> {
+      if (operation === 'upsert' && payload) {
+        const value = payload;
+        const existing = rowsOf(table).find((row) => row[conflictColumn] === value[conflictColumn]);
+        if (existing) {
+          Object.assign(existing, value);
+          return Promise.resolve({ data: [existing], error: null });
+        }
+        const row: Row = { id: value.id ?? `fake-${table}-${++sequence}`, ...value };
+        rowsOf(table).push(row);
+        return Promise.resolve({ data: [row], error: null });
+      }
+
       if (operation === 'insert' && payload) {
         const row: Row = { id: payload.id ?? `fake-${table}-${++sequence}`, ...payload };
         if (table === 'conversation_messages' && row.provider_message_id) {
@@ -79,6 +92,12 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
       update: (value: Row) => {
         operation = 'update';
         payload = value;
+        return builder;
+      },
+      upsert: (value: Row, options?: { onConflict?: string }) => {
+        operation = 'upsert';
+        payload = value;
+        conflictColumn = options?.onConflict ?? 'id';
         return builder;
       },
       eq: (column: string, value: unknown) => {

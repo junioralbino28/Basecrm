@@ -142,3 +142,28 @@ Responder EM áudio; tocar/ver a mídia no CRM; guardar arquivo e reprocessar; v
 3. Cotas: 10 mídias/10 min por conversa, 120/h por conexão, 500/dia por organização. Serve?
 4. **"Vai"** para esta v2.
 5. À parte: consertar a dívida 1 (segredo e SSRF no fallback de automação) antes ou depois desta obra?
+
+## Respostas do Junior às pendências (21/09/2026)
+1. Faturamento da chave Google: ele pediu para eu medir. **Medido: a chave da organização de teste está no tier GRATUITO** (429 `RESOURCE_EXHAUSTED`, `limit: 0`, cotas `…-FreeTier` num modelo só-pago). Ela não pode receber mídia de lead enquanto ele não ativar o faturamento. `gemini-3.5-transcribe` tem tier gratuito, então a chamada funcionaria; o impedimento é de privacidade, não técnico.
+2. **"PODE"** para ler na Evolution. **Medido (só GET): as 7 instâncias respondem 400 "Openai is disabled"**; a transcrição nativa está desligada no servidor inteiro.
+3. Cotas: **"serve"**.
+4. **"VAI"**.
+5. Dívida 1 (`n8nAutomation.ts`): **logo depois desta obra**.
+
+**Decisão estrutural dele (travada):** a estrutura que está sendo construída para a Aurora é a base de **todos** os agentes de IA e vai substituir a da Julia, que é genérica. Consequências nesta obra: o módulo de mídia é agnóstico de agente (nada de `if aurora`); as regras de leitura de mídia viram um **bloco de prompt reutilizável** que qualquer agente inclui (corrige a linha do Passo 2 que dizia "bloco da Aurora, só dela"); a chave por conexão continua `off` por padrão, e ligar em número de clínica segue exigindo o "pode" dele e a decisão de negócio.
+
+**Modelo de transcrição: ABERTO.** Ele pediu o que comunidades e usuários relatam antes de decidir; o dado foi entregue (uso real em WhatsApp BR só existe para Groq Whisper; medição independente em português só para Scribe v2, AssemblyAI e Whisper; Gemini Transcribe e o sucessor da OpenAI sem uma nem outra). A tabela da D3 e as "três colunas" da D4 serão emendadas quando ele escolher. Isso trava o Passo 2, não o Passo 1.
+
+## Emendas de implementação
+**Passo 0 (feito).** `maxDuration`: medido por API na Vercel, projeto com Fluid Compute ligado e teto padrão de **300 s**; a rota não declara e não há `vercel.json`. Declarar `export const maxDuration = 300` entra no Passo 2, junto com o `after()` que de fato precisa do tempo (é igual ao efetivo de hoje).
+
+**Passo 1 (feito).**
+- Campo a mais em `media`: **`placeholder`** (`true` quando o `content` é só o marcador). É o que decide, sem olhar o texto, se a IA é agendada e se o balão esconde o conteúdo. Lead que escreve "Áudio" numa legenda não vira marcador.
+- Chaves reconhecidas além das listadas: `ptvMessage` (recado em vídeo), `liveLocationMessage`, `contactsArrayMessage`. Reação, enquete e mensagem de protocolo seguem descartadas.
+- **Enquanto o Passo 2 não existe, `understand` se comporta como `record`**: status `recorded`, IA nunca agendada para mensagem só de mídia (em qualquer status de conversa, então também não queima resposta de encerramento). "Áudio marca token" é do Passo 2.
+- "Avisa humano" ficou assim: mídia sem texto numa conversa que está com a IA (`ai_active`) grava um aviso no sino (`system_notifications`, severidade média), **sem** tirar a conversa da IA. Rajada vira um aviso só: o id é o mesmo por conversa dentro de uma janela de 10 minutos. Conversa já com humano: só soma não lida.
+- Texto seguido de figurinha dentro do debounce: a resposta ao texto continua saindo (a checagem de obsolescência é por `aiPendingToken`, que a mídia não troca). Até o Passo 2, o histórico que a IA lê traz a linha "Figurinha" como se fosse texto; a marca a partir de `metadata.media` em `formatRecentMessages` é do Passo 2 e tem de entrar antes de qualquer janela ao vivo com a chave ligada.
+- Com a chave ligada, o parser passa a ler **texto** dentro de `ephemeralMessage` (dívida 4). Com a chave desligada continua descartando, como hoje: consertar para todos é decisão à parte.
+- `mimetype` e nome do WhatsApp são cortados e postos numa linha só antes de gravar (entram no histórico que a IA lê).
+- A chave se liga por `aurora_midia.py` (cérebro, `06-References/…`): `status | record | understand | off`, ref do preview e conexão de teste fixos. `off` remove a chave.
+- Testes: `evolutionWebhook.midia.test.ts` (parser ligado), `inboundMedia.test.ts` (chave, selo, aviso), `messageMetadata.test.ts` (lista fechada de campos), `route.media.test.ts` (rota com `record` e `understand`), `route.patch.test.ts` (a tela preserva a chave e não consegue ligá-la). Os dois arquivos de trava do Passo 0 passaram **sem edição**.

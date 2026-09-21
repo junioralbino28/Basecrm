@@ -22,6 +22,8 @@ import {
   shouldScheduleIdleNudge,
 } from '@/lib/conversations/idleNudge';
 import { resolveClosingReplyEligibility } from '@/lib/conversations/closingReply';
+import { resolveInboundMediaMode } from '@/lib/conversations/inboundMedia';
+import { buildInboundMediaNotification } from '@/lib/conversations/inboundMediaNotification';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -671,7 +673,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     });
   }
 
-  const parsed = parseEvolutionWebhookPayload(payload);
+  // Chave de mídia por conexão (SPEC-midia-recebida). Ausente = `off` = parser de sempre.
+  const parsed = parseEvolutionWebhookPayload(payload, { mediaMode: resolveInboundMediaMode(connectionConfig) });
   if (!parsed) {
     const nowIgnored = new Date().toISOString();
     const ignoredMetadata = (connectionResult.data.metadata as Record<string, unknown> | null) || {};
@@ -907,6 +910,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       metadata: buildEvolutionMessageMetadata({
         event: parsed.event,
         providerMessageId: parsed.providerMessageId,
+        media: parsed.media ? { ...parsed.media, status: 'recorded' } : null,
       }),
       sent_at: parsed.sentAt,
       created_at: now,
@@ -1071,7 +1075,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       : null;
   const closingReply = Boolean(closingCandidate?.eligible);
 
-  if (parsed.direction === 'inbound' && (threadStatus === 'ai_active' || closingReply)) {
+  // Mídia sem texto (só existe com a chave de mídia da conexão ligada): está gravada e o humano vê,
+  // mas ninguém a entende ainda. A IA não é agendada, porque responderia a um marcador ("Áudio") e
+  // queimaria uma das respostas de encerramento; se a conversa está com ela, o sino avisa.
+  const mediaOnly = parsed.direction === 'inbound' && parsed.media?.placeholder === true;
+  if (mediaOnly && parsed.media && threadStatus === 'ai_active') {
+    const mediaNotification = await admin.from('system_notifications').upsert(
+      buildInboundMediaNotification({
+        organizationId: connection.organization_id,
+        threadId,
+        contactLabel: resolvedContactName || canonicalPhone,
+        kind: parsed.media.kind,
+        createdAt: now,
+      }),
+      { onConflict: 'id' },
+    );
+    if (mediaNotification.error) {
+      console.warn('[Evolution webhook] Falha ao avisar mídia sem texto', {
+        connectionId,
+        threadId,
+        error: mediaNotification.error.message,
+      });
+    }
+  }
+
+  if (parsed.direction === 'inbound' && !mediaOnly && (threadStatus === 'ai_active' || closingReply)) {
     const aiDebounceMs = 7000;
     const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
 

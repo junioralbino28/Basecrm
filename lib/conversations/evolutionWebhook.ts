@@ -1,3 +1,10 @@
+import {
+  INBOUND_MEDIA_LABEL,
+  type InboundMediaInfo,
+  type InboundMediaKind,
+  type InboundMediaMode,
+} from './inboundMedia';
+
 /**
  * Clique de anúncio (Click-to-WhatsApp) que veio junto com a mensagem. A Evolution
  * entrega em `contextInfo.externalAdReply` (conferido em 384 mensagens reais).
@@ -29,6 +36,10 @@ type ParsedEvolutionMessage = {
   contactPhone: string | null;
   sentAt: string;
   adClick: EvolutionAdClick | null;
+  /** Só vem preenchido com a chave de mídia da conexão ligada (`record` / `understand`). */
+  media: InboundMediaInfo | null;
+  /** Envelope desta mensagem (`key` + `message`), que a Evolution pede para baixar a mídia. */
+  envelope: Record<string, unknown>;
   raw: Record<string, unknown>;
 };
 
@@ -161,6 +172,83 @@ function extractAdClick(
   };
 }
 
+const MESSAGE_WRAPPERS = [
+  'ephemeralMessage',
+  'viewOnceMessage',
+  'viewOnceMessageV2',
+  'viewOnceMessageV2Extension',
+  'documentWithCaptionMessage',
+] as const;
+
+/** Tira os embrulhos do WhatsApp (mensagem temporária, ver uma vez, documento com legenda). */
+function unwrapMessage(message: Record<string, unknown> | null) {
+  let current = message;
+  let viewOnce = false;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    const wrapper = MESSAGE_WRAPPERS.find((key) => getObject(getNested(current, [key, 'message'])));
+    if (!wrapper) break;
+    if (wrapper.startsWith('viewOnce')) viewOnce = true;
+    current = getObject(getNested(current, [wrapper, 'message']));
+  }
+  return { message: current, viewOnce };
+}
+
+// Varredura de chaves CONHECIDAS, nunca `Object.keys(message)[0]`: a Evolution costuma mandar
+// `messageContextInfo` na frente, e tipo desconhecido (reação, enquete, protocolo) segue descartado.
+const MEDIA_KEYS: Array<[string, InboundMediaKind]> = [
+  ['audioMessage', 'audio'],
+  ['pttMessage', 'audio'],
+  ['imageMessage', 'image'],
+  ['stickerMessage', 'sticker'],
+  ['videoMessage', 'video'],
+  ['ptvMessage', 'video'],
+  ['documentMessage', 'document'],
+  ['locationMessage', 'location'],
+  ['liveLocationMessage', 'location'],
+  ['contactMessage', 'contact'],
+  ['contactsArrayMessage', 'contact'],
+];
+
+const MIMETYPE_MAX_LENGTH = 100;
+
+/** `fileLength` chega como número, texto ou Long do protobuf (`{ low, high }`). */
+function toByteCount(value: unknown) {
+  const long = getObject(value);
+  const parsed = long
+    ? Number(long.high ?? 0) * 2 ** 32 + (Number(long.low ?? 0) >>> 0)
+    : typeof value === 'string' && value.trim()
+      ? Number(value)
+      : value;
+  return typeof parsed === 'number' && Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : null;
+}
+
+function detectMedia(message: Record<string, unknown> | null, viewOnce: boolean) {
+  if (!message) return null;
+  for (const [key, baseKind] of MEDIA_KEYS) {
+    const body = getObject(message[key]);
+    if (!body) continue;
+
+    const seconds = typeof body.seconds === 'number' && Number.isFinite(body.seconds) && body.seconds >= 0
+      ? Math.floor(body.seconds)
+      : null;
+    const mimetype = getFirstString([body.mimetype]);
+
+    return {
+      key,
+      kind: (baseKind === 'video' && body.gifPlayback === true ? 'gif' : baseKind) as InboundMediaKind,
+      mimetype: mimetype ? mimetype.replace(/[\r\n]+/g, ' ').slice(0, MIMETYPE_MAX_LENGTH) : null,
+      seconds,
+      fileLength: toByteCount(body.fileLength),
+      isAnimated: body.isAnimated === true,
+      isLottie: body.isLottie === true,
+      viewOnce: viewOnce || body.viewOnce === true,
+    };
+  }
+  return null;
+}
+
+const CONTACT_NAME_MAX_LENGTH = 80;
+
 function getCandidateMessage(root: Record<string, unknown>) {
   const data = getObject(root.data) || root;
 
@@ -196,7 +284,17 @@ function getCandidateMessage(root: Record<string, unknown>) {
   };
 }
 
-export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionMessage | null {
+/**
+ * `mediaMode` é a chave de mídia da conexão (`config.media.mode`). Com `off` (padrão) o parser faz
+ * exatamente o que sempre fez: não desembrulha, não reconhece mídia e descarta mensagem sem texto.
+ * Esse descarte é o que impede figurinha de virar contato, negócio ou resposta à régua em todos os
+ * números; está travado em `evolutionWebhook.midiaOff.test.ts` e `route.post.test.ts`.
+ */
+export function parseEvolutionWebhookPayload(
+  payload: unknown,
+  options: { mediaMode?: InboundMediaMode } = {},
+): ParsedEvolutionMessage | null {
+  const mediaOn = (options.mediaMode ?? 'off') !== 'off';
   const root = getObject(payload);
   if (!root) return null;
 
@@ -208,18 +306,22 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
   ]);
 
   const candidate = getCandidateMessage(root);
+  const unwrapped = mediaOn ? unwrapMessage(candidate.message) : { message: candidate.message, viewOnce: false };
+  const message = unwrapped.message;
+  const detectedMedia = mediaOn ? detectMedia(message, unwrapped.viewOnce) : null;
+
   const providerMessageId = getFirstString([
     candidate.key?.id,
     candidate.envelope.id,
     root.id,
   ]);
   const quotedProviderMessageId = getFirstString([
-    getNested(candidate.message, ['extendedTextMessage', 'contextInfo', 'stanzaId']),
-    getNested(candidate.message, ['imageMessage', 'contextInfo', 'stanzaId']),
-    getNested(candidate.message, ['videoMessage', 'contextInfo', 'stanzaId']),
-    getNested(candidate.message, ['audioMessage', 'contextInfo', 'stanzaId']),
-    getNested(candidate.message, ['documentMessage', 'contextInfo', 'stanzaId']),
-    getNested(candidate.message, ['contextInfo', 'stanzaId']),
+    getNested(message, ['extendedTextMessage', 'contextInfo', 'stanzaId']),
+    getNested(message, ['imageMessage', 'contextInfo', 'stanzaId']),
+    getNested(message, ['videoMessage', 'contextInfo', 'stanzaId']),
+    getNested(message, ['audioMessage', 'contextInfo', 'stanzaId']),
+    getNested(message, ['documentMessage', 'contextInfo', 'stanzaId']),
+    getNested(message, ['contextInfo', 'stanzaId']),
     getNested(candidate.envelope, ['contextInfo', 'stanzaId']),
   ]);
 
@@ -232,12 +334,22 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
     root.from,
   ]);
 
-  const messageType = inferMessageType(candidate.message, root.messageType);
-  const content = extractContent(root, candidate.message);
+  const messageType = detectedMedia ? detectedMedia.key : inferMessageType(message, root.messageType);
+  const text = extractContent(root, message);
+  // Mídia sem texto: `content` é `TEXT NOT NULL`, então entra o marcador curto. O selo de verdade
+  // (tipo, duração, estado) vai em `metadata.media`, nunca no texto.
+  const content = text ?? (detectedMedia ? INBOUND_MEDIA_LABEL[detectedMedia.kind] : null);
   const fromMe = Boolean(candidate.key?.fromMe ?? candidate.envelope.fromMe ?? getNested(root, ['data', 'key', 'fromMe']));
 
   const contactPhone = normalizePhone(remoteJid);
   if (!contactPhone || !content) return null;
+
+  const pushName = getFirstString([
+    candidate.envelope.pushName,
+    getNested(root, ['data', 'pushName']),
+    root.pushName,
+    root.senderName,
+  ]);
 
   return {
     event,
@@ -246,12 +358,9 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
     direction: fromMe ? 'outbound' : 'inbound',
     messageType,
     content,
-    contactName: getFirstString([
-      candidate.envelope.pushName,
-      getNested(root, ['data', 'pushName']),
-      root.pushName,
-      root.senderName,
-    ]),
+    // O nome do WhatsApp entra cru na linha do histórico que a IA lê: uma linha só, até 80 caracteres.
+    contactName:
+      mediaOn && pushName ? pushName.replace(/\s+/g, ' ').trim().slice(0, CONTACT_NAME_MAX_LENGTH) || null : pushName,
     contactPhone,
     sentAt: toIsoDate(
       candidate.envelope.messageTimestamp ??
@@ -259,7 +368,20 @@ export function parseEvolutionWebhookPayload(payload: unknown): ParsedEvolutionM
         root.messageTimestamp ??
         root.timestamp
     ),
-    adClick: extractAdClick(candidate.envelope, candidate.message),
+    adClick: extractAdClick(candidate.envelope, message),
+    media: detectedMedia
+      ? {
+          kind: detectedMedia.kind,
+          mimetype: detectedMedia.mimetype,
+          seconds: detectedMedia.seconds,
+          fileLength: detectedMedia.fileLength,
+          isAnimated: detectedMedia.isAnimated,
+          isLottie: detectedMedia.isLottie,
+          viewOnce: detectedMedia.viewOnce,
+          placeholder: !text,
+        }
+      : null,
+    envelope: candidate.envelope,
     raw: root,
   };
 }
