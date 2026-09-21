@@ -31,12 +31,12 @@ describe('prompt da Aurora', () => {
   it('aplica os ajustes de 20/09: nome e concordancia esporadicos, 2 horarios, sem oferecer ligacao, quem conduz e data local', () => {
     const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
 
-    expect(template).toContain('use o nome do lead na primeira mensagem e depois so de vez em quando');
+    expect(template).toContain('use o nome do lead na saudacao e na confirmacao da reuniao');
     expect(template).toContain('nao abra a resposta com concordancia');
-    expect(template).toContain('"bora"');
+    expect(template).not.toContain('"bora"');
     expect(template).toContain('no maximo 2 horarios por mensagem');
     expect(template).toContain('fica melhor de manha ou de tarde');
-    expect(template).toContain('terca-feira funciona para voce?');
+    expect(template).toContain('terça-feira funciona para você?');
     expect(template).toContain('nunca ofereca ligacao por conta propria');
     expect(template).toContain('So se o proprio lead pedir para ser ligado');
     expect(template).toContain('call_accepted');
@@ -56,15 +56,45 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('feche deixando a porta aberta');
     expect(template).toContain('o nicho entra de forma natural no diagnostico, nunca como formulario no fim');
     expect(template).toContain('antes de confirmar o horario, complete so o que ainda faltar');
-    expect(template).toContain('nosso especialista {{meetingHostName}} vai conduzir seu diagnostico');
-    expect(template).toContain('Mais alguma duvida?');
+    expect(template).toContain('nosso especialista {{meetingHostName}} vai conduzir seu diagnóstico');
+    expect(template).toContain('Mais alguma dúvida?');
     expect(template).toContain('nunca prometa e-mail de confirmacao');
     expect(template).toContain('- leadEmail:');
     expect(template).toContain('- leadSegment:');
     expect(template).toContain('nunca corte seco');
     expect(template).toContain('{{conversationStageContext}}');
     expect(template).toContain('REUNIAO JA CONFIRMADA');
-    expect(template).toContain('diga o dia da semana ("tenho segunda-feira as 9h ou as 10h")');
+    expect(template).toContain('diga o dia da semana e o dia do mes ("tenho terça-feira, dia 22, às 9h ou às 10h")');
     expect(template).toContain('use "amanha" so quando o dia seguinte for dia util');
+  });
+
+  it('aplica o lote de 21/09: teto do nome, bora liberado, espelhamento, acentuacao, sem travessao, hoje, insistencia e nota interna factual', () => {
+    const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+    expect(template).toContain('no maximo uma vez a cada 4 ou 5 mensagens suas, e nunca em duas mensagens seguidas');
+    expect(template).toContain('expressoes naturais de WhatsApp sao bem-vindas');
+    expect(template).toContain('observe como o lead escreve e aproxime seu jeito do dele');
+    expect(template).toContain('emoji so se ele usar');
+    expect(template).toContain('nunca acompanhe grosseria');
+    expect(template).toContain('o estilo muda, as regras desta conversa nao mudam');
+    expect(template).toContain('escreva sempre com ortografia e acentuacao corretas do portugues');
+    expect(template).toContain('mesmo que estas instrucoes estejam sem acento');
+    expect(template).toContain('nunca use travessao');
+    expect(template).not.toContain('—');
+    expect(template).toContain('nao repita a mesma pergunta com as mesmas palavras');
+    expect(template).toContain('se for na data local de hoje, diga "hoje"');
+    expect(template).toContain('nunca diga so o nome do dia quando esse dia for hoje');
+    expect(template).toContain('se ele insistir que precisa ser antes, nao confirme');
+    expect(template).toContain('nossa reunião está marcada para {dia da semana}, {data}, às {hora}');
+    expect(template).toContain('qualquer dúvida até lá, me chama por aqui');
+    expect(template).toContain('registre so o que o lead disse ou o que voce fez, nunca suposicao');
+  });
+
+  it('mantem o que o Junior mandou manter em 21/09: pedido de e-mail para o convite, sem prometer confirmacao, e a regra de concordancia', () => {
+    const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+    expect(template).toContain('(para o convite da reuniao)');
+    expect(template).toContain('nunca prometa e-mail de confirmacao');
+    expect(template).toContain('nao abra a resposta com concordancia');
   });
 });
