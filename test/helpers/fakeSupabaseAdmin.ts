@@ -2,7 +2,7 @@
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
  * Imita só o que as rotas de conversa usam: select / eq / in / is / order / limit / maybeSingle / single /
- * insert / update / upsert e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
+ * insert / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
  */
@@ -24,7 +24,7 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
   function from(table: string) {
     const filters: Array<(row: Row) => boolean> = [];
     const orders: Array<{ column: string; ascending: boolean }> = [];
-    let operation: 'select' | 'insert' | 'update' | 'upsert' = 'select';
+    let operation: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select';
     let payload: Row | null = null;
     let limitCount: number | null = null;
     let conflictColumn = 'id';
@@ -57,6 +57,11 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
       }
 
       const matched = rowsOf(table).filter((row) => filters.every((test) => test(row)));
+
+      if (operation === 'delete') {
+        tables[table] = rowsOf(table).filter((row) => !matched.includes(row));
+        return Promise.resolve({ data: matched, error: null });
+      }
 
       if (operation === 'update' && payload) {
         for (const row of matched) {
@@ -92,6 +97,10 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
       update: (value: Row) => {
         operation = 'update';
         payload = value;
+        return builder;
+      },
+      delete: () => {
+        operation = 'delete';
         return builder;
       },
       upsert: (value: Row, options?: { onConflict?: string }) => {

@@ -3,6 +3,16 @@ import { INBOUND_MEDIA_LABEL, type InboundMediaKind } from '@/lib/conversations/
 
 const BURST_WINDOW_MS = 10 * 60_000;
 
+/** Por que o humano está sendo avisado. Sem `problem` = mídia sem texto que ninguém entende (Passo 1). */
+export type InboundMediaProblem = 'failed' | 'empty' | 'limit' | 'no_key';
+
+const PROBLEM_TEXT: Record<InboundMediaProblem, string> = {
+  failed: 'o entendimento automático falhou',
+  empty: 'não havia fala ou conteúdo reconhecível',
+  limit: 'o limite de mídias entendidas automaticamente foi atingido',
+  no_key: 'falta a chave de IA desta organização para entender',
+};
+
 /**
  * Aviso no sino: o lead mandou mídia sem texto numa conversa que está com a IA, e ninguém a leu.
  *
@@ -16,6 +26,7 @@ export function buildInboundMediaNotification(input: {
   contactLabel: string;
   kind: InboundMediaKind;
   createdAt: string;
+  problem?: InboundMediaProblem;
 }) {
   const bucket = Math.floor(new Date(input.createdAt).getTime() / BURST_WINDOW_MS);
   const label = INBOUND_MEDIA_LABEL[input.kind].toLowerCase();
@@ -24,12 +35,15 @@ export function buildInboundMediaNotification(input: {
     id: buildConversationScopedEventId({
       organizationId: input.organizationId,
       threadId: input.threadId,
-      eventId: `inbound-media:${bucket}`,
+      eventId: input.problem ? `inbound-media:${input.problem}:${bucket}` : `inbound-media:${bucket}`,
     }),
     organization_id: input.organizationId,
     type: 'SYSTEM_ALERT',
-    title: 'Lead mandou mídia sem texto',
-    message: `${input.contactLabel}: chegou ${label} sem texto e a resposta automática não respondeu. Veja no aparelho.`.slice(0, 600),
+    title: input.problem ? 'Mídia do lead não foi entendida' : 'Lead mandou mídia sem texto',
+    message: (input.problem
+      ? `${input.contactLabel}: chegou ${label}, mas ${PROBLEM_TEXT[input.problem]}. Veja no aparelho.`
+      : `${input.contactLabel}: chegou ${label} sem texto e a resposta automática não respondeu. Veja no aparelho.`
+    ).slice(0, 600),
     link: `/platform/tenants/${input.organizationId}/conversations?thread=${encodeURIComponent(input.threadId)}`,
     severity: 'medium' as const,
     read_at: null,

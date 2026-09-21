@@ -41,7 +41,11 @@ export type InboundMediaInfo = {
   placeholder: boolean;
 };
 
-export type InboundMediaMetadata = InboundMediaInfo & { status: InboundMediaStatus };
+export type InboundMediaMetadata = InboundMediaInfo & {
+  status: InboundMediaStatus;
+  /** Descrição automática guardada à parte, quando o `content` é a legenda que o lead digitou. */
+  description?: string | null;
+};
 
 export const INBOUND_MEDIA_LABEL: Record<InboundMediaKind, string> = {
   audio: 'Áudio',
@@ -84,6 +88,7 @@ export function readInboundMediaMetadata(metadata: unknown): InboundMediaMetadat
     viewOnce: source.viewOnce === true,
     placeholder: source.placeholder === true,
     status,
+    ...(typeof source.description === 'string' && source.description.trim() ? { description: source.description } : {}),
   };
 }
 
