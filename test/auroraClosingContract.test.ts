@@ -24,8 +24,10 @@ describe('encerramento depois do handoff — contrato do executor', () => {
   });
 
   it('grava e-mail e segmento do lead no contato sem sobrescrever e-mail existente', () => {
-    // 21/09 (midia recebida): e-mail ditado por audio nunca vai para o contato; o turno sem audio grava.
-    expect(source).toContain('leadEmail: hasInboundAudioSinceLastReply(recentMessages) ? null : normalizeLeadEmail(generated.leadEmail),');
+    // 21/09 (midia recebida): e-mail que so existe na transcricao de um audio nunca vai para o contato.
+    // Emenda do mesmo dia (pedido do Junior): vale o digitado ou o que a Aurora escreveu para conferir e o
+    // lead confirmou. Regras da trava em lib/conversations/inboundMediaPrompt.test.ts.
+    expect(source).toContain('leadEmail: resolveConfirmedLeadEmail(recentMessages, normalizeLeadEmail(generated.leadEmail)),');
     expect(source).toContain('buildContactProfileUpdate({');
     expect(source).toContain(".from('contacts')");
   });

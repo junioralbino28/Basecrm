@@ -51,8 +51,8 @@ import { mapConversationCalendarBlockRow } from '@/lib/conversations/calendarBlo
 import { readInboundMediaMetadata } from '@/lib/conversations/inboundMedia';
 import {
   describeInboundMediaForAI,
-  hasInboundAudioSinceLastReply,
   INBOUND_MEDIA_AI_RULES,
+  resolveConfirmedLeadEmail,
 } from '@/lib/conversations/inboundMediaPrompt';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { createStaticAdminClient } from '@/lib/supabase/server';
@@ -528,9 +528,10 @@ export async function generateConversationAutoReply(params: {
       handoffReason: generated.handoffReason?.trim() || null,
       requestedScheduleAt,
       requestedScheduleText: generated.requestedScheduleText?.trim() || null,
-      // Trava em codigo (SPEC-midia-recebida): e-mail ditado por audio nunca vai para o contato, mesmo
-      // que o modelo o devolva. O prompt pede para o lead digitar; o turno seguinte, sem audio, grava.
-      leadEmail: hasInboundAudioSinceLastReply(recentMessages) ? null : normalizeLeadEmail(generated.leadEmail),
+      // Trava em codigo (SPEC-midia-recebida + emenda de 21/09): e-mail que so existe na transcricao de um
+      // audio nunca vai para o contato, mesmo que o modelo o devolva. Vale o digitado, ou o que a resposta
+      // anterior escreveu para o lead conferir ("voce disse que seu e-mail e X, esta certo?") e ele confirmou.
+      leadEmail: resolveConfirmedLeadEmail(recentMessages, normalizeLeadEmail(generated.leadEmail)),
       leadSegment: normalizeLeadSegment(generated.leadSegment),
     },
   };
