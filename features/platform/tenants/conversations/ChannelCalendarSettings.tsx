@@ -262,7 +262,10 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
                       </select>
                     </label>
 
-                    <fieldset className="border-0 p-0">
+                    {/* `min-w-0`: sem ele o <fieldset> herda `min-inline-size: min-content` do
+                        navegador e estica a tela no celular (mesmo defeito medido no editor de
+                        expediente, 22/09). */}
+                    <fieldset className="min-w-0 border-0 p-0">
                       <legend className="text-xs font-semibold text-slate-600 dark:text-slate-300">Agendas que contam como ocupado</legend>
                       <p className="mt-1 text-xs text-slate-500">
                         Um compromisso em qualquer agenda marcada aqui impede a IA de oferecer aquele horário.
