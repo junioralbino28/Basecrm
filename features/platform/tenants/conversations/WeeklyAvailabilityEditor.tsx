@@ -20,12 +20,10 @@ export function WeeklyAvailabilityEditor({
     onChange({ ...value, [day]: ranges });
   }
 
+  // `min-w-0` no <fieldset> nao e enfeite: o navegador da a ele `min-inline-size: min-content`
+  // por padrao, e nem `width: 100%` vence isso. Medido na previa a 390 px: este fieldset ficava
+  // com 281 px num espaco de 191 e empurrava a tela de conexoes inteira (66 px de rolagem).
   return (
-    {/*
-      `min-w-0` no <fieldset> nao e enfeite: o navegador da a ele `min-inline-size: min-content`
-      por padrao, e nem `width: 100%` vence isso. Medido na previa a 390 px: este fieldset ficava
-      com 281 px num espaco de 191 e empurrava a tela de conexoes inteira (66 px de rolagem).
-    */}
     <fieldset className="mt-5 min-w-0">
       <legend className="text-xs font-semibold text-slate-600 dark:text-slate-300">Expediente regular</legend>
       <div className="mt-2 space-y-3">
