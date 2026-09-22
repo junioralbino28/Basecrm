@@ -854,7 +854,7 @@ export const TenantChannelsPage: React.FC = () => {
 
       {tenant && canAccessWhatsApp ? (
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-white/10 dark:bg-card">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Wifi size={16} />
               Numeros e conexoes
@@ -1193,7 +1193,7 @@ export const TenantChannelsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-white/10 dark:bg-card">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                 <Smartphone size={16} />
