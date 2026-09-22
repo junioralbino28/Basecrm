@@ -117,3 +117,16 @@ Estado atual: o contrato de agenda é configurado no próprio número do WhatsAp
 - integrar agenda externa: **decisão de 20/09 (Junior): opção B, as duas coisas** — espelho do Google Agenda via OAuth (free/busy + evento empurrado na confirmação; o CRM continua dono da reserva) para a CENNO, e a grade estilo Google Agenda dentro do CRM para clientes que não usam o Google (a clínica). Lotes seguintes, nesta ordem: grade do CRM, depois OAuth do Google;
 - push com o app fechado;
 - deploy/merge em produção ou conexão com o WhatsApp real.
+
+## Emenda 21/09/2026 — resposta pelo celular pausa a IA
+
+Decisão do Junior na virada para produção ("construir a pausa"): quem responde pelo aparelho assume a conversa, como quem clica "Assumir" na tela.
+
+- **Chave por conexão:** `config.manualReplyPausesAI: true`. Sem ela o comportamento é byte a byte o de antes (travado por teste). Entra por script na conexão da Aurora; não há campo na tela.
+- **Premissa medida:** o que a IA e o CRM enviam pela API não volta pelo webhook. Janela do preview: 76 envios da IA e da cutucada, zero gêmeas do webhook (mesmo texto, mesma conversa, até 5 min). As 123 saídas que chegaram pelo webhook foram mandadas do celular. Envio pela tela do CRM não teve amostra; usa a mesma função de envio e, se ecoasse, seria de um humano de qualquer forma.
+- **Efeito:** mensagem de saída que chega pelo webhook passa a conversa para `human_active` (inclusive conversa nova puxada pelo celular e conversa resolvida), com `humanLocked`, `routingMode: human`, `aiLockedReason: manual_reply_from_device`, e pausa as réguas (`pause_automation_enrollments_for_thread`, motivo `manual_reply_from_device`). Conversa `closed` fica fechada. Conversa já `human_active` não repete a pausa.
+- **Falha ao pausar a régua** não derruba o webhook: vira aviso no sino ("Régua não pausou", severidade alta, um por conversa).
+- **Não pausam:** reação, confirmação de leitura, apagar e editar (o parser não extrai conteúdo e o webhook descarta antes). Travado por teste.
+- **Pré-requisito operacional (revisão adversarial, bloqueante):** saudação e mensagem de ausência automáticas do WhatsApp Business chegam iguais a uma mensagem digitada e pausariam a Aurora na primeira mensagem de cada lead. Têm que estar DESLIGADAS no aparelho do número. Respostas rápidas podem ficar (exigem o dono digitar).
+- **Janela residual, anterior a esta mudança:** se o humano responde enquanto a IA já está gerando, a IA ainda envia a resposta dela; só o status final é protegido (compare-and-set). Registrada, não tratada aqui.
+- **Instância:** `alwaysOnline: false` (com o CRM sempre online o celular para de notificar, e a pausa depende de o humano ver) e `rejectCall: false` (ligação toca no celular; recusar com mensagem automática só depois de medir se a mensagem de recusa volta pelo webhook).

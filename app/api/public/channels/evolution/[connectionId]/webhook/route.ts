@@ -7,7 +7,11 @@ import {
   getCanonicalConversationPhone,
   readConversationThreadMetadata,
 } from '@/lib/conversations/threadMetadata';
-import { getConversationStatusAfterInbound } from '@/lib/conversations/routing';
+import {
+  buildManualReplyPauseFailedNotification,
+  getConversationStatusAfterInbound,
+  resolveManualReplyPausesAI,
+} from '@/lib/conversations/routing';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
@@ -801,6 +805,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
 
   let threadId = threadResult.data?.id ?? null;
   const inboundThreadStatus = getConversationStatusAfterInbound(threadResult.data?.status, aiEnabled);
+  // Resposta pelo aparelho (decisão do Junior, 21/09; só nas conexões com `manualReplyPausesAI`): uma
+  // mensagem de saída que chega pelo webhook foi mandada do celular por uma pessoa (o que a IA e o CRM
+  // enviam pela API não volta por aqui). A conversa passa para humano, inclusive a que ele mesmo puxou,
+  // e a IA não responde a próxima mensagem do lead. Resolvida depois, volta para a IA como sempre.
+  const manualReplyTakesOver =
+    parsed.direction === 'outbound'
+    && resolveManualReplyPausesAI(connectionConfig)
+    && threadResult.data?.status !== 'closed';
 
   // 3a: resumo do clique de anúncio fica na conversa (a caixa mostra "veio do anúncio X");
   // o histórico auditável vai para lead_source_attributions mais abaixo.
@@ -825,12 +837,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         title: buildThreadTitle(resolvedContactName, canonicalPhone),
         contact_name: resolvedContactName,
         contact_phone: canonicalPhone,
-        status: parsed.direction === 'inbound' ? inboundThreadStatus : 'resolved',
+        status: parsed.direction === 'inbound' ? inboundThreadStatus : manualReplyTakesOver ? 'human_active' : 'resolved',
         metadata: buildConversationThreadMetadataUpdate(
           {
             provider: 'evolution',
             autoCreated: true,
-            routingMode: aiEnabled ? 'ai' : 'human',
+            routingMode: aiEnabled && !manualReplyTakesOver ? 'ai' : 'human',
           },
           {
             direction: parsed.direction,
@@ -841,8 +853,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
             authorName: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
             incrementUnread: parsed.direction === 'inbound',
             provider: 'evolution',
-            humanLocked: !aiEnabled,
-            aiLockedReason: aiEnabled ? null : 'connection_ai_disabled',
+            humanLocked: !aiEnabled || manualReplyTakesOver,
+            aiLockedReason: manualReplyTakesOver ? 'manual_reply_from_device' : aiEnabled ? null : 'connection_ai_disabled',
             adClick: threadAdClick,
           }
         ),
@@ -868,7 +880,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         status:
           parsed.direction === 'inbound'
             ? inboundThreadStatus
-            : threadResult.data?.status ?? 'resolved',
+            : manualReplyTakesOver
+              ? 'human_active'
+              : threadResult.data?.status ?? 'resolved',
         last_message_at: parsed.sentAt,
         updated_at: now,
         metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
@@ -882,10 +896,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
           authorName: parsed.direction === 'inbound' ? parsed.contactName : connectionResult.data.name,
           incrementUnread: parsed.direction === 'inbound',
           unreadCount: parsed.direction === 'outbound' ? 0 : null,
+          routingMode: manualReplyTakesOver ? 'human' : undefined,
           humanLocked:
             parsed.direction === 'inbound'
               ? ['human_active', 'human_queue'].includes(inboundThreadStatus)
-              : undefined,
+              : manualReplyTakesOver
+                ? true
+                : undefined,
           aiLockedReason:
             parsed.direction === 'inbound'
               ? aiEnabled
@@ -893,7 +910,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
                   ? null
                   : undefined
                 : 'connection_ai_disabled'
-              : undefined,
+              : manualReplyTakesOver
+                ? 'manual_reply_from_device'
+                : undefined,
           resolvedAt:
             parsed.direction === 'inbound' && threadResult.data?.status === 'resolved'
               ? null
@@ -910,6 +929,38 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     if (updatedThread.error) {
       console.error('[Evolution webhook] Failed to update thread', { connectionId, error: updatedThread.error.message });
       return json({ error: 'Falha interna ao atualizar a conversa.' }, 500);
+    }
+  }
+
+  // Quem assume pelo aparelho assume como quem clica "Assumir" na tela: as réguas da conversa pausam.
+  if (manualReplyTakesOver && threadResult.data?.status !== 'human_active') {
+    const pausedEnrollments = await admin.rpc('pause_automation_enrollments_for_thread', {
+      p_thread_id: threadId,
+      p_actor_id: null,
+      p_reason: 'manual_reply_from_device',
+    });
+    if (pausedEnrollments.error) {
+      console.warn('[Evolution webhook] Falha ao pausar réguas depois da resposta pelo aparelho', {
+        connectionId,
+        threadId,
+        error: pausedEnrollments.error.message,
+      });
+      const pauseFailedNotification = await admin.from('system_notifications').upsert(
+        buildManualReplyPauseFailedNotification({
+          organizationId: connection.organization_id,
+          threadId,
+          contactLabel: resolvedContactName || canonicalPhone,
+          createdAt: now,
+        }),
+        { onConflict: 'id' },
+      );
+      if (pauseFailedNotification.error) {
+        console.warn('[Evolution webhook] Falha ao avisar régua não pausada', {
+          connectionId,
+          threadId,
+          error: pauseFailedNotification.error.message,
+        });
+      }
     }
   }
 
