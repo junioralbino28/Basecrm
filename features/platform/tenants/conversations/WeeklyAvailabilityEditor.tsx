@@ -41,8 +41,14 @@ export function WeeklyAvailabilityEditor({
                 />
                 {label}
               </label>
+              {/*
+                Campo de hora do Chrome tem largura minima propria (os blocos hh:mm), que nem
+                `min-width: 0` derruba: os dois lado a lado mais o botao de remover pediam 255 px
+                e empurravam a tela inteira no celular (medido na previa a 390 px). Abaixo de
+                `sm` eles empilham.
+              */}
               {ranges.map((range, index) => (
-                <div key={`${key}-${index}`} className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                <div key={`${key}-${index}`} className="mt-2 grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
                     Início
                     <input className={`${FIELD_CLASS} mt-1`} type="time" value={range.start} disabled={disabled} onChange={event => setDay(key, ranges.map((item, itemIndex) => itemIndex === index ? { ...item, start: event.target.value } : item))} />
@@ -51,7 +57,7 @@ export function WeeklyAvailabilityEditor({
                     Fim
                     <input className={`${FIELD_CLASS} mt-1`} type="time" value={range.end} disabled={disabled} onChange={event => setDay(key, ranges.map((item, itemIndex) => itemIndex === index ? { ...item, end: event.target.value } : item))} />
                   </label>
-                  <button type="button" aria-label={`Remover faixa de ${label.toLowerCase()}`} disabled={disabled} onClick={() => setDay(key, ranges.filter((_, itemIndex) => itemIndex !== index))} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-slate-300 text-slate-500 hover:text-rose-500 dark:border-slate-600 dark:text-slate-300">
+                  <button type="button" aria-label={`Remover faixa de ${label.toLowerCase()}`} disabled={disabled} onClick={() => setDay(key, ranges.filter((_, itemIndex) => itemIndex !== index))} className="grid min-h-11 min-w-11 place-items-center justify-self-end rounded-xl border border-slate-300 text-slate-500 hover:text-rose-500 dark:border-slate-600 dark:text-slate-300 sm:justify-self-auto">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
