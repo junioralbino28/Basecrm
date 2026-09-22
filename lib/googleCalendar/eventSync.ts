@@ -21,11 +21,12 @@ import {
   type GoogleCalendarEventInput,
 } from './googleApiClient';
 import {
+  buildGoogleMeetingEventDescription,
   buildGoogleMeetingEventTitle,
   GOOGLE_INVITE_LOG_TABLE,
   googleMeetingEventIdFor,
   googleMeetingRetryDelayMs,
-  GOOGLE_MEETING_EVENT_DESCRIPTION,
+  GOOGLE_MEETING_DEFAULT_BRAND,
   GOOGLE_MEETING_EVENT_TABLE,
   MAX_GOOGLE_MEETING_ATTEMPTS,
   PENDING_GOOGLE_MEETING_STATUSES,
@@ -123,11 +124,13 @@ function buildEventInput(
   row: MeetingEventRow,
   attendeeEmails: string[],
   mode: 'insert' | 'patch',
+  brandName: string,
 ): GoogleCalendarEventInput {
   return {
     // Titulo e descricao FIXOS: nada que veio do LLM entra no convite que sai por e-mail (G16).
-    summary: buildGoogleMeetingEventTitle(row.contact_name),
-    description: GOOGLE_MEETING_EVENT_DESCRIPTION,
+    // A MARCA vem da conexao (Fatia 5): o convite do cliente nao pode sair com o nome da agencia.
+    summary: buildGoogleMeetingEventTitle(row.contact_name, brandName),
+    description: buildGoogleMeetingEventDescription(brandName),
     startAt: row.scheduled_at,
     endAt: meetingEndAt(row.scheduled_at),
     timezone: row.timezone,
@@ -142,23 +145,43 @@ function buildEventInput(
  * limites anti-abuso: o teto existe por causa do e-mail do LEAD, que nao tem prova de posse;
  * estes sao configuracao do proprio cliente do CRM.
  */
-async function loadExtraAttendees(input: {
+async function loadConnectionExtras(input: {
   admin: AdminClient;
   organizationId: string;
   channelConnectionId: string | null;
-}): Promise<string[]> {
-  if (!input.channelConnectionId) return [];
+}): Promise<{ extraAttendees: string[]; brandName: string }> {
+  const marcaPadrao = await loadOrganizationBrand(input.admin, input.organizationId);
+  if (!input.channelConnectionId) return { extraAttendees: [], brandName: marcaPadrao };
   const result = await input.admin
     .from('channel_connections')
     .select('config')
     .eq('id', input.channelConnectionId)
     .eq('organization_id', input.organizationId)
     .maybeSingle();
-  if (result.error) return [];
+  if (result.error) return { extraAttendees: [], brandName: marcaPadrao };
   const calendar = resolveConversationCalendarConfig(
     (result.data as { config?: Record<string, unknown> | null } | null)?.config,
   );
-  return calendar?.extraAttendees ?? [];
+  return {
+    extraAttendees: calendar?.extraAttendees ?? [],
+    brandName: calendar?.meetingBrandName?.trim() || marcaPadrao,
+  };
+}
+
+/** Sem marca na conexao, usa o nome da organizacao — nunca o nome de outra empresa. */
+async function loadOrganizationBrand(admin: AdminClient, organizationId: string): Promise<string> {
+  try {
+    const result = await admin
+      .from('organizations')
+      .select('name')
+      .eq('id', organizationId)
+      .maybeSingle();
+    if (result.error) return GOOGLE_MEETING_DEFAULT_BRAND;
+    const nome = String((result.data as { name?: unknown } | null)?.name || '').trim();
+    return nome ? nome.slice(0, 60) : GOOGLE_MEETING_DEFAULT_BRAND;
+  } catch {
+    return GOOGLE_MEETING_DEFAULT_BRAND;
+  }
 }
 
 async function notify(input: {
@@ -515,7 +538,7 @@ async function insertEvent(input: {
   const { admin, row, now } = input;
 
   const decision = await resolveInviteDecision({ admin, row, now });
-  const extraAttendees = await loadExtraAttendees({
+  const { extraAttendees, brandName } = await loadConnectionExtras({
     admin, organizationId: row.organization_id, channelConnectionId: row.channel_connection_id,
   });
   const attendees = buildGoogleMeetingAttendees({
@@ -528,7 +551,7 @@ async function insertEvent(input: {
     event = await insertGoogleCalendarEvent({
       accessToken: input.accessToken,
       calendarId: row.google_calendar_id,
-      event: buildEventInput(row, attendees, 'insert'),
+      event: buildEventInput(row, attendees, 'insert', brandName),
       sendUpdates: attendees.length > 0 ? 'all' : 'none',
     });
   } catch (error) {
@@ -573,7 +596,7 @@ async function patchEvent(input: {
   const { admin, row, now } = input;
 
   const decision = await resolveInviteDecision({ admin, row, now });
-  const extraAttendees = await loadExtraAttendees({
+  const { extraAttendees, brandName } = await loadConnectionExtras({
     admin, organizationId: row.organization_id, channelConnectionId: row.channel_connection_id,
   });
 
@@ -585,7 +608,7 @@ async function patchEvent(input: {
     event: buildEventInput(row, buildGoogleMeetingAttendees({
       inviteeEmail: decision.attendeeEmail,
       extraAttendees,
-    }), 'patch'),
+    }), 'patch', brandName),
   });
 
   await persistEvent({

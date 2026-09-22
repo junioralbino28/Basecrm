@@ -1,7 +1,7 @@
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { ConversationCalendarConfigSchema } from '@/lib/conversations/meetingAvailability';
-import { resolveGoogleCalendarOAuthEnv } from '@/lib/googleCalendar/oauth';
+import { resolveGoogleCalendarOAuthEnv, scopeCoversCalendarList } from '@/lib/googleCalendar/oauth';
 import { getGoogleCalendarConnection } from '@/lib/googleCalendar/connectionStore';
 
 function json(body: unknown, status = 200) {
@@ -36,7 +36,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
   );
   const ownerId = calendar.success ? calendar.data.ownerId : null;
   if (!ownerId) {
-    return json({ configured, connected: false, googleAccountEmail: null, status: null, connectedAt: null });
+    return json({
+      configured, connected: false, googleAccountEmail: null, status: null, connectedAt: null,
+      writeCalendarId: null, writeCalendarSummary: null, busyCalendarIds: [], canListCalendars: false,
+    });
   }
 
   const googleConnection = await getGoogleCalendarConnection({ admin, organizationId: tenantId, ownerId });
@@ -46,5 +49,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
     googleAccountEmail: googleConnection?.googleAccountEmail ?? null,
     status: googleConnection?.status ?? null,
     connectedAt: googleConnection?.connectedAt ?? null,
+    // Fatia 5: a tela precisa saber o que esta escolhido hoje e se da para OFERECER a lista —
+    // quem conectou antes do escopo novo tem de reconectar uma vez.
+    writeCalendarId: googleConnection?.googleCalendarId ?? null,
+    writeCalendarSummary: googleConnection?.googleCalendarSummary ?? null,
+    busyCalendarIds: googleConnection?.busyCalendarIds ?? [],
+    canListCalendars: scopeCoversCalendarList(googleConnection?.scope),
   });
 }

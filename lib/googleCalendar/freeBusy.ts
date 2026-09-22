@@ -128,7 +128,8 @@ export async function loadGoogleBusyIntervals(input: {
 
     const intervals = await queryGoogleFreeBusy({
       accessToken,
-      calendarId: connection.googleCalendarId,
+      // A agenda de ESCRITA sempre conta; as marcadas como ocupado entram junto (Fatia 5).
+      calendarIds: [connection.googleCalendarId, ...(connection.busyCalendarIds ?? [])],
       timeMin: input.timeMin,
       timeMax: input.timeMax,
       timeoutMs: FREEBUSY_TIMEOUT_MS,

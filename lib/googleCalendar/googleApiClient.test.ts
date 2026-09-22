@@ -93,9 +93,69 @@ describe('googleApiClient — unico ponto de fetch para o Google', () => {
       }), { status: 200 }),
     );
     const intervals = await queryGoogleFreeBusy({
-      accessToken: 'at-1', calendarId: 'primary', timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
+      accessToken: 'at-1', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
     });
     expect(intervals).toEqual([{ start: '2026-09-21T12:30:00Z', end: '2026-09-21T15:30:00Z' }]);
+  });
+
+  it('freeBusy: junta o ocupado de VARIAS agendas (bloqueio na pessoal segura o horario)', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      calendars: {
+        'trabalho@grupo': { busy: [{ start: '2026-09-23T14:00:00Z', end: '2026-09-23T15:00:00Z' }] },
+        'pessoal@gmail.com': { busy: [{ start: '2026-09-23T17:00:00Z', end: '2026-09-23T21:00:00Z' }] },
+      },
+    }), { status: 200 }));
+
+    const intervalos = await queryGoogleFreeBusy({
+      accessToken: 'at-1', calendarIds: ['trabalho@grupo', 'pessoal@gmail.com'],
+      timeMin: '2026-09-23T00:00:00Z', timeMax: '2026-09-24T00:00:00Z',
+    });
+
+    expect(intervalos).toHaveLength(2);
+    expect(intervalos[1]).toEqual({ start: '2026-09-23T17:00:00Z', end: '2026-09-23T21:00:00Z' });
+    // As duas agendas vao num pedido so, sem repetir.
+    const corpo = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(corpo.items).toEqual([{ id: 'trabalho@grupo' }, { id: 'pessoal@gmail.com' }]);
+  });
+
+  it('freeBusy: agenda repetida entra uma vez so', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      calendars: { primary: { busy: [] } },
+    }), { status: 200 }));
+
+    await queryGoogleFreeBusy({
+      accessToken: 'at-1', calendarIds: ['primary', 'primary'],
+      timeMin: '2026-09-23T00:00:00Z', timeMax: '2026-09-24T00:00:00Z',
+    });
+
+    const corpo = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(corpo.items).toEqual([{ id: 'primary' }]);
+  });
+
+  it('freeBusy: agenda que o Google recusa nao cega as outras', async () => {
+    // Agenda apagada ou sem acesso volta com `errors`; o horario das demais tem de valer.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      calendars: {
+        primary: { busy: [{ start: '2026-09-23T14:00:00Z', end: '2026-09-23T15:00:00Z' }] },
+        'sumiu@grupo': { errors: [{ reason: 'notFound' }] },
+      },
+    }), { status: 200 }));
+
+    const intervalos = await queryGoogleFreeBusy({
+      accessToken: 'at-1', calendarIds: ['primary', 'sumiu@grupo'],
+      timeMin: '2026-09-23T00:00:00Z', timeMax: '2026-09-24T00:00:00Z',
+    });
+
+    expect(intervalos).toEqual([{ start: '2026-09-23T14:00:00Z', end: '2026-09-23T15:00:00Z' }]);
+  });
+
+  it('freeBusy: sem agenda nenhuma nao chama o Google', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    await expect(queryGoogleFreeBusy({
+      accessToken: 'at-1', calendarIds: [],
+      timeMin: '2026-09-23T00:00:00Z', timeMax: '2026-09-24T00:00:00Z',
+    })).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('freeBusy: 401 vira GoogleApiError', async () => {
@@ -103,21 +163,21 @@ describe('googleApiClient — unico ponto de fetch para o Google', () => {
       new Response(JSON.stringify({ error: 'invalid_token' }), { status: 401 }),
     );
     await expect(queryGoogleFreeBusy({
-      accessToken: 'at-morto', calendarId: 'primary', timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
+      accessToken: 'at-morto', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
     })).rejects.toBeInstanceOf(GoogleApiError);
   });
 
   it('freeBusy: JSON malformado (200) lanca em vez de devolver vazio silenciosamente', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nao-e-json', { status: 200 }));
     await expect(queryGoogleFreeBusy({
-      accessToken: 'at-1', calendarId: 'primary', timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
+      accessToken: 'at-1', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
     })).rejects.toThrow();
   });
 
   it('freeBusy: timeout (fetch rejeitado) propaga para o chamador tratar', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'));
     await expect(queryGoogleFreeBusy({
-      accessToken: 'at-1', calendarId: 'primary', timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z', timeoutMs: 10,
+      accessToken: 'at-1', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z', timeoutMs: 10,
     })).rejects.toThrow();
   });
 
@@ -126,7 +186,7 @@ describe('googleApiClient — unico ponto de fetch para o Google', () => {
       new Response(JSON.stringify({ calendars: { primary: {} } }), { status: 200 }),
     );
     await expect(queryGoogleFreeBusy({
-      accessToken: 'at-1', calendarId: 'primary', timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
+      accessToken: 'at-1', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
     })).resolves.toEqual([]);
   });
 });

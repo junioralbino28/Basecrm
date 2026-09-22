@@ -12,9 +12,12 @@ let connectionRow: { id: string; config: Record<string, unknown> | null } | null
 vi.mock('@/lib/platform/tenantAccess', () => ({
   requireTenantAccess: (...args: unknown[]) => requireTenantAccessMock(...args),
 }));
-vi.mock('@/lib/googleCalendar/oauth', () => ({
-  resolveGoogleCalendarOAuthEnv: () => resolveGoogleCalendarOAuthEnvMock(),
-}));
+// Mock parcial: `scopeCoversCalendarList` e funcao pura e o teste quer o comportamento REAL dela
+// (é ela que decide se a conexão antiga precisa reconectar para escolher a agenda).
+vi.mock('@/lib/googleCalendar/oauth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/googleCalendar/oauth')>();
+  return { ...actual, resolveGoogleCalendarOAuthEnv: () => resolveGoogleCalendarOAuthEnvMock() };
+});
 vi.mock('@/lib/googleCalendar/connectionStore', () => ({
   getGoogleCalendarConnection: (...args: unknown[]) => getGoogleCalendarConnectionMock(...args),
 }));
@@ -56,12 +59,19 @@ describe('GET google-calendar/status', () => {
   it('nunca devolve o token — so os campos publicos', async () => {
     getGoogleCalendarConnectionMock.mockResolvedValue({
       status: 'connected', googleAccountEmail: 'cenourahub@gmail.com', connectedAt: '2026-09-22T00:00:00.000Z',
+      googleCalendarId: 'sdr@group.calendar.google.com', googleCalendarSummary: 'Cenoura - SDR',
+      busyCalendarIds: ['primary'],
+      scope: 'openid email https://www.googleapis.com/auth/calendar.events '
+        + 'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
     });
     const response = await GET(request(), { params: Promise.resolve({ tenantId: TENANT, connectionId: CONNECTION }) });
     const body = await response.json();
     expect(body).toEqual({
       configured: true, connected: true, googleAccountEmail: 'cenourahub@gmail.com',
       status: 'connected', connectedAt: '2026-09-22T00:00:00.000Z',
+      // Fatia 5: a tela precisa saber a escolha atual e se ja da para listar as agendas.
+      writeCalendarId: 'sdr@group.calendar.google.com', writeCalendarSummary: 'Cenoura - SDR',
+      busyCalendarIds: ['primary'], canListCalendars: true,
     });
     expect(JSON.stringify(body)).not.toMatch(/token|refresh/i);
   });

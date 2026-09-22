@@ -148,13 +148,22 @@ export async function fetchGoogleUserInfo(input: {
 
 export type GoogleFreeBusyInterval = { start: string; end: string };
 
+/**
+ * Ocupado da conta. Aceita VARIAS agendas (Fatia 5): o Google devolve o ocupado de cada uma e
+ * juntamos tudo — bloqueio na agenda pessoal segura o horario igual ao da agenda de trabalho.
+ * `calendarIds` com uma agenda so produz exatamente a chamada de antes.
+ */
 export async function queryGoogleFreeBusy(input: {
   accessToken: string;
-  calendarId: string;
+  calendarIds: string[];
   timeMin: string;
   timeMax: string;
   timeoutMs?: number;
 }): Promise<GoogleFreeBusyInterval[]> {
+  // Sem repetir agenda: o Google cobra por item e a resposta vem chaveada pelo id.
+  const calendarIds = [...new Set(input.calendarIds.filter(Boolean))];
+  if (calendarIds.length === 0) return [];
+
   const response = await requestGoogleApi(GOOGLE_FREEBUSY_URL, {
     method: 'POST',
     headers: {
@@ -164,7 +173,7 @@ export async function queryGoogleFreeBusy(input: {
     body: JSON.stringify({
       timeMin: input.timeMin,
       timeMax: input.timeMax,
-      items: [{ id: input.calendarId }],
+      items: calendarIds.map((id) => ({ id })),
     }),
   }, input.timeoutMs ?? FREEBUSY_DEFAULT_TIMEOUT_MS);
 
@@ -176,14 +185,25 @@ export async function queryGoogleFreeBusy(input: {
   // Sem `.catch` de propósito: um 200 com corpo malformado deve lançar (JSON ruim é um dos
   // casos de teste exigidos) para o chamador cair no mesmo tratamento de falha.
   const body = (await response.json()) as {
-    calendars?: Record<string, { busy?: Array<{ start?: unknown; end?: unknown }> }>;
+    calendars?: Record<string, {
+      busy?: Array<{ start?: unknown; end?: unknown }>;
+      errors?: Array<{ reason?: unknown }>;
+    }>;
   };
-  const busy = body.calendars?.[input.calendarId]?.busy;
-  if (!Array.isArray(busy)) return [];
 
-  return busy
-    .map((entry) => ({ start: String(entry?.start || ''), end: String(entry?.end || '') }))
-    .filter((interval) => interval.start && interval.end);
+  const intervalos: GoogleFreeBusyInterval[] = [];
+  for (const id of calendarIds) {
+    const agenda = body.calendars?.[id];
+    // Agenda que o Google recusou (sumiu, perdeu acesso) nao derruba as outras: segue com o que
+    // veio. Tratar como erro geral faria um bloqueio de agenda secundaria cegar o horario todo.
+    if (!agenda || !Array.isArray(agenda.busy)) continue;
+    for (const entry of agenda.busy) {
+      const start = String(entry?.start || '');
+      const end = String(entry?.end || '');
+      if (start && end) intervalos.push({ start, end });
+    }
+  }
+  return intervalos;
 }
 
 // ------------------------------------------------------------------ eventos (Fatias 3 e 4)
@@ -372,4 +392,56 @@ export async function deleteGoogleCalendarEvent(input: {
 
   const { code, message } = await readGoogleErrorBody(response);
   throw new GoogleApiError(message, response.status, code);
+}
+
+export type GoogleCalendarListItem = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  /** `owner` e `writer` podem receber evento; `reader`/`freeBusyReader` so contam como ocupado. */
+  accessRole: string;
+  backgroundColor: string | null;
+};
+
+/**
+ * Agendas da conta conectada (Fatia 5: escolher ONDE a IA marca e QUAIS contam como ocupado).
+ *
+ * Exige o escopo `calendar.calendarlist.readonly`: sem ele o Google devolve 403 (medido na conta
+ * real em 22/09/2026), e quem conectou antes da Fatia 5 precisa reconectar uma vez.
+ */
+export async function listGoogleCalendars(input: {
+  accessToken: string;
+  timeoutMs?: number;
+}): Promise<GoogleCalendarListItem[]> {
+  const url = new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList');
+  url.searchParams.set('maxResults', '250');
+  // Agenda escondida na interface do Google continua valendo como ocupado, entao vem junto.
+  url.searchParams.set('showHidden', 'true');
+
+  const response = await requestGoogleApi(url.toString(), {
+    method: 'GET',
+    headers: { authorization: `Bearer ${input.accessToken}` },
+  }, input.timeoutMs ?? EVENTS_DEFAULT_TIMEOUT_MS);
+
+  if (!response.ok) {
+    const { code, message } = await readGoogleErrorBody(response);
+    throw new GoogleApiError(message, response.status, code);
+  }
+
+  const body = (await response.json()) as { items?: unknown };
+  const items = Array.isArray(body.items) ? body.items : [];
+  return items
+    .map((item) => {
+      const linha = (item || {}) as Record<string, unknown>;
+      const id = typeof linha.id === 'string' ? linha.id : '';
+      if (!id) return null;
+      return {
+        id,
+        summary: typeof linha.summary === 'string' && linha.summary ? linha.summary : id,
+        primary: linha.primary === true,
+        accessRole: typeof linha.accessRole === 'string' ? linha.accessRole : 'reader',
+        backgroundColor: typeof linha.backgroundColor === 'string' ? linha.backgroundColor : null,
+      };
+    })
+    .filter((item): item is GoogleCalendarListItem => item !== null);
 }

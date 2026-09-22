@@ -36,7 +36,6 @@ import {
 } from './eventSync';
 import {
   GOOGLE_INVITE_LOG_TABLE,
-  GOOGLE_MEETING_EVENT_DESCRIPTION,
   GOOGLE_MEETING_EVENT_TABLE,
   MAX_GOOGLE_MEETING_ATTEMPTS,
 } from './meetingEventQueue';
@@ -199,8 +198,10 @@ describe('createDueGoogleCalendarEvents — cria o evento no Google (Fatia 3)', 
       calendarId: 'primary',
       sendUpdates: 'all',
       event: expect.objectContaining({
-        summary: 'Diagnóstico Cenoura Hub — Marina',
-        description: GOOGLE_MEETING_EVENT_DESCRIPTION,
+        // A marca vem da conexao e, sem ela, do nome da organizacao — o teste dedicado está em
+        // meetingEventQueue.test.ts. Aqui interessa o FORMATO fixo, sem nada vindo do LLM.
+        summary: expect.stringMatching(/^Diagnóstico .+ — Marina$/),
+        description: expect.stringContaining('O link do Google Meet está neste convite'),
         startAt: SCHEDULED,
         // Duracao prevista de 40 min (MEETING_TARGET_DURATION_MINUTES).
         endAt: '2026-09-23T17:40:00.000Z',

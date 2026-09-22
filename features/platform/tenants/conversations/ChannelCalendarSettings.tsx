@@ -15,18 +15,57 @@ type GoogleCalendarStatus = {
   googleAccountEmail: string | null;
   status: 'connected' | 'reconnect_required' | 'revoked' | null;
   connectedAt: string | null;
+  // Fatia 5: opcionais porque uma resposta antiga (sem esses campos) nao pode quebrar a tela.
+  writeCalendarId?: string | null;
+  writeCalendarSummary?: string | null;
+  busyCalendarIds?: string[];
+  canListCalendars?: boolean;
 };
 
+type GoogleCalendarItem = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  accessRole: string;
+  backgroundColor: string | null;
+};
+
+/** So da para MARCAR onde a conta conectada tem permissao de escrever. */
+const PAPEIS_DE_ESCRITA = new Set(['owner', 'writer']);
+
+function agendasDeEscrita(lista: GoogleCalendarItem[]) {
+  return lista.filter(agenda => PAPEIS_DE_ESCRITA.has(agenda.accessRole));
+}
+
 /**
- * Google Agenda (SPEC-google-agenda.md, Fatia 1). So faz a chamada de status quando o
+ * O padrao guardado no banco e o literal `primary`, que NAO aparece como id na lista do
+ * Google (la a agenda principal vem com o id real e `primary: true`). Sem essa traducao o
+ * seletor abriria em uma agenda que o usuario nunca escolheu.
+ */
+function resolverAgendaDeEscrita(atual: string | null | undefined, lista: GoogleCalendarItem[]): string | null {
+  const gravaveis = agendasDeEscrita(lista);
+  if (atual && gravaveis.some(agenda => agenda.id === atual)) return atual;
+  const principal = gravaveis.find(agenda => agenda.primary);
+  return principal?.id ?? gravaveis[0]?.id ?? null;
+}
+
+/**
+ * Google Agenda (SPEC-google-agenda.md, Fatias 1 e 5). So faz a chamada de status quando o
  * proprio painel e aberto (nao quando "Agenda da IA" expande) — mesmo padrao lazy do
- * CalendarBlocksPanel, para nao disparar rede sem o usuario pedir.
+ * CalendarBlocksPanel, para nao disparar rede sem o usuario pedir. A lista de agendas segue
+ * a mesma regra: so sai da rede com o painel aberto E a conta conectada.
  */
 function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId: string; connectionId: string; disabled: boolean }) {
   const [expanded, setExpanded] = React.useState(false);
   const [status, setStatus] = React.useState<GoogleCalendarStatus | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const [calendars, setCalendars] = React.useState<GoogleCalendarItem[] | null>(null);
+  const [loadingCalendars, setLoadingCalendars] = React.useState(false);
+  const [calendarsNeedReconnect, setCalendarsNeedReconnect] = React.useState(false);
+  const [writeCalendarId, setWriteCalendarId] = React.useState<string | null>(null);
+  const [busyCalendarIds, setBusyCalendarIds] = React.useState<string[]>([]);
+  const [savingSelection, setSavingSelection] = React.useState(false);
   const endpoint = `/api/platform/tenants/${tenantId}/channels/${connectionId}/google-calendar`;
 
   async function loadStatus() {
@@ -44,10 +83,82 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
     }
   }
 
+  async function loadCalendars() {
+    setLoadingCalendars(true);
+    try {
+      const response = await fetch(`${endpoint}/calendars`, { credentials: 'include', headers: { accept: 'application/json' } });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'Falha ao listar as agendas do Google.');
+      const lista: GoogleCalendarItem[] = Array.isArray(body?.calendars) ? body.calendars : [];
+      setCalendarsNeedReconnect(body?.needsReconnect === true);
+      setCalendars(lista);
+      setWriteCalendarId(resolverAgendaDeEscrita(body?.writeCalendarId ?? status?.writeCalendarId ?? null, lista));
+      const ocupadas = Array.isArray(body?.busyCalendarIds) ? body.busyCalendarIds : (status?.busyCalendarIds ?? []);
+      setBusyCalendarIds(ocupadas);
+    } catch (error) {
+      // Lista vazia (e nao `null`) encerra a tentativa: sem isso o efeito pediria de novo a cada render.
+      setCalendars([]);
+      setMessage(error instanceof Error ? error.message : 'Falha ao listar as agendas do Google.');
+    } finally {
+      setLoadingCalendars(false);
+    }
+  }
+
+  // Lazy de verdade: painel aberto + conta conectada + permissao de listar ja concedida.
+  React.useEffect(() => {
+    if (!expanded) return;
+    if (!status?.connected || status.canListCalendars !== true) return;
+    if (calendars !== null || loadingCalendars) return;
+    void loadCalendars();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, status, calendars, loadingCalendars]);
+
   async function toggleExpanded() {
     const next = !expanded;
     setExpanded(next);
     if (next && !status) await loadStatus();
+  }
+
+  function toggleBusy(calendarId: string, marcado: boolean) {
+    setBusyCalendarIds(current => (marcado
+      ? [...new Set([...current, calendarId])]
+      : current.filter(id => id !== calendarId)));
+  }
+
+  async function saveSelection() {
+    if (!writeCalendarId) {
+      setMessage('Escolha a agenda onde a IA marca as reuniões.');
+      return;
+    }
+    setSavingSelection(true);
+    setMessage(null);
+    try {
+      const escolhida = (calendars ?? []).find(agenda => agenda.id === writeCalendarId) ?? null;
+      const response = await fetch(`${endpoint}/selection`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          writeCalendarId,
+          writeCalendarSummary: escolhida?.summary ?? null,
+          busyCalendarIds: busyCalendarIds.filter(id => id !== writeCalendarId),
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'Falha ao salvar a escolha de agendas.');
+      const salvo = typeof body?.writeCalendarId === 'string' ? body.writeCalendarId : writeCalendarId;
+      const ocupadas = Array.isArray(body?.busyCalendarIds) ? body.busyCalendarIds : busyCalendarIds;
+      setWriteCalendarId(salvo);
+      setBusyCalendarIds(ocupadas);
+      setStatus(current => (current
+        ? { ...current, writeCalendarId: salvo, writeCalendarSummary: escolhida?.summary ?? null, busyCalendarIds: ocupadas }
+        : current));
+      setMessage('Agendas salvas.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Falha ao salvar a escolha de agendas.');
+    } finally {
+      setSavingSelection(false);
+    }
   }
 
   async function connect() {
@@ -76,6 +187,11 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || 'Falha ao desconectar o Google Agenda.');
       setMessage(body.warning || 'Google Agenda desconectado.');
+      // A lista pertence a conexao que acabou de cair; zerar evita mostrar agenda de conta antiga.
+      setCalendars(null);
+      setCalendarsNeedReconnect(false);
+      setWriteCalendarId(null);
+      setBusyCalendarIds([]);
       await loadStatus();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha ao desconectar o Google Agenda.');
@@ -85,6 +201,9 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
   }
 
   const needsReconnect = status?.status === 'reconnect_required';
+  // Conexao feita antes do escopo de listar agendas: um clique em Reconectar resolve.
+  const conexaoAntiga = Boolean(status?.connected) && (status?.canListCalendars !== true || calendarsNeedReconnect);
+  const gravaveis = agendasDeEscrita(calendars ?? []);
 
   return (
     <section className="mt-5 rounded-xl border border-slate-200 dark:border-white/10">
@@ -100,13 +219,81 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
           ) : null}
           {status?.configured ? (
             status.connected ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                  <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" /> Google conectado: {status.googleAccountEmail}
-                </span>
-                <button type="button" disabled={disabled || loading} onClick={() => void disconnect()} className="min-h-11 rounded-xl border border-slate-300 px-3 text-xs font-semibold text-slate-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200">
-                  Desconectar
-                </button>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" /> Google conectado: {status.googleAccountEmail}
+                  </span>
+                  <button type="button" disabled={disabled || loading} onClick={() => void disconnect()} className="min-h-11 rounded-xl border border-slate-300 px-3 text-xs font-semibold text-slate-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200">
+                    Desconectar
+                  </button>
+                </div>
+
+                {conexaoAntiga ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                    <p className="max-w-md text-xs text-slate-600 dark:text-slate-300">
+                      Para escolher em qual agenda a IA marca, reconecte uma vez: só assim o Google libera a lista de agendas desta conta.
+                    </p>
+                    <button type="button" disabled={disabled || loading} onClick={() => void connect()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-800 px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Reconectar
+                    </button>
+                  </div>
+                ) : null}
+
+                {!conexaoAntiga && loadingCalendars && calendars === null ? (
+                  <p className="text-xs text-slate-500">Carregando agendas…</p>
+                ) : null}
+
+                {!conexaoAntiga && calendars && calendars.length > 0 ? (
+                  <div className="space-y-4">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Agenda onde a IA marca as reuniões
+                      <select
+                        className={`${FIELD_CLASS} mt-1`}
+                        value={writeCalendarId ?? ''}
+                        disabled={disabled || savingSelection}
+                        onChange={event => setWriteCalendarId(event.target.value)}
+                      >
+                        {gravaveis.map(agenda => (
+                          <option key={agenda.id} value={agenda.id}>
+                            {agenda.summary}{agenda.primary ? ' (principal)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <fieldset className="border-0 p-0">
+                      <legend className="text-xs font-semibold text-slate-600 dark:text-slate-300">Agendas que contam como ocupado</legend>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Um compromisso em qualquer agenda marcada aqui impede a IA de oferecer aquele horário.
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {calendars.map(agenda => {
+                          const ehAgendaDeEscrita = agenda.id === writeCalendarId;
+                          return (
+                            <label key={agenda.id} className="flex min-h-9 items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                              <input
+                                type="checkbox"
+                                checked={ehAgendaDeEscrita || busyCalendarIds.includes(agenda.id)}
+                                disabled={disabled || savingSelection || ehAgendaDeEscrita}
+                                onChange={event => toggleBusy(agenda.id, event.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-60"
+                              />
+                              <span>
+                                {agenda.summary}
+                                {ehAgendaDeEscrita ? ' — sempre conta como ocupado' : ''}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+
+                    <button type="button" disabled={disabled || savingSelection} onClick={() => void saveSelection()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-800 px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
+                      {savingSelection ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Salvar escolha de agendas
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3">

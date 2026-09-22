@@ -32,6 +32,7 @@ const TIME_MAX = '2026-09-22T00:00:00.000Z';
 const CONNECTED = {
   id: 'conn-1', organizationId: ORG, ownerId: OWNER,
   googleAccountEmail: 'cenourahub@gmail.com', googleCalendarId: 'primary',
+  googleCalendarSummary: null, busyCalendarIds: [] as string[],
   status: 'connected' as const, scope: 'a b', lastError: null,
   connectedAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
 };

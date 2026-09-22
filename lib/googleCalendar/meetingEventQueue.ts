@@ -57,10 +57,13 @@ export function googleMeetingRetryDelayMs(attempt: number): number {
  * seguranca). O convite sai por e-mail em nome da conta Google do responsavel, entao nada
  * que o lead escreveu pode chegar ao corpo dele — so o primeiro nome, ja higienizado.
  */
-export const GOOGLE_MEETING_EVENT_TITLE_PREFIX = 'Diagnóstico Cenoura Hub — ';
-export const GOOGLE_MEETING_EVENT_DESCRIPTION =
-  'Diagnóstico agendado pela Cenoura Hub. O link do Google Meet está neste convite. '
-  + 'Se precisar remarcar, responda no WhatsApp.';
+/** Usado quando a conexao nao configurou marca e a organizacao nao tem nome legivel. */
+export const GOOGLE_MEETING_DEFAULT_BRAND = 'Diagnóstico';
+
+export function buildGoogleMeetingEventDescription(brandName: string): string {
+  return `Diagnóstico agendado por ${brandName}. O link do Google Meet está neste convite. `
+    + 'Se precisar remarcar, responda no WhatsApp.';
+}
 
 /** Nome do contato sem quebra de linha, sem excesso e sem nada alem do primeiro nome. */
 export function sanitizeGoogleMeetingContactName(value: unknown): string | null {
@@ -102,8 +105,11 @@ export function googleMeetingEventIdFor(activityId: string): string {
   return `cenno${activityId.replace(/-/g, '').toLowerCase()}`;
 }
 
-export function buildGoogleMeetingEventTitle(contactName: string | null | undefined): string {
-  return `${GOOGLE_MEETING_EVENT_TITLE_PREFIX}${firstNameForGoogleMeetingEvent(contactName)}`.slice(0, 200);
+export function buildGoogleMeetingEventTitle(
+  contactName: string | null | undefined,
+  brandName: string,
+): string {
+  return `Diagnóstico ${brandName} — ${firstNameForGoogleMeetingEvent(contactName)}`.slice(0, 200);
 }
 
 export type EnqueueGoogleMeetingEventResult =

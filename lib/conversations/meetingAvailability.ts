@@ -52,6 +52,12 @@ export const ConversationCalendarConfigSchema = z.object({
    * o evento sai exatamente como hoje.
    */
   extraAttendees: z.array(z.string().email()).max(5).optional(),
+  /**
+   * Nome que aparece no TITULO e na descricao do evento do Google. Por conexao porque o
+   * convite sai na agenda do cliente: sem isto, o evento dele sairia com o nome da agencia.
+   * Continua FIXO (nunca gerado pelo LLM, G16) — so deixou de ser fixo no CODIGO.
+   */
+  meetingBrandName: z.string().trim().min(1).max(60).optional(),
   weeklyHours: WeeklyHoursSchema,
 }).strict().superRefine((calendar, context) => {
   const ranges = Object.values(calendar.weeklyHours).flat();

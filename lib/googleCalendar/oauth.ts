@@ -12,13 +12,27 @@ import type { createStaticAdminClient } from '@/lib/supabase/server';
 
 type AdminClient = ReturnType<typeof createStaticAdminClient>;
 
-/** Escopos minimos, ambos "sensitive" (nunca "restricted") — pesquisa confirmada na doc oficial. */
+/**
+ * Escopos minimos, todos "sensitive" (nunca "restricted") — pesquisa confirmada na doc oficial.
+ *
+ * `calendar.calendarlist.readonly` entrou na Fatia 5: sem ele o `calendarList.list` devolve 403
+ * (medido na conta real em 22/09) e nao da para OFERECER as agendas da pessoa na tela. Quem
+ * conectou antes precisa reconectar uma vez — `scopeCoversCalendarList` e quem detecta isso.
+ */
 export const GOOGLE_CALENDAR_OAUTH_SCOPES = [
   'openid',
   'email',
   'https://www.googleapis.com/auth/calendar.freebusy',
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
 ] as const;
+
+export const GOOGLE_CALENDAR_LIST_SCOPE = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+
+/** A conexao guardada ja tem permissao de LISTAR agendas? (conexao antiga nao tem.) */
+export function scopeCoversCalendarList(scope: string | null | undefined): boolean {
+  return String(scope || '').split(/\s+/).includes(GOOGLE_CALENDAR_LIST_SCOPE);
+}
 
 const GOOGLE_CALENDAR_OAUTH_SCOPE = GOOGLE_CALENDAR_OAUTH_SCOPES.join(' ');
 
