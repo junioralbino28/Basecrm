@@ -33,6 +33,26 @@ export const MEETING_REMINDER_LEAD_MINUTES = 15;
  */
 export const MEETING_REMINDER_ESCALATION_MINUTES = 5;
 
+/** Quanto tempo depois do horario a reuniao ainda e olhada — so para virar aviso, nunca envio. */
+const LATE_REMINDER_GRACE_MS = 60 * 60_000;
+
+/** Tempo limite do envio pelo WhatsApp, para uma linha lenta nao derrubar o tick inteiro. */
+const REMINDER_SEND_TIMEOUT_MS = 12_000;
+
+function withSendTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`sem resposta da Evolution em ${ms} ms`));
+    }, ms);
+  });
+  return Promise.race([run(controller.signal), timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 /** Texto aprovado (SPEC-google-agenda). Conteudo operacional, nunca gerado pelo LLM. */
 export function buildMeetingLinkReminderText(input: { contactName: string | null; meetLink: string }): string {
   const firstName = firstNameForGoogleMeetingEvent(input.contactName);
@@ -116,12 +136,17 @@ export async function sendDueMeetingLinkReminders(input: {
   };
 
   const windowEnd = new Date(new Date(now).getTime() + MEETING_REMINDER_LEAD_MINUTES * 60_000).toISOString();
+  // A borda de baixo fica ATRAS do agora de proposito: uma reuniao cujo horario passou sem envio
+  // nem aviso precisa virar aviso, nao sumir. Com `>= now`, bastava o lote estourar o prazo no
+  // unico ciclo em que a linha podia escalar (reuniao ajustada a mao cai em minuto quebrado)
+  // para o lead ficar sem link e ninguem saber (achado medio da revisao dos consertos).
+  const windowStart = new Date(new Date(now).getTime() - LATE_REMINDER_GRACE_MS).toISOString();
   const dueResult = await admin
     .from(GOOGLE_MEETING_EVENT_TABLE)
     .select(ROW_COLUMNS)
     .is('reminder_sent_at', null)
     .is('reminder_escalated_at', null)
-    .gte('scheduled_at', now)
+    .gte('scheduled_at', windowStart)
     .lte('scheduled_at', windowEnd)
     .order('scheduled_at', { ascending: true })
     .limit(batchLimit);
@@ -140,9 +165,15 @@ export async function sendDueMeetingLinkReminders(input: {
     // Ainda da tempo de o problema se resolver sozinho (Meet que fica `pending`, token sendo
     // renovado, conexao voltando)? Entao nao carimba nada: a linha continua elegivel no
     // proximo ciclo. So perto da hora um problema pendente vira aviso.
-    const waitBeforeEscalating =
-      new Date(row.scheduled_at).getTime() - new Date(now).getTime()
-      > MEETING_REMINDER_ESCALATION_MINUTES * 60_000;
+    const faltamMs = new Date(row.scheduled_at).getTime() - new Date(now).getTime();
+    const waitBeforeEscalating = faltamMs > MEETING_REMINDER_ESCALATION_MINUTES * 60_000;
+
+    // Ja passou da hora e nada saiu: mandar o link agora so atrapalha, mas o humano precisa saber.
+    if (faltamMs <= 0) {
+      if (await escalate({ admin, row, reason: 'a reunião começou sem o link ter saído', now })) summary.escalated += 1;
+      else summary.claimed += 1;
+      continue;
+    }
 
     try {
       // Sem evento criado com link: nada a enviar — escala em vez de ficar em silencio.
@@ -326,14 +357,18 @@ async function deliverReminder(input: {
     meetLink: row.meet_link!,
   });
 
-  const sendResult = await sendEvolutionTextMessage({
+  // Tempo limite proprio: sem `signal`, um POST pendurado na Evolution comia o orcamento do tick
+  // inteiro e a funcao morria aos 60 s — com `reminder_sent_at` JA carimbado, ou seja, lead sem
+  // link e ninguem sabendo (achado medio da revisao dos consertos).
+  const sendResult = await withSendTimeout((signal) => sendEvolutionTextMessage({
     apiUrl: resolved.apiUrl,
     instanceName,
     apiKey: resolved.apiKey,
     phone: context.phone,
     text,
     sendMode: ((connection.config || {}).sendMode || 'auto') as 'auto',
-  });
+    signal,
+  }), REMINDER_SEND_TIMEOUT_MS);
 
   const inserted = await admin.from('conversation_messages').insert({
     thread_id: row.thread_id,

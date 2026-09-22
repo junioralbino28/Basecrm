@@ -35,6 +35,7 @@ import {
   requeueFailedGoogleMeetingEvents,
 } from './eventSync';
 import {
+  GOOGLE_INVITE_LOG_TABLE,
   GOOGLE_MEETING_EVENT_DESCRIPTION,
   GOOGLE_MEETING_EVENT_TABLE,
   MAX_GOOGLE_MEETING_ATTEMPTS,
@@ -104,11 +105,28 @@ function connectionConfig(extraAttendees?: string[]) {
   };
 }
 
-function seed(rows: Record<string, unknown>[], extraAttendees?: string[]) {
+function seed(
+  rows: Record<string, unknown>[],
+  extraAttendees?: string[],
+  inviteLog: Record<string, unknown>[] = [],
+) {
   return createFakeSupabaseAdmin({
     [GOOGLE_MEETING_EVENT_TABLE]: rows,
+    [GOOGLE_INVITE_LOG_TABLE]: inviteLog,
     channel_connections: [connectionConfig(extraAttendees)],
   });
+}
+
+/** Convites JA enviados por esta conexao — e o que o teto de 24 h conta. */
+function convitesEnviados(quantidade: number, sentAt = '2026-09-22T09:00:00.000Z') {
+  return Array.from({ length: quantidade }, (_, index) => ({
+    id: `log-${index}`,
+    organization_id: ORG,
+    owner_id: OWNER,
+    invitee_email: `ja${index}@exemplo.com`,
+    source_activity_id: `ja-${index}`,
+    sent_at: sentAt,
+  }));
 }
 
 beforeEach(() => {
@@ -255,11 +273,8 @@ describe('createDueGoogleCalendarEvents — cria o evento no Google (Fatia 3)', 
   });
 
   it('ANTI-ABUSO: passando de 20 convites em 24 h, o evento sai SEM o convidado do lead + aviso alto', async () => {
-    const jaConvidados = Array.from({ length: GOOGLE_MEETING_DAILY_INVITE_LIMIT }, (_, index) => row({
-      activity_id: `ja-${index}`, status: 'created', google_event_id: `ev-ja-${index}`,
-      meet_link: MEET, next_retry_at: null, invited_at: '2026-09-22T09:00:00.000Z',
-    }));
-    const fake = seed([...jaConvidados, row()], ['junioralbino28@gmail.com']);
+    const fake = seed([row()], ['junioralbino28@gmail.com'],
+      convitesEnviados(GOOGLE_MEETING_DAILY_INVITE_LIMIT));
 
     await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
 
@@ -273,10 +288,7 @@ describe('createDueGoogleCalendarEvents — cria o evento no Google (Fatia 3)', 
   });
 
   it('convites antigos (fora da janela de 24 h) nao contam para o teto', async () => {
-    const antigos = Array.from({ length: GOOGLE_MEETING_DAILY_INVITE_LIMIT }, (_, index) => row({
-      activity_id: `ja-${index}`, status: 'created', google_event_id: `ev-ja-${index}`,
-      meet_link: MEET, next_retry_at: null, invited_at: '2026-09-20T09:00:00.000Z',
-    }));
+    const antigos = convitesEnviados(GOOGLE_MEETING_DAILY_INVITE_LIMIT, '2026-09-20T09:00:00.000Z');
     const fake = seed([...antigos, row()]);
 
     await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
@@ -476,15 +488,7 @@ describe('idempotencia do events.insert (retentativa nao duplica evento nem conv
 
 describe('teto de convites tambem na remarcacao (achado bloqueante de seguranca)', () => {
   function comConvitesGastos(quantidade: number, linha: Record<string, unknown>) {
-    const gastos = Array.from({ length: quantidade }, (_, index) => row({
-      activity_id: `gasto-${index}`,
-      status: 'created',
-      google_event_id: `ev-gasto-${index}`,
-      invited_at: NOW,
-      invited_email: `gasto${index}@exemplo.com`,
-      next_retry_at: null,
-    }));
-    return seed([...gastos, linha]);
+    return seed([linha], undefined, convitesEnviados(quantidade, NOW));
   }
 
   it('endereco NOVO na remarcacao consome o teto e vira aviso de auditoria', async () => {
@@ -661,5 +665,149 @@ describe('reconectar o Google devolve as reunioes futuras para a fila', () => {
     expect(porId.futura).toMatchObject({ status: 'pending', attempts: 0, next_retry_at: NOW });
     expect(porId.passada).toMatchObject({ status: 'failed', next_retry_at: null });
     expect(porId['ja-criada']).toMatchObject({ status: 'created' });
+  });
+});
+
+describe('o teto conta CONVITES, nao linhas (achado alto da revisao dos consertos)', () => {
+  /**
+   * A remarcacao reusa a MESMA linha da fila. Contando linhas, o contador de uma conversa nunca
+   * passava de 1: o lead informava um e-mail, remarcava, trocava o e-mail, remarcava de novo, e
+   * cada volta disparava um convite real da conta Google da empresa para um endereco novo.
+   */
+  function remarcandoCom(email: string, jaConvidado: string | null, log: Record<string, unknown>[]) {
+    return createFakeSupabaseAdmin({
+      [GOOGLE_MEETING_EVENT_TABLE]: [row({
+        status: 'update_pending',
+        google_event_id: 'ev-1',
+        meet_link: MEET,
+        invitee_email: email,
+        invited_at: jaConvidado ? '2026-09-22T10:00:00.000Z' : null,
+        invited_email: jaConvidado,
+      })],
+      [GOOGLE_INVITE_LOG_TABLE]: log,
+      channel_connections: [connectionConfig()],
+    });
+  }
+
+  function logCom(quantidade: number) {
+    return Array.from({ length: quantidade }, (_, index) => ({
+      id: `log-${index}`,
+      organization_id: ORG,
+      owner_id: OWNER,
+      invitee_email: `convidado${index}@exemplo.com`,
+      source_activity_id: ACTIVITY,
+      sent_at: '2026-09-22T09:00:00.000Z',
+    }));
+  }
+
+  it('cada convite novo vira uma linha no log, com o endereco', async () => {
+    const fake = remarcandoCom('primeiro@exemplo.com', null, []);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    const log = fake.rowsOf(GOOGLE_INVITE_LOG_TABLE);
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      organization_id: ORG, owner_id: OWNER, invitee_email: 'primeiro@exemplo.com',
+    });
+  });
+
+  it('MESMA conversa trocando de e-mail encosta no teto (era o buraco: contava 1 para sempre)', async () => {
+    // 20 convites ja saíram desta conexao — todos a partir da MESMA activity.
+    const fake = remarcandoCom('vigesimo-primeiro@exemplo.com', null, logCom(GOOGLE_MEETING_DAILY_INVITE_LIMIT));
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(patchEventMock.mock.calls[0][0].event.attendeeEmails).toEqual([]);
+    expect(fake.rowsOf(GOOGLE_INVITE_LOG_TABLE)).toHaveLength(GOOGLE_MEETING_DAILY_INVITE_LIMIT);
+    const aviso = fake.rowsOf('system_notifications').find((linha) => String(linha.title).includes('limite do dia'));
+    expect(aviso).toMatchObject({ severity: 'high' });
+  });
+
+  it('convite de ontem nao conta: a janela e de 24 h', async () => {
+    const antigos = logCom(GOOGLE_MEETING_DAILY_INVITE_LIMIT)
+      .map((linha) => ({ ...linha, sent_at: '2026-09-20T09:00:00.000Z' }));
+    const fake = remarcandoCom('novo@exemplo.com', null, antigos);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(patchEventMock.mock.calls[0][0].event.attendeeEmails).toEqual(['novo@exemplo.com']);
+  });
+
+  it('avisar o MESMO convidado nao gasta o teto nem escreve no log', async () => {
+    const fake = remarcandoCom('marina@exemplo.com', 'marina@exemplo.com', logCom(3));
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(patchEventMock.mock.calls[0][0].event.attendeeEmails).toEqual(['marina@exemplo.com']);
+    expect(fake.rowsOf(GOOGLE_INVITE_LOG_TABLE)).toHaveLength(3);
+  });
+});
+
+describe('reconectar o Google NAO ressuscita recusa do anti-abuso', () => {
+  it('linha `blocked` fica onde esta; so a `failed` volta para a fila', async () => {
+    const fake = seed([
+      row({ activity_id: 'falhou-no-google', status: 'failed', google_event_id: null, next_retry_at: null }),
+      row({
+        activity_id: 'barrada-pelo-limite',
+        status: 'blocked',
+        google_event_id: null,
+        next_retry_at: null,
+        last_error: 'Limite anti-abuso: ja existe um evento ativo no Google para este contato.',
+      }),
+    ]);
+
+    const voltaram = await requeueFailedGoogleMeetingEvents({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, now: NOW,
+    });
+
+    expect(voltaram).toBe(1);
+    const porId = Object.fromEntries(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE).map((linha) => [linha.activity_id, linha]));
+    expect(porId['falhou-no-google']).toMatchObject({ status: 'pending' });
+    expect(porId['barrada-pelo-limite']).toMatchObject({ status: 'blocked', next_retry_at: null });
+  });
+
+  it('o tick nao processa linha `blocked`', async () => {
+    const fake = seed([row({ status: 'blocked', next_retry_at: NOW, google_event_id: null })]);
+
+    const summary = await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(summary.due).toBe(0);
+    expect(insertEventMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('409 que devolve evento CANCELADO nao e adotado', () => {
+  it('trata como falha em vez de gravar `created` atras de um link que nunca vem', async () => {
+    insertEventMock.mockRejectedValueOnce(new GoogleApiError('duplicate', 409, null));
+    getEventMock.mockResolvedValue({ id: 'ev-1', status: 'cancelled', hangoutLink: null, conferenceStatus: null });
+    const fake = seed([row({ attempts: 1 })]);
+
+    const summary = await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(summary.failed).toBe(1);
+    const linha = fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0];
+    expect(linha.status).not.toBe('created');
+    expect(String(linha.last_error)).toContain('apagado na agenda');
+  });
+});
+
+describe('orfao que nao pode ser apagado vira aviso no sino', () => {
+  it('sem conexao, avisa com severidade alta em vez de so gravar last_error', async () => {
+    getGoogleCalendarAccessTokenMock.mockResolvedValue(null);
+    const fake = createFakeSupabaseAdmin({
+      [GOOGLE_ORPHAN_EVENT_TABLE]: [{
+        id: 'orfao-1', organization_id: ORG, owner_id: OWNER, google_calendar_id: 'primary',
+        google_event_id: 'ev-1', source_activity_id: ACTIVITY, attempts: 0, next_retry_at: NOW,
+      }],
+    });
+
+    await deleteOrphanGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    const aviso = fake.rowsOf('system_notifications')[0];
+    expect(aviso).toMatchObject({ severity: 'high', organization_id: ORG });
+    expect(String(aviso.title)).toContain('continua na agenda');
+    // Aviso de conexao leva para a tela de canais, nao para uma conversa que nao existe.
+    expect(String(aviso.link)).toContain('/channels');
   });
 });

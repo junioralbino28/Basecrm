@@ -14,7 +14,17 @@ export type GoogleMeetingEventStatus =
   | 'update_pending'
   | 'cancel_pending'
   | 'cancelled'
-  | 'failed';
+  | 'failed'
+  /**
+   * Recusada pelo anti-abuso (1 evento futuro por contato). E um estado SEPARADO de `failed`
+   * de proposito: `failed` significa "o Google falhou" e volta para a fila quando o responsavel
+   * reconecta. Se as duas coisas dividissem o mesmo estado, reconectar o Google ressuscitaria a
+   * recusa de politica e o limite deixaria de valer (achado alto da revisao dos consertos).
+   */
+  | 'blocked';
+
+/** Tabela de auditoria dos convites de fato enviados — e o que o teto de 24 h conta. */
+export const GOOGLE_INVITE_LOG_TABLE = 'google_calendar_invite_log';
 
 /** Estados em que a reuniao ainda "vale" (conta para o limite de 1 evento ativo por contato). */
 export const ACTIVE_GOOGLE_MEETING_STATUSES: GoogleMeetingEventStatus[] = [
@@ -211,7 +221,7 @@ export async function enqueueGoogleCalendarMeetingEvent(input: {
           contactName,
           inviteeEmail,
           calendarId: connection.googleCalendarId,
-          status: 'failed',
+          status: 'blocked',
           lastError: 'Limite anti-abuso: ja existe um evento ativo no Google para este contato.',
           nextRetryAt: null,
         });

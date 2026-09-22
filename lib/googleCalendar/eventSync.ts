@@ -22,6 +22,7 @@ import {
 } from './googleApiClient';
 import {
   buildGoogleMeetingEventTitle,
+  GOOGLE_INVITE_LOG_TABLE,
   googleMeetingEventIdFor,
   googleMeetingRetryDelayMs,
   GOOGLE_MEETING_EVENT_DESCRIPTION,
@@ -168,6 +169,8 @@ async function notify(input: {
   title: string;
   message: string;
   severity: 'low' | 'medium' | 'high';
+  /** `connection` = aviso do responsavel/conexao, nao de uma conversa (muda o link do sino). */
+  scope?: 'conversation' | 'connection';
   now: string;
 }): Promise<void> {
   const id = buildConversationScopedEventId({
@@ -181,7 +184,11 @@ async function notify(input: {
     type: 'SYSTEM_ALERT',
     title: input.title,
     message: input.message.slice(0, 600),
-    link: `/platform/tenants/${input.organizationId}/conversations?thread=${encodeURIComponent(input.threadId)}`,
+    // Aviso de conversa leva para a conversa; aviso de conexao (reconectar, orfao) leva para a
+    // tela de canais, que e onde a acao acontece — antes apontava para uma conversa inexistente.
+    link: input.scope === 'connection'
+      ? `/platform/tenants/${input.organizationId}/channels`
+      : `/platform/tenants/${input.organizationId}/conversations?thread=${encodeURIComponent(input.threadId)}`,
     severity: input.severity,
     read_at: null,
     created_at: input.now,
@@ -208,6 +215,7 @@ async function notifyReconnectRequired(input: {
     organizationId: input.organizationId,
     threadId: input.ownerId,
     eventKey: `google-reconnect:${dayBucket}`,
+    scope: 'connection',
     title: 'Google Agenda precisa ser reconectado',
     message: 'O acesso do Google expirou ou foi revogado. As reuniões confirmadas não estão indo '
       + 'para a sua agenda nem gerando link do Meet. Reconecte na tela da conexão.',
@@ -216,6 +224,15 @@ async function notifyReconnectRequired(input: {
   });
 }
 
+/**
+ * Quantos convites de fato SAIRAM desta conexao nas ultimas 24 h.
+ *
+ * Conta linhas do LOG de convites, nao linhas da fila de reunioes. A primeira versao contava a
+ * fila, e como a remarcacao reusa a MESMA linha (activity_id e a chave), o contador de uma
+ * conversa nunca passava de 1: dava para informar um e-mail, remarcar, trocar o e-mail, remarcar
+ * de novo, e cada volta disparava um convite real da conta Google da empresa para um endereco
+ * novo sem nunca encostar no teto (achado alto da revisao dos consertos).
+ */
 async function countRecentInvites(input: {
   admin: AdminClient;
   organizationId: string;
@@ -224,13 +241,38 @@ async function countRecentInvites(input: {
 }): Promise<number> {
   const since = new Date(new Date(input.now).getTime() - INVITE_WINDOW_MS).toISOString();
   const result = await input.admin
-    .from(GOOGLE_MEETING_EVENT_TABLE)
-    .select('activity_id')
+    .from(GOOGLE_INVITE_LOG_TABLE)
+    .select('id')
     .eq('organization_id', input.organizationId)
     .eq('owner_id', input.ownerId)
-    .gte('invited_at', since);
+    .gte('sent_at', since);
   if (result.error) throw new Error(result.error.message);
   return (result.data || []).length;
+}
+
+/** Registra o convite que acabou de sair. E o que o teto conta e o historico de auditoria. */
+async function recordInviteSent(input: {
+  admin: AdminClient;
+  row: MeetingEventRow;
+  email: string;
+  now: string;
+}): Promise<void> {
+  const inserted = await input.admin.from(GOOGLE_INVITE_LOG_TABLE).insert({
+    organization_id: input.row.organization_id,
+    owner_id: input.row.owner_id,
+    invitee_email: input.email,
+    source_activity_id: input.row.activity_id,
+    sent_at: input.now,
+  });
+  if (inserted.error) {
+    // Nao desfaz nada: o convite ja saiu. Mas sem o registro o teto perde a conta, entao o
+    // aviso precisa aparecer em algum lugar.
+    console.warn('[GoogleCalendar] Invite sent but not recorded in the log', {
+      organizationId: input.row.organization_id,
+      activityId: input.row.activity_id,
+      error: inserted.error.message,
+    });
+  }
 }
 
 /**
@@ -432,6 +474,7 @@ async function notifyInviteOutcome(input: {
 }): Promise<void> {
   const { admin, row, decision, now } = input;
   if (decision.isNewInvite && decision.attendeeEmail) {
+    await recordInviteSent({ admin, row, email: decision.attendeeEmail, now });
     await notify({
       admin,
       organizationId: row.organization_id,
@@ -499,6 +542,14 @@ async function insertEvent(input: {
       calendarId: row.google_calendar_id,
       eventId: googleMeetingEventIdFor(row.activity_id),
     });
+    // O Google guarda o id por um tempo DEPOIS de o evento ser apagado: adotar um evento
+    // cancelado gravaria a linha como `created` e ela passaria 5 releituras atras de um link
+    // que nunca vem, terminando com um diagnostico errado.
+    if (event.status === 'cancelled') {
+      throw new GoogleApiError(
+        'O evento foi apagado na agenda e o Google ainda reserva o mesmo id.', 409, 'event_cancelled',
+      );
+    }
   }
 
   await persistEvent({
@@ -872,7 +923,11 @@ export async function deleteOrphanGoogleCalendarEvents(input: {
   return summary;
 }
 
-/** Para de insistir, mas mantem a linha: e o unico registro de que o evento pode ter sobrado. */
+/**
+ * Para de insistir e AVISA. A tabela de orfaos nao tem tela nenhuma: sem o aviso no sino, o
+ * evento continuaria na agenda do responsavel com o lead convidado e a unica prova seria uma
+ * linha que ninguem le (achado medio da revisao dos consertos).
+ */
 async function stopOrphanRetrying(input: {
   admin: AdminClient;
   row: OrphanRow;
@@ -880,6 +935,20 @@ async function stopOrphanRetrying(input: {
   now: string;
   message: string;
 }): Promise<void> {
+  // `threadId` aqui e so o que compoe o id do aviso; o link leva para a tela de conexoes.
+  await notify({
+    admin: input.admin,
+    organizationId: input.row.organization_id,
+    threadId: input.row.owner_id,
+    eventKey: `google-orphan:${input.row.google_event_id}`,
+    scope: 'connection',
+    title: 'Evento continua na agenda do Google',
+    message: 'Uma reunião foi apagada no CRM, mas o evento não saiu da agenda do Google: '
+      + `${input.message} Apague na mão se ele ainda estiver lá.`,
+    severity: 'high',
+    now: input.now,
+  });
+
   const updated = await input.admin
     .from(GOOGLE_ORPHAN_EVENT_TABLE)
     .update({

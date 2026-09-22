@@ -231,9 +231,10 @@ describe('enqueueGoogleCalendarMeetingEvent — grava a fila sem tocar na rede',
     expect(result).toEqual({ enqueued: false, reason: 'contact_limit' });
     const novas = fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)
       .filter((row) => row.activity_id === '77777777-7777-4777-8777-777777777777');
-    // A linha entra travada em `failed` de proposito: assim o lembrete escala 15 min antes.
+    // A linha entra travada em `blocked` de proposito: assim o lembrete escala 15 min antes, e
+    // o estado separado impede que reconectar o Google ressuscite a recusa de politica.
     expect(novas).toHaveLength(1);
-    expect(novas[0]).toMatchObject({ status: 'failed', next_retry_at: null });
+    expect(novas[0]).toMatchObject({ status: 'blocked', next_retry_at: null });
     expect(String(novas[0].last_error)).toContain('Limite anti-abuso');
   });
 

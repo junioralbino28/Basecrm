@@ -108,8 +108,8 @@ export function ConversationHandoffCard({
             <>
               <p className="mt-1 text-xs font-semibold text-rose-300">
                 {cancelledAt
-                  ? `Reunião cancelada em ${cancelledAt}. O horário foi liberado e o evento saiu da agenda.`
-                  : 'Reunião cancelada. O horário foi liberado e o evento saiu da agenda.'}
+                  ? `Reunião cancelada em ${cancelledAt}. O horário foi liberado e o evento sai da agenda em alguns minutos.`
+                  : 'Reunião cancelada. O horário foi liberado e o evento sai da agenda em alguns minutos.'}
               </p>
               <p className="mt-1 text-xs text-slate-400">
                 O texto acima é o resumo do pedido original, mantido só como histórico.

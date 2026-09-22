@@ -121,15 +121,21 @@ describe('sendDueMeetingLinkReminders — o link sai 15 min antes (Fatia 4)', ()
     expect(sendEvolutionTextMessageMock).not.toHaveBeenCalled();
   });
 
-  it('JANELA: reuniao daqui a 40 min ainda nao entra; passou do horario tambem nao', async () => {
-    const fake = seed([
-      row({ activity_id: 'longe', scheduled_at: '2026-09-23T17:30:00.000Z' }),
-      row({ activity_id: 'passou', scheduled_at: '2026-09-23T16:40:00.000Z' }),
-    ]);
+  it('JANELA: reuniao daqui a 40 min ainda nao entra', async () => {
+    const fake = seed([row({ activity_id: 'longe', scheduled_at: '2026-09-23T17:30:00.000Z' })]);
 
     const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
 
     expect(summary.due).toBe(0);
+    expect(sendEvolutionTextMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('JANELA: reuniao que ja comecou entra SO para virar aviso, nunca para mandar link', async () => {
+    const fake = seed([row({ activity_id: 'passou', scheduled_at: '2026-09-23T16:40:00.000Z' })]);
+
+    const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
+
+    expect(summary).toMatchObject({ due: 1, sent: 0, escalated: 1 });
     expect(sendEvolutionTextMessageMock).not.toHaveBeenCalled();
   });
 
@@ -328,4 +334,53 @@ describe('sendDueMeetingLinkReminders — o link sai 15 min antes (Fatia 4)', ()
     expect(avisos).toHaveLength(1);
     expect(avisos[0]).toMatchObject({ severity: 'high' });
   });
+});
+
+describe('reuniao que passou da hora nao some em silencio', () => {
+  it('horario ja passou e nada saiu: vira aviso no sino, sem mandar link', async () => {
+    // Antes a consulta exigia `scheduled_at >= now`: bastava o lote estourar o prazo no unico
+    // ciclo em que a linha podia escalar para ela sair da janela para sempre.
+    const fake = seed([row({ scheduled_at: '2026-09-23T16:47:00.000Z', meet_link: null })]);
+
+    const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
+
+    expect(summary).toMatchObject({ due: 1, sent: 0, escalated: 1 });
+    expect(sendEvolutionTextMessageMock).not.toHaveBeenCalled();
+    expect(String(fake.rowsOf('system_notifications')[0].message)).toContain('começou sem o link');
+  });
+
+  it('reuniao que passou da hora COM link tambem nao recebe mensagem atrasada', async () => {
+    const fake = seed([row({ scheduled_at: '2026-09-23T16:45:00.000Z' })]);
+
+    const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
+
+    expect(summary.sent).toBe(0);
+    expect(sendEvolutionTextMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('reuniao de uma hora e meia atras ja saiu da janela de vez', async () => {
+    const fake = seed([row({ scheduled_at: '2026-09-23T15:20:00.000Z' })]);
+
+    const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
+
+    expect(summary.due).toBe(0);
+  });
+});
+
+describe('envio do lembrete tem tempo limite proprio', () => {
+  it('Evolution pendurada nao segura o tick: vira falha com aviso, nao espera infinita', async () => {
+    sendEvolutionTextMessageMock.mockImplementation((params: { signal?: AbortSignal }) => new Promise((_, reject) => {
+      // Imita o provedor que nunca responde: so o abort do tempo limite resolve isto.
+      params.signal?.addEventListener('abort', () => reject(new Error('abortado')));
+    }));
+    const fake = seed([row()]);
+
+    const antes = Date.now();
+    const summary = await sendDueMeetingLinkReminders({ admin: fake as never, now: NOW });
+    const gastou = Date.now() - antes;
+
+    expect(summary.failed).toBe(1);
+    expect(gastou).toBeLessThan(20_000);
+    expect(fake.rowsOf('system_notifications')[0]).toMatchObject({ severity: 'high' });
+  }, 30_000);
 });
