@@ -9,7 +9,12 @@ export const CALENDAR_DAYS: Array<{ key: CalendarWeekday; label: string }> = [
   { key: 'friday', label: 'Sexta' },
 ];
 
-export const FIELD_CLASS = 'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 dark:border-slate-600 dark:bg-[#111b21] dark:text-slate-100';
+/**
+ * `min-w-0` nao e enfeite: campo de formulario tem largura MINIMA natural (o `size` padrao do
+ * HTML, ~224 px medidos), e `w-full` nao vence isso. Sem ele, no celular o campo empurrava o
+ * cartao inteiro e a tela de conexoes ganhava 66 px de rolagem lateral (medido na previa a 390 px).
+ */
+export const FIELD_CLASS = 'min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 dark:border-slate-600 dark:bg-[#111b21] dark:text-slate-100';
 
 type CalendarAssignee = { id: string; display_name: string };
 
