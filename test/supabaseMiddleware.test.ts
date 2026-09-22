@@ -124,6 +124,23 @@ describe('updateSession (Proxy/Supabase)', () => {
     expect(res).toMatchObject({ kind: 'next' })
   })
 
+  it('permite /privacidade SEM sessão — o Google abre a política sem login', async () => {
+    const req = makeRequest('/privacidade')
+
+    const res = await updateSession(req)
+
+    expect(mocks.nextResponseMock.redirect).not.toHaveBeenCalled()
+    expect(res).toMatchObject({ kind: 'next' })
+  })
+
+  it('NÃO libera caminho que só começa com /privacidade', async () => {
+    const req = makeRequest('/privacidade-interna')
+
+    await updateSession(req)
+
+    expect(mocks.nextResponseMock.redirect).toHaveBeenCalled()
+  })
+
   it('NÃO expulsa pro dashboard quem já tem sessão em /redefinir-senha', async () => {
     // O próprio link cria uma sessão de recuperação; mandar pro dashboard
     // tiraria a pessoa da tela antes de ela escolher a senha nova.

@@ -49,6 +49,7 @@ import {
   type MeetingSlot,
 } from '@/lib/conversations/meetingAvailability';
 import { mapConversationCalendarBlockRow } from '@/lib/conversations/calendarBlocks';
+import { loadGoogleBusyIntervals } from '@/lib/googleCalendar/freeBusy';
 import { readInboundMediaMetadata } from '@/lib/conversations/inboundMedia';
 import {
   describeInboundMediaForAI,
@@ -206,7 +207,7 @@ function splitReplyIntoParts(replyText: string) {
   return finalParts.slice(0, 3);
 }
 
-async function loadAvailableMeetingSlots(input: {
+export async function loadAvailableMeetingSlots(input: {
   admin: AdminClient;
   organizationId: string;
   connectionId: string;
@@ -272,10 +273,21 @@ async function loadAvailableMeetingSlots(input: {
     };
   }
 
+  // Google Agenda (Fatia 2): sem conexao `connected` para o responsavel, `[]` sem nenhuma
+  // chamada de rede — nada muda pra quem nao conecta (teste de regressao byte a byte).
+  const googleBusyIntervals = await loadGoogleBusyIntervals({
+    admin: input.admin,
+    organizationId: input.organizationId,
+    ownerId: calendar.ownerId,
+    timeMin: rangeStart,
+    timeMax: rangeEnd,
+  });
+
   const availableMeetingSlots = buildMeetingSlots({
     calendar,
     now: input.now,
     busyStarts: (busyResult.data || []).map(row => String(row.date || '')).filter(Boolean),
+    busyIntervals: googleBusyIntervals,
     calendarBlocks: (blocksResult.data || []).map(mapConversationCalendarBlockRow),
     maxSlots: 200,
   });

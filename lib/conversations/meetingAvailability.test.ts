@@ -153,6 +153,72 @@ describe('meeting availability', () => {
     );
   });
 
+  it('busyIntervals (Google): evento de 3 horas bloqueia so os inicios que ele sobrepoe', () => {
+    // Monday 2026-09-21 09:00-12:00 local (America/Sao_Paulo) = 12:00/13:00/14:00 UTC.
+    // Evento 13:30-16:30 UTC: nao toca o bloco [12:00,13:00), toca [13:00,14:00) e [14:00,15:00).
+    expect(buildMeetingSlots({
+      calendar: configuredCalendar,
+      now: '2026-09-20T10:00:00.000Z',
+      busyStarts: [],
+      busyIntervals: [{ start: '2026-09-21T13:30:00.000Z', end: '2026-09-21T16:30:00.000Z' }],
+      maxSlots: 10,
+    }).map(slot => slot.startAt)).toEqual(['2026-09-21T12:00:00.000Z']);
+  });
+
+  it('busyIntervals (Google): evento de dia inteiro bloqueia todos os horarios do dia', () => {
+    expect(buildMeetingSlots({
+      calendar: configuredCalendar,
+      now: '2026-09-20T10:00:00.000Z',
+      busyStarts: [],
+      busyIntervals: [{ start: '2026-09-21T00:00:00.000Z', end: '2026-09-22T00:00:00.000Z' }],
+      maxSlots: 10,
+    })).toEqual([]);
+  });
+
+  it('busyIntervals (Google): evento de varios dias bloqueia os dias cobertos e deixa os de fora livres', () => {
+    const calendar = { ...configuredCalendar, schedulingHorizonDays: 10 };
+    // Cobre a segunda 21/09 e a terca 22/09 (sem horario configurado); a proxima segunda
+    // (28/09) fica fora do intervalo e continua livre.
+    expect(buildMeetingSlots({
+      calendar,
+      now: '2026-09-20T10:00:00.000Z',
+      busyStarts: [],
+      busyIntervals: [{ start: '2026-09-21T00:00:00.000Z', end: '2026-09-23T00:00:00.000Z' }],
+      maxSlots: 20,
+    }).map(slot => slot.startAt)).toEqual([
+      '2026-09-28T12:00:00.000Z',
+      '2026-09-28T13:00:00.000Z',
+      '2026-09-28T14:00:00.000Z',
+    ]);
+  });
+
+  it('busyIntervals (Google): intervalo que termina exatamente quando o horario comeca nao conflita (borda exata)', () => {
+    expect(buildMeetingSlots({
+      calendar: configuredCalendar,
+      now: '2026-09-20T10:00:00.000Z',
+      busyStarts: [],
+      busyIntervals: [{ start: '2026-09-19T00:00:00.000Z', end: '2026-09-21T12:00:00.000Z' }],
+      maxSlots: 10,
+    }).map(slot => slot.startAt)).toEqual([
+      '2026-09-21T12:00:00.000Z',
+      '2026-09-21T13:00:00.000Z',
+      '2026-09-21T14:00:00.000Z',
+    ]);
+  });
+
+  it('busyIntervals ausente ou vazio: comportamento byte a byte igual ao de antes (regressao)', () => {
+    const base = {
+      calendar: configuredCalendar,
+      now: '2026-09-20T10:00:00.000Z',
+      busyStarts: ['2026-09-21T13:00:00.000Z'],
+      maxSlots: 10,
+    };
+    const withoutParam = buildMeetingSlots(base).map(slot => slot.startAt);
+    const withEmptyArray = buildMeetingSlots({ ...base, busyIntervals: [] }).map(slot => slot.startAt);
+    expect(withEmptyArray).toEqual(withoutParam);
+    expect(withoutParam).toEqual(['2026-09-21T12:00:00.000Z', '2026-09-21T14:00:00.000Z']);
+  });
+
   it('encaminha pedidos de sábado para confirmação humana', () => {
     expect(isHumanConfirmationMeetingRequest({
       calendar: configuredCalendar,

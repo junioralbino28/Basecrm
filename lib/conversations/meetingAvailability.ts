@@ -71,6 +71,17 @@ export type MeetingSlot = {
   label: string;
 };
 
+/**
+ * Intervalo ocupado vindo de fora do CRM (hoje: freeBusy do Google Agenda). Diferente de
+ * `busyStarts` (pontos, sempre com janela fixa de 60 min via `isMeetingStartConflict`), um
+ * intervalo bloqueia todo horario cujo bloco `[inicio, inicio+60min)` o sobreponha — cobre
+ * evento longo, dia inteiro e evento de varios dias sem mudar a semantica de `busyStarts`.
+ */
+export type BusyInterval = {
+  start: string;
+  end: string;
+};
+
 function parseIsoTimestamp(value: string, message: string) {
   const timestamp = new Date(value).getTime();
   if (!Number.isFinite(timestamp)) throw new Error(message);
@@ -198,6 +209,8 @@ export function buildMeetingSlots(input: {
   calendar: ConversationCalendarConfig;
   now: string;
   busyStarts: string[];
+  /** Opcional e aditivo: sem ele, comportamento byte a byte igual (Google Agenda, Fatia 2). */
+  busyIntervals?: BusyInterval[];
   calendarBlocks?: ConversationCalendarBlock[];
   maxSlots?: number;
 }) {
@@ -208,6 +221,9 @@ export function buildMeetingSlots(input: {
   const earliestStart = nowTimestamp + calendar.minimumNoticeMinutes * MINUTE_MS;
   const horizonEnd = nowTimestamp + calendar.schedulingHorizonDays * DAY_MS;
   const busyStarts = input.busyStarts.filter(value => Number.isFinite(new Date(value).getTime()));
+  const busyIntervals = (input.busyIntervals || [])
+    .map(interval => ({ start: new Date(interval.start).getTime(), end: new Date(interval.end).getTime() }))
+    .filter(interval => Number.isFinite(interval.start) && Number.isFinite(interval.end) && interval.end > interval.start);
   const maxSlots = Math.max(1, Math.min(input.maxSlots ?? 200, 500));
   const calendarBlocks = input.calendarBlocks || [];
   const slots: MeetingSlot[] = [];
@@ -239,6 +255,10 @@ export function buildMeetingSlots(input: {
         const startTimestamp = start.getTime();
         if (startTimestamp < earliestStart || startTimestamp > horizonEnd) continue;
         if (busyStarts.some(existing => isMeetingStartConflict(startAt, existing))) continue;
+        // Bloco de 60 min (o mesmo espacamento entre inicios) contra o intervalo ocupado do
+        // Google: um intervalo que TERMINA exatamente quando o bloco comeca nao conflita.
+        const slotBlockEnd = startTimestamp + MEETING_START_INTERVAL_MINUTES * MINUTE_MS;
+        if (busyIntervals.some(interval => startTimestamp < interval.end && slotBlockEnd > interval.start)) continue;
         const meetingEnd = localMinutes + MEETING_TARGET_DURATION_MINUTES;
         const hasManualBlock = calendarBlocks.some((block) => {
           const applies = block.recurrence === 'once'

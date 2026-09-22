@@ -1,7 +1,7 @@
 /**
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
- * Imita só o que as rotas de conversa usam: select / eq / neq / lt / in / is / order / limit / maybeSingle / single /
+ * Imita só o que as rotas de conversa usam: select / eq / neq / lt / lte / gt / gte / in / is / order / limit / maybeSingle / single /
  * insert (uma linha ou várias) / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
@@ -144,6 +144,27 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
         filters.push((row) => {
           const current = readColumn(row, column) as string | number | null | undefined;
           return current !== null && current !== undefined && current < value;
+        });
+        return builder;
+      },
+      lte: (column: string, value: string | number) => {
+        filters.push((row) => {
+          const current = readColumn(row, column) as string | number | null | undefined;
+          return current !== null && current !== undefined && current <= value;
+        });
+        return builder;
+      },
+      gt: (column: string, value: string | number) => {
+        filters.push((row) => {
+          const current = readColumn(row, column) as string | number | null | undefined;
+          return current !== null && current !== undefined && current > value;
+        });
+        return builder;
+      },
+      gte: (column: string, value: string | number) => {
+        filters.push((row) => {
+          const current = readColumn(row, column) as string | number | null | undefined;
+          return current !== null && current !== undefined && current >= value;
         });
         return builder;
       },

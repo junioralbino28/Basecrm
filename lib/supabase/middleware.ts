@@ -95,8 +95,10 @@ export async function updateSession(request: NextRequest) {
     // (Junior, 2026-07-27: clicou no link do email e caiu no login.)
     const isRecoveryRoute = pathname.startsWith('/redefinir-senha')
     const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth')
+    // `/privacidade` e pública: o Google exige o link da política para publicar o app do
+    // Google Agenda, e o revisor do Google abre sem login.
     const isPublicRoute = pathname === '/' || pathname.startsWith('/join')
-        || isSetupRoute || isInstallRoute || isRecoveryRoute
+        || isSetupRoute || isInstallRoute || isRecoveryRoute || pathname === '/privacidade'
 
     if (!user && !isAuthRoute && !isPublicRoute) {
         const url = request.nextUrl.clone()
