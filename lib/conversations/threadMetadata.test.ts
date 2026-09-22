@@ -37,3 +37,40 @@ describe('conversation thread metadata handoff', () => {
     expect(metadata.lastHandoff).toBeNull();
   });
 });
+
+describe('vinculo com a reuniao ja confirmada', () => {
+  it('sobrevive ao handoff seguinte (que sobrescreve lastHandoff)', () => {
+    const remarcacao = buildConversationHandoff({
+      type: 'meeting_requested',
+      reason: 'Lead quer remarcar.',
+      requestedAt: '2026-09-22T14:00:00.000Z',
+      contactName: 'Marina',
+      contactPhone: '5511999990000',
+    });
+
+    const metadata = buildConversationThreadMetadataUpdate(
+      { confirmedMeetingActivityId: '44444444-4444-4444-8444-444444444444' },
+      { handoff: remarcacao },
+    );
+
+    // Sem isto, a reuniao antiga ficaria orfa no CRM e no Google (achado bloqueante).
+    expect(metadata.confirmedMeetingActivityId).toBe('44444444-4444-4444-8444-444444444444');
+    expect(metadata.lastHandoff).toEqual(remarcacao);
+  });
+
+  it('`null` explicito limpa o vinculo (cancelamento)', () => {
+    const metadata = buildConversationThreadMetadataUpdate(
+      { confirmedMeetingActivityId: '44444444-4444-4444-8444-444444444444' },
+      { confirmedMeetingActivityId: null },
+    );
+    expect(metadata.confirmedMeetingActivityId).toBeNull();
+  });
+
+  it('le o vinculo de metadata existente e ignora lixo', () => {
+    expect(readConversationThreadMetadata({
+      confirmedMeetingActivityId: '44444444-4444-4444-8444-444444444444',
+    }).confirmedMeetingActivityId).toBe('44444444-4444-4444-8444-444444444444');
+    expect(readConversationThreadMetadata({ confirmedMeetingActivityId: 42 })
+      .confirmedMeetingActivityId).toBeNull();
+  });
+});

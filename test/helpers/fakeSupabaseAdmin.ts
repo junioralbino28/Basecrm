@@ -17,6 +17,8 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
 
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const rpcErrors: Record<string, string> = {};
+  /** Falhas combinadas por (tabela, operacao) — para testar o que o codigo faz quando o banco recusa. */
+  const forcedErrors: Record<string, string> = {};
   let sequence = 0;
 
   const rowsOf = (table: string) => (tables[table] ??= []);
@@ -41,6 +43,9 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
     let conflictColumn = 'id';
 
     function run(): Promise<Result> {
+      const forced = forcedErrors[`${table}:${operation}`];
+      if (forced) return Promise.resolve({ data: [], error: { message: forced } });
+
       if (operation === 'upsert' && payload) {
         const value = payload;
         const existing = rowsOf(table).find((row) => row[conflictColumn] === value[conflictColumn]);
@@ -205,5 +210,10 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
     return Promise.resolve(message ? { data: null, error: { message } } : { data: null, error: null });
   }
 
-  return { from, rpc, tables, rowsOf, rpcCalls, rpcErrors };
+  /** Faz a proxima (e as seguintes) chamadas daquela tabela/operacao devolverem erro. */
+  function failOn(table: string, operation: 'select' | 'insert' | 'update' | 'upsert' | 'delete', message: string) {
+    forcedErrors[`${table}:${operation}`] = message;
+  }
+
+  return { from, rpc, tables, rowsOf, rpcCalls, rpcErrors, failOn };
 }

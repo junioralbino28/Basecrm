@@ -25,7 +25,10 @@ import {
 } from '@/lib/conversations/closingReply';
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
 import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
-import { buildConversationThreadMetadataUpdate } from '@/lib/conversations/threadMetadata';
+import {
+  buildConversationThreadMetadataUpdate,
+  readConversationThreadMetadata,
+} from '@/lib/conversations/threadMetadata';
 import { buildIdleNudgeClearedMetadata } from '@/lib/conversations/idleNudge';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import {
@@ -50,6 +53,7 @@ import {
 } from '@/lib/conversations/meetingAvailability';
 import { mapConversationCalendarBlockRow } from '@/lib/conversations/calendarBlocks';
 import { loadGoogleBusyIntervals } from '@/lib/googleCalendar/freeBusy';
+import { enqueueGoogleCalendarMeetingEvent } from '@/lib/googleCalendar/meetingEventQueue';
 import { readInboundMediaMetadata } from '@/lib/conversations/inboundMedia';
 import {
   describeInboundMediaForAI,
@@ -555,6 +559,11 @@ async function reserveConfirmedMeeting(input: {
   activity: NonNullable<ReturnType<typeof buildConversationMeetingActivity>>;
   connectionId: string;
   timezone: string;
+  /**
+   * Remarcacao da MESMA reuniao (a conversa ja tinha uma confirmada): atualiza a activity
+   * existente em vez de criar outra, para o evento do Google nao ficar orfao.
+   */
+  allowUpdate?: boolean;
 }) {
   const { admin, activity, connectionId, timezone } = input;
   const result = await admin.rpc('reserve_conversation_meeting', {
@@ -569,7 +578,7 @@ async function reserveConfirmedMeeting(input: {
     p_date: activity.date,
     p_created_at: activity.created_at,
     p_timezone: timezone,
-    p_allow_update: false,
+    p_allow_update: input.allowUpdate === true,
   });
   if (result.error) {
     console.warn('[Conversation AI] Failed to reserve confirmed meeting', {
@@ -680,12 +689,27 @@ export async function executeConversationAIReply(params: {
   let effectiveHandoffType = closingReply ? null : payload.handoffType ?? null;
   let effectiveScheduleAt = closingReply ? null : payload.requestedScheduleAt ?? null;
   let shouldHandoff = !closingReply && Boolean(payload.shouldHandoff || effectiveHandoffType);
+
+  // Reuniao ja confirmada nesta conversa. Quando o lead volta para remarcar, a IA abre um handoff
+  // NOVO (eventId novo) e a referencia a reuniao antiga se perdia: a activity ficava ocupando o
+  // horario para sempre e o evento do Google seguia vivo, com o lembrete saindo na hora errada
+  // (achado bloqueante da critica de operacao, 22/09). Reusando a MESMA activity, remarcar
+  // atualiza o CRM e o Google em vez de duplicar.
+  const previousMeetingActivityId = await resolveReusableMeetingActivityId({
+    admin,
+    organizationId: activeConnection.organization_id,
+    activityId: readConversationThreadMetadata(thread.metadata).confirmedMeetingActivityId ?? null,
+    now,
+  });
+  const isMeetingHandoff = effectiveHandoffType === 'meeting_requested' || effectiveHandoffType === 'meeting_confirmed';
   const handoffEventId = shouldHandoff
-    ? buildConversationScopedEventId({
-        organizationId: activeConnection.organization_id,
-        threadId: payload.threadId,
-        eventId: payload.notificationEventId || randomUUID(),
-      })
+    ? (isMeetingHandoff && previousMeetingActivityId
+        ? previousMeetingActivityId
+        : buildConversationScopedEventId({
+            organizationId: activeConnection.organization_id,
+            threadId: payload.threadId,
+            eventId: payload.notificationEventId || randomUUID(),
+          }))
     : null;
   const makeHandoff = (): ConversationHandoff | null => shouldHandoff
     ? buildConversationHandoff({
@@ -702,6 +726,14 @@ export async function executeConversationAIReply(params: {
     : null;
   let handoff = makeHandoff();
   let meetingWasReserved = false;
+  // Preenchido so quando a reserva do CRM deu certo; e o que amarra a conversa a reuniao e o que
+  // o passo do tick usa para criar/atualizar o evento no Google.
+  let confirmedMeeting: {
+    activityId: string;
+    ownerId: string | null;
+    timezone: string;
+    scheduledAt: string;
+  } | null = null;
 
   if (handoff?.type === 'meeting_confirmed') {
     const latestAvailability = await loadAvailableMeetingSlots({
@@ -735,8 +767,19 @@ export async function executeConversationAIReply(params: {
         activity: confirmedActivity,
         connectionId: activeConnection.id,
         timezone: latestAvailability.calendar!.timezone,
+        // So quando e a MESMA reuniao de antes (remarcacao): reserva nova continua sem update.
+        allowUpdate: Boolean(previousMeetingActivityId) && confirmedActivity?.id === previousMeetingActivityId,
       }),
     );
+
+    if (meetingWasReserved && confirmedActivity) {
+      confirmedMeeting = {
+        activityId: confirmedActivity.id,
+        ownerId: latestAvailability.calendar!.ownerId,
+        timezone: latestAvailability.calendar!.timezone,
+        scheduledAt: confirmedActivity.date,
+      };
+    }
 
     if (!meetingWasReserved) {
       effectiveReplyText = 'Esse horario acabou de ficar indisponivel ou a agenda nao respondeu. Registrei sua preferencia para continuarmos com voce.';
@@ -890,6 +933,9 @@ export async function executeConversationAIReply(params: {
           handoffRequestedAt: requiresHumanAttention ? now : null,
           handoffReason: requiresHumanAttention ? handoff?.reason ?? failureReason ?? 'human_handoff' : null,
           handoff,
+          // Sobrevive ao proximo handoff (que sobrescreve `lastHandoff`): e por ele que uma
+          // remarcacao futura acha a reuniao antiga em vez de deixa-la orfa.
+          confirmedMeetingActivityId: confirmedMeeting?.activityId,
           queueAssignedUserId: shouldHandoff ? thread.assigned_user_id ?? null : null,
           provider: 'evolution',
         }),
@@ -915,6 +961,21 @@ export async function executeConversationAIReply(params: {
 
   if (threadUpdate.error) throw new Error(threadUpdate.error.message);
   const threadStateChanged = Array.isArray(threadUpdate.data) && threadUpdate.data.length === 0;
+
+  // O vinculo com a reuniao e FATO CONSUMADO (a activity ja esta reservada) — nao pode depender
+  // de quem estava atendendo durante os segundos do envio. Quando o update condicional acima
+  // casa zero linhas, a metadata inteira e descartada junto com o vinculo, e a remarcacao
+  // seguinte criaria uma reuniao nova deixando a antiga ocupando o horario e o evento vivo no
+  // Google (achado alto da revisao de correcao). Aqui ele e gravado sozinho, sem condicao.
+  if (threadStateChanged && confirmedMeeting) {
+    await persistConfirmedMeetingLink({
+      admin,
+      organizationId: activeConnection.organization_id,
+      threadId: payload.threadId,
+      activityId: confirmedMeeting.activityId,
+      now,
+    });
+  }
   if (threadStateChanged) {
     console.warn(closingReply
       ? '[Conversation AI] Closing reply sent but the thread state changed meanwhile'
@@ -996,6 +1057,25 @@ export async function executeConversationAIReply(params: {
     }
   }
 
+  // Google Agenda (Fatia 3): so enfileira a linha `pending`, e so se o responsavel da agenda
+  // tiver conexao `connected`. ZERO rede aqui — `events.insert` acontece no relogio de 5 min,
+  // depois de a resposta ja ter saido para o lead.
+  if (confirmedMeeting) {
+    await enqueueGoogleCalendarMeetingEvent({
+      admin,
+      organizationId: activeConnection.organization_id,
+      threadId: payload.threadId,
+      activityId: confirmedMeeting.activityId,
+      channelConnectionId: activeConnection.id,
+      ownerId: confirmedMeeting.ownerId,
+      contactId: thread.contact_id,
+      contactName: thread.contact_name,
+      scheduledAt: confirmedMeeting.scheduledAt,
+      timezone: confirmedMeeting.timezone,
+      now,
+    });
+  }
+
   if (requiresHumanAttention) {
     const paused = await admin.rpc('pause_automation_enrollments_for_thread', {
       p_thread_id: payload.threadId,
@@ -1041,4 +1121,91 @@ export async function executeConversationAIReply(params: {
     // Se o estado mudou durante o envio, quem chama (ex.: agendar a cutucada) ve o status de verdade.
     status: threadStateChanged ? threadItem?.status ?? nextStatus : nextStatus,
   };
+}
+
+/**
+ * Vinculo com a reuniao confirmada, gravado sozinho e SEM condicao de estado.
+ *
+ * Le a metadata fresca e reescreve so este campo (o merge de
+ * `buildConversationThreadMetadataUpdate` preserva o resto). Melhor esforco: perder o vinculo e
+ * pior do que qualquer corrida aqui — sem ele a remarcacao duplica a reuniao e deixa o evento
+ * antigo vivo no Google.
+ */
+export async function persistConfirmedMeetingLink(input: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+  threadId: string;
+  activityId: string;
+  now: string;
+}): Promise<void> {
+  try {
+    const fresh = await input.admin
+      .from('conversation_threads')
+      .select('metadata')
+      .eq('id', input.threadId)
+      .eq('organization_id', input.organizationId)
+      .maybeSingle();
+    if (fresh.error) throw new Error(fresh.error.message);
+    if (!fresh.data) return;
+
+    const updated = await input.admin
+      .from('conversation_threads')
+      .update({
+        updated_at: input.now,
+        metadata: buildConversationThreadMetadataUpdate(
+          (fresh.data as { metadata?: Record<string, unknown> | null }).metadata,
+          { confirmedMeetingActivityId: input.activityId },
+        ),
+      })
+      .eq('id', input.threadId)
+      .eq('organization_id', input.organizationId);
+    if (updated.error) throw new Error(updated.error.message);
+  } catch (error) {
+    console.warn('[Conversation AI] Failed to persist the confirmed meeting link', {
+      organizationId: input.organizationId,
+      threadId: input.threadId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * So reusa a activity da reuniao anterior se ela AINDA VALE: existe, nao foi concluida nem
+ * apagada e esta no futuro.
+ *
+ * O vinculo nunca expirava (achado medio da revisao de correcao): o lead que voltasse semanas
+ * depois para marcar OUTRA reuniao reescrevia a activity historica — titulo, descricao, data e
+ * `completed` — e o `events.patch` mexia no evento da reuniao que ja tinha acontecido. O
+ * historico da primeira sumia do CRM e da agenda. Reuniao passada e historia: a nova nasce
+ * separada.
+ */
+export async function resolveReusableMeetingActivityId(input: {
+  admin: ReturnType<typeof createStaticAdminClient>;
+  organizationId: string;
+  activityId: string | null;
+  now: string;
+}): Promise<string | null> {
+  if (!input.activityId) return null;
+  try {
+    const result = await input.admin
+      .from('activities')
+      .select('id, date, completed, deleted_at')
+      .eq('id', input.activityId)
+      .eq('organization_id', input.organizationId)
+      .maybeSingle();
+    if (result.error) throw new Error(result.error.message);
+    const activity = result.data as {
+      id: string; date: string | null; completed: boolean | null; deleted_at: string | null;
+    } | null;
+    if (!activity || activity.completed || activity.deleted_at || !activity.date) return null;
+    return new Date(activity.date).getTime() > new Date(input.now).getTime() ? activity.id : null;
+  } catch (error) {
+    // Na duvida, NAO reusa: criar uma reuniao nova e recuperavel; reescrever a errada, nao.
+    console.warn('[Conversation AI] Could not check the previous meeting activity', {
+      organizationId: input.organizationId,
+      activityId: input.activityId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }

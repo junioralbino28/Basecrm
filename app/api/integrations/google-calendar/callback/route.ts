@@ -9,6 +9,7 @@ import {
 } from '@/lib/googleCalendar/oauth';
 import { claimGoogleOAuthState, peekGoogleOAuthState } from '@/lib/googleCalendar/oauthState';
 import { writeGoogleCalendarConnection } from '@/lib/googleCalendar/connectionStore';
+import { requeueFailedGoogleMeetingEvents } from '@/lib/googleCalendar/eventSync';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -87,6 +88,15 @@ export async function GET(req: Request) {
       googleCalendarId: 'primary',
       refreshToken: tokens.refresh_token,
       scope: tokens.scope || '',
+    });
+
+    // Reconectou: as reunioes FUTURAS que morreram como `failed` enquanto o token estava
+    // invalido voltam para a fila. Sem isto, `failed` era terminal e cada uma so daria o aviso
+    // "sem link do Google" 15 min antes da hora (achado alto da revisao de correcao).
+    await requeueFailedGoogleMeetingEvents({
+      admin,
+      organizationId: claimed.organizationId,
+      ownerId: claimed.ownerId,
     });
 
     return backTo('google=ok');

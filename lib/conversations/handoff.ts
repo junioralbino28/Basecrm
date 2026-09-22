@@ -85,6 +85,8 @@ export function buildConversationHandoff(input: {
 
   const type = input.type ?? 'other';
   const isMeeting = type === 'meeting_requested' || type === 'meeting_confirmed';
+  // Reuniao cancelada: nao e mais handoff de reuniao, mas guarda quando a agenda foi mexida.
+  const keepsScheduleTrace = toSafeText(input.reason, 240) === 'meeting_cancelled';
   const requestedScheduleAt = isMeeting ? toSafeIsoDate(input.requestedScheduleAt) : null;
   const validScheduleAt = requestedScheduleAt && requestedScheduleAt > requestedAt
     ? requestedScheduleAt
@@ -109,8 +111,15 @@ export function buildConversationHandoff(input: {
     requestedScheduleAt: validScheduleAt,
     requestedScheduleText: isMeeting ? toSafeText(input.requestedScheduleText, 160) : null,
     scheduleStatus,
-    scheduleUpdatedAt: isMeeting ? toSafeIsoDate(input.scheduleUpdatedAt) : null,
-    scheduleUpdatedBy: isMeeting ? toSafeUuid(input.scheduleUpdatedBy) : null,
+    // O cancelamento tira o handoff do tipo "reuniao", mas a HORA em que a agenda mexeu tem de
+    // sobreviver: e o que a tela mostra como "Reunião cancelada em <data>". Zerar aqui fazia o
+    // dado nunca chegar na tela, sem erro nenhum.
+    scheduleUpdatedAt: isMeeting || keepsScheduleTrace
+      ? toSafeIsoDate(input.scheduleUpdatedAt)
+      : null,
+    scheduleUpdatedBy: isMeeting || keepsScheduleTrace
+      ? toSafeUuid(input.scheduleUpdatedBy)
+      : null,
     contactName: toSafeText(input.contactName, 160),
     contactPhone,
   };
@@ -151,12 +160,15 @@ export function readConversationHandoff(value: unknown): ConversationHandoff | n
             ? 'confirmed'
             : 'pending'
         : null,
+    // Mesma excecao da escrita: a reuniao cancelada guarda QUANDO foi cancelada.
     scheduleUpdatedAt:
       type.data === 'meeting_requested' || type.data === 'meeting_confirmed'
+        || toSafeText(source.reason, 240) === 'meeting_cancelled'
         ? toSafeIsoDate(source.scheduleUpdatedAt)
         : null,
     scheduleUpdatedBy:
       type.data === 'meeting_requested' || type.data === 'meeting_confirmed'
+        || toSafeText(source.reason, 240) === 'meeting_cancelled'
         ? toSafeUuid(source.scheduleUpdatedBy)
         : null,
     contactName: toSafeText(source.contactName, 160),

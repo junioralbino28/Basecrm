@@ -45,6 +45,13 @@ export const ConversationCalendarConfigSchema = z.object({
   minimumNoticeMinutes: z.number().int().min(0).max(10_080),
   schedulingHorizonDays: z.number().int().min(1).max(14),
   humanConfirmationWeekdays: z.array(CalendarWeekdaySchema).max(7).default(['saturday']),
+  /**
+   * Convidados FIXOS do evento do Google, alem do lead. A agenda em que a Aurora escreve pode
+   * ser de uma conta (cenourahub@gmail.com) e quem conduz a reuniao usar outra: sem isso o
+   * convite so chega na conta dona da agenda. Opcional — conexao sem o campo continua valida e
+   * o evento sai exatamente como hoje.
+   */
+  extraAttendees: z.array(z.string().email()).max(5).optional(),
   weeklyHours: WeeklyHoursSchema,
 }).strict().superRefine((calendar, context) => {
   const ranges = Object.values(calendar.weeklyHours).flat();

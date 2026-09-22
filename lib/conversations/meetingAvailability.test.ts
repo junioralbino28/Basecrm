@@ -237,3 +237,33 @@ describe('meeting availability', () => {
     })).toBe(false);
   });
 });
+
+describe('convidados fixos do evento do Google (extraAttendees)', () => {
+  it('REGRESSAO: configuracao sem o campo continua valida e sem convidado fixo nenhum', () => {
+    const parsed = ConversationCalendarConfigSchema.safeParse(configuredCalendar);
+    expect(parsed.success).toBe(true);
+    expect(resolveConversationCalendarConfig({ calendar: configuredCalendar })?.extraAttendees).toBeUndefined();
+  });
+
+  it('aceita ate 5 e-mails e recusa o sexto', () => {
+    const cinco = ['a@x.com', 'b@x.com', 'c@x.com', 'd@x.com', 'e@x.com'];
+    expect(ConversationCalendarConfigSchema.safeParse({
+      ...configuredCalendar, extraAttendees: cinco,
+    }).success).toBe(true);
+    expect(ConversationCalendarConfigSchema.safeParse({
+      ...configuredCalendar, extraAttendees: [...cinco, 'f@x.com'],
+    }).success).toBe(false);
+  });
+
+  it('recusa o que nao e e-mail', () => {
+    expect(ConversationCalendarConfigSchema.safeParse({
+      ...configuredCalendar, extraAttendees: ['nao-e-email'],
+    }).success).toBe(false);
+  });
+
+  it('devolve os e-mails fixos configurados', () => {
+    expect(resolveConversationCalendarConfig({
+      calendar: { ...configuredCalendar, extraAttendees: ['junioralbino28@gmail.com'] },
+    })?.extraAttendees).toEqual(['junioralbino28@gmail.com']);
+  });
+});

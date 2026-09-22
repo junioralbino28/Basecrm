@@ -4,6 +4,13 @@ import { executeDueAutomationJobs, type ExecutorSummary } from '@/lib/automation
 import { dispatchPendingConversionEvents, type DispatchSummary } from '@/lib/meta/conversionDispatch';
 import { sendDueConversationNudges, type IdleNudgeRunSummary } from '@/lib/conversations/idleNudgeRunner';
 import { expireStalePendingInboundMedia } from '@/lib/conversations/inboundMediaPending';
+import {
+  createDueGoogleCalendarEvents,
+  deleteOrphanGoogleCalendarEvents,
+  type GoogleMeetingSyncSummary,
+  type GoogleOrphanSyncSummary,
+} from '@/lib/googleCalendar/eventSync';
+import { sendDueMeetingLinkReminders, type MeetingReminderRunSummary } from '@/lib/conversations/meetingReminder';
 import { z } from 'zod';
 
 // 2a: o tick passou a executar jobs (envio real com tempo limite por mensagem). O executor
@@ -115,6 +122,44 @@ export async function POST(request: Request) {
     staleMedia = { error: message };
   }
 
+  // Google Agenda (Fatia 3): as reunioes ja reservadas no CRM viram evento com Meet e convidado.
+  // TODA chamada ao Google mora aqui, nunca no caminho da resposta ao lead. Nunca derruba o tick.
+  //
+  // Sobre os prazos: o `deadlineMs` e checado ENTRE linhas, entao ele limita quando um lote
+  // PARA de pegar linha nova, nao o tempo total. Uma linha sozinha pode gastar ~14 s no pior
+  // caso (renovacao de token 8 s + chamada de evento 6 s). Com 4+3+2 s e os ~38 s dos outros
+  // passos, o pior caso realista fica em torno de 50 s dentro dos 60 s de `maxDuration` — e o
+  // trabalho que sobrar volta no ciclo seguinte, 5 min depois, sem perda.
+  let googleEvents: GoogleMeetingSyncSummary | { error: string } | null = null;
+  try {
+    googleEvents = await createDueGoogleCalendarEvents({ admin, batchLimit: 5, deadlineMs: 4_000 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Sincronizacao do Google Agenda falhou', { tickAttemptId, error: message });
+    googleEvents = { error: message };
+  }
+
+  // Google Agenda (Fatia 4): o link do Meet sai pelo WhatsApp 15 min antes. Nunca derruba o tick.
+  let meetingReminders: MeetingReminderRunSummary | { error: string } | null = null;
+  try {
+    meetingReminders = await sendDueMeetingLinkReminders({ admin, batchLimit: 5, deadlineMs: 3_000 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Lembretes de reuniao falharam', { tickAttemptId, error: message });
+    meetingReminders = { error: message };
+  }
+
+  // Eventos que ficaram vivos no Google depois de a conversa/contato ser apagado no CRM: o
+  // gatilho do banco guardou o id, aqui eles saem da agenda. Nunca derruba o tick.
+  let googleOrphans: GoogleOrphanSyncSummary | { error: string } | null = null;
+  try {
+    googleOrphans = await deleteOrphanGoogleCalendarEvents({ admin, batchLimit: 5, deadlineMs: 2_000 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[tick] Limpeza de eventos orfaos no Google falhou', { tickAttemptId, error: message });
+    googleOrphans = { error: message };
+  }
+
   const completed = await admin.rpc('complete_automation_tick', {
     p_attempt_token: tickAttemptId,
     p_http_status: 200,
@@ -134,5 +179,8 @@ export async function POST(request: Request) {
     conversions,
     idleNudges,
     staleMedia,
+    googleEvents,
+    meetingReminders,
+    googleOrphans,
   });
 }

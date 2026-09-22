@@ -1193,6 +1193,14 @@ export const TenantConversationsPage: React.FC = () => {
                       },
                     })
                   }
+                  onCancel={() =>
+                    updateThreadMutation.mutate({
+                      threadId: selectedThread.id,
+                      body: {
+                        handoff_action: { type: 'cancel_meeting' },
+                      },
+                    })
+                  }
                 />
               ) : null}
 

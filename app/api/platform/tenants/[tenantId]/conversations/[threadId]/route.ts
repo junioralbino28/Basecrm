@@ -12,6 +12,10 @@ import {
 } from '@/lib/conversations/meetingHandoffAction';
 import { buildConversationMeetingActivity } from '@/lib/conversations/meetingRequest';
 import { resolveConversationCalendarConfig } from '@/lib/conversations/meetingAvailability';
+import {
+  enqueueGoogleCalendarMeetingEvent,
+  markGoogleCalendarMeetingCancelPending,
+} from '@/lib/googleCalendar/meetingEventQueue';
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { pickNextHumanAssignee } from '@/lib/conversations/routing';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
@@ -55,7 +59,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
 
   const existingThread = await admin
     .from('conversation_threads')
-    .select('id, assigned_user_id, channel_connection_id, contact_id, deal_id, metadata, status')
+    .select('id, assigned_user_id, channel_connection_id, contact_id, contact_name, deal_id, metadata, status')
     .eq('id', threadId)
     .eq('organization_id', tenantId)
     .maybeSingle();
@@ -100,6 +104,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         action: parsed.data.handoff_action,
         performedAt: updates.updated_at as string,
         performedBy: auth.profile.id,
+        // Remarcar/cancelar recai sobre a reuniao que ja estava confirmada nesta conversa, nao
+        // sobre um evento novo — e o que impede o evento antigo de ficar orfao no Google.
+        previousActivityId: currentMetadata.confirmedMeetingActivityId ?? null,
       });
     } catch (error) {
       return json({
@@ -107,77 +114,120 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
       }, 422);
     }
 
-    let meetingOwnerId = existingThread.data.assigned_user_id ?? auth.profile.id;
-    let meetingTimezone = 'America/Sao_Paulo';
-    if (existingThread.data.channel_connection_id) {
-      const connectionResult = await admin
-        .from('channel_connections')
-        .select('config')
-        .eq('id', existingThread.data.channel_connection_id)
+    // Cancelar: a reuniao sai da agenda do CRM e o evento espelho sai do Google. Sem reserva
+    // nenhuma a refazer — e o vinculo com a reuniao confirmada e apagado da conversa.
+    if (resolvedMeeting.cancelled) {
+      const cancelledAt = updates.updated_at as string;
+      const cancelledActivity = await admin
+        .from('activities')
+        .update({ completed: true, deleted_at: cancelledAt })
+        .eq('id', resolvedMeeting.activityId)
+        .eq('organization_id', tenantId)
+        .eq('type', 'MEETING');
+      if (cancelledActivity.error) return json({ error: cancelledActivity.error.message }, 500);
+
+      // Sem rede aqui: so marca `cancel_pending`; o `events.delete` acontece no tick.
+      await markGoogleCalendarMeetingCancelPending({
+        admin,
+        organizationId: tenantId,
+        activityId: resolvedMeeting.activityId,
+        now: cancelledAt,
+      });
+
+      updates.metadata = buildConversationThreadMetadataUpdate(existingThread.data.metadata, {
+        handoff: resolvedMeeting.handoff,
+        confirmedMeetingActivityId: null,
+      });
+    } else {
+      let meetingOwnerId = existingThread.data.assigned_user_id ?? auth.profile.id;
+      let meetingTimezone = 'America/Sao_Paulo';
+      if (existingThread.data.channel_connection_id) {
+        const connectionResult = await admin
+          .from('channel_connections')
+          .select('config')
+          .eq('id', existingThread.data.channel_connection_id)
+          .eq('organization_id', tenantId)
+          .maybeSingle();
+        if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
+        const calendar = resolveConversationCalendarConfig(
+          connectionResult.data?.config as Record<string, unknown> | null,
+        );
+        if (calendar) {
+          meetingOwnerId = calendar.ownerId ?? meetingOwnerId;
+          meetingTimezone = calendar.timezone;
+        }
+      }
+
+      const meetingActivity = buildConversationMeetingActivity({
+        organizationId: tenantId,
+        eventId: resolvedMeeting.activityId,
+        contactId: existingThread.data.contact_id,
+        dealId: existingThread.data.deal_id,
+        ownerId: meetingOwnerId,
+        agentName: 'Atendimento humano',
+        handoff: resolvedMeeting.handoff,
+      });
+      if (!meetingActivity) {
+        return json({ error: 'Nao foi possivel montar a atividade da reuniao.' }, 422);
+      }
+
+      const currentActivity = await admin
+        .from('activities')
+        .select('id, contact_id, deal_id')
+        .eq('id', resolvedMeeting.activityId)
         .eq('organization_id', tenantId)
         .maybeSingle();
-      if (connectionResult.error) return json({ error: connectionResult.error.message }, 500);
-      const calendar = resolveConversationCalendarConfig(
-        connectionResult.data?.config as Record<string, unknown> | null,
-      );
-      if (calendar) {
-        meetingOwnerId = calendar.ownerId ?? meetingOwnerId;
-        meetingTimezone = calendar.timezone;
+      if (currentActivity.error) return json({ error: currentActivity.error.message }, 500);
+      if (
+        currentActivity.data
+        && (
+          currentActivity.data.contact_id !== meetingActivity.contact_id
+          || currentActivity.data.deal_id !== meetingActivity.deal_id
+        )
+      ) {
+        return json({ error: 'A atividade da reuniao pertence a outro contexto.' }, 409);
       }
-    }
 
-    const meetingActivity = buildConversationMeetingActivity({
-      organizationId: tenantId,
-      eventId: resolvedMeeting.activityId,
-      contactId: existingThread.data.contact_id,
-      dealId: existingThread.data.deal_id,
-      ownerId: meetingOwnerId,
-      agentName: 'Atendimento humano',
-      handoff: resolvedMeeting.handoff,
-    });
-    if (!meetingActivity) {
-      return json({ error: 'Nao foi possivel montar a atividade da reuniao.' }, 422);
-    }
+      const reservation = await admin.rpc('reserve_conversation_meeting', {
+        p_activity_id: meetingActivity.id,
+        p_organization_id: tenantId,
+        p_channel_connection_id: existingThread.data.channel_connection_id,
+        p_owner_id: meetingActivity.owner_id,
+        p_contact_id: meetingActivity.contact_id,
+        p_deal_id: meetingActivity.deal_id,
+        p_title: meetingActivity.title,
+        p_description: meetingActivity.description,
+        p_date: meetingActivity.date,
+        p_created_at: meetingActivity.created_at,
+        p_timezone: meetingTimezone,
+        p_allow_update: true,
+      });
+      if (reservation.error) return json({ error: reservation.error.message }, 500);
+      if (reservation.data !== true) {
+        return json({ error: 'Este horario nao esta mais disponivel para o responsavel.' }, 409);
+      }
 
-    const currentActivity = await admin
-      .from('activities')
-      .select('id, contact_id, deal_id')
-      .eq('id', resolvedMeeting.activityId)
-      .eq('organization_id', tenantId)
-      .maybeSingle();
-    if (currentActivity.error) return json({ error: currentActivity.error.message }, 500);
-    if (
-      currentActivity.data
-      && (
-        currentActivity.data.contact_id !== meetingActivity.contact_id
-        || currentActivity.data.deal_id !== meetingActivity.deal_id
-      )
-    ) {
-      return json({ error: 'A atividade da reuniao pertence a outro contexto.' }, 409);
-    }
+      updates.metadata = buildConversationThreadMetadataUpdate(existingThread.data.metadata, {
+        handoff: resolvedMeeting.handoff,
+        confirmedMeetingActivityId: resolvedMeeting.activityId,
+      });
 
-    const reservation = await admin.rpc('reserve_conversation_meeting', {
-      p_activity_id: meetingActivity.id,
-      p_organization_id: tenantId,
-      p_channel_connection_id: existingThread.data.channel_connection_id,
-      p_owner_id: meetingActivity.owner_id,
-      p_contact_id: meetingActivity.contact_id,
-      p_deal_id: meetingActivity.deal_id,
-      p_title: meetingActivity.title,
-      p_description: meetingActivity.description,
-      p_date: meetingActivity.date,
-      p_created_at: meetingActivity.created_at,
-      p_timezone: meetingTimezone,
-      p_allow_update: true,
-    });
-    if (reservation.error) return json({ error: reservation.error.message }, 500);
-    if (reservation.data !== true) {
-      return json({ error: 'Este horario nao esta mais disponivel para o responsavel.' }, 409);
+      // Google Agenda (Fatia 3): so a linha `pending`/`update_pending`, e so se o responsavel
+      // tiver conexao `connected`. ZERO rede aqui — o evento sai no relogio de 5 min.
+      await enqueueGoogleCalendarMeetingEvent({
+        admin,
+        organizationId: tenantId,
+        threadId,
+        activityId: meetingActivity.id,
+        channelConnectionId: existingThread.data.channel_connection_id,
+        ownerId: meetingActivity.owner_id,
+        contactId: existingThread.data.contact_id,
+        contactName: existingThread.data.contact_name,
+        scheduledAt: meetingActivity.date,
+        timezone: meetingTimezone,
+        now: updates.updated_at as string,
+      });
     }
-
-    updates.metadata = buildConversationThreadMetadataUpdate(existingThread.data.metadata, {
-      handoff: resolvedMeeting.handoff,
-    });
   }
 
   if (parsed.data.title !== undefined) updates.title = parsed.data.title.trim();

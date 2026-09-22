@@ -39,6 +39,22 @@ const access = {
 };
 const reload = vi.fn();
 
+// Handoff de reunião marcada, no formato que a rota grava em `metadata.lastHandoff`.
+const MEETING_HANDOFF = {
+  type: 'meeting_confirmed',
+  eventId: '44444444-4444-4444-8444-444444444444',
+  summary: 'Quer revisar anúncios e o atendimento comercial.',
+  reason: 'Pediu uma reunião.',
+  requestedAt: '2026-07-16T12:00:00.000Z',
+  requestedScheduleAt: '2026-07-20T17:00:00.000Z',
+  requestedScheduleText: 'segunda às 14h',
+  scheduleStatus: 'confirmed',
+  scheduleUpdatedAt: '2026-07-16T12:30:00.000Z',
+  scheduleUpdatedBy: '55555555-5555-4555-8555-555555555555',
+  contactName: 'Paciente Recepção',
+  contactPhone: '5511999990000',
+};
+
 function thread(id: string, contactName: string, channelConnectionId: string | null) {
   return {
     id,
@@ -194,6 +210,48 @@ describe('TenantConversationsPage — caixa unificada', () => {
         }),
       );
     });
+  });
+
+  it('cancelar a reunião pede confirmação e manda `cancel_meeting` uma vez só', () => {
+    // A rota PATCH já aceitava `cancel_meeting`; o que faltava era botão na tela. Este teste
+    // prova a ponta que o card não vê: o corpo que a página envia.
+    threads[0].metadata = { lastHandoff: MEETING_HANDOFF };
+    render(<TenantConversationsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar reunião' }));
+    expect(
+      mutateSpy.mock.calls.filter(([vars]) => (vars as { body?: Record<string, unknown> })?.body?.handoff_action),
+    ).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelamento' }));
+
+    const acoesDeHandoff = mutateSpy.mock.calls.filter(
+      ([vars]) => (vars as { body?: Record<string, unknown> })?.body?.handoff_action,
+    );
+    expect(acoesDeHandoff).toHaveLength(1);
+    expect(acoesDeHandoff[0][0]).toEqual({
+      threadId: 'thread-reception',
+      body: { handoff_action: { type: 'cancel_meeting' } },
+    });
+  });
+
+  it('handoff deixado pelo cancelamento não oferece mais ação de agenda nenhuma', () => {
+    threads[0].metadata = {
+      lastHandoff: {
+        ...MEETING_HANDOFF,
+        type: 'other',
+        reason: 'meeting_cancelled',
+        requestedScheduleAt: null,
+        requestedScheduleText: null,
+        scheduleStatus: null,
+      },
+    };
+    render(<TenantConversationsPage />);
+
+    expect(screen.getByText('Reunião cancelada')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar reunião' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar horário' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ajustar' })).not.toBeInTheDocument();
   });
 
   it('mostra todos os números, identifica a origem e filtra sem reutilizar o pareamento', () => {

@@ -73,6 +73,12 @@ export type ConversationThreadMetadata = {
   handoffRequestedAt?: string | null;
   handoffReason?: string | null;
   lastHandoff?: ConversationHandoff | null;
+  /**
+   * Activity da reuniao ja confirmada nesta conversa. Sobrevive ao handoff seguinte (que
+   * sobrescreve `lastHandoff`) para que remarcar/cancelar recaia sobre a MESMA reuniao — e
+   * sobre o mesmo evento do Google — em vez de deixar a antiga orfa.
+   */
+  confirmedMeetingActivityId?: string | null;
   resolvedAt?: string | null;
   resolvedBy?: string | null;
   queueAssignedUserId?: string | null;

@@ -51,6 +51,7 @@ export function readConversationThreadMetadata(value: unknown): ConversationThre
     handoffRequestedAt: toSafeString(source.handoffRequestedAt),
     handoffReason: toSafeString(source.handoffReason),
     lastHandoff: readConversationHandoff(source.lastHandoff),
+    confirmedMeetingActivityId: toSafeString(source.confirmedMeetingActivityId),
     resolvedAt: toSafeString(source.resolvedAt),
     resolvedBy: toSafeString(source.resolvedBy),
     queueAssignedUserId: toSafeString(source.queueAssignedUserId),
@@ -81,6 +82,8 @@ export function buildConversationThreadMetadataUpdate(
     handoffRequestedAt?: string | null;
     handoffReason?: string | null;
     handoff?: ConversationHandoff | null;
+    /** `null` limpa (cancelamento); `undefined` mantem o que ja estava. */
+    confirmedMeetingActivityId?: string | null;
     resolvedAt?: string | null;
     resolvedBy?: string | null;
     queueAssignedUserId?: string | null;
@@ -110,6 +113,11 @@ export function buildConversationThreadMetadataUpdate(
     handoffRequestedAt: update.handoffRequestedAt ?? current.handoffRequestedAt ?? null,
     handoffReason: update.handoffReason ?? current.handoffReason ?? null,
     lastHandoff: update.handoff ?? current.lastHandoff ?? null,
+    // `null` explicito limpa (cancelamento); ausente mantem, para o vinculo com a reuniao
+    // confirmada sobreviver ao handoff seguinte.
+    confirmedMeetingActivityId: update.confirmedMeetingActivityId === undefined
+      ? current.confirmedMeetingActivityId ?? null
+      : update.confirmedMeetingActivityId,
     resolvedAt: update.resolvedAt ?? current.resolvedAt ?? null,
     resolvedBy: update.resolvedBy ?? current.resolvedBy ?? null,
     queueAssignedUserId: update.queueAssignedUserId ?? current.queueAssignedUserId ?? null,
