@@ -11,7 +11,11 @@ export type GoogleCalendarConnection = {
   organizationId: string;
   ownerId: string;
   googleAccountEmail: string;
+  /** Agenda onde a IA ESCREVE o evento. `primary` ate alguem escolher outra (Fatia 5). */
   googleCalendarId: string;
+  googleCalendarSummary: string | null;
+  /** Agendas que contam como OCUPADO alem da de escrita. Vazio = so a de escrita. */
+  busyCalendarIds: string[];
   status: GoogleCalendarConnectionStatus;
   scope: string;
   lastError: string | null;
@@ -27,6 +31,10 @@ function mapConnectionRow(row: Record<string, unknown>): GoogleCalendarConnectio
     ownerId: String(row.owner_id),
     googleAccountEmail: String(row.google_account_email || ''),
     googleCalendarId: String(row.google_calendar_id || 'primary'),
+    googleCalendarSummary: (row.google_calendar_summary as string | null) ?? null,
+    busyCalendarIds: Array.isArray(row.busy_calendar_ids)
+      ? (row.busy_calendar_ids as unknown[]).map((id) => String(id)).filter(Boolean)
+      : [],
     status: status === 'reconnect_required' || status === 'revoked' ? status : 'connected',
     scope: String(row.scope || ''),
     lastError: (row.last_error as string | null) ?? null,
@@ -43,7 +51,7 @@ export async function getGoogleCalendarConnection(input: {
 }): Promise<GoogleCalendarConnection | null> {
   const result = await input.admin
     .from('google_calendar_connections')
-    .select('id, organization_id, owner_id, google_account_email, google_calendar_id, status, scope, last_error, connected_at, updated_at')
+    .select('id, organization_id, owner_id, google_account_email, google_calendar_id, google_calendar_summary, busy_calendar_ids, status, scope, last_error, connected_at, updated_at')
     .eq('organization_id', input.organizationId)
     .eq('owner_id', input.ownerId)
     .maybeSingle();

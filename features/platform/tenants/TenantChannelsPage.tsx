@@ -1125,7 +1125,7 @@ export const TenantChannelsPage: React.FC = () => {
                           ) : null}
                         </div>
 
-                        <div className="mt-3 grid gap-4 md:grid-cols-[260px_1fr]">
+                        <div className="mt-3 grid gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
                           <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
                             {pairingDisplay.imageSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -1141,10 +1141,12 @@ export const TenantChannelsPage: React.FC = () => {
                             )}
                           </div>
 
-                          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                            <div>
+                          <div className="min-w-0 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                            <div className="min-w-0">
                               <span className="font-medium text-slate-900 dark:text-white">Codigo:</span>{' '}
-                              {pairingDisplay.pairingCode || '-'}
+                              {/* base64 de ~240 caracteres sem um espaco: sem `break-all` ele mede
+                                  2.146 px e estica a tela inteira (medido na previa, 22/09). */}
+                              <span className="break-all">{pairingDisplay.pairingCode || '-'}</span>
                             </div>
                             <div>
                               <span className="font-medium text-slate-900 dark:text-white">Orientacao:</span>{' '}
