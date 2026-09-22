@@ -972,7 +972,7 @@ export const TenantChannelsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
+                    <div className="mt-4 grid min-w-0 gap-3 break-all text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2 [&>div]:min-w-0">
                       <div>
                         <span className="font-medium text-slate-900 dark:text-white">Telefone:</span>{' '}
                         {String(connection.metadata?.phoneNumber || '-')}
