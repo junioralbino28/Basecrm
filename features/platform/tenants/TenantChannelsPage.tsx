@@ -11,8 +11,11 @@ import { Modal, ModalForm } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ChannelCalendarSettings } from './conversations/ChannelCalendarSettings';
 
+// `min-w-0`: campo de formulario tem largura MINIMA natural (o `size` padrao do HTML, ~224 px
+// medidos) e `w-full` nao vence isso — no celular ele empurrava o cartao inteiro e a tela
+// ganhava 66 px de rolagem lateral (medido na previa a 390 px).
 const FIELD_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
+  'w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
 
 type ChannelFormState = {
   name: string;

@@ -65,7 +65,7 @@ const FILTER_OPTIONS: { id: InboxFilter; label: string }[] = [
 ];
 
 const FIELD_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
+  'w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/10 dark:bg-card dark:text-white';
 
 function buildDisplayName(profile: {
   nickname?: string | null;
