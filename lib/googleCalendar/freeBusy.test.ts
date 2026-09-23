@@ -92,6 +92,28 @@ describe('loadGoogleBusyIntervals — le o ocupado do Google sem derrubar a ofer
     expect(queryGoogleFreeBusyMock).toHaveBeenCalledTimes(1);
   });
 
+  it('agenda de OBSERVACAO nao entra no ocupado: o horario continua sendo oferecido', async () => {
+    // Pedido do Junior (22/09): a agenda principal e usada pela equipe inteira; um compromisso
+    // la nao pode tirar horario do closer. So `busyCalendarIds` bloqueia.
+    getGoogleCalendarConnectionMock.mockResolvedValue({
+      ...CONNECTED,
+      googleCalendarId: 'sdr@group.calendar.google.com',
+      busyCalendarIds: ['pessoal@gmail.com'],
+      watchCalendarIds: ['equipe@group.calendar.google.com'],
+    });
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockResolvedValue([]);
+    const fake = createFakeSupabaseAdmin();
+
+    await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX,
+    });
+
+    const consultadas = queryGoogleFreeBusyMock.mock.calls[0][0].calendarIds as string[];
+    expect(consultadas).toEqual(['sdr@group.calendar.google.com', 'pessoal@gmail.com']);
+    expect(consultadas).not.toContain('equipe@group.calendar.google.com');
+  });
+
   it('cache acerta com a janela andando alguns segundos (caso real: cada mensagem nasce de um `now` novo)', async () => {
     getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
     getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');

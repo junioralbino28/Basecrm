@@ -3,6 +3,8 @@ import { createFakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
 
 const getGoogleCalendarAccessTokenMock = vi.fn();
 const markGoogleCalendarConnectionIssueMock = vi.fn();
+const getGoogleCalendarConnectionMock = vi.fn();
+const freeBusyMock = vi.fn();
 const insertEventMock = vi.fn();
 const patchEventMock = vi.fn();
 const getEventMock = vi.fn();
@@ -13,6 +15,7 @@ vi.mock('./oauth', () => ({
 }));
 vi.mock('./connectionStore', () => ({
   markGoogleCalendarConnectionIssue: (...args: unknown[]) => markGoogleCalendarConnectionIssueMock(...args),
+  getGoogleCalendarConnection: (...args: unknown[]) => getGoogleCalendarConnectionMock(...args),
 }));
 vi.mock('./googleApiClient', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./googleApiClient')>();
@@ -22,6 +25,7 @@ vi.mock('./googleApiClient', async (importOriginal) => {
     patchGoogleCalendarEvent: (...args: unknown[]) => patchEventMock(...args),
     getGoogleCalendarEvent: (...args: unknown[]) => getEventMock(...args),
     deleteGoogleCalendarEvent: (...args: unknown[]) => deleteEventMock(...args),
+    queryGoogleFreeBusy: (...args: unknown[]) => freeBusyMock(...args),
   };
 });
 
@@ -34,6 +38,7 @@ import {
   GOOGLE_ORPHAN_EVENT_TABLE,
   requeueFailedGoogleMeetingEvents,
 } from './eventSync';
+import { OVERLAP_WARNING_TEXT } from './eventSync';
 import {
   GOOGLE_INVITE_LOG_TABLE,
   GOOGLE_MEETING_EVENT_TABLE,
@@ -72,6 +77,7 @@ function row(overrides: Record<string, unknown> = {}) {
     next_retry_at: NOW,
     reminder_sent_at: null,
     reminder_escalated_at: null,
+    overlap_warning: null,
     ...overrides,
   };
 }
@@ -135,6 +141,9 @@ beforeEach(() => {
   patchEventMock.mockResolvedValue({ id: 'ev-1', status: 'confirmed', hangoutLink: MEET, conferenceStatus: 'success' });
   getEventMock.mockResolvedValue({ id: 'ev-1', status: 'confirmed', hangoutLink: MEET, conferenceStatus: 'success' });
   deleteEventMock.mockResolvedValue(true);
+  // Padrao: nenhuma agenda de observacao configurada (comportamento de quem nunca escolheu nada).
+  getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: [], busyCalendarIds: [] });
+  freeBusyMock.mockResolvedValue([]);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -810,5 +819,86 @@ describe('orfao que nao pode ser apagado vira aviso no sino', () => {
     expect(String(aviso.title)).toContain('continua na agenda');
     // Aviso de conexao leva para a tela de canais, nao para uma conversa que nao existe.
     expect(String(aviso.link)).toContain('/channels');
+  });
+});
+
+describe('agenda de OBSERVACAO — avisa, nunca bloqueia (pedido do Junior, 22/09)', () => {
+  const OUTRA = 'agenda-da-equipe@group.calendar.google.com';
+
+  it('sem agenda de observacao: nao fala com o freeBusy nem grava aviso', async () => {
+    const fake = seed([row()]);
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(freeBusyMock).not.toHaveBeenCalled();
+    expect(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0]).toMatchObject({
+      status: 'created', overlap_warning: null,
+    });
+  });
+
+  it('com conflito: a reuniao NASCE do mesmo jeito e o aviso vai para a linha e para o sino', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: [OUTRA], busyCalendarIds: [] });
+    freeBusyMock.mockResolvedValue([{ start: SCHEDULED, end: '2026-09-23T17:40:00.000Z' }]);
+    const fake = seed([row()]);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    // O ponto da regra: o horario NAO foi bloqueado — o evento existe.
+    expect(insertEventMock).toHaveBeenCalledTimes(1);
+    expect(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0]).toMatchObject({
+      status: 'created', overlap_warning: OVERLAP_WARNING_TEXT,
+    });
+    const aviso = fake.rowsOf('system_notifications').find((n) => String(n.title).includes('por cima'));
+    expect(aviso).toBeTruthy();
+    expect(aviso!.severity).toBe('medium');
+    // So o intervalo da propria reuniao e consultado, e so nas agendas observadas.
+    expect(freeBusyMock).toHaveBeenCalledWith(expect.objectContaining({
+      calendarIds: [OUTRA], timeMin: SCHEDULED, timeMax: '2026-09-23T17:40:00.000Z',
+    }));
+  });
+
+  it('sem conflito: nao avisa, e limpa um aviso antigo da linha (remarcou para horario livre)', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: [OUTRA], busyCalendarIds: [] });
+    freeBusyMock.mockResolvedValue([]);
+    const fake = seed([row({ overlap_warning: 'aviso velho' })]);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0]).toMatchObject({ overlap_warning: null });
+    expect(fake.rowsOf('system_notifications').some((n) => String(n.title).includes('por cima'))).toBe(false);
+  });
+
+  it('a agenda onde a IA escreve nunca entra na consulta de observacao', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: ['primary'], busyCalendarIds: [] });
+    const fake = seed([row()]);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(freeBusyMock).not.toHaveBeenCalled();
+  });
+
+  it('REMARCACAO tambem recalcula: horario novo livre limpa o aviso do horario antigo', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: [OUTRA], busyCalendarIds: [] });
+    freeBusyMock.mockResolvedValue([]);
+    const fake = seed([row({
+      status: 'update_pending', google_event_id: 'ev-1', meet_link: MEET,
+      overlap_warning: OVERLAP_WARNING_TEXT,
+    })]);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(patchEventMock).toHaveBeenCalledTimes(1);
+    expect(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0]).toMatchObject({ overlap_warning: null });
+  });
+
+  it('falha ao consultar a observacao nao derruba a reuniao ja criada', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue({ watchCalendarIds: [OUTRA], busyCalendarIds: [] });
+    freeBusyMock.mockRejectedValue(new Error('Google fora do ar'));
+    const fake = seed([row()]);
+
+    await createDueGoogleCalendarEvents({ admin: fake as never, now: NOW });
+
+    expect(fake.rowsOf(GOOGLE_MEETING_EVENT_TABLE)[0]).toMatchObject({
+      status: 'created', meet_link: MEET,
+    });
   });
 });

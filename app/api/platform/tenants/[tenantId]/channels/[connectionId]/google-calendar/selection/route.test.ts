@@ -111,6 +111,36 @@ describe('PUT google-calendar/selection', () => {
     expect(gravado?.busy_calendar_ids).toEqual(['pessoal@gmail.com']);
   });
 
+  it('grava a lista de OBSERVACAO separada da de bloqueio', async () => {
+    const body = await (await chamar({
+      writeCalendarId: 'sdr@group.calendar.google.com',
+      busyCalendarIds: ['pessoal@gmail.com'],
+      watchCalendarIds: ['equipe@group.calendar.google.com'],
+    })).json();
+
+    expect(body.busyCalendarIds).toEqual(['pessoal@gmail.com']);
+    expect(body.watchCalendarIds).toEqual(['equipe@group.calendar.google.com']);
+    expect(gravado).toMatchObject({
+      busy_calendar_ids: ['pessoal@gmail.com'],
+      watch_calendar_ids: ['equipe@group.calendar.google.com'],
+    });
+  });
+
+  it('a mesma agenda nunca bloqueia E avisa: quem bloqueia manda, o aviso sairia como ruido', async () => {
+    const body = await (await chamar({
+      writeCalendarId: 'sdr@group.calendar.google.com',
+      busyCalendarIds: ['pessoal@gmail.com'],
+      watchCalendarIds: ['pessoal@gmail.com', 'sdr@group.calendar.google.com', 'equipe@x.com'],
+    })).json();
+
+    expect(body.watchCalendarIds).toEqual(['equipe@x.com']);
+  });
+
+  it('sem a lista de observacao no corpo, a coluna fica vazia (nao avisa ninguem)', async () => {
+    await chamar({ writeCalendarId: 'primary' });
+    expect(gravado?.watch_calendar_ids).toEqual([]);
+  });
+
   it('corpo invalido nao grava nada', async () => {
     for (const corpo of [
       {},

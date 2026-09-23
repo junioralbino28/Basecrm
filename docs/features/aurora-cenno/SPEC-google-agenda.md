@@ -25,9 +25,9 @@ Status: aprovado para construção em 22/09/2026. Desenho, pesquisa e críticas 
 
 ## Dados (migrations aditivas; nenhuma altera tabela existente)
 
-- `google_calendar_connections`: `id`, `organization_id`, `owner_id` (profile), `google_account_email`, `google_calendar_id` (padrão `primary`), `refresh_token_secret_id` (id no Supabase Vault), `scope`, `status` (`connected` | `reconnect_required` | `revoked`), `last_error` (redigido), `last_read_error_at`, `connected_at`, `updated_at`. Único por (`organization_id`, `owner_id`). RLS ligado sem policy para `authenticated`/`anon`; grants só `service_role`.
+- `google_calendar_connections`: `id`, `organization_id`, `owner_id` (profile), `google_account_email`, `google_calendar_id` (padrão `primary`), `google_calendar_summary`, `busy_calendar_ids` (bloqueiam), `watch_calendar_ids` (só avisam), `refresh_token_secret_id` (id no Supabase Vault), `scope`, `status` (`connected` | `reconnect_required` | `revoked`), `last_error` (redigido), `last_read_error_at`, `connected_at`, `updated_at`. Único por (`organization_id`, `owner_id`). RLS ligado sem policy para `authenticated`/`anon`; grants só `service_role`.
 - `google_oauth_states`: `state` (uuid, pk), `organization_id`, `channel_connection_id`, `owner_id`, `requested_by`, `redirect_origin`, `created_at`, `expires_at` (10 min), `consumed_at`. Uso único (marca consumido ANTES de trocar o code). Só `service_role`.
-- `conversation_meeting_google_events`: `activity_id` (pk, refs `activities` on delete cascade), `organization_id`, `thread_id`, `channel_connection_id`, `owner_id`, `invitee_email`, `google_calendar_id`, `google_event_id`, `meet_link`, `status` (`pending` | `created` | `update_pending` | `cancel_pending` | `cancelled` | `failed`), `attempts`, `last_error`, `next_retry_at`, `reminder_sent_at`, `reminder_escalated_at`, `created_at`, `updated_at`. Só `service_role`.
+- `conversation_meeting_google_events`: `activity_id` (pk, refs `activities` on delete cascade), `organization_id`, `thread_id`, `channel_connection_id`, `owner_id`, `invitee_email`, `google_calendar_id`, `google_event_id`, `meet_link`, `status` (`pending` | `created` | `update_pending` | `cancel_pending` | `cancelled` | `failed`), `attempts`, `last_error`, `next_retry_at`, `reminder_sent_at`, `reminder_escalated_at`, `overlap_warning`, `created_at`, `updated_at`. Só `service_role`.
 - Funções `security definer`, `set search_path = ''`, `revoke` de public/anon/authenticated, `grant execute` só a `service_role`: gravar/ler/apagar o refresh token no Vault por (org, owner). O token nunca fica em coluna comum nem em `channel_connections.config` (que vai para o navegador redigido só por nome, `lib/channels/publicChannel.ts`).
 - O access token NÃO é persistido: cache em memória da instância, renovado a partir do refresh token.
 
@@ -38,6 +38,16 @@ Status: aprovado para construção em 22/09/2026. Desenho, pesquisa e críticas 
 3. `POST .../google-calendar/disconnect` — revoga no Google (melhor esforço), apaga do Vault, `status = revoked`.
 4. `GET .../google-calendar/status` — `{ connected, googleAccountEmail, status, connectedAt }`, nunca o token.
 - Variáveis de ambiente novas: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (Vercel Preview e Production). Sem elas, o botão não aparece e nada muda.
+
+## Escolha de agendas (Fatia 5 + correção de 22/09)
+
+- Cada conexão escolhe **onde a IA escreve** (`google_calendar_id` + `google_calendar_summary`) e o que as outras agendas da conta fazem. Três papéis, exclusivos entre si:
+  - **Ignorar** — a IA nem consulta.
+  - **Bloquear** (`busy_calendar_ids`) — entra no `freebusy`; o horário não é oferecido ao lead.
+  - **Só avisar** (`watch_calendar_ids`) — **não entra no `freebusy`**; o horário continua sendo oferecido e, se houver sobreposição quando o evento nasce (ou é remarcado), grava `conversation_meeting_google_events.overlap_warning` e toca o sino (severidade média). Falha nessa checagem nunca derruba a reunião já criada.
+- Por que as duas listas existem: a agenda principal de uma equipe tem compromissos de **outras pessoas** (na CENNO HUB, calls que a Rayanne faz com clientes). Bloquear ali tirava horário do closer sem motivo; ignorar escondia o conflito. Pedido do Junior em 22/09.
+- A lista de agendas usa `summaryOverride ?? summary`: agenda renomeada (o caso da principal, que a API devolve com o próprio e-mail em `summary`) aparece com o nome que a pessoa vê no Google.
+- **Reconectar preserva a escolha.** O callback do OAuth chama a RPC sempre com `primary`; a RPC ignora esse valor no `do update` e só volta para `primary` (limpando nome e as duas listas) quando o **e-mail da conta Google muda** — ids de agenda da conta antiga não existem na nova. Antes da correção, toda reconexão devolvia a IA para a agenda principal em silêncio, mantendo na tela o nome da agenda escolhida.
 
 ## Leitura de ocupado
 

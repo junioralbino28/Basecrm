@@ -61,6 +61,7 @@ describe('GET google-calendar/status', () => {
       status: 'connected', googleAccountEmail: 'cenourahub@gmail.com', connectedAt: '2026-09-22T00:00:00.000Z',
       googleCalendarId: 'sdr@group.calendar.google.com', googleCalendarSummary: 'Cenoura - SDR',
       busyCalendarIds: ['primary'],
+      watchCalendarIds: ['equipe@group.calendar.google.com'],
       scope: 'openid email https://www.googleapis.com/auth/calendar.events '
         + 'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
     });
@@ -71,7 +72,10 @@ describe('GET google-calendar/status', () => {
       status: 'connected', connectedAt: '2026-09-22T00:00:00.000Z',
       // Fatia 5: a tela precisa saber a escolha atual e se ja da para listar as agendas.
       writeCalendarId: 'sdr@group.calendar.google.com', writeCalendarSummary: 'Cenoura - SDR',
-      busyCalendarIds: ['primary'], canListCalendars: true,
+      busyCalendarIds: ['primary'],
+      // Agenda que SO AVISA vem separada da que bloqueia (pedido do Junior, 22/09).
+      watchCalendarIds: ['equipe@group.calendar.google.com'],
+      canListCalendars: true,
     });
     expect(JSON.stringify(body)).not.toMatch(/token|refresh/i);
   });

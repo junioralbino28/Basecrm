@@ -66,6 +66,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
       // casar o id com a lista (achado do pareamento com a interface).
       writeCalendarSummary: googleConnection.googleCalendarSummary,
       busyCalendarIds: googleConnection.busyCalendarIds,
+      watchCalendarIds: googleConnection.watchCalendarIds,
       calendars,
     });
   } catch (error) {

@@ -38,7 +38,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
   if (!ownerId) {
     return json({
       configured, connected: false, googleAccountEmail: null, status: null, connectedAt: null,
-      writeCalendarId: null, writeCalendarSummary: null, busyCalendarIds: [], canListCalendars: false,
+      writeCalendarId: null, writeCalendarSummary: null, busyCalendarIds: [], watchCalendarIds: [], canListCalendars: false,
     });
   }
 
@@ -54,6 +54,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
     writeCalendarId: googleConnection?.googleCalendarId ?? null,
     writeCalendarSummary: googleConnection?.googleCalendarSummary ?? null,
     busyCalendarIds: googleConnection?.busyCalendarIds ?? [],
+    watchCalendarIds: googleConnection?.watchCalendarIds ?? [],
     canListCalendars: scopeCoversCalendarList(googleConnection?.scope),
   });
 }

@@ -437,7 +437,13 @@ export async function listGoogleCalendars(input: {
       if (!id) return null;
       return {
         id,
-        summary: typeof linha.summary === 'string' && linha.summary ? linha.summary : id,
+        // `summaryOverride` vem primeiro: quando alguem RENOMEIA uma agenda (o caso da
+        // principal, que o Google devolve em `summary` como o proprio e-mail), o nome que a
+        // pessoa ve no Google Agenda esta neste campo — e era por ele que a agenda parecia
+        // "nao existir" na nossa lista.
+        summary: [linha.summaryOverride, linha.summary]
+          .find((valor): valor is string => typeof valor === 'string' && valor.trim().length > 0)
+          ?.trim() ?? id,
         primary: linha.primary === true,
         accessRole: typeof linha.accessRole === 'string' ? linha.accessRole : 'reader',
         backgroundColor: typeof linha.backgroundColor === 'string' ? linha.backgroundColor : null,

@@ -97,3 +97,65 @@ describe('Google Agenda — conexoes, oauth states e vault (Fatia 1)', () => {
     expect(source).not.toMatch(/(?:create|drop|grant|revoke)[^\n]*reserve_conversation_meeting/i);
   });
 });
+
+describe('Google Agenda — reconectar nao apaga a agenda escolhida (correcao 20260922060000)', () => {
+  const fix = fs.readFileSync(
+    path.join(process.cwd(), 'supabase/migrations/20260922060000_preserve_calendar_choice_on_reconnect.sql'),
+    'utf8',
+  );
+  const doUpdate = fix.slice(fix.indexOf('on conflict (organization_id, owner_id) do update set'));
+
+  it('a versao corrigida NAO grava mais `excluded.google_calendar_id` por cima da escolha', () => {
+    // Era isto que devolvia a IA para a agenda principal a cada reconexao.
+    expect(doUpdate).not.toContain('google_calendar_id = excluded.google_calendar_id');
+  });
+
+  it('preserva agenda de escrita, nome e agendas ocupadas quando a conta Google e a MESMA', () => {
+    for (const coluna of ['google_calendar_id', 'google_calendar_summary', 'busy_calendar_ids']) {
+      expect(doUpdate).toContain(`else public.google_calendar_connections.${coluna}`);
+    }
+  });
+
+  it('zera a escolha quando a conta Google MUDOU (ids de outra conta dariam 404)', () => {
+    const comparacoes = doUpdate.match(
+      /public\.google_calendar_connections\.google_account_email\s*\n?\s*is distinct from excluded\.google_account_email/g,
+    );
+    expect(comparacoes).toHaveLength(3);
+    expect(doUpdate).toContain("then 'primary'");
+    expect(doUpdate).toContain("then '{}'::text[]");
+  });
+
+  it('mantem o cabecalho de seguranca da versao original (definer, search_path vazio, so service_role)', () => {
+    expect(fix).toContain('security definer');
+    expect(fix).toContain("set search_path = ''");
+    expect(fix).toContain(') from public, anon, authenticated;');
+    expect(fix).toContain(') to service_role;');
+    // O resto do corpo nao muda: trava, Vault e checagem de responsavel continuam.
+    expect(fix).toContain('pg_advisory_xact_lock');
+    expect(fix).toContain('vault.update_secret(');
+    expect(fix).toContain('vault.create_secret(');
+    expect(fix).toContain("raise exception 'Responsavel nao pertence a organizacao.'");
+  });
+});
+
+describe('Google Agenda — agenda de observacao (20260922070000): avisa, nao bloqueia', () => {
+  const watch = fs.readFileSync(
+    path.join(process.cwd(), 'supabase/migrations/20260922070000_google_calendar_watch_only.sql'),
+    'utf8',
+  );
+
+  it('e aditivo puro e o padrao reproduz o comportamento de hoje (ninguem avisa)', () => {
+    expect(watch).toContain("add column if not exists watch_calendar_ids text[] not null default '{}'::text[]");
+    expect(watch).toContain('add column if not exists overlap_warning text');
+    // Nada de apagar, renomear ou mexer em dado existente.
+    expect(watch).not.toMatch(/drop\s+(table|column|constraint)/i);
+    expect(watch).not.toMatch(/^\s*update\s+public\./im);
+    expect(watch).not.toMatch(/^\s*delete\s+from/im);
+  });
+
+  it('a lista de observacao e uma coluna SEPARADA da de bloqueio', () => {
+    expect(watch).toContain('watch_calendar_ids');
+    // Nao mexe na coluna que bloqueia: as duas convivem com sentidos diferentes.
+    expect(watch).not.toMatch(/alter table[^;]*drop column[^;]*busy_calendar_ids/i);
+  });
+});

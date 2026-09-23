@@ -255,16 +255,18 @@ describe('ChannelCalendarSettings — escolha de agendas (SPEC-google-agenda.md,
     expect(screen.getByRole('option', { name: 'Pessoal' })).toBeInTheDocument();
     // Agenda só de leitura não pode receber reunião.
     expect(screen.queryByRole('option', { name: /Feriados no Brasil/ })).not.toBeInTheDocument();
-    // Mas continua disponível como "ocupado".
-    expect(screen.getByRole('checkbox', { name: /Feriados no Brasil/ })).toBeInTheDocument();
+    // Mas continua disponível para bloquear/avisar.
+    const feriados = screen.getByRole('combobox', { name: /O que a agenda Feriados no Brasil faz/ });
+    expect(feriados).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: 'Só avisar' }).length).toBeGreaterThan(0);
   });
 
-  it('marcar uma agenda como ocupado e salvar manda um PUT único com a seleção', async () => {
+  it('mandar uma agenda BLOQUEAR e salvar manda um PUT único com a seleção', async () => {
     const fetchMock = mockarRede();
     abrirGoogleAgenda();
 
-    const pessoal = await screen.findByRole('checkbox', { name: 'Pessoal' });
-    fireEvent.click(pessoal);
+    const pessoal = await screen.findByRole('combobox', { name: /O que a agenda Pessoal faz/ });
+    fireEvent.change(pessoal, { target: { value: 'bloqueia' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar escolha de agendas/ }));
 
     await waitFor(() => expect(chamadas(fetchMock, '/google-calendar/selection')).toHaveLength(1));
@@ -278,13 +280,42 @@ describe('ChannelCalendarSettings — escolha de agendas (SPEC-google-agenda.md,
     await screen.findByText('Agendas salvas.');
   });
 
-  it('a agenda de escrita aparece nas de ocupado marcada, desabilitada e com o aviso de que sempre conta', async () => {
+  it('SÓ AVISAR vai na lista de observação e NÃO na de bloqueio (pedido do Junior, 22/09)', async () => {
+    const fetchMock = mockarRede();
+    abrirGoogleAgenda();
+
+    const principal = await screen.findByRole('combobox', { name: /O que a agenda Cenoura Hub faz/ });
+    fireEvent.change(principal, { target: { value: 'avisa' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar escolha de agendas/ }));
+
+    await waitFor(() => expect(chamadas(fetchMock, '/google-calendar/selection')).toHaveLength(1));
+    const [, init] = chamadas(fetchMock, '/google-calendar/selection')[0] as [unknown, RequestInit];
+    const corpo = JSON.parse(String(init.body));
+    expect(corpo.watchCalendarIds).toContain('cenourahub@gmail.com');
+    expect(corpo.busyCalendarIds ?? []).not.toContain('cenourahub@gmail.com');
+  });
+
+  it('trocar de AVISAR para BLOQUEAR tira da lista de observação (os dois papéis são exclusivos)', async () => {
+    const fetchMock = mockarRede();
+    abrirGoogleAgenda();
+
+    const principal = await screen.findByRole('combobox', { name: /O que a agenda Cenoura Hub faz/ });
+    fireEvent.change(principal, { target: { value: 'avisa' } });
+    fireEvent.change(principal, { target: { value: 'bloqueia' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar escolha de agendas/ }));
+
+    await waitFor(() => expect(chamadas(fetchMock, '/google-calendar/selection')).toHaveLength(1));
+    const corpo = JSON.parse(String((chamadas(fetchMock, '/google-calendar/selection')[0] as [unknown, RequestInit])[1].body));
+    expect(corpo.busyCalendarIds).toContain('cenourahub@gmail.com');
+    expect(corpo.watchCalendarIds).not.toContain('cenourahub@gmail.com');
+  });
+
+  it('a agenda de escrita nao tem seletor: ela sempre conta como ocupado e o texto diz isso', async () => {
     mockarRede();
     abrirGoogleAgenda();
 
-    const escrita = await screen.findByRole('checkbox', { name: /Cenoura - SDR — sempre conta como ocupado/ });
-    expect(escrita).toBeChecked();
-    expect(escrita).toBeDisabled();
+    await screen.findByText(/Cenoura - SDR — é onde a IA marca, sempre conta como ocupado/);
+    expect(screen.queryByRole('combobox', { name: /O que a agenda Cenoura - SDR faz/ })).not.toBeInTheDocument();
   });
 
   it('conexão antiga (canListCalendars: false): sem seletor, sem caixas, com aviso e botão Reconectar', async () => {
@@ -294,7 +325,7 @@ describe('ChannelCalendarSettings — escolha de agendas (SPEC-google-agenda.md,
     await screen.findByText(/reconecte uma vez/i);
     expect(screen.getByRole('button', { name: 'Reconectar' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /Agenda onde a IA marca/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /Cenoura Hub/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /O que a agenda/ })).not.toBeInTheDocument();
     // Sem permissão de listar, nem vale gastar a chamada.
     expect(chamadas(fetchMock, '/google-calendar/calendars')).toHaveLength(0);
   });

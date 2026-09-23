@@ -9,7 +9,7 @@ import {
   resolveConversationCalendarConfig,
 } from '@/lib/conversations/meetingAvailability';
 import { redactChannelSecrets } from '@/lib/channels/redactChannelSecrets';
-import { markGoogleCalendarConnectionIssue } from './connectionStore';
+import { getGoogleCalendarConnection, markGoogleCalendarConnectionIssue } from './connectionStore';
 import { getGoogleCalendarAccessToken } from './oauth';
 import {
   deleteGoogleCalendarEvent,
@@ -17,6 +17,7 @@ import {
   GoogleApiError,
   insertGoogleCalendarEvent,
   patchGoogleCalendarEvent,
+  queryGoogleFreeBusy,
   type GoogleCalendarEvent,
   type GoogleCalendarEventInput,
 } from './googleApiClient';
@@ -77,12 +78,21 @@ type MeetingEventRow = {
   meet_link: string | null;
   status: GoogleMeetingEventStatus;
   attempts: number;
+  overlap_warning: string | null;
 };
 
 const ROW_COLUMNS =
   'activity_id, organization_id, thread_id, channel_connection_id, owner_id, contact_id, '
   + 'contact_name, invitee_email, invited_at, invited_email, scheduled_at, timezone, '
-  + 'google_calendar_id, google_event_id, meet_link, status, attempts';
+  + 'google_calendar_id, google_event_id, meet_link, status, attempts, overlap_warning';
+
+/**
+ * Texto unico do aviso de sobreposicao. Curto e sem nome de compromisso de proposito: o
+ * freeBusy do Google devolve so os intervalos ocupados, nunca o titulo — e mesmo que
+ * devolvesse, o compromisso pode ser de outra pessoa da equipe e nao e nosso para exibir.
+ */
+export const OVERLAP_WARNING_TEXT =
+  'Há outro compromisso nesse horário em uma agenda que você pediu para observar.';
 
 function meetingEndAt(scheduledAt: string): string {
   return new Date(new Date(scheduledAt).getTime() + MEETING_TARGET_DURATION_MINUTES * 60_000).toISOString();
@@ -529,6 +539,72 @@ async function notifyInviteOutcome(input: {
   }
 }
 
+/**
+ * Agenda de OBSERVACAO: avisa, nunca bloqueia.
+ *
+ * Pedido do Junior (22/09): a agenda principal da conta e usada por mais de uma pessoa (ele e a
+ * Rayanne fazem calls com clientes ali). Um compromisso la NAO significa que o closer esta
+ * ocupado — bloquear tirava horario do lead sem motivo. Entao o horario continua sendo
+ * oferecido e, se houver sobreposicao no instante em que a reuniao nasce, isso vira um aviso:
+ * no sino e no proprio card da conversa (coluna `overlap_warning`).
+ *
+ * Nunca derruba nada: o evento ja foi criado quando esta funcao roda, e qualquer falha aqui
+ * (agenda removida, Google fora do ar, coluna ainda nao migrada) so gera um `console.warn`.
+ */
+async function warnOnWatchedOverlap(input: {
+  admin: AdminClient;
+  row: MeetingEventRow;
+  accessToken: string;
+  now: string;
+}): Promise<void> {
+  const { admin, row, now } = input;
+  try {
+    const conexao = await getGoogleCalendarConnection({
+      admin, organizationId: row.organization_id, ownerId: row.owner_id,
+    });
+    const observadas = (conexao?.watchCalendarIds ?? [])
+      .filter((id) => id !== row.google_calendar_id);
+    if (observadas.length === 0) return;
+
+    const ocupados = await queryGoogleFreeBusy({
+      accessToken: input.accessToken,
+      calendarIds: observadas,
+      timeMin: row.scheduled_at,
+      timeMax: meetingEndAt(row.scheduled_at),
+    });
+
+    // Sem conflito: limpa um aviso antigo (a reuniao pode ter sido remarcada para um horario livre).
+    const aviso = ocupados.length === 0 ? null : OVERLAP_WARNING_TEXT;
+    if (aviso === null && !row.overlap_warning) return;
+
+    const updated = await admin
+      .from(GOOGLE_MEETING_EVENT_TABLE)
+      .update({ overlap_warning: aviso, updated_at: now })
+      .eq('activity_id', row.activity_id)
+      .eq('organization_id', row.organization_id);
+    if (updated.error) throw new Error(updated.error.message);
+
+    if (aviso) {
+      await notify({
+        admin,
+        organizationId: row.organization_id,
+        threadId: row.thread_id,
+        eventKey: `google-overlap:${row.activity_id}`,
+        title: 'Reunião marcada por cima de outro compromisso',
+        message: `${aviso} A IA marcou assim mesmo — nenhuma agenda de observação tira horário do lead.`,
+        severity: 'medium',
+        now,
+      });
+    }
+  } catch (error) {
+    console.warn('[GoogleCalendar] Failed to check watched calendars overlap', {
+      organizationId: row.organization_id,
+      activityId: row.activity_id,
+      error: error instanceof Error ? error.message : 'erro desconhecido',
+    });
+  }
+}
+
 async function insertEvent(input: {
   admin: AdminClient;
   row: MeetingEventRow;
@@ -585,6 +661,7 @@ async function insertEvent(input: {
   });
 
   await notifyInviteOutcome({ admin, row, decision, now, context: 'created' });
+  await warnOnWatchedOverlap({ admin, row, accessToken: input.accessToken, now });
 }
 
 async function patchEvent(input: {
@@ -621,6 +698,9 @@ async function patchEvent(input: {
   });
 
   await notifyInviteOutcome({ admin, row, decision, now, context: 'updated' });
+  // Remarcacao muda o horario: o aviso de sobreposicao tem de ser recalculado (e limpo quando
+  // o horario novo esta livre), senao a tela fica com a informacao do horario antigo.
+  await warnOnWatchedOverlap({ admin, row, accessToken: input.accessToken, now });
 }
 
 async function cancelEvent(input: {

@@ -19,8 +19,26 @@ type GoogleCalendarStatus = {
   writeCalendarId?: string | null;
   writeCalendarSummary?: string | null;
   busyCalendarIds?: string[];
+  watchCalendarIds?: string[];
   canListCalendars?: boolean;
 };
+
+/**
+ * O que cada agenda da conta faz pela IA. Tres estados exclusivos, porque "bloqueia" e "so
+ * avisa" sao decisoes diferentes: a agenda principal de uma equipe costuma ter compromissos
+ * de OUTRAS pessoas — bloquear ali tira horario do closer sem motivo (pedido do Junior, 22/09).
+ */
+type PapelDaAgenda = 'ignora' | 'bloqueia' | 'avisa';
+
+/**
+ * Nao reusa FIELD_CLASS aqui: ela traz `w-full`, e juntar `w-auto` na mesma string nao vence a
+ * disputa (as duas tem a mesma especificidade; quem manda e a ordem no CSS gerado, nao a ordem
+ * das classes). Este seletor fica ao lado do nome da agenda, entao precisa de largura propria.
+ */
+const SELETOR_PAPEL_CLASS =
+  'min-h-11 min-w-0 max-w-[12rem] shrink-0 rounded-xl border border-slate-300 bg-white px-2 text-xs '
+  + 'text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 '
+  + 'disabled:opacity-60 dark:border-slate-600 dark:bg-[#111b21] dark:text-slate-100';
 
 type GoogleCalendarItem = {
   id: string;
@@ -65,6 +83,7 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
   const [calendarsNeedReconnect, setCalendarsNeedReconnect] = React.useState(false);
   const [writeCalendarId, setWriteCalendarId] = React.useState<string | null>(null);
   const [busyCalendarIds, setBusyCalendarIds] = React.useState<string[]>([]);
+  const [watchCalendarIds, setWatchCalendarIds] = React.useState<string[]>([]);
   const [savingSelection, setSavingSelection] = React.useState(false);
   const endpoint = `/api/platform/tenants/${tenantId}/channels/${connectionId}/google-calendar`;
 
@@ -95,6 +114,8 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
       setWriteCalendarId(resolverAgendaDeEscrita(body?.writeCalendarId ?? status?.writeCalendarId ?? null, lista));
       const ocupadas = Array.isArray(body?.busyCalendarIds) ? body.busyCalendarIds : (status?.busyCalendarIds ?? []);
       setBusyCalendarIds(ocupadas);
+      const observadas = Array.isArray(body?.watchCalendarIds) ? body.watchCalendarIds : (status?.watchCalendarIds ?? []);
+      setWatchCalendarIds(observadas);
     } catch (error) {
       // Lista vazia (e nao `null`) encerra a tentativa: sem isso o efeito pediria de novo a cada render.
       setCalendars([]);
@@ -119,8 +140,18 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
     if (next && !status) await loadStatus();
   }
 
-  function toggleBusy(calendarId: string, marcado: boolean) {
-    setBusyCalendarIds(current => (marcado
+  function papelDaAgenda(calendarId: string): PapelDaAgenda {
+    if (busyCalendarIds.includes(calendarId)) return 'bloqueia';
+    if (watchCalendarIds.includes(calendarId)) return 'avisa';
+    return 'ignora';
+  }
+
+  /** Exclusivo de proposito: a mesma agenda nunca fica nas duas listas. */
+  function definirPapel(calendarId: string, papel: PapelDaAgenda) {
+    setBusyCalendarIds(current => (papel === 'bloqueia'
+      ? [...new Set([...current, calendarId])]
+      : current.filter(id => id !== calendarId)));
+    setWatchCalendarIds(current => (papel === 'avisa'
       ? [...new Set([...current, calendarId])]
       : current.filter(id => id !== calendarId)));
   }
@@ -142,16 +173,25 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
           writeCalendarId,
           writeCalendarSummary: escolhida?.summary ?? null,
           busyCalendarIds: busyCalendarIds.filter(id => id !== writeCalendarId),
+          watchCalendarIds: watchCalendarIds.filter(id => id !== writeCalendarId),
         }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || 'Falha ao salvar a escolha de agendas.');
       const salvo = typeof body?.writeCalendarId === 'string' ? body.writeCalendarId : writeCalendarId;
       const ocupadas = Array.isArray(body?.busyCalendarIds) ? body.busyCalendarIds : busyCalendarIds;
+      const observadas = Array.isArray(body?.watchCalendarIds) ? body.watchCalendarIds : watchCalendarIds;
       setWriteCalendarId(salvo);
       setBusyCalendarIds(ocupadas);
+      setWatchCalendarIds(observadas);
       setStatus(current => (current
-        ? { ...current, writeCalendarId: salvo, writeCalendarSummary: escolhida?.summary ?? null, busyCalendarIds: ocupadas }
+        ? {
+            ...current,
+            writeCalendarId: salvo,
+            writeCalendarSummary: escolhida?.summary ?? null,
+            busyCalendarIds: ocupadas,
+            watchCalendarIds: observadas,
+          }
         : current));
       setMessage('Agendas salvas.');
     } catch (error) {
@@ -266,27 +306,35 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
                         navegador e estica a tela no celular (mesmo defeito medido no editor de
                         expediente, 22/09). */}
                     <fieldset className="min-w-0 border-0 p-0">
-                      <legend className="text-xs font-semibold text-slate-600 dark:text-slate-300">Agendas que contam como ocupado</legend>
+                      <legend className="text-xs font-semibold text-slate-600 dark:text-slate-300">O que as outras agendas fazem</legend>
                       <p className="mt-1 text-xs text-slate-500">
-                        Um compromisso em qualquer agenda marcada aqui impede a IA de oferecer aquele horário.
+                        <strong>Bloquear</strong> tira o horário do lead. <strong>Só avisar</strong> não tira nada: a IA
+                        continua oferecendo e você recebe um aviso se houver algo no mesmo horário — para agenda usada
+                        por mais de uma pessoa, é o que você quer.
                       </p>
                       <div className="mt-2 space-y-1">
                         {calendars.map(agenda => {
                           const ehAgendaDeEscrita = agenda.id === writeCalendarId;
                           return (
-                            <label key={agenda.id} className="flex min-h-9 items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                              <input
-                                type="checkbox"
-                                checked={ehAgendaDeEscrita || busyCalendarIds.includes(agenda.id)}
-                                disabled={disabled || savingSelection || ehAgendaDeEscrita}
-                                onChange={event => toggleBusy(agenda.id, event.target.checked)}
-                                className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-60"
-                              />
-                              <span>
+                            <div key={agenda.id} className="flex min-h-9 min-w-0 flex-wrap items-center justify-between gap-2 text-sm text-slate-700 dark:text-slate-200">
+                              <span className="min-w-0 break-words">
                                 {agenda.summary}
-                                {ehAgendaDeEscrita ? ' — sempre conta como ocupado' : ''}
+                                {ehAgendaDeEscrita ? ' — é onde a IA marca, sempre conta como ocupado' : ''}
                               </span>
-                            </label>
+                              {ehAgendaDeEscrita ? null : (
+                                <select
+                                  aria-label={`O que a agenda ${agenda.summary} faz`}
+                                  className={SELETOR_PAPEL_CLASS}
+                                  value={papelDaAgenda(agenda.id)}
+                                  disabled={disabled || savingSelection}
+                                  onChange={event => definirPapel(agenda.id, event.target.value as PapelDaAgenda)}
+                                >
+                                  <option value="ignora">Ignorar</option>
+                                  <option value="bloqueia">Bloquear horário</option>
+                                  <option value="avisa">Só avisar</option>
+                                </select>
+                              )}
+                            </div>
                           );
                         })}
                       </div>

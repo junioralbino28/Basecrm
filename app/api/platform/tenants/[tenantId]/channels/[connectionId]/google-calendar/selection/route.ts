@@ -13,7 +13,10 @@ function json(body: unknown, status = 200) {
 }
 
 /**
- * Qual agenda a IA usa para ESCREVER e quais contam como OCUPADO (Fatia 5).
+ * Qual agenda a IA usa para ESCREVER, quais contam como OCUPADO e quais SO AVISAM (Fatia 5).
+ *
+ * Bloquear e avisar sao listas separadas de proposito: a agenda principal de uma equipe tem
+ * compromissos de outras pessoas, e bloquear ali tiraria horario do closer sem motivo.
  *
  * O id da agenda vem do Google (`primary` ou `...@group.calendar.google.com`), entao e texto
  * livre — por isso o limite de tamanho, o teto de quantidade e a checagem de que a conexao
@@ -24,6 +27,7 @@ const CorpoSchema = z.object({
   writeCalendarId: z.string().trim().min(1).max(320),
   writeCalendarSummary: z.string().trim().max(200).nullable().optional(),
   busyCalendarIds: z.array(z.string().trim().min(1).max(320)).max(20).optional(),
+  watchCalendarIds: z.array(z.string().trim().min(1).max(320)).max(20).optional(),
 }).strict();
 
 export async function PUT(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
@@ -58,6 +62,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ tenantId: strin
   // A agenda de escrita nunca precisa aparecer tambem na lista de ocupado (ela ja conta sempre).
   const busy = [...new Set((parsed.data.busyCalendarIds ?? [])
     .filter((id) => id !== parsed.data.writeCalendarId))];
+  // Observar e bloquear sao exclusivos: quem bloqueia ja para o horario, avisar seria ruido.
+  // A agenda de escrita tambem sai daqui (ela e a propria agenda da reuniao).
+  const watch = [...new Set((parsed.data.watchCalendarIds ?? [])
+    .filter((id) => id !== parsed.data.writeCalendarId && !busy.includes(id)))];
 
   const updated = await admin
     .from('google_calendar_connections')
@@ -65,6 +73,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ tenantId: strin
       google_calendar_id: parsed.data.writeCalendarId,
       google_calendar_summary: parsed.data.writeCalendarSummary ?? null,
       busy_calendar_ids: busy,
+      watch_calendar_ids: watch,
       updated_at: new Date().toISOString(),
     })
     .eq('organization_id', tenantId)
@@ -80,5 +89,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ tenantId: strin
     writeCalendarId: parsed.data.writeCalendarId,
     writeCalendarSummary: parsed.data.writeCalendarSummary ?? null,
     busyCalendarIds: busy,
+    watchCalendarIds: watch,
   });
 }

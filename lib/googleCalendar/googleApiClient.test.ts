@@ -3,6 +3,7 @@ import {
   GoogleApiError,
   exchangeGoogleAuthorizationCode,
   fetchGoogleUserInfo,
+  listGoogleCalendars,
   queryGoogleFreeBusy,
   refreshGoogleAccessToken,
   revokeGoogleToken,
@@ -188,5 +189,28 @@ describe('googleApiClient — unico ponto de fetch para o Google', () => {
     await expect(queryGoogleFreeBusy({
       accessToken: 'at-1', calendarIds: ['primary'], timeMin: '2026-09-21T00:00:00Z', timeMax: '2026-09-22T00:00:00Z',
     })).resolves.toEqual([]);
+  });
+});
+
+describe('listGoogleCalendars — o nome tem de ser o que a pessoa ve no Google', () => {
+  it('prefere o nome renomeado (`summaryOverride`) ao `summary` da API', async () => {
+    // Caso real (22/09): a agenda principal chega com `summary` = o proprio e-mail; o nome
+    // que o Junior ve ("Cenoura Hub") vem de `summaryOverride`, e por isso a agenda dele
+    // parecia nao existir na nossa lista.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      items: [
+        { id: 'cenourahub@gmail.com', summary: 'cenourahub@gmail.com', summaryOverride: 'Cenoura Hub', primary: true, accessRole: 'owner' },
+        { id: 'sdr@group.calendar.google.com', summary: 'Cenoura - SDR', accessRole: 'writer' },
+        { id: 'sem-nome@group.calendar.google.com', accessRole: 'reader' },
+        { id: 'so-espaco@group.calendar.google.com', summaryOverride: '   ', summary: 'Nome de verdade', accessRole: 'reader' },
+      ],
+    }), { status: 200 }));
+
+    const lista = await listGoogleCalendars({ accessToken: 'at-1' });
+
+    expect(lista.map((agenda) => agenda.summary)).toEqual([
+      'Cenoura Hub', 'Cenoura - SDR', 'sem-nome@group.calendar.google.com', 'Nome de verdade',
+    ]);
+    expect(lista[0]).toMatchObject({ primary: true, accessRole: 'owner' });
   });
 });
