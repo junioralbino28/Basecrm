@@ -5,6 +5,28 @@
  */
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 
+/**
+ * Coluna virtual de quem ainda nao cadastrou equipe (Junior, 22/09/2026: "essa tela
+ * nao pode ficar vazia"). Recebe tudo que nao tem profissional — marcacao antiga sem
+ * dono e as reunioes que a IA marcou na conversa.
+ */
+export const COLUNA_PADRAO_ID = 'agenda-sem-equipe';
+
+/**
+ * Em qual coluna o compromisso aparece. Sem profissional (ou apontando para alguem
+ * que nao esta na tela) ele cai na coluna padrao, se ela existir; senao fica de fora
+ * — que e o certo quando a equipe esta cadastrada e a pessoa filtrou por alguem.
+ */
+export function colunaDoCompromisso(
+  appt: { professionalId?: string },
+  colunas: { id: string }[],
+): string | null {
+  if (appt.professionalId && colunas.some((c) => c.id === appt.professionalId)) {
+    return appt.professionalId;
+  }
+  return colunas.some((c) => c.id === COLUNA_PADRAO_ID) ? COLUNA_PADRAO_ID : null;
+}
+
 export const ROTULOS_DE_STATUS: Record<string, string> = {
   agendado: 'Agendado',
   confirmado: 'Confirmado',

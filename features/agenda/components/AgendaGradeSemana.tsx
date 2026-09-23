@@ -21,6 +21,7 @@ import {
 import {
   CORES_DE_STATUS,
   ROTULOS_DE_STATUS,
+  colunaDoCompromisso,
   corDoProfissional,
   diaLocalDe,
   primeiroNome,
@@ -59,25 +60,19 @@ export function AgendaGradeSemana({
   const inicios = new Map<string, AppointmentDoDia>();
   const continuacoes = new Set<string>();
   for (const appt of appointments) {
-    if (!appt.professionalId) continue;
+    // Sem profissional (marcacao antiga, ou reuniao que a IA marcou) cai na coluna padrao.
+    const coluna = colunaDoCompromisso(appt, professionals);
+    if (!coluna) continue;
     const dia = diaLocalDe(appt.startsAt);
     const hora = horaLocalDe(appt.startsAt);
-    const chave = `${appt.professionalId}|${dia}|${hora}`;
+    const chave = `${coluna}|${dia}|${hora}`;
     if (!inicios.has(chave) || appt.status !== 'cancelado') inicios.set(chave, appt);
     if (appt.status !== 'cancelado') {
       const i = vagas.indexOf(hora);
       for (let k = 1; k < linhasOcupadas(appt) && i >= 0 && i + k < vagas.length; k += 1) {
-        continuacoes.add(`${appt.professionalId}|${dia}|${vagas[i + k]}`);
+        continuacoes.add(`${coluna}|${dia}|${vagas[i + k]}`);
       }
     }
-  }
-
-  if (professionals.length === 0) {
-    return (
-      <p className="p-6 text-sm text-slate-500 dark:text-slate-400">
-        Cadastre os profissionais em Configurações → Equipe para a agenda ganhar a semana.
-      </p>
-    );
   }
 
   return (

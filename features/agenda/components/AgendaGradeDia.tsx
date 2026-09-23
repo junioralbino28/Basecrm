@@ -12,7 +12,7 @@ import { vagasDoDia, horaLocalDe, MINUTOS_POR_VAGA } from '../hooks/useAgendaLoc
 
 // Cores e rótulos moram em `agendaFormato` — uma fonte só pras 3 visões.
 // O re-export mantém o caminho antigo funcionando pra quem já importava daqui.
-import { CORES_DE_STATUS, ROTULOS_DE_STATUS } from './agendaFormato';
+import { colunaDoCompromisso, CORES_DE_STATUS, ROTULOS_DE_STATUS } from './agendaFormato';
 
 export { ROTULOS_DE_STATUS };
 
@@ -40,26 +40,20 @@ export function AgendaGradeDia({
   const porCelula = new Map<string, AppointmentDoDia>();
   const ocupadasPorContinuacao = new Set<string>();
   for (const appt of appointments) {
-    if (!appt.professionalId) continue;
+    // Sem profissional (marcacao antiga, ou reuniao que a IA marcou) cai na coluna padrao.
+    const coluna = colunaDoCompromisso(appt, professionals);
+    if (!coluna) continue;
     const hora = horaLocalDe(appt.startsAt);
-    const chave = `${appt.professionalId}|${hora}`;
+    const chave = `${coluna}|${hora}`;
     if (!porCelula.has(chave) || appt.status !== 'cancelado') {
       porCelula.set(chave, appt);
     }
     if (appt.status !== 'cancelado') {
       const inicio = vagas.indexOf(hora);
       for (let i = 1; i < linhasOcupadas(appt) && inicio >= 0 && inicio + i < vagas.length; i += 1) {
-        ocupadasPorContinuacao.add(`${appt.professionalId}|${vagas[inicio + i]}`);
+        ocupadasPorContinuacao.add(`${coluna}|${vagas[inicio + i]}`);
       }
     }
-  }
-
-  if (professionals.length === 0) {
-    return (
-      <p className="p-6 text-sm text-slate-500 dark:text-slate-400">
-        Cadastre os profissionais em Configurações → Equipe para a agenda ganhar colunas.
-      </p>
-    );
   }
 
   return (
@@ -92,11 +86,14 @@ export function AgendaGradeDia({
                         onClick={() => onAbrirConsulta(appt)}
                         className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs font-medium transition hover:opacity-80 ${CORES_DE_STATUS[appt.status] || CORES_DE_STATUS.agendado}`}
                       >
-                        <span className="block truncate font-semibold">{appt.contactName || 'Sem contato'}</span>
+                        <span className="block truncate font-semibold">
+                          {appt.contactName || appt.titulo || 'Sem contato'}
+                        </span>
                         <span className="block truncate opacity-80">
                           {horaLocalDe(appt.startsAt)}
                           {appt.endsAt ? `–${horaLocalDe(appt.endsAt)}` : ''} · {ROTULOS_DE_STATUS[appt.status] || appt.status}
                           {appt.source === 'clinicorp_api' ? ' · veio do Clinicorp' : ''}
+                          {appt.source === 'aurora' ? ' · marcada pela IA' : ''}
                         </span>
                       </button>
                     </td>

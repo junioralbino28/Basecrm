@@ -185,10 +185,13 @@ export function DetalheConsultaModal({
       <div role="dialog" aria-label="Detalhes da consulta" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-dark-card">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">{appt.contactName || 'Sem contato'}</h2>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {appt.contactName || appt.titulo || 'Sem contato'}
+            </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {ROTULOS_DE_STATUS[appt.status] || appt.status}
               {appt.source === 'clinicorp_api' ? ' · veio do Clinicorp' : ''}
+              {appt.source === 'aurora' ? ' · marcada pela IA na conversa' : ''}
               {appt.notes ? ` · ${appt.notes}` : ''}
             </p>
           </div>
@@ -197,7 +200,15 @@ export function DetalheConsultaModal({
           </button>
         </div>
 
-        <div className="mb-4 flex flex-wrap gap-2">
+        {appt.somenteLeitura ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            Esta reunião foi marcada pela IA e também existe no Google Agenda, com o link da chamada.
+            Para remarcar ou cancelar, use a conversa com o lead — é ela que avisa a pessoa e corrige o
+            Google. Mudar só por aqui deixaria as duas agendas contando histórias diferentes.
+          </p>
+        ) : null}
+
+        <div className={`mb-4 flex flex-wrap gap-2 ${appt.somenteLeitura ? 'hidden' : ''}`}>
           {statusRapidos.map((status) => (
             <button
               key={status}
@@ -220,7 +231,7 @@ export function DetalheConsultaModal({
         </div>
 
         <form
-          className="space-y-3 border-t border-slate-100 pt-4 dark:border-white/5"
+          className={`space-y-3 border-t border-slate-100 pt-4 dark:border-white/5 ${appt.somenteLeitura ? 'hidden' : ''}`}
           onSubmit={async (e) => {
             e.preventDefault();
             await onRemarcar({ id: appt.id, dataIso, hora, duracaoMin, professionalId: professionalId || undefined });

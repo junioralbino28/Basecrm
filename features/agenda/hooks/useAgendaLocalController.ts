@@ -10,6 +10,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/context/ToastContext';
 import { appointmentsLocalService, type AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
+import { reunioesDaIaService } from '@/lib/supabase/agendaReunioes';
+import { COLUNA_PADRAO_ID } from '../components/agendaFormato';
+
+/**
+ * A coluna padrao e uma coluna da TELA, nao uma linha de `professionals`. Antes de
+ * gravar ela vira `null` — que e o que a tabela espera de um compromisso sem dono.
+ */
+function idDeProfissional(valor: string | null | undefined): string | null {
+  return !valor || valor === COLUNA_PADRAO_ID ? null : valor;
+}
 import type { AppointmentStatus } from '@/types';
 
 /** Grade do dia: 08:00 às 19:00, de meia em meia hora (padrão de clínica). */
@@ -103,7 +113,8 @@ export function horaLocalDe(iso: string): string {
 
 export type NovaConsulta = {
   contactId: string;
-  professionalId: string;
+  /** `null` = coluna padrao (organizacao sem equipe cadastrada). */
+  professionalId: string | null;
   hora: string;
   duracaoMin: number;
   notes?: string;
@@ -131,9 +142,17 @@ export function useAgendaLocalController() {
     queryFn: async () => {
       const deIso = paraIsoLocal(intervalo.de, '00:00');
       const ateIso = paraIsoLocal(intervalo.ate, '00:00');
-      const { data, error } = await appointmentsLocalService.listar(organizationId as string, deIso, ateIso);
-      if (error) throw error;
-      return data;
+      // As DUAS fontes da agenda, em paralelo: o que foi marcado na mao (`appointments`)
+      // e o que a IA marcou na conversa (`activities` do tipo MEETING, espelhadas no
+      // Google). Antes so a primeira era lida, e por isso a tela parecia vazia.
+      const [marcacoes, reunioes] = await Promise.all([
+        appointmentsLocalService.listar(organizationId as string, deIso, ateIso),
+        reunioesDaIaService.listar(organizationId as string, deIso, ateIso),
+      ]);
+      if (marcacoes.error) throw marcacoes.error;
+      // Falha ao ler as reunioes da IA nao derruba a agenda: perde-se uma fonte, nao a tela.
+      return [...marcacoes.data, ...reunioes.data]
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
   });
 
@@ -150,7 +169,7 @@ export function useAgendaLocalController() {
       const { error } = await appointmentsLocalService.criar({
         organizationId,
         contactId: nova.contactId,
-        professionalId: nova.professionalId,
+        professionalId: idDeProfissional(nova.professionalId),
         startsAtIso,
         endsAtIso: fim,
         notes: nova.notes,
@@ -171,7 +190,7 @@ export function useAgendaLocalController() {
       const { error } = await appointmentsLocalService.remarcar(params.id, {
         startsAtIso,
         endsAtIso: fim,
-        professionalId: params.professionalId,
+        professionalId: idDeProfissional(params.professionalId) ?? undefined,
       });
       if (error) throw error;
     },

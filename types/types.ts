@@ -322,8 +322,12 @@ export type AppointmentStatus =
   | 'cancelado'
   | 'remarcado';
 
-/** Origem do agendamento: manual (Basecrm) ou espelhado da API do Clinicorp. */
-export type AppointmentSource = 'manual' | 'clinicorp_api';
+/**
+ * Origem do agendamento: manual (Basecrm), espelhado da API do Clinicorp, ou uma
+ * reuniao que a IA marcou na conversa (`aurora`, que vive em `activities` e no
+ * Google — aparece na agenda em somente leitura).
+ */
+export type AppointmentSource = 'manual' | 'clinicorp_api' | 'aurora';
 
 /**
  * Marco de conversão de um negócio (3b). Nasce sozinho dos gatilhos da agenda e do

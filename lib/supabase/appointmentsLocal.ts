@@ -19,6 +19,12 @@ export type AppointmentDoDia = Appointment & {
   contactName: string | null;
   contactPhone: string | null;
   professionalName: string | null;
+  /** Titulo proprio (reuniao da IA traz o dela; marcacao normal usa o nome do contato). */
+  titulo?: string;
+  /** Responsavel no CRM — a reuniao da IA e de um perfil, nao de alguem da equipe cadastrada. */
+  ownerId?: string;
+  /** Reuniao da IA: remarcar e cancelar sao pela CONVERSA, que fala com o lead e com o Google. */
+  somenteLeitura?: boolean;
 };
 
 type LinhaDoBanco = {
@@ -84,7 +90,8 @@ export const appointmentsLocalService = {
   async criar(params: {
     organizationId: string;
     contactId: string;
-    professionalId: string;
+    /** `null` = agenda sem equipe cadastrada (a coluna padrao da tela). */
+    professionalId: string | null;
     startsAtIso: string;
     endsAtIso: string;
     notes?: string;

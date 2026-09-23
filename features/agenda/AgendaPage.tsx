@@ -15,11 +15,14 @@ import { useAgendaLocalController, type VisaoAgenda } from './hooks/useAgendaLoc
 import { AgendaGradeDia } from './components/AgendaGradeDia';
 import { AgendaGradeSemana } from './components/AgendaGradeSemana';
 import { AgendaGradeMes } from './components/AgendaGradeMes';
-import { rotuloCurtoDoDia, rotuloDoMes } from './components/agendaFormato';
+import { COLUNA_PADRAO_ID, colunaDoCompromisso, rotuloCurtoDoDia, rotuloDoMes } from './components/agendaFormato';
 import { LegendaDeProfissionais } from './components/LegendaDeProfissionais';
 import type { Professional } from '@/types';
 import { MarcarConsultaModal, DetalheConsultaModal } from './components/MarcarConsultaModal';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
+import { useTenant } from '@/context/TenantContext';
+
+
 
 const VISOES: { valor: VisaoAgenda; rotulo: string }[] = [
   { valor: 'dia', rotulo: 'Dia' },
@@ -43,7 +46,15 @@ export function AgendaPage() {
   const [aberta, setAberta] = React.useState<AppointmentDoDia | null>(null);
   const [escolhidoId, setEscolhidoId] = React.useState<string | null>(null);
 
-  const ativos = React.useMemo(() => professionals.filter((p) => p.active !== false), [professionals]);
+  const { tenant } = useTenant();
+  const cadastrados = React.useMemo(() => professionals.filter((p) => p.active !== false), [professionals]);
+  const semEquipe = cadastrados.length === 0;
+  const ativos = React.useMemo<Professional[]>(
+    () => (semEquipe
+      ? [{ id: COLUNA_PADRAO_ID, name: tenant?.organizationName || 'Minha agenda', active: true }]
+      : cadastrados),
+    [semEquipe, cadastrados, tenant?.organizationName],
+  );
   const profDaMarcacao = marcando ? ativos.find((p) => p.id === marcando.professionalId) : null;
 
   // Semana e mês abrem em TODOS (é o que a recepção usa pra achar encaixe sem
@@ -61,7 +72,9 @@ export function AgendaPage() {
   const consultasEmFoco = React.useMemo(
     () =>
       escolhido
-        ? controller.appointments.filter((a) => a.professionalId === escolhido.id)
+        // Pela COLUNA, nao pelo campo cru: filtrar por `professionalId === id` esconderia
+        // tudo ao escolher a coluna padrao, cujos compromissos tem o campo vazio.
+        ? controller.appointments.filter((a) => colunaDoCompromisso(a, [escolhido]) === escolhido.id)
         : controller.appointments,
     [controller.appointments, escolhido],
   );

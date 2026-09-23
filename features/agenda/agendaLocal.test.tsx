@@ -10,6 +10,7 @@ import {
   MINUTOS_POR_VAGA,
 } from './hooks/useAgendaLocalController';
 import { AgendaGradeDia } from './components/AgendaGradeDia';
+import { COLUNA_PADRAO_ID } from './components/agendaFormato';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 import type { Professional } from '@/types';
 
@@ -111,5 +112,76 @@ describe('AgendaGradeDia', () => {
     );
 
     expect(screen.getByText(/veio do Clinicorp/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * "Essa tela nao pode ficar vazia" (Junior, 22/09/2026). Sem equipe cadastrada a agenda
+ * tem de existir do mesmo jeito, numa coluna so, e ja mostrar o que a IA marcou.
+ */
+describe('agenda sem equipe cadastrada — a coluna padrao', () => {
+  const COLUNA_PADRAO: Professional[] = [
+    { id: COLUNA_PADRAO_ID, name: 'CENNO HUB', active: true } as Professional,
+  ];
+
+  it('desenha a grade inteira com UMA coluna, em vez da mensagem de "cadastre a equipe"', () => {
+    render(
+      <AgendaGradeDia
+        appointments={[]}
+        professionals={COLUNA_PADRAO}
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/Cadastre os profissionais/)).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'CENNO HUB' })).toBeInTheDocument();
+    // A grade inteira continua clicavel: 22 vagas de 08:00 a 18:30.
+    expect(screen.getAllByRole('button', { name: /^Marcar \d{2}:\d{2} com CENNO HUB$/ })).toHaveLength(22);
+  });
+
+  it('compromisso SEM profissional aparece na coluna padrao (antes sumia da tela)', () => {
+    render(
+      <AgendaGradeDia
+        appointments={[consulta({ professionalId: undefined, professionalName: null })]}
+        professionals={COLUNA_PADRAO}
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Paciente Teste')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Marcar 09:00 com CENNO HUB' })).not.toBeInTheDocument();
+  });
+
+  it('a reuniao que a IA marcou entra na grade, com a origem visivel', () => {
+    render(
+      <AgendaGradeDia
+        appointments={[consulta({
+          id: 'aurora:abc', professionalId: undefined, professionalName: null,
+          source: 'aurora', contactName: 'Marina Souza', somenteLeitura: true,
+        })]}
+        professionals={COLUNA_PADRAO}
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Marina Souza')).toBeInTheDocument();
+    expect(screen.getByText(/marcada pela IA/)).toBeInTheDocument();
+  });
+
+  it('COM equipe cadastrada, compromisso sem profissional continua FORA (nao inventa coluna)', () => {
+    render(
+      <AgendaGradeDia
+        appointments={[consulta({ professionalId: undefined, professionalName: null })]}
+        professionals={DENTISTAS}
+        onMarcar={vi.fn()}
+        onAbrirConsulta={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Paciente Teste')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Marcar 09:00 com Dra. Ana' })).toBeInTheDocument();
   });
 });
