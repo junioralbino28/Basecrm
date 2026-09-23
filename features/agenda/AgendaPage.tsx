@@ -20,7 +20,6 @@ import { LegendaDeProfissionais } from './components/LegendaDeProfissionais';
 import type { Professional } from '@/types';
 import { MarcarConsultaModal, DetalheConsultaModal } from './components/MarcarConsultaModal';
 import type { AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
-import { useTenant } from '@/context/TenantContext';
 
 
 
@@ -46,14 +45,13 @@ export function AgendaPage() {
   const [aberta, setAberta] = React.useState<AppointmentDoDia | null>(null);
   const [escolhidoId, setEscolhidoId] = React.useState<string | null>(null);
 
-  const { tenant } = useTenant();
   const cadastrados = React.useMemo(() => professionals.filter((p) => p.active !== false), [professionals]);
   const semEquipe = cadastrados.length === 0;
   const ativos = React.useMemo<Professional[]>(
     () => (semEquipe
-      ? [{ id: COLUNA_PADRAO_ID, name: tenant?.organizationName || 'Minha agenda', active: true }]
+      ? [{ id: COLUNA_PADRAO_ID, name: controller.organizationName || 'Minha agenda', active: true }]
       : cadastrados),
-    [semEquipe, cadastrados, tenant?.organizationName],
+    [semEquipe, cadastrados, controller.organizationName],
   );
   const profDaMarcacao = marcando ? ativos.find((p) => p.id === marcando.professionalId) : null;
 

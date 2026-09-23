@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { supabase } from '@/lib/supabase/client';
 import { appointmentsLocalService, type AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 import { reunioesDaIaService } from '@/lib/supabase/agendaReunioes';
 import { COLUNA_PADRAO_ID } from '../components/agendaFormato';
@@ -142,6 +143,28 @@ export function useAgendaLocalController() {
     [organizationId, intervalo.de, intervalo.ate],
   );
 
+  /**
+   * Nome da organizacao para o cabecalho da coluna padrao. O `tenant` so traz o nome
+   * quando ha cliente escolhido; caindo para a organizacao do proprio perfil o nome nao
+   * vem junto, e a coluna ficava "Minha agenda" numa hora e "CENNO HUB" noutra, na MESMA
+   * tela, conforme o caminho que a pessoa usou para chegar. Uma linha do banco resolve
+   * (RLS `organizations_select_by_tenant` decide).
+   */
+  const nomeDaOrganizacao = useQuery({
+    queryKey: ['agenda-nome-organizacao', organizationId] as const,
+    enabled: Boolean(organizationId) && !tenant?.organizationName,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      if (!supabase) return null;
+      const { data } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId as string)
+        .maybeSingle();
+      return (data as { name?: string } | null)?.name || null;
+    },
+  });
+
   const consulta = useQuery({
     queryKey: chave,
     enabled: Boolean(organizationId),
@@ -239,6 +262,8 @@ export function useAgendaLocalController() {
   );
 
   return {
+    /** Nome para a coluna padrao: o do cliente escolhido, senao o da organizacao do perfil. */
+    organizationName: tenant?.organizationName || nomeDaOrganizacao.data || null,
     date,
     setDate,
     visao,
