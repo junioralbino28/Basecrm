@@ -163,6 +163,14 @@ vi.mock('@/components/ui/Modal', () => ({
     isOpen ? <div role="dialog">{children}</div> : null,
 }));
 vi.mock('@/components/ConfirmModal', () => ({ default: () => null }));
+// O painel de funil/etiquetas/origem tem teste proprio (ConversationDealPanel.test.tsx) e
+// depende do contexto de organizacao; aqui so provamos que a tela o monta com o tenant e o
+// negocio CERTOS — o comportamento dele e assunto do teste dele.
+vi.mock('./conversations/ConversationDealPanel', () => ({
+  ConversationDealPanel: (p: { organizationId: string; dealId: string | null }) => (
+    <div data-testid="painel-negocio" data-org={p.organizationId} data-deal={p.dealId ?? 'sem-negocio'} />
+  ),
+}));
 
 import { TenantConversationsPage } from './TenantConversationsPage';
 
@@ -210,6 +218,24 @@ describe('TenantConversationsPage — caixa unificada', () => {
         }),
       );
     });
+  });
+
+  it('o painel de funil/etiquetas/origem recebe o TENANT e o negocio da conversa aberta', () => {
+    // Junior, 23/09: qualificar sem sair da conversa. A tela tem de passar o negocio CERTO —
+    // passar o da conversa errada moveria o lead de outra pessoa no funil.
+    threads[0].deal_id = 'deal-da-conversa';
+    render(<TenantConversationsPage />);
+
+    const painel = screen.getByTestId('painel-negocio');
+    expect(painel).toHaveAttribute('data-org', TENANT);
+    expect(painel).toHaveAttribute('data-deal', 'deal-da-conversa');
+  });
+
+  it('conversa sem negocio passa `sem-negocio` em vez de inventar um', () => {
+    threads[0].deal_id = null;
+    render(<TenantConversationsPage />);
+
+    expect(screen.getByTestId('painel-negocio')).toHaveAttribute('data-deal', 'sem-negocio');
   });
 
   it('cancelar a reunião pede confirmação e manda `cancel_meeting` uma vez só', () => {

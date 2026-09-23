@@ -31,6 +31,7 @@ import { ConversationHandoffCard } from './conversations/ConversationHandoffCard
 import type { ConversationMeetingAction } from '@/lib/conversations/meetingHandoffAction';
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
+import { ConversationDealPanel } from './conversations/ConversationDealPanel';
 import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
@@ -985,6 +986,16 @@ export const TenantConversationsPage: React.FC = () => {
                       />
                     </button>
                   </div>
+                </div>
+
+                {/* Funil, etiquetas e origem SEM abrir menu nenhum (Junior, 23/09): e aqui que
+                    o SDR passa o dia. Dentro de "Acoes" (que nasce fechado) metade do ganho
+                    se perderia — qualificar tem de ser um clique, nao dois. */}
+                <div className="mt-3 border-t border-slate-800 pt-3">
+                  <ConversationDealPanel
+                    organizationId={tenantId}
+                    dealId={selectedThread.deal_id ?? null}
+                  />
                 </div>
 
                 {isThreadPanelOpen ? (
