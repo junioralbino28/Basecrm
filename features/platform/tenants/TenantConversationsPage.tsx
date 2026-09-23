@@ -32,7 +32,7 @@ import type { ConversationMeetingAction } from '@/lib/conversations/meetingHando
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
 import { ConversationDealPanel } from './conversations/ConversationDealPanel';
-import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Zap } from 'lucide-react';
+import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Tag as TagIcon, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -273,6 +273,8 @@ export const TenantConversationsPage: React.FC = () => {
   // (atribuir/status/ações) colapsados atrás de "Ações ▾", fechados por padrão, pra
   // a janela de mensagens ficar grande e confortável.
   const [isThreadPanelOpen, setIsThreadPanelOpen] = React.useState(false);
+  // Qualificacao (funil/etiquetas/origem) tambem nasce FECHADA: a conversa e o que importa.
+  const [isDealPanelOpen, setIsDealPanelOpen] = React.useState(false);
   const [isScriptsOpen, setIsScriptsOpen] = React.useState(false);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -971,7 +973,36 @@ export const TenantConversationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="relative flex items-center gap-2">
+                    {/* Junior, 23/09: o painel de qualificacao NAO pode espremer a conversa.
+                        Fica no topo a direita e ABRE POR CIMA (como o painel de contato do
+                        WhatsApp), entao a area das mensagens continua inteira. */}
+                    <button
+                      type="button"
+                      onClick={() => setIsDealPanelOpen(current => !current)}
+                      aria-expanded={isDealPanelOpen}
+                      aria-controls="painel-qualificacao"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                    >
+                      <TagIcon size={14} aria-hidden="true" />
+                      Funil e etiquetas
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform ${isDealPanelOpen ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isDealPanelOpen ? (
+                      <div
+                        id="painel-qualificacao"
+                        className="absolute right-0 top-full z-30 mt-2 w-[min(92vw,26rem)] rounded-2xl border border-slate-700 bg-[#202c33] p-3 shadow-[0_24px_60px_rgba(2,6,23,0.6)]"
+                      >
+                        <ConversationDealPanel
+                          organizationId={tenantId}
+                          dealId={selectedThread.deal_id ?? null}
+                        />
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setIsThreadPanelOpen(current => !current)}
@@ -986,16 +1017,6 @@ export const TenantConversationsPage: React.FC = () => {
                       />
                     </button>
                   </div>
-                </div>
-
-                {/* Funil, etiquetas e origem SEM abrir menu nenhum (Junior, 23/09): e aqui que
-                    o SDR passa o dia. Dentro de "Acoes" (que nasce fechado) metade do ganho
-                    se perderia — qualificar tem de ser um clique, nao dois. */}
-                <div className="mt-3 border-t border-slate-800 pt-3">
-                  <ConversationDealPanel
-                    organizationId={tenantId}
-                    dealId={selectedThread.deal_id ?? null}
-                  />
                 </div>
 
                 {isThreadPanelOpen ? (

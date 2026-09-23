@@ -220,21 +220,35 @@ describe('TenantConversationsPage — caixa unificada', () => {
     });
   });
 
-  it('o painel de funil/etiquetas/origem recebe o TENANT e o negocio da conversa aberta', () => {
-    // Junior, 23/09: qualificar sem sair da conversa. A tela tem de passar o negocio CERTO —
-    // passar o da conversa errada moveria o lead de outra pessoa no funil.
+  it('a qualificacao NAO ocupa a area das mensagens: so aparece ao clicar (Junior, 23/09)', () => {
+    // Ele reprovou o painel fixo: "colocou no pior lugar possivel, faz a conversa ficar com
+    // uma janela minuscula". O painel passou a abrir por cima, pelo topo a direita.
     threads[0].deal_id = 'deal-da-conversa';
     render(<TenantConversationsPage />);
 
+    expect(screen.queryByTestId('painel-negocio')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Funil e etiquetas/ }));
     const painel = screen.getByTestId('painel-negocio');
     expect(painel).toHaveAttribute('data-org', TENANT);
     expect(painel).toHaveAttribute('data-deal', 'deal-da-conversa');
+  });
+
+  it('clicar de novo fecha, devolvendo a tela inteira para a conversa', () => {
+    render(<TenantConversationsPage />);
+    const botao = screen.getByRole('button', { name: /Funil e etiquetas/ });
+
+    fireEvent.click(botao);
+    expect(screen.getByTestId('painel-negocio')).toBeInTheDocument();
+    fireEvent.click(botao);
+    expect(screen.queryByTestId('painel-negocio')).not.toBeInTheDocument();
   });
 
   it('conversa sem negocio passa `sem-negocio` em vez de inventar um', () => {
     threads[0].deal_id = null;
     render(<TenantConversationsPage />);
 
+    fireEvent.click(screen.getByRole('button', { name: /Funil e etiquetas/ }));
     expect(screen.getByTestId('painel-negocio')).toHaveAttribute('data-deal', 'sem-negocio');
   });
 
