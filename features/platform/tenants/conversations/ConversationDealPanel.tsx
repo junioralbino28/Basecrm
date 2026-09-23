@@ -19,7 +19,8 @@
  */
 
 import React from 'react';
-import { Loader2, Tag as TagIcon } from 'lucide-react';
+import { Loader2, Megaphone, Tag as TagIcon } from 'lucide-react';
+import type { ConversationThreadAdClick } from '@/lib/conversations/types';
 import { useDeal } from '@/lib/query/hooks/useDealsQuery';
 import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useMoveDealSimple } from '@/lib/query/hooks/useMoveDeal';
@@ -32,13 +33,57 @@ const CAIXA =
 const ROTULO =
   'mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500';
 
+/**
+ * De onde o lead veio, lido do que o WhatsApp entregou no primeiro clique.
+ *
+ * O webhook ja guardava isso desde sempre (`externalAdReply`: etiqueta do clique, id do
+ * anuncio, Instagram ou Facebook) e NENHUMA tela mostrava — o atendente nao tinha como
+ * saber se a pessoa veio de anuncio, e o Junior nao tinha como medir.
+ *
+ * Ausencia de dado NAO significa "veio organico": significa que aquela conversa nao trouxe
+ * etiqueta de clique (comecou antes do rastreio, veio por indicacao, pelo numero salvo…).
+ * Por isso o texto nao afirma origem quando nao ha dado.
+ */
+function DeOndeVeio({ adClick }: { adClick: ConversationThreadAdClick | null }) {
+  const plataforma = adClick?.sourceApp
+    ? adClick.sourceApp.charAt(0).toUpperCase() + adClick.sourceApp.slice(1)
+    : null;
+  return (
+    <div className={`${CAIXA} lg:col-span-2`}>
+      <p className={ROTULO}>
+        <Megaphone size={12} />
+        De onde veio
+      </p>
+      {adClick ? (
+        <div className="space-y-0.5 text-sm text-slate-100">
+          <p className="font-semibold">
+            Anúncio{plataforma ? ` no ${plataforma}` : ''}
+            {adClick.title ? ` · ${adClick.title}` : ''}
+          </p>
+          {adClick.sourceId ? (
+            <p className="text-[11px] text-slate-400">Anúncio {adClick.sourceId}</p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">
+          Esta conversa não trouxe etiqueta de clique de anúncio. Pode ter vindo de outro caminho
+          (indicação, número salvo) ou ter começado antes do rastreio.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ConversationDealPanel({
   organizationId,
   dealId,
+  adClick = null,
 }: {
   organizationId: string;
   /** `null` quando a conversa ainda não virou negócio (acontece em conversa de teste). */
   dealId: string | null;
+  /** O que o WhatsApp entregou sobre o clique no anúncio, quando houve. */
+  adClick?: ConversationThreadAdClick | null;
 }) {
   const { data: deal, isLoading: carregandoNegocio } = useDeal(dealId || undefined);
   const { data: boards = [] } = useBoards();
@@ -63,9 +108,12 @@ export function ConversationDealPanel({
 
   if (!dealId) {
     return (
-      <div className={`${CAIXA} text-xs text-slate-400`}>
-        Esta conversa ainda não virou negócio, então não tem etapa nem etiquetas.
-        Leads que chegam pelo anúncio já nascem com negócio.
+      <div className="grid gap-2">
+        <DeOndeVeio adClick={adClick} />
+        <div className={`${CAIXA} text-xs text-slate-400`}>
+          Esta conversa ainda não virou negócio, então não tem etapa nem etiquetas.
+          Leads que chegam pelo anúncio já nascem com negócio.
+        </div>
       </div>
     );
   }
@@ -89,6 +137,7 @@ export function ConversationDealPanel({
 
   return (
     <div className="grid gap-2 lg:grid-cols-2">
+      <DeOndeVeio adClick={adClick} />
       <div className={CAIXA}>
         <label className={ROTULO} htmlFor="conversa-etapa">
           <TagIcon size={12} />

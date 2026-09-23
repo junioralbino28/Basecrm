@@ -130,3 +130,33 @@ describe('funil, etiquetas e origem dentro da conversa (Junior, 23/09)', () => {
     expect(moveDealMock).not.toHaveBeenCalled();
   });
 });
+
+describe('de onde o lead veio (Junior, 23/09: medir a origem do anuncio)', () => {
+  const CLIQUE = {
+    ctwaClid: 'ARAb...', title: 'Sua agência não responde no WhatsApp?',
+    sourceId: '120256890905340211', sourceApp: 'instagram', at: '2026-09-23T12:00:00.000Z',
+  };
+
+  it('mostra plataforma, titulo e o id do anuncio — o dado ja chegava e ninguem via', () => {
+    render(<ConversationDealPanel organizationId={ORG} dealId={DEAL} adClick={CLIQUE} />);
+
+    expect(screen.getByText(/Anúncio no Instagram/)).toBeInTheDocument();
+    expect(screen.getByText(/Sua agência não responde/)).toBeInTheDocument();
+    expect(screen.getByText(/120256890905340211/)).toBeInTheDocument();
+  });
+
+  it('SEM etiqueta de clique nao afirma origem: so diz que essa conversa nao trouxe', () => {
+    render(<ConversationDealPanel organizationId={ORG} dealId={DEAL} adClick={null} />);
+
+    expect(screen.getByText(/não trouxe etiqueta de clique/)).toBeInTheDocument();
+    // O erro que isso evita: escrever "veio organico" sem ter como saber.
+    expect(screen.queryByText(/orgânico/i)).not.toBeInTheDocument();
+  });
+
+  it('aparece TAMBEM quando a conversa ainda nao virou negocio', () => {
+    render(<ConversationDealPanel organizationId={ORG} dealId={null} adClick={CLIQUE} />);
+
+    expect(screen.getByText(/Anúncio no Instagram/)).toBeInTheDocument();
+    expect(screen.getByText(/ainda não virou negócio/)).toBeInTheDocument();
+  });
+});

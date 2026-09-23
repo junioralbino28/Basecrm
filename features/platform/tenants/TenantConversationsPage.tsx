@@ -32,6 +32,7 @@ import type { ConversationMeetingAction } from '@/lib/conversations/meetingHando
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
 import { ConversationDealPanel } from './conversations/ConversationDealPanel';
+import { readConversationThreadMetadata } from '@/lib/conversations/threadMetadata';
 import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Tag as TagIcon, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
@@ -1000,6 +1001,10 @@ export const TenantConversationsPage: React.FC = () => {
                         <ConversationDealPanel
                           organizationId={tenantId}
                           dealId={selectedThread.deal_id ?? null}
+                          {...(() => { const m = readConversationThreadMetadata(selectedThread.metadata);
+                            // `firstAdClick` e a ORIGEM (nunca sobrescrito); `lastAdClick` e a volta
+                            // por outro anuncio. Para "de onde veio", a origem e a resposta certa.
+                            return { adClick: m.firstAdClick ?? m.lastAdClick ?? null }; })()}
                         />
                       </div>
                     ) : null}
