@@ -319,6 +319,10 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
                             <div key={agenda.id} className="flex min-h-9 min-w-0 flex-wrap items-center justify-between gap-2 text-sm text-slate-700 dark:text-slate-200">
                               <span className="min-w-0 break-words">
                                 {agenda.summary}
+                                {/* A agenda principal chega com o proprio e-mail como nome (o Google
+                                    mostra o nome do PERFIL na tela dele, e isso nao vem na API);
+                                    sem esta marca, ninguem reconhece qual e. */}
+                                {agenda.primary ? ' (principal da conta)' : ''}
                                 {ehAgendaDeEscrita ? ' — é onde a IA marca, sempre conta como ocupado' : ''}
                               </span>
                               {ehAgendaDeEscrita ? null : (
