@@ -60,6 +60,22 @@ export type ConversationThreadAdClick = {
   at: string | null;
 };
 
+/**
+ * De onde a pessoa saiu para abrir a conversa quando NÃO houve anúncio pago — botão do perfil do
+ * Instagram, CTA de uma publicação, um Reels orgânico. Antes de 23/09/2026 isso era descartado e
+ * essas conversas entravam sem origem nenhuma.
+ *
+ * ⚠️ Nunca confundir com `ConversationThreadAdClick`: aqui não existe `ctwaClid`, então a Meta não
+ * liga esta conversa a anúncio nenhum e ela não pode ser exibida como "veio do anúncio X".
+ */
+export type ConversationThreadEntryPoint = {
+  app: string | null;
+  source: string | null;
+  delaySeconds: number | null;
+  hadAdReply: boolean;
+  at: string | null;
+};
+
 export type ConversationThreadMetadata = {
   provider?: string;
   autoCreated?: boolean;
@@ -67,6 +83,10 @@ export type ConversationThreadMetadata = {
   firstAdClick?: ConversationThreadAdClick | null;
   /** Clique de anúncio mais recente (a pessoa pode voltar por outro anúncio). */
   lastAdClick?: ConversationThreadAdClick | null;
+  /** Primeiro ponto de entrada visto; nunca é sobrescrito. */
+  firstEntryPoint?: ConversationThreadEntryPoint | null;
+  /** Ponto de entrada mais recente. */
+  lastEntryPoint?: ConversationThreadEntryPoint | null;
   routingMode?: 'ai' | 'human' | 'hybrid' | null;
   humanLocked?: boolean;
   aiLockedReason?: string | null;

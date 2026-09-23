@@ -3,6 +3,7 @@ import { readConversationHandoff, type ConversationHandoff } from './handoff';
 import type {
   ConversationMessageDirection,
   ConversationThreadAdClick,
+  ConversationThreadEntryPoint,
   ConversationThreadMetadata,
 } from './types';
 
@@ -21,6 +22,22 @@ function toSafeAdClick(value: unknown): ConversationThreadAdClick | null {
     at: toSafeString(source.at),
   };
   return click.ctwaClid || click.sourceId ? click : null;
+}
+
+function toSafeEntryPoint(value: unknown): ConversationThreadEntryPoint | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const delay = source.delaySeconds;
+  const entry = {
+    app: toSafeString(source.app),
+    source: toSafeString(source.source),
+    delaySeconds:
+      typeof delay === 'number' && Number.isFinite(delay) && delay >= 0 ? Math.floor(delay) : null,
+    hadAdReply: source.hadAdReply === true,
+    at: toSafeString(source.at),
+  };
+  // Sem app nem origem não há o que dizer sobre a procedência; `hadAdReply` sozinho não é origem.
+  return entry.app || entry.source ? entry : null;
 }
 
 function toSafeDirection(value: unknown): ConversationMessageDirection | null {
@@ -42,6 +59,8 @@ export function readConversationThreadMetadata(value: unknown): ConversationThre
     autoCreated: Boolean(source.autoCreated),
     firstAdClick: toSafeAdClick(source.firstAdClick),
     lastAdClick: toSafeAdClick(source.lastAdClick),
+    firstEntryPoint: toSafeEntryPoint(source.firstEntryPoint),
+    lastEntryPoint: toSafeEntryPoint(source.lastEntryPoint),
     routingMode:
       source.routingMode === 'ai' || source.routingMode === 'human' || source.routingMode === 'hybrid'
         ? source.routingMode
@@ -92,6 +111,8 @@ export function buildConversationThreadMetadataUpdate(
     provider?: string | null;
     /** Clique de anúncio que veio nesta mensagem (só inbound). */
     adClick?: ConversationThreadAdClick | null;
+    /** Ponto de entrada que veio nesta mensagem (só inbound). Separado do anúncio de propósito. */
+    entryPoint?: ConversationThreadEntryPoint | null;
   }
 ): ConversationThreadMetadata {
   const current = readConversationThreadMetadata(currentValue);
@@ -107,6 +128,8 @@ export function buildConversationThreadMetadataUpdate(
     provider: update.provider ?? current.provider ?? undefined,
     firstAdClick: current.firstAdClick ?? update.adClick ?? null,
     lastAdClick: update.adClick ?? current.lastAdClick ?? null,
+    firstEntryPoint: current.firstEntryPoint ?? update.entryPoint ?? null,
+    lastEntryPoint: update.entryPoint ?? current.lastEntryPoint ?? null,
     routingMode: update.routingMode ?? current.routingMode ?? undefined,
     humanLocked: update.humanLocked ?? current.humanLocked ?? false,
     aiLockedReason: update.aiLockedReason ?? current.aiLockedReason ?? null,

@@ -827,6 +827,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         }
       : null;
 
+  // Procedência de quem NÃO veio de anúncio pago (botão do perfil, CTA de publicação, Reels
+  // orgânico). Entra por campo próprio: sem `ctwa_clid` a Meta não liga a conversa a anúncio
+  // nenhum, então isto nunca pode alimentar `adClick` nem a atribuição de conversão — só informa
+  // ao atendente de onde a pessoa saiu, e deixa rastro para diagnosticar atribuição que falhou.
+  const threadEntryPoint =
+    parsed.direction === 'inbound' && parsed.entryPoint
+      ? {
+          app: parsed.entryPoint.app,
+          source: parsed.entryPoint.source,
+          delaySeconds: parsed.entryPoint.delaySeconds,
+          hadAdReply: parsed.entryPoint.hadAdReply,
+          at: parsed.sentAt,
+        }
+      : null;
+
   if (!threadId) {
     const createdThread = await admin
       .from('conversation_threads')
@@ -856,6 +871,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
             humanLocked: !aiEnabled || manualReplyTakesOver,
             aiLockedReason: manualReplyTakesOver ? 'manual_reply_from_device' : aiEnabled ? null : 'connection_ai_disabled',
             adClick: threadAdClick,
+            entryPoint: threadEntryPoint,
           }
         ),
         last_message_at: parsed.sentAt,
@@ -888,6 +904,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         metadata: buildConversationThreadMetadataUpdate(threadResult.data?.metadata, {
           provider: 'evolution',
           adClick: threadAdClick,
+          entryPoint: threadEntryPoint,
           direction: parsed.direction,
           event: parsed.event,
           preview: content.slice(0, 160),

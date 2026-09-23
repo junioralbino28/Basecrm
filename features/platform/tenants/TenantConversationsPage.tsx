@@ -1004,7 +1004,12 @@ export const TenantConversationsPage: React.FC = () => {
                           {...(() => { const m = readConversationThreadMetadata(selectedThread.metadata);
                             // `firstAdClick` e a ORIGEM (nunca sobrescrito); `lastAdClick` e a volta
                             // por outro anuncio. Para "de onde veio", a origem e a resposta certa.
-                            return { adClick: m.firstAdClick ?? m.lastAdClick ?? null }; })()}
+                            // Mesma regra para o ponto de entrada organico, que vive separado do
+                            // anuncio de proposito: sem `ctwa_clid` nao e conversao de campanha.
+                            return {
+                              adClick: m.firstAdClick ?? m.lastAdClick ?? null,
+                              entryPoint: m.firstEntryPoint ?? m.lastEntryPoint ?? null,
+                            }; })()}
                         />
                       </div>
                     ) : null}

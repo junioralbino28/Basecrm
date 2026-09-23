@@ -25,6 +25,30 @@ export type EvolutionAdClick = {
   mediaUrl: string | null;
 };
 
+/**
+ * De onde a pessoa saiu para abrir a conversa, quando NÃO houve anúncio pago.
+ *
+ * O WhatsApp entrega isto em `contextInfo.entryPointConversion*` e o CRM ignorava — então quem
+ * chegava pelo botão do perfil ou pelo CTA de uma publicação entrava sem origem nenhuma, como se
+ * tivesse vindo do nada. Medido em 23/09/2026: um Reels orgânico com botão "Chamar no WhatsApp"
+ * trouxe `app: 'instagram'`, `source: 'post_cta'`, `delaySeconds: 84`.
+ *
+ * ⚠️ Isto NÃO é clique de anúncio e não pode virar um. `post_cta` não tem `ctwa_clid`, e sem clid a
+ * Meta não liga a conversa a anúncio nenhum. Por isso vive separado de `EvolutionAdClick`: se os
+ * dois se misturassem, uma conversa orgânica apareceria como "veio do anúncio X" e a atribuição de
+ * conversão passaria a mentir.
+ */
+export type EvolutionEntryPoint = {
+  /** 'instagram' | 'facebook' | outro, como veio. */
+  app: string | null;
+  /** 'post_cta' (CTA de publicação ou perfil), 'ctwa' (anúncio), outros; guardado como veio. */
+  source: string | null;
+  /** Segundos entre o clique e a mensagem. */
+  delaySeconds: number | null;
+  /** Havia bloco de anúncio nesta mensagem? Guardado para diagnosticar atribuição que falhou. */
+  hadAdReply: boolean;
+};
+
 export type EvolutionMediaEnvelope = {
   key: { id: string; remoteJid: string; fromMe: boolean; participant?: string };
   message: Record<string, unknown>;
@@ -41,6 +65,8 @@ type ParsedEvolutionMessage = {
   contactPhone: string | null;
   sentAt: string;
   adClick: EvolutionAdClick | null;
+  /** Ponto de entrada quando não houve anúncio pago (botão do perfil, CTA de publicação). */
+  entryPoint: EvolutionEntryPoint | null;
   /** Só vem preenchido com a chave de mídia da conexão ligada (`record` / `understand`). */
   media: InboundMediaInfo | null;
   /**
@@ -178,6 +204,47 @@ function extractAdClick(
     sourceType: clip(getFirstString([adReply.sourceType, adReply.source_type])),
     mediaUrl: clip(getFirstString([adReply.mediaUrl, adReply.media_url])),
   };
+}
+
+/**
+ * Procura o ponto de entrada nos mesmos lugares que o bloco de anúncio — nível do evento e dentro
+ * de cada tipo de mensagem —, nunca dentro de `quotedMessage`, onde o contexto pertence à mensagem
+ * citada e não a esta.
+ *
+ * Devolve `null` quando não há sinal nenhum de origem: gravar um registro vazio só encheria o
+ * metadata e faria parecer que sabemos de onde veio.
+ */
+function extractEntryPoint(
+  envelope: Record<string, unknown>,
+  message: Record<string, unknown> | null,
+  adClick: EvolutionAdClick | null
+): EvolutionEntryPoint | null {
+  const candidates: unknown[] = [getNested(envelope, ['contextInfo'])];
+  if (message) {
+    for (const key of Object.keys(message)) {
+      candidates.push(getNested(message, [key, 'contextInfo']));
+    }
+  }
+
+  let app: string | null = null;
+  let source: string | null = null;
+  let delaySeconds: number | null = null;
+
+  for (const candidate of candidates) {
+    const ctx = getObject(candidate);
+    if (!ctx) continue;
+    app = app ?? clip(getFirstString([ctx.entryPointConversionApp, ctx.entry_point_conversion_app]));
+    source =
+      source ?? clip(getFirstString([ctx.entryPointConversionSource, ctx.entry_point_conversion_source]));
+    if (delaySeconds === null) {
+      const raw = ctx.entryPointConversionDelaySeconds ?? ctx.entry_point_conversion_delay_seconds;
+      const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+      if (Number.isFinite(n) && n >= 0) delaySeconds = Math.floor(n);
+    }
+  }
+
+  if (!app && !source && delaySeconds === null && !adClick) return null;
+  return { app, source, delaySeconds, hadAdReply: adClick !== null };
 }
 
 const MESSAGE_WRAPPERS = [
@@ -359,6 +426,9 @@ export function parseEvolutionWebhookPayload(
     root.senderName,
   ]);
 
+  // Calculado antes do retorno porque o ponto de entrada precisa saber se houve anúncio.
+  const adClick = extractAdClick(candidate.envelope, message);
+
   return {
     event,
     providerMessageId,
@@ -376,7 +446,8 @@ export function parseEvolutionWebhookPayload(
         root.messageTimestamp ??
         root.timestamp
     ),
-    adClick: extractAdClick(candidate.envelope, message),
+    adClick,
+    entryPoint: extractEntryPoint(candidate.envelope, message, adClick),
     media: detectedMedia
       ? {
           kind: detectedMedia.kind,

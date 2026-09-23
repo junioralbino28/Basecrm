@@ -20,7 +20,10 @@
 
 import React from 'react';
 import { Loader2, Megaphone, Tag as TagIcon } from 'lucide-react';
-import type { ConversationThreadAdClick } from '@/lib/conversations/types';
+import type {
+  ConversationThreadAdClick,
+  ConversationThreadEntryPoint,
+} from '@/lib/conversations/types';
 import { useDeal } from '@/lib/query/hooks/useDealsQuery';
 import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useMoveDealSimple } from '@/lib/query/hooks/useMoveDeal';
@@ -33,21 +36,50 @@ const CAIXA =
 const ROTULO =
   'mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500';
 
+function maiuscula(valor: string) {
+  return valor.charAt(0).toUpperCase() + valor.slice(1);
+}
+
+/**
+ * Tradução dos pontos de entrada que o WhatsApp manda quando NÃO houve anúncio pago. O valor cru
+ * (`post_cta`) não diz nada a quem atende; o texto aqui diz. Origem desconhecida cai no cru mesmo,
+ * em vez de virar "outro caminho" — assim dá para descobrir o que é.
+ */
+const PONTO_DE_ENTRADA: Record<string, string> = {
+  post_cta: 'botão de uma publicação (post ou Reels)',
+  profile_cta: 'botão do perfil',
+  bio_link: 'link da bio',
+};
+
 /**
  * De onde o lead veio, lido do que o WhatsApp entregou no primeiro clique.
  *
- * O webhook ja guardava isso desde sempre (`externalAdReply`: etiqueta do clique, id do
- * anuncio, Instagram ou Facebook) e NENHUMA tela mostrava — o atendente nao tinha como
- * saber se a pessoa veio de anuncio, e o Junior nao tinha como medir.
+ * Duas procedências DIFERENTES, e a distinção é o ponto da caixa:
  *
- * Ausencia de dado NAO significa "veio organico": significa que aquela conversa nao trouxe
- * etiqueta de clique (comecou antes do rastreio, veio por indicacao, pelo numero salvo…).
- * Por isso o texto nao afirma origem quando nao ha dado.
+ * 1. `adClick` — anúncio pago. Traz `ctwa_clid`, que é a única chave que liga a pessoa ao anúncio
+ *    na Meta. Só isto vira conversão de campanha.
+ * 2. `entryPoint` — orgânico: botão do perfil, CTA de uma publicação ou Reels. O WhatsApp sempre
+ *    mandou (`contextInfo.entryPointConversion*`) e o CRM descartava até 23/09/2026; essas
+ *    conversas entravam sem origem nenhuma. Não tem `ctwa_clid`, então NÃO conta como conversão —
+ *    e a caixa diz isso em voz alta, senão alguém soma laranja com maçã no relatório.
+ *
+ * Ausência dos dois NÃO significa "veio orgânico": significa que a conversa não trouxe procedência
+ * (começou antes do rastreio, veio por indicação, pelo número salvo…). Por isso o texto não afirma
+ * origem quando não há dado.
  */
-function DeOndeVeio({ adClick }: { adClick: ConversationThreadAdClick | null }) {
-  const plataforma = adClick?.sourceApp
-    ? adClick.sourceApp.charAt(0).toUpperCase() + adClick.sourceApp.slice(1)
+function DeOndeVeio({
+  adClick,
+  entryPoint,
+}: {
+  adClick: ConversationThreadAdClick | null;
+  entryPoint: ConversationThreadEntryPoint | null;
+}) {
+  const plataforma = adClick?.sourceApp ? maiuscula(adClick.sourceApp) : null;
+  const rede = entryPoint?.app ? maiuscula(entryPoint.app) : null;
+  const caminho = entryPoint?.source
+    ? PONTO_DE_ENTRADA[entryPoint.source] ?? `pelo caminho "${entryPoint.source}"`
     : null;
+
   return (
     <div className={`${CAIXA} lg:col-span-2`}>
       <p className={ROTULO}>
@@ -64,6 +96,18 @@ function DeOndeVeio({ adClick }: { adClick: ConversationThreadAdClick | null }) 
             <p className="text-[11px] text-slate-400">Anúncio {adClick.sourceId}</p>
           ) : null}
         </div>
+      ) : entryPoint && (rede || caminho) ? (
+        // Veio do orgânico: dizer isso é bem melhor que silêncio, mas NÃO é anúncio — a Meta não
+        // liga esta conversa a campanha nenhuma, e a caixa precisa deixar isso claro.
+        <div className="space-y-0.5 text-sm text-slate-100">
+          <p className="font-semibold">
+            {rede ?? 'Rede social'}
+            {caminho ? ` · ${caminho}` : ''}
+          </p>
+          <p className="text-[11px] text-slate-400">
+            Não é anúncio pago: não conta como conversão de campanha.
+          </p>
+        </div>
       ) : (
         <p className="text-xs text-slate-400">
           Esta conversa não trouxe etiqueta de clique de anúncio. Pode ter vindo de outro caminho
@@ -78,12 +122,15 @@ export function ConversationDealPanel({
   organizationId,
   dealId,
   adClick = null,
+  entryPoint = null,
 }: {
   organizationId: string;
   /** `null` quando a conversa ainda não virou negócio (acontece em conversa de teste). */
   dealId: string | null;
   /** O que o WhatsApp entregou sobre o clique no anúncio, quando houve. */
   adClick?: ConversationThreadAdClick | null;
+  /** De onde a pessoa saiu quando NAO houve anuncio pago (botao do perfil, CTA de publicacao). */
+  entryPoint?: ConversationThreadEntryPoint | null;
 }) {
   const { data: deal, isLoading: carregandoNegocio } = useDeal(dealId || undefined);
   const { data: boards = [] } = useBoards();
@@ -109,7 +156,7 @@ export function ConversationDealPanel({
   if (!dealId) {
     return (
       <div className="grid gap-2">
-        <DeOndeVeio adClick={adClick} />
+        <DeOndeVeio adClick={adClick} entryPoint={entryPoint} />
         <div className={`${CAIXA} text-xs text-slate-400`}>
           Esta conversa ainda não virou negócio, então não tem etapa nem etiquetas.
           Leads que chegam pelo anúncio já nascem com negócio.
@@ -137,7 +184,7 @@ export function ConversationDealPanel({
 
   return (
     <div className="grid gap-2 lg:grid-cols-2">
-      <DeOndeVeio adClick={adClick} />
+      <DeOndeVeio adClick={adClick} entryPoint={entryPoint} />
       <div className={CAIXA}>
         <label className={ROTULO} htmlFor="conversa-etapa">
           <TagIcon size={12} />
