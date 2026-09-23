@@ -39,7 +39,14 @@ describe('3c — encaixe do despacho no tick e rotas', () => {
     expect(rota).toContain('tokenLast4: last4(data?.meta_capi_access_token)');
     expect(rota).not.toMatch(/accessToken: data\?\.meta_capi_access_token/);
     expect(rota).toContain("z.enum(BUSINESS_MESSAGING_EVENT_NAMES)");
-    expect(rota).toContain(".upsert(dbUpdates, { onConflict: 'organization_id' })");
+    // A escrita normal continua indo pelo cliente do USUARIO — e ela que faz o RLS
+    // `can_configure` decidir. O que mudou em 23/09: o token sai desse lote (`semToken`),
+    // porque `authenticated` nao le essa coluna e o `upsert` referencia `excluded.<coluna>`;
+    // com o token dentro, o Postgres recusava o lote inteiro e NINGUEM salvava.
+    expect(rota).toContain(".upsert(semToken, { onConflict: 'organization_id' })");
+    expect(rota).toContain('const { meta_capi_access_token: tokenNovo, ...semToken } = dbUpdates;');
+    // E o caminho administrativo do token tem que ficar preso a UMA organizacao.
+    expect(rota).toMatch(/\.update\(\{ meta_capi_access_token: tokenNovo[\s\S]{0,120}\.eq\('organization_id', auth\.targetOrganizationId\)/);
   });
 
   it('o despachante nunca manda telefone, nome ou procedimento: user_data só tem a etiqueta', () => {

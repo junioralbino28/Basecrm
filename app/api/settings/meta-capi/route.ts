@@ -152,10 +152,32 @@ export async function POST(req: Request) {
     dbUpdates.meta_capi_event_map = merged;
   }
 
+  // O TOKEN sai deste lote de propósito. `authenticated` não tem SELECT em
+  // `meta_capi_access_token` (para o token nunca voltar ao navegador), e um `upsert` referencia
+  // `excluded.<coluna>` — o Postgres exige leitura da coluna para isso e devolve
+  // "permission denied for table organization_settings". Resultado: o token era o ÚNICO campo
+  // que NINGUÉM conseguia salvar por esta tela (as 4 organizações estavam com `hasToken: false`
+  // desde sempre). Medido em 23/09/2026.
+  const { meta_capi_access_token: tokenNovo, ...semToken } = dbUpdates;
+
+  // Esta escrita é a que passa pela RLS (`can_configure`): ela é a PROVA de que este usuário
+  // pode configurar esta organização. Sem ela, o passo seguinte não acontece.
   const { error: upsertError } = await supabase
     .from('organization_settings')
-    .upsert(dbUpdates, { onConflict: 'organization_id' });
+    .upsert(semToken, { onConflict: 'organization_id' });
   if (upsertError) return json({ error: upsertError.message }, 500);
+
+  if (tokenNovo !== undefined) {
+    // Só agora, e só a coluna ilegível: `update` não referencia `excluded`, e o filtro usa
+    // `organization_id`, que o usuário pode ler. Vai pelo cliente administrativo porque a
+    // coluna é invisível para `authenticated` — de propósito.
+    const admin = createStaticAdminClient();
+    const { error: tokenError } = await admin
+      .from('organization_settings')
+      .update({ meta_capi_access_token: tokenNovo, updated_at: dbUpdates.updated_at })
+      .eq('organization_id', auth.targetOrganizationId);
+    if (tokenError) return json({ error: tokenError.message }, 500);
+  }
 
   return json({ ok: true });
 }
