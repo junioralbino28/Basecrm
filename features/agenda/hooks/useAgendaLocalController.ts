@@ -8,6 +8,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
+import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { appointmentsLocalService, type AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 import { reunioesDaIaService } from '@/lib/supabase/agendaReunioes';
@@ -122,7 +123,12 @@ export type NovaConsulta = {
 
 export function useAgendaLocalController() {
   const { tenant } = useTenant();
-  const organizationId = tenant?.organizationId || null;
+  // Admin de agencia SEM cliente escolhido recebe `tenant: null` da API (por desenho: a
+  // plataforma quer escolha explicita). Sem isso a agenda nao consultava NADA e a tela
+  // ficava vazia mesmo com reuniao marcada — era o "continua vazio" do Junior (23/09).
+  // A queda e para a organizacao do PROPRIO perfil: e a dele, e a RLS continua decidindo.
+  const { organizationId: organizacaoDoPerfil } = useAuth();
+  const organizationId = tenant?.organizationId || organizacaoDoPerfil || null;
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
