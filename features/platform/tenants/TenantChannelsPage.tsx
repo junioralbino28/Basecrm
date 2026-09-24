@@ -10,6 +10,7 @@ import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { Modal, ModalForm } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ChannelCalendarSettings } from './conversations/ChannelCalendarSettings';
+import { MetaCapiSettings } from './MetaCapiSettings';
 
 // `min-w-0`: campo de formulario tem largura MINIMA natural (o `size` padrao do HTML, ~224 px
 // medidos) e `w-full` nao vence isso — no celular ele empurrava o cartao inteiro e a tela
@@ -1191,6 +1192,14 @@ export const TenantChannelsPage: React.FC = () => {
                 ))
               )}
             </div>
+
+            {/*
+              Conversões para a Meta ficam aqui, e não em Configurações, porque só fazem sentido
+              com um número conectado: o que liga o lead ao anúncio é a etiqueta do clique, que
+              chega pelo WhatsApp. É configuração da ORGANIZAÇÃO (não de uma conexão), por isso
+              vem depois da lista e não dentro do card de um número.
+            */}
+            {canManageChannelConfig ? <MetaCapiSettings disabled={false} /> : null}
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-white/10 dark:bg-card">
