@@ -31,7 +31,9 @@ describe('prompt da Aurora', () => {
   it('aplica os ajustes de 20/09: nome e concordancia esporadicos, 2 horarios, sem oferecer ligacao, quem conduz e data local', () => {
     const template = getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
 
-    expect(template).toContain('use o nome do lead na saudacao e na confirmacao da reuniao');
+    // Redacao mudou em 23/09 (o nome do WhatsApp costuma ser o da EMPRESA); a propriedade
+    // que importa continua: nome na saudacao e na confirmacao, esporadico no resto.
+    expect(template).toContain('use na saudacao e na confirmacao da reuniao');
     expect(template).toContain('nao abra a resposta com concordancia');
     expect(template).not.toContain('"bora"');
     expect(template).toContain('no maximo 2 horarios por mensagem');
@@ -96,5 +98,48 @@ describe('prompt da Aurora', () => {
     expect(template).toContain('(para o convite da reuniao)');
     expect(template).toContain('nunca prometa e-mail de confirmacao');
     expect(template).toContain('nao abra a resposta com concordancia');
+  });
+});
+
+/**
+ * Ajustes de 23/09/2026, depois dos dois primeiros leads reais da campanha.
+ *
+ * O que aconteceu: a Aurora chamou uma pessoa de "Púlpitos" (nome da empresa no perfil do
+ * WhatsApp), fez 6 perguntas seguidas sem devolver nada e o lead sumiu, aceitou "amanhã eu
+ * chamo" de primeira num atendimento que é 24/7, e convidou para reunião com "o Junior" — um
+ * nome que o lead nunca tinha ouvido.
+ */
+describe('prompt da Aurora — correcoes dos primeiros leads reais (23/09)', () => {
+  const template = () => getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+  it('avisa que o nome do WhatsApp costuma ser o da EMPRESA e manda perguntar com quem fala', () => {
+    expect(template()).toContain('e o nome da EMPRESA, nao da pessoa');
+    expect(template()).toContain('com quem eu falo?');
+    expect(template()).toContain('Use o primeiro nome da PESSOA so depois que ela disser qual e');
+  });
+
+  it('poe teto nas perguntas antes de devolver leitura — senao vira interrogatorio', () => {
+    expect(template()).toContain('no maximo 3 perguntas suas antes de devolver');
+    expect(template()).toContain('PARE de perguntar');
+  });
+
+  it('trata resposta curta repetida como cansaco, nao como engajamento', () => {
+    expect(template()).toContain('responder curto duas vezes seguidas');
+  });
+
+  it('DEFENDE O AGORA: nao aceita "amanha eu chamo" de primeira', () => {
+    const t = template();
+    expect(t).toContain('NAO aceite de primeira');
+    expect(t).toContain('Voce atende 24 horas');
+    // Usar a objecao a favor foi o ponto do Junior, e e o que separa esta regra de "insistir".
+    expect(t).toContain('o dia dele e corrido');
+    expect(t).toContain('So aceite deixar para depois se ele repetir');
+  });
+
+  it('apresenta quem conduz a reuniao antes de soltar o nome', () => {
+    const t = template();
+    expect(t).toContain('o lead nunca ouviu falar de {{meetingHostName}}');
+    expect(t).toContain('especialista da nossa assessoria');
+    expect(t).toContain('Nunca solte so o primeiro nome');
   });
 });

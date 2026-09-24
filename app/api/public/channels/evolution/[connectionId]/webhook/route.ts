@@ -1218,7 +1218,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   }
 
   if (parsed.direction === 'inbound' && !mediaOnly && (threadStatus === 'ai_active' || closingReply)) {
-    const aiDebounceMs = 7000;
+    // 7 s é a espera normal: serve para juntar a rajada de quem está digitando (medido em
+    // 23/09/2026: um lead mandou 3 mensagens em 24 s, e sem isso a Aurora responderia a
+    // primeira sozinha e atropelaria o raciocínio dele).
+    //
+    // A mensagem que chega COM clique de anúncio é outra coisa: ela vem pré-preenchida pela
+    // Meta, o lead só apertou o botão. Não há rajada para esperar, e esses 7 s eram metade do
+    // tempo até a primeira resposta (medido: 16 s na Alagoinhas, 14 s no Púlpitos). Na primeira
+    // resposta ao anúncio a velocidade é o argumento do próprio anúncio — decisão do Junior em
+    // 23/09: "a correção é na primeira mensagem".
+    const aiDebounceMs = parsed.adClick ? 2000 : 7000;
     const aiPendingToken = `${insertedMessage.data.id}:${Date.now()}`;
 
     // 🐛 BUG REAL (28/07/2026): aqui existia um update REDUNDANTE que reconstruía a
