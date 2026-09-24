@@ -152,6 +152,7 @@ export async function sendDueConversationNudges(input: {
       continue;
     }
 
+    const deferred = metadata.aiInactivityNudgeDeferred === true;
     const nudge = resolveIdleNudgeConfig(connection.config);
     if (!nudge.enabled) {
       summary.skipped.disabled += 1;
@@ -193,10 +194,14 @@ export async function sendDueConversationNudges(input: {
         },
         payload: {
           threadId: thread.id,
-          replyText: nudge.text,
+          // Quando o lead adiou, a cutucada e de RETOMADA ("voltando como combinamos"), nao de
+          // silencio ("ainda estou por aqui") — mandar o texto de silencio depois de o lead ter
+          // dito "amanha eu chamo" ignora o que ele acabou de combinar.
+          replyText: deferred ? nudge.deferredText : nudge.text,
           metadata: {
             idle_nudge: true,
             idle_nudge_delay_minutes: nudge.delayMinutes,
+            idle_nudge_deferred: deferred,
             idle_nudge_token: token,
           },
           automationSource: IDLE_NUDGE_AUTOMATION_SOURCE,

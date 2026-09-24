@@ -123,7 +123,7 @@ export function resolveConversationCalendarConfig(
   return parsed.success && parsed.data.enabled ? parsed.data : null;
 }
 
-function zonedParts(date: Date, timezone: string) {
+export function zonedParts(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
@@ -163,7 +163,7 @@ function weekdayForDate(year: number, month: number, day: number): CalendarWeekd
   return CalendarWeekdaySchema.parse(weekday);
 }
 
-function zonedWallTimeToUtc(input: {
+export function zonedWallTimeToUtc(input: {
   year: number;
   month: number;
   day: number;

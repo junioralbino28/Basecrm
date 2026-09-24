@@ -22,6 +22,7 @@ import { recordConversationAIFailure } from '@/lib/conversations/conversationAIF
 import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
 import {
   buildIdleNudgeScheduleMetadata,
+  detectLeadDeferral,
   resolveIdleNudgeConfig,
   shouldScheduleIdleNudge,
 } from '@/lib/conversations/idleNudge';
@@ -88,6 +89,8 @@ export async function processDeferredAIReply(params: {
   contactName: string | null;
   canonicalPhone: string;
   insertedMessageId: string;
+  /** Texto da ULTIMA mensagem do lead. Usado so para saber se ele adiou a conversa. */
+  inboundText: string;
   aiPendingToken: string;
   aiDebounceMs: number;
   automationWebhookUrl: string;
@@ -108,6 +111,7 @@ export async function processDeferredAIReply(params: {
     contactName,
     canonicalPhone,
     insertedMessageId,
+    inboundText,
     aiPendingToken,
     aiDebounceMs,
     automationWebhookUrl,
@@ -409,6 +413,10 @@ export async function processDeferredAIReply(params: {
     const idleNudge = resolveIdleNudgeConfig(freshConnectionConfig);
     if (!idleNudge.enabled || !shouldScheduleIdleNudge(threadMetadata)) return;
 
+    // Se o lead ADIOU nesta mensagem, o vencimento vai para a hora de retomada do dia seguinte,
+    // nao para 15 minutos. A Aurora ja tentou seguir agora (regra do atendimento 24/7): o
+    // silencio depois dessa tentativa e a confirmacao do adiamento, nao um lead que sumiu.
+    const nudgeDeferred = detectLeadDeferral(inboundText);
     const nudgeScheduledAt = new Date().toISOString();
     const markNudgeResult = await admin
       .from('conversation_threads')
@@ -419,6 +427,9 @@ export async function processDeferredAIReply(params: {
           token: `${insertedMessageId}:idle-nudge:${Date.now()}`,
           scheduledAt: nudgeScheduledAt,
           delayMinutes: idleNudge.delayMinutes,
+          deferred: nudgeDeferred,
+          deferredResumeHour: idleNudge.deferredResumeHour,
+          timezone: idleNudge.timezone,
         }),
       })
       .eq('id', threadId)
@@ -1285,6 +1296,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         contactName: resolvedContactName,
         canonicalPhone,
         insertedMessageId: insertedMessage.data.id,
+        inboundText: content,
         aiPendingToken,
         aiDebounceMs,
         automationWebhookUrl,

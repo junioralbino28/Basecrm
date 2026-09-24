@@ -165,6 +165,36 @@ describe('sendDueConversationNudges — relogio da cutucada de 15 min', () => {
     expect(failureMock).not.toHaveBeenCalled();
   });
 
+  it('com adiamento marcado, manda o texto de RETOMADA e nao o de silencio', async () => {
+    const admin = createFakeAdmin(buildScript({
+      threads: [dueThread({ aiInactivityNudgeDeferred: true })],
+      connections: [connection({ aiIdleNudge: { enabled: true, delayMinutes: 15, text: 'Ainda por aqui?', deferredText: 'Bom dia! Voltando como combinamos.' } })],
+    }));
+
+    const summary = await sendDueConversationNudges({ admin: admin as never, now: '2026-09-21T12:00:00.000Z' });
+
+    expect(summary).toMatchObject({ due: 1, sent: 1, failed: 0 });
+    expect(executeMock.mock.calls[0]?.[0]).toMatchObject({
+      payload: {
+        replyText: 'Bom dia! Voltando como combinamos.',
+        metadata: { idle_nudge: true, idle_nudge_deferred: true },
+      },
+    });
+  });
+
+  it('sem adiamento marcado, segue com o texto de silencio', async () => {
+    const admin = createFakeAdmin(buildScript({
+      threads: [dueThread({})],
+      connections: [connection({ aiIdleNudge: { enabled: true, delayMinutes: 15, text: 'Ainda por aqui?', deferredText: 'Bom dia! Voltando como combinamos.' } })],
+    }));
+
+    await sendDueConversationNudges({ admin: admin as never, now: '2026-09-20T12:20:00.000Z' });
+
+    expect(executeMock.mock.calls[0]?.[0]).toMatchObject({
+      payload: { replyText: 'Ainda por aqui?', metadata: { idle_nudge_deferred: false } },
+    });
+  });
+
   it('nao envia quando o lead ja respondeu: limpa o agendamento casando o token', async () => {
     const admin = createFakeAdmin(buildScript({ threads: [dueThread({ lastDirection: 'inbound' })] }));
 

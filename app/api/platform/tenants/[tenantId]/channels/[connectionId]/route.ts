@@ -123,10 +123,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         if (incoming.calendar !== undefined) merged.calendar = incoming.calendar;
         if (incoming.aiIdleNudge !== undefined) {
           const currentNudge = resolveIdleNudgeConfig(merged);
+          // Campo a campo, e NUNCA por spread do que chegou: quem salva a cutucada pela tela
+          // manda so os campos que editou, e montar o objeto sem os demais apagaria o
+          // adiamento ja configurado neste numero sem ninguem perceber.
           merged.aiIdleNudge = {
             enabled: incoming.aiIdleNudge.enabled ?? currentNudge.enabled,
             delayMinutes: incoming.aiIdleNudge.delayMinutes ?? currentNudge.delayMinutes,
             text: incoming.aiIdleNudge.text ?? currentNudge.text,
+            deferredResumeHour: incoming.aiIdleNudge.deferredResumeHour ?? currentNudge.deferredResumeHour,
+            deferredText: incoming.aiIdleNudge.deferredText ?? currentNudge.deferredText,
+            timezone: incoming.aiIdleNudge.timezone ?? currentNudge.timezone,
           };
         }
         if (incoming.meetingHostName !== undefined) merged.meetingHostName = incoming.meetingHostName || undefined;
