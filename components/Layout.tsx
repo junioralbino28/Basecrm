@@ -930,7 +930,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               ) : null}
             </div>
 
-            <div className="flex items-center gap-4">
+            {/* Folga menor no celular: com `gap-4` os quatro icones comiam ~208px dos 320 e
+                sobrava tao pouco que o nome da clinica virava "B...". */}
+            <div className="flex shrink-0 items-center gap-0.5 md:gap-4">
               <button
                 type="button"
                 onClick={() => setIsGlobalAIOpen(!isGlobalAIOpen)}
@@ -942,10 +944,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Sparkles size={20} aria-hidden="true" />
               </button>
 
+              {/* Modo de depuracao e ferramenta de quem desenvolve: no celular ele cede o lugar
+                  para o nome da clinica, que e o que o operador precisa ver de relance. */}
               <button
                 type="button"
                 onClick={toggleDebugMode}
-                className={`p-2 rounded-full transition-all active:scale-95 focus-visible-ring ${debugEnabled
+                className={`hidden sm:block p-2 rounded-full transition-all active:scale-95 focus-visible-ring ${debugEnabled
                   ? 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 ring-2 ring-purple-400/50'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10'
                   }`}
