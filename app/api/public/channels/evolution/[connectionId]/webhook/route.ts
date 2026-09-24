@@ -12,6 +12,7 @@ import {
   getConversationStatusAfterInbound,
   resolveManualReplyPausesAI,
 } from '@/lib/conversations/routing';
+import { isNomeDeContatoFraco } from '@/lib/conversations/leadProfile';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
@@ -465,7 +466,14 @@ async function upsertConversationContact(params: {
   if (contactResult.error) throw new Error(contactResult.error.message);
 
   if (contactResult.data?.id) {
-    if (contactName && contactResult.data.name !== contactName) {
+    // O perfil do WhatsApp só nomeia contato que AINDA NÃO TEM nome útil. Antes, todo `pushName`
+    // que chegava sobrescrevia o nome do contato — e isso desfazia dois trabalhos: o nome que a
+    // Aurora capta quando o lead se apresenta na conversa ("pedro") voltaria a ser "..." na
+    // mensagem seguinte, e o nome que alguém corrigiu na tela não duraria até a próxima mensagem.
+    // Quem decide o que é "sem nome útil" é `isNomeDeContatoFraco`, o mesmo critério usado do
+    // outro lado, em `resolveLeadNameUpdate`.
+    const podeRenomear = isNomeDeContatoFraco(contactResult.data.name);
+    if (contactName && podeRenomear && contactResult.data.name !== contactName) {
       const updateResult = await admin
         .from('contacts')
         .update({

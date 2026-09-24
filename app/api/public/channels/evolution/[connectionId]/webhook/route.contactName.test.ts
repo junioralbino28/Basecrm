@@ -122,26 +122,68 @@ describe('webhook: só a mensagem que CHEGA nomeia o contato', () => {
     expect(thread().contact_name).toBe(LEAD);
   });
 
-  it('o lead troca o nome do perfil: aí sim o contato é renomeado', async () => {
+  it('contato que ainda NAO tem nome util é batizado pelo perfil', async () => {
+    seed();
+    // Primeira mensagem: o contato nasce, e o nome do perfil é tudo o que existe.
+    await post(payload('oi', 'IN-1', false));
+
+    // Nomear continua funcionando — o conserto restringe a DIREÇÃO, não desliga a nomeação.
+    expect(contato().name).toBe(LEAD);
+  });
+
+  it('perfil do WhatsApp NAO sobrescreve um nome que ja e bom', async () => {
     seed();
     await post(payload('oi', 'IN-1', false));
     expect(contato().name).toBe(LEAD);
 
-    // Mesmo lead, mesmo número, nome do perfil trocado — e a mensagem CHEGA.
+    // O nome do contato foi acertado depois — pela Aurora, quando o lead se apresentou, ou por
+    // alguém na tela. A próxima mensagem do lead não pode desfazer isso.
+    Object.assign(contato(), { name: 'Pedro' });
+
     timestamp += 30;
     await post({
       event: 'messages.upsert',
       instance: 'teste',
       data: {
         key: { id: 'IN-2', remoteJid: JID, fromMe: false },
-        pushName: 'Carlos',
-        message: { conversation: 'aqui é o Carlos, troquei o perfil' },
+        pushName: LEAD,
+        message: { conversation: 'voltei' },
         messageTimestamp: timestamp,
       },
     });
 
-    // Nomear continua funcionando — o conserto restringe a DIREÇÃO, não desliga a nomeação.
-    expect(contato().name).toBe('Carlos');
+    expect(contato().name).toBe('Pedro');
+  });
+
+  it('perfil SUBSTITUI nome sem letra nenhuma, que nao serve para achar ninguem', async () => {
+    seed();
+    timestamp += 30;
+    // Perfil do WhatsApp literalmente "..." — foi o caso real de 24/09.
+    await post({
+      event: 'messages.upsert',
+      instance: 'teste',
+      data: {
+        key: { id: 'IN-1', remoteJid: JID, fromMe: false },
+        pushName: '...',
+        message: { conversation: 'oi, vi o anúncio' },
+        messageTimestamp: timestamp,
+      },
+    });
+    expect(contato().name).toBe('...');
+
+    // Nome fraco: quando um nome de verdade aparecer no perfil, pode entrar.
+    timestamp += 30;
+    await post({
+      event: 'messages.upsert',
+      instance: 'teste',
+      data: {
+        key: { id: 'IN-2', remoteJid: JID, fromMe: false },
+        pushName: 'Pedro Von Watch',
+        message: { conversation: 'sou eu de novo' },
+        messageTimestamp: timestamp,
+      },
+    });
+    expect(contato().name).toBe('Pedro Von Watch');
   });
 
   it('conversa que NASCE de uma mensagem do celular não batiza o lead com o nome da agência', async () => {

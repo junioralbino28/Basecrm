@@ -24,7 +24,7 @@ import {
   resolveClosingReplyEligibility,
 } from '@/lib/conversations/closingReply';
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
-import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
+import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadName, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
 import {
   buildConversationThreadMetadataUpdate,
   readConversationThreadMetadata,
@@ -110,6 +110,12 @@ export const ConversationAutoReplySchema = z.object({
     .describe('E-mail que o lead informou nesta conversa, ou null'),
   leadSegment: z.string().max(120).nullable().optional()
     .describe('Segmento ou nicho da empresa do lead, ou null'),
+  // O nome do WhatsApp nao e o nome da pessoa: pode ser "...", o nome da loja, ou nada. Quando o
+  // lead se apresenta, esse nome vale mais (Junior, 24/09: "nao teria que preencher o nome do lead
+  // depois que ele fala?"). Quem decide se entra e `resolveLeadNameUpdate` — nome editado a mao
+  // no CRM nunca e sobrescrito.
+  leadName: z.string().max(80).nullable().optional()
+    .describe('Nome que o lead disse ter nesta conversa (so o nome da pessoa), ou null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -130,6 +136,8 @@ export type ConversationAIReplyPayload = {
   /** E-mail e segmento informados pelo lead; vao para o contato (sem sobrescrever e-mail ja cadastrado). */
   leadEmail?: string | null;
   leadSegment?: string | null;
+  /** Nome que o lead disse ter; so troca o do perfil do WhatsApp, nunca o editado a mao. */
+  leadName?: string | null;
 };
 
 export function formatRecentMessages(messages: RecentMessage[]) {
@@ -550,6 +558,7 @@ export async function generateConversationAutoReply(params: {
       // anterior escreveu para o lead conferir ("voce disse que seu e-mail e X, esta certo?") e ele confirmou.
       leadEmail: resolveConfirmedLeadEmail(recentMessages, normalizeLeadEmail(generated.leadEmail)),
       leadSegment: normalizeLeadSegment(generated.leadSegment),
+      leadName: normalizeLeadName(generated.leadName),
     },
   };
 }
@@ -869,10 +878,10 @@ export async function executeConversationAIReply(params: {
 
   // E-mail e segmento que o lead informou vao para o contato. Nunca sobrescreve e-mail existente;
   // falha aqui nao derruba a resposta (ja enviada), so avisa.
-  if (thread.contact_id && (payload.leadEmail || payload.leadSegment)) {
+  if (thread.contact_id && (payload.leadEmail || payload.leadSegment || payload.leadName)) {
     const contactResult = await admin
       .from('contacts')
-      .select('email, notes')
+      .select('email, notes, name')
       .eq('id', thread.contact_id)
       .eq('organization_id', activeConnection.organization_id)
       .maybeSingle();
@@ -880,8 +889,12 @@ export async function executeConversationAIReply(params: {
       ? null
       : buildContactProfileUpdate({
           contact: contactResult.data,
+          // O que o CRM gravou a partir do perfil do WhatsApp. Serve para saber se o nome do
+          // contato ainda e o do perfil (pode trocar) ou se alguem ja corrigiu a mao (nao toca).
+          profileName: thread.contact_name,
           leadEmail: payload.leadEmail,
           leadSegment: payload.leadSegment,
+          leadName: payload.leadName,
         });
     if (profileUpdate) {
       const contactUpdate = await admin
@@ -895,6 +908,28 @@ export async function executeConversationAIReply(params: {
           contactId: thread.contact_id,
           error: contactUpdate.error.message,
         });
+      } else if (profileUpdate.name && thread.deal_id) {
+        // O card do funil mostra o TITULO DO NEGOCIO, nao o nome do contato — e o titulo e
+        // carimbado na criacao da conversa ("... - WhatsApp") e nunca mais reescrito. Sem isto o
+        // nome certo entraria no contato e o funil continuaria mostrando o antigo, que e
+        // exatamente onde o Junior viu o problema (24/09).
+        // O `.eq('title', ...)` e a trava: so o titulo PADRAO e trocado. Titulo que alguem
+        // reescreveu na tela nao casa com o padrao, entao fica como esta.
+        const nomeAnterior = (contactResult.data?.name || '').trim();
+        const tituloPadraoAntigo = `${nomeAnterior || thread.contact_phone || ''} - WhatsApp`;
+        const dealUpdate = await admin
+          .from('deals')
+          .update({ title: `${profileUpdate.name} - WhatsApp`, updated_at: now })
+          .eq('id', thread.deal_id)
+          .eq('organization_id', activeConnection.organization_id)
+          .eq('title', tituloPadraoAntigo);
+        if (dealUpdate.error) {
+          console.warn('[Conversation AI] Failed to rename deal after lead said their name', {
+            organizationId: activeConnection.organization_id,
+            dealId: thread.deal_id,
+            error: dealUpdate.error.message,
+          });
+        }
       }
     }
   }

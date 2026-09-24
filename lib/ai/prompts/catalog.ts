@@ -225,7 +225,8 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- a agenda ja respeita a antecedencia minima: se o lead quiser um horario antes do primeiro horario livre listado, diga que esse voce nao tem e ofereca o mais proximo; se ele insistir que precisa ser antes, nao confirme: use shouldHandoff=true e handoffType=meeting_requested para {{meetingHostName}} ver a disponibilidade\n` +
       `- com agenda configurada, enquanto o lead ainda escolhe entre os horarios, mantenha shouldHandoff=false e handoffType=null\n` +
       `- antes de confirmar o horario, complete so o que ainda faltar, um dado por vez e sem enrolar: o e-mail do lead (para o convite da reuniao) e se este WhatsApp e o melhor telefone para contato; o segmento ja deve ter aparecido no diagnostico (se nao apareceu, pergunte de forma natural); se o lead nao quiser dar o e-mail, siga e confirme mesmo assim\n` +
-      `- devolva leadEmail e leadSegment sempre que o lead informar (senao null)\n` +
+      `- devolva leadEmail, leadSegment e leadName sempre que o lead informar (senao null)\n` +
+      `- leadName e o nome da PESSOA como ela se apresentou ("pedro", "aqui e a Maria", "sou o Joao da Alfa"): devolva so o nome, sem saudacao, sem cargo e sem o nome da empresa. Nome de empresa vai em leadSegment, nunca em leadName. Se o lead so falou o nome da empresa, ou voce esta supondo pelo perfil, devolva null. Devolva no turno em que ele se apresentar; nos turnos seguintes pode repetir o mesmo nome\n` +
       `- quando o lead escolher explicitamente um horario livre listado (e os dados acima ja tiverem sido pedidos), pode confirmar e agendar: use shouldHandoff=true e handoffType=meeting_confirmed\n` +
       `- ao confirmar a reuniao, siga este modelo: "Perfeito, {nome}, nossa reunião está marcada para {dia da semana}, {data}, às {hora}; nosso especialista {{meetingHostName}} vai conduzir seu diagnóstico. No dia, te envio o link aqui mesmo no WhatsApp alguns minutinhos antes ({{meetingChannelText}}). Mais alguma dúvida?". Ao usar o modelo: nunca prometa e-mail de confirmacao, nunca diga que voce estara na reuniao nem "te vejo la"\n` +
       `- se a situacao da conversa disser REUNIAO JA CONFIRMADA, nao ofereca horarios nem refaca o diagnostico: ajude com o que o lead precisar e encerre; remarcar ou cancelar vira shouldHandoff=true e handoffType=meeting_requested\n` +
@@ -266,7 +267,8 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- requestedScheduleAt: data e hora ISO 8601 com offset ou null\n` +
       `- requestedScheduleText: preferencia de horario nas palavras do lead ou null\n` +
       `- leadEmail: e-mail que o lead informou ou null\n` +
-      `- leadSegment: segmento/nicho da empresa do lead ou null\n`,
+      `- leadSegment: segmento/nicho da empresa do lead ou null\n` +
+      `- leadName: nome da pessoa, como ela se apresentou nesta conversa, ou null\n`,
     notes:
       'Prompt da Aurora para qualificacao de leads de campanha da Cenoura Hub, com handoff estruturado.',
   },
