@@ -33,7 +33,7 @@ import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
 import { dealFilesService } from '@/lib/supabase/dealFiles';
 import { ConversationDealPanel } from './conversations/ConversationDealPanel';
 import { readConversationThreadMetadata } from '@/lib/conversations/threadMetadata';
-import { ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Tag as TagIcon, Zap } from 'lucide-react';
+import { ArrowLeft, ChevronDown, FileText, Filter, Image as ImageIcon, Mic, Plus, Tag as TagIcon, Zap } from 'lucide-react';
 import type {
   ConversationMessage,
   ConversationMessageMetadata,
@@ -735,15 +735,24 @@ export const TenantConversationsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] min-h-[720px] w-full flex-col overflow-hidden p-4 md:p-6">
+    /* `min-h` so a partir de xl: no celular ele forcava 720px de altura numa tela de ~660px, e o
+       que sobrava ficava escondido atras da barra de navegacao de baixo. */
+    <div className="flex h-[calc(100dvh-7rem)] w-full flex-col overflow-hidden p-2 md:p-6 xl:min-h-[720px]">
       {inboxQuery.error ? (
         <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
           {inboxQuery.error.message}
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden rounded-[2rem] border border-slate-800/80 shadow-[0_30px_80px_rgba(2,6,23,0.45)] xl:grid-cols-[390px_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden bg-[#111b21]">
+      {/* Abaixo de xl a grade nao tem colunas, entao os dois paineis EMPILHAM dentro de um
+          container com overflow-hidden — medido em 24/09/2026 num Galaxy S9+ (320px): a lista
+          cobria o cartao da conversa pela metade e o campo de digitar ficava fora da tela.
+          Aqui vale a regra do WhatsApp: um painel por vez, e a conversa so aparece quando ha
+          uma escolhida. No desktop nada muda — as duas colunas continuam lado a lado. */}
+      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden rounded-[1.25rem] border border-slate-800/80 shadow-[0_30px_80px_rgba(2,6,23,0.45)] md:rounded-[2rem] xl:grid-cols-[390px_minmax(0,1fr)]">
+        <section
+          className={`min-h-0 flex-col overflow-hidden bg-[#111b21] xl:flex ${selectedThread ? 'hidden' : 'flex'}`}
+        >
           <div className="border-b border-slate-700 bg-[#202c33] p-4 dark:border-white/10">
             <div className="flex items-center justify-between gap-3 text-sm font-semibold text-white">
               <div className="flex items-center gap-2">
@@ -940,7 +949,9 @@ export const TenantConversationsPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden bg-[#0b141a]">
+        <section
+          className={`min-h-0 flex-col overflow-hidden bg-[#0b141a] xl:flex ${selectedThread ? 'flex' : 'hidden'}`}
+        >
           {!selectedThread ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.045)_1px,_transparent_1px)] [background-size:26px_26px] px-6 text-center">
               <MessageCircle size={32} className="text-slate-500" />
@@ -955,7 +966,17 @@ export const TenantConversationsPage: React.FC = () => {
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="shrink-0 border-b border-slate-800 bg-[#202c33] px-4 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-2 md:gap-3">
+                    {/* No celular a conversa OCUPA a tela inteira: sem esta seta nao ha como
+                        voltar para a lista. No desktop as duas colunas convivem e ela some. */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedThreadId(null)}
+                      aria-label="Voltar para a lista de conversas"
+                      className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white xl:hidden"
+                    >
+                      <ArrowLeft size={18} aria-hidden="true" />
+                    </button>
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
                       {getThreadAvatar(selectedThread)}
                     </div>

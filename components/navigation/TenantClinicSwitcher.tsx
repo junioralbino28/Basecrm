@@ -143,7 +143,10 @@ export function TenantClinicSwitcher({
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className={`group inline-flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 text-left text-sm text-ink transition hover:border-brand-400 hover:text-brand-700 ${compact ? 'min-w-[220px]' : 'min-w-[280px]'}`}
+        // O minimo so vale a partir de sm. Num celular de 320px o `min-w-[280px]` nao cabia ao
+        // lado do botao "Area da clinica": o nome da clinica estourava o cabecalho em 153px e
+        // era cortado, com o sino de notificacao caindo por cima (medido em 24/09/2026).
+        className={`group inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 text-left text-sm text-ink transition hover:border-brand-400 hover:text-brand-700 ${compact ? 'sm:min-w-[220px]' : 'sm:min-w-[280px]'}`}
         aria-label="Trocar clinica ativa"
       >
         <Building2 size={16} className="text-faint transition group-hover:text-brand-500" />
