@@ -52,7 +52,7 @@ export const BoardSelector: React.FC<BoardSelectorProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
-        aria-label="Selecionar funil da clinica"
+        aria-label="Selecionar funil do cliente"
       >
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-brand-500" />

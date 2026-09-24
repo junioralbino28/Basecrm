@@ -58,7 +58,7 @@ export function TenantClinicSwitcher({
           headers: { accept: 'application/json' },
         });
         const payload = (await response.json().catch(() => null)) as TenantListResponse | null;
-        if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar clinicas.');
+        if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar clientes.');
         if (!active) return;
         setTenants(payload?.tenants || []);
       } catch {
@@ -79,7 +79,7 @@ export function TenantClinicSwitcher({
   if (!isAgencyAdmin || !tenant?.organizationId) return null;
 
   const currentTenantName =
-    tenant.brandingConfig?.displayName || tenant.organizationName || 'Clinica ativa';
+    tenant.brandingConfig?.displayName || tenant.organizationName || 'Cliente ativo';
   const targetHref = isTenantWorkspacePath(pathname)
     ? getTenantWorkspaceHref(getTenantWorkspaceRelativeHref(pathname), tenant.organizationId)
     : `/platform/tenants/${tenant.organizationId}/dashboard`;
@@ -104,7 +104,7 @@ export function TenantClinicSwitcher({
 
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(payload?.error || 'Falha ao trocar clinica.');
+        throw new Error(payload?.error || 'Falha ao trocar cliente.');
       }
 
       const nextPath = isTenantWorkspacePath(pathname)
@@ -149,14 +149,14 @@ export function TenantClinicSwitcher({
         // lado do botao "Area da clinica": o nome da clinica estourava o cabecalho em 153px e
         // era cortado, com o sino de notificacao caindo por cima (medido em 24/09/2026).
         className={`group inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 text-left text-sm text-ink transition hover:border-brand-400 hover:text-brand-700 ${compact ? 'sm:min-w-[220px]' : 'sm:min-w-[280px]'}`}
-        aria-label="Trocar clinica ativa"
+        aria-label="Trocar cliente ativo"
       >
         <Building2 size={16} className="text-faint transition group-hover:text-brand-500" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold">{currentTenantName}</div>
           {!compact ? (
             <div className="text-xs text-muted">
-              {switchingTenantId ? 'Trocando clinica...' : 'Clinica ativa'}
+              {switchingTenantId ? 'Trocando cliente...' : 'Cliente ativo'}
             </div>
           ) : null}
         </div>
@@ -168,12 +168,12 @@ export function TenantClinicSwitcher({
           <button
             type="button"
             className="fixed inset-0 z-40 cursor-default"
-            aria-label="Fechar troca de clinica"
+            aria-label="Fechar troca de cliente"
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute left-0 top-full z-50 mt-2 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-card shadow-2xl">
             <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              Trocar clinica
+              Trocar cliente
             </div>
             <div className="max-h-80 overflow-y-auto py-1">
               <button
@@ -193,7 +193,7 @@ export function TenantClinicSwitcher({
               <div className="my-1 border-t border-line" />
               {isLoading ? (
                 <div className="px-4 py-3 text-sm text-muted">
-                  Carregando clinicas...
+                  Carregando clientes...
                 </div>
               ) : (
                 tenants.map((item) => {
@@ -213,7 +213,7 @@ export function TenantClinicSwitcher({
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium">{displayName}</div>
                         <div className="text-xs text-muted">
-                          {isCurrent ? 'Clinica atual' : isSwitching ? 'Abrindo...' : 'Abrir workspace desta clinica'}
+                          {isCurrent ? 'Cliente atual' : isSwitching ? 'Abrindo...' : 'Abrir workspace deste cliente'}
                         </div>
                       </div>
                     </button>
@@ -226,7 +226,7 @@ export function TenantClinicSwitcher({
                 href={targetHref}
                 className="text-xs font-medium text-muted hover:text-brand-700"
               >
-                Permanecer na clinica atual
+                Permanecer no cliente atual
               </a>
             </div>
           </div>

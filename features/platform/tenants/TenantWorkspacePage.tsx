@@ -15,10 +15,10 @@ export const TenantWorkspacePage: React.FC = () => {
             className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           >
             <ArrowLeft size={16} />
-            Voltar para clinicas
+            Voltar para clientes
           </Link>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">
-            {tenant?.branding_config?.displayName || tenant?.name || 'Clinica'}
+            {tenant?.branding_config?.displayName || tenant?.name || 'Cliente'}
           </h1>
         </div>
 
@@ -29,7 +29,7 @@ export const TenantWorkspacePage: React.FC = () => {
         ) : null}
       </div>
 
-      {loading ? <div className="text-sm text-slate-500 dark:text-slate-400">Carregando clinica...</div> : null}
+      {loading ? <div className="text-sm text-slate-500 dark:text-slate-400">Carregando cliente...</div> : null}
       {error ? <div className="text-sm text-rose-600 dark:text-rose-300">{error}</div> : null}
 
       {tenant ? (
@@ -57,7 +57,7 @@ export const TenantWorkspacePage: React.FC = () => {
                 Dominios
               </div>
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Gerenciar subdominio e hosts da clinica.
+                Gerenciar subdominio e hosts do cliente.
               </div>
             </Link>
 
@@ -70,7 +70,7 @@ export const TenantWorkspacePage: React.FC = () => {
                 WhatsApp
               </div>
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Conectar numero, validar Evolution e operar o pareamento da clinica.
+                Conectar numero, validar Evolution e operar o pareamento do cliente.
               </div>
             </Link>
 
@@ -83,7 +83,7 @@ export const TenantWorkspacePage: React.FC = () => {
                 Conversations
               </div>
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Registrar threads, mensagens e handoff operacional da clinica.
+                Registrar threads, mensagens e handoff operacional do cliente.
               </div>
             </Link>
 
@@ -100,7 +100,7 @@ export const TenantWorkspacePage: React.FC = () => {
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Metadados da clinica</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">Metadados do cliente</div>
               <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
                 <div>
                   <span className="font-medium text-slate-900 dark:text-white">Especialidade:</span>{' '}

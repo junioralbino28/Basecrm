@@ -23,7 +23,7 @@ export const PlatformPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
           >
             <PlusCircle size={16} />
-            Nova Clinica
+            Novo Cliente
           </Link>
         </div>
       </div>
@@ -33,9 +33,9 @@ export const PlatformPage: React.FC = () => {
           href="/platform/tenants"
           className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-card"
         >
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">Clinicas</div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">Clientes</div>
           <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            Lista de clinicas provisionadas e status do ultimo setup.
+            Lista de clientes provisionados e status do ultimo setup.
           </div>
         </Link>
 
@@ -43,7 +43,7 @@ export const PlatformPage: React.FC = () => {
           href="/platform/tenants/new"
           className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-card"
         >
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">Preparar nova clinica</div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">Preparar novo cliente</div>
           <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Cria a conta, aplica a configuracao inicial e monta o funil com suporte da IA.
           </div>

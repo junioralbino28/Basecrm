@@ -55,7 +55,7 @@ export const DataStorageSettings: React.FC = () => {
         }
 
         if (!organizationId) {
-            addToast('Selecione uma clinica antes de gerenciar os dados.', 'error');
+            addToast('Selecione um cliente antes de gerenciar os dados.', 'error');
             return;
         }
 

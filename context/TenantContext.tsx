@@ -108,7 +108,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return {
       organizationId: routeTenantId,
-      organizationName: tenant?.organizationName || 'Clinica ativa',
+      organizationName: tenant?.organizationName || 'Cliente ativo',
       editionKey: tenant?.editionKey || null,
       brandingConfig: tenant?.brandingConfig || {},
       enabledModules: tenant?.enabledModules || [],

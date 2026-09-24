@@ -192,7 +192,7 @@ export function useAgendaLocalController() {
 
   const criarMutation = useMutation({
     mutationFn: async (nova: NovaConsulta) => {
-      if (!organizationId) throw new Error('Clínica não carregada ainda.');
+      if (!organizationId) throw new Error('Cliente não carregada ainda.');
       const startsAtIso = paraIsoLocal(date, nova.hora);
       const fim = new Date(new Date(startsAtIso).getTime() + nova.duracaoMin * 60_000).toISOString();
       const { error } = await appointmentsLocalService.criar({

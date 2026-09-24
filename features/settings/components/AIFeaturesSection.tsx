@@ -226,7 +226,7 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
               <SlidersHorizontal className="h-5 w-5" /> Funções de IA
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Toggle + prompt no mesmo lugar para facilitar ajustes rápidos por clínica.
+              Toggle + prompt no mesmo lugar para facilitar ajustes rápidos por cliente.
             </p>
           </div>
         </div>

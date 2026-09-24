@@ -80,7 +80,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'funnels.manage', label: 'Gerenciar funis e etapas', description: 'Criar, editar e remover funis e suas etapas.', group: 'Funis' },
   { key: 'deals.manage', label: 'Criar e editar negócios', description: 'Criar e editar os negócios (cards) dentro dos funis.', group: 'Funis' },
   // Conversas e WhatsApp (as 5 originais mantidas)
-  { key: 'conversations.access', label: 'Conversations', description: 'Abrir o inbox operacional e acompanhar conversas da clinica.', group: 'Conversas e WhatsApp' },
+  { key: 'conversations.access', label: 'Conversations', description: 'Abrir o inbox operacional e acompanhar conversas do cliente.', group: 'Conversas e WhatsApp' },
   { key: 'conversations.reply', label: 'Responder conversas', description: 'Enviar mensagens, registrar saida e notas internas na conversa.', group: 'Conversas e WhatsApp' },
   { key: 'whatsapp.access', label: 'WhatsApp', description: 'Abrir a area do WhatsApp, gerar QR code, testar conexao e reconectar o numero.', group: 'Conversas e WhatsApp' },
   { key: 'whatsapp.manage_connection', label: 'Configurar WhatsApp', description: 'Editar API URL, instance, chave e configuracoes estruturais da conexao.', group: 'Conversas e WhatsApp' },
@@ -113,7 +113,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'lead_sources.assign', label: 'Registrar origem', description: 'Registrar a origem observada ou declarada de um lead.', group: 'Etiquetas e Origens' },
   { key: 'lead_sources.manage', label: 'Gerenciar origens', description: 'Criar, renomear e arquivar o catálogo de origens.', group: 'Etiquetas e Origens' },
   // Configurações
-  { key: 'settings.general', label: 'Configurações gerais', description: 'Abrir e editar as configurações gerais da clínica.', group: 'Configurações' },
+  { key: 'settings.general', label: 'Configurações gerais', description: 'Abrir e editar as configurações gerais do cliente.', group: 'Configurações' },
   { key: 'settings.products', label: 'Produtos e procedimentos', description: 'Gerenciar o catálogo de produtos/procedimentos.', group: 'Configurações' },
   { key: 'settings.professionals', label: 'Profissionais', description: 'Gerenciar os profissionais (dentistas).', group: 'Configurações' },
   { key: 'settings.finance', label: 'Financeiro', description: 'Gerenciar comissões, custos fixos e taxas de cartão.', group: 'Configurações' },

@@ -3,8 +3,8 @@ import type { EditionDefinition, EditionKey } from './types';
 const EDITIONS: Record<EditionKey, EditionDefinition> = {
   clinic: {
     key: 'clinic',
-    label: 'CRM Clinica',
-    description: 'Edicao interna voltada para operacao de clinicas com implantacao concierge.',
+    label: 'CRM Cliente',
+    description: 'Edicao interna voltada para operacao de clientes com implantacao concierge.',
     enabledModules: ['crm_core', 'ai_assistant', 'boards_pipeline', 'contacts', 'activities'],
     defaultBranding: {
       themeMode: 'light',

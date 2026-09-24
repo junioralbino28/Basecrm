@@ -564,7 +564,7 @@ export const TenantChannelsPage: React.FC = () => {
         );
       } else if (isEditing) {
         setMessageKind('success');
-        setMessage('Conexao atualizada na clinica.');
+        setMessage('Conexao atualizada no cliente.');
       }
 
       if (isEditing) {
@@ -832,11 +832,11 @@ export const TenantChannelsPage: React.FC = () => {
             className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           >
             <ArrowLeft size={16} />
-            Voltar para clinica
+            Voltar para o cliente
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conexoes da clinica</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Conexoes do cliente</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Configure o canal da clinica, valide a Evolution e acompanhe o pareamento em um unico lugar.
+            Configure o canal do cliente, valide a Evolution e acompanhe o pareamento em um unico lugar.
           </p>
         </div>
 
@@ -863,7 +863,7 @@ export const TenantChannelsPage: React.FC = () => {
             <div className="mt-4 space-y-3">
               {tenant.channel_connections.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                  Nenhuma conexao cadastrada ainda para esta clinica.
+                  Nenhuma conexao cadastrada ainda para este cliente.
                 </div>
               ) : (
                 tenant.channel_connections.map((connection) => (
@@ -1154,7 +1154,7 @@ export const TenantChannelsPage: React.FC = () => {
                             </div>
                             <div>
                               <span className="font-medium text-slate-900 dark:text-white">Orientacao:</span>{' '}
-                              abra o WhatsApp do numero da clinica e use este pareamento para concluir a conexao.
+                              abra o WhatsApp do numero do cliente e use este pareamento para concluir a conexao.
                               Se o QR nao ler, use o codigo de pareamento.
                             </div>
                           </div>
@@ -1226,9 +1226,9 @@ export const TenantChannelsPage: React.FC = () => {
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {canManageInfrastructure
                 ? editingConnectionId
-                  ? 'Atualize numero e instancia da clinica. API URL/token so sao necessarios se for sobrescrever a credencial global.'
-                  : 'Use esta tela para registrar a infraestrutura da clinica. Se a credencial global da agencia estiver salva, basta instancia + numero.'
-                : 'Aqui na clinica, mantenha o fluxo rapido: gerar QR code, reconectar e testar envio.'}
+                  ? 'Atualize numero e instancia do cliente. API URL/token so sao necessarios se for sobrescrever a credencial global.'
+                  : 'Use esta tela para registrar a infraestrutura do cliente. Se a credencial global da agencia estiver salva, basta instancia + numero.'
+                : 'Aqui no painel do cliente, mantenha o fluxo rapido: gerar QR code, reconectar e testar envio.'}
             </p>
             {isAgencyAdmin && !isTechnicalRoute ? (
               <Link
@@ -1282,7 +1282,7 @@ export const TenantChannelsPage: React.FC = () => {
                 </div>
 
                 <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Com esta credencial salva, cada clinica precisa informar apenas instancia e numero para gerar QR code.
+                  Com esta credencial salva, cada cliente precisa informar apenas instancia e numero para gerar QR code.
                 </div>
 
                 <div className="mt-3 flex justify-end">
@@ -1336,7 +1336,7 @@ export const TenantChannelsPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Instance name</label>
-                  <input className={FIELD_CLASS} value={form.instanceName} onChange={(e) => onChange('instanceName', e.target.value)} placeholder="Clinica Dra Maria" />
+                  <input className={FIELD_CLASS} value={form.instanceName} onChange={(e) => onChange('instanceName', e.target.value)} placeholder="Cliente Exemplo" />
                 </div>
               </div>
 
@@ -1395,7 +1395,7 @@ export const TenantChannelsPage: React.FC = () => {
                   className={FIELD_CLASS}
                   value={form.apiKey}
                   onChange={(e) => onChange('apiKey', e.target.value)}
-                  placeholder={editingConnectionId ? 'Preencha apenas se quiser sobrescrever o token global' : 'Cole um token apenas se esta clinica usar credencial propria'}
+                  placeholder={editingConnectionId ? 'Preencha apenas se quiser sobrescrever o token global' : 'Cole um token apenas se este cliente usar credencial propria'}
                 />
               </div>
 
@@ -1450,7 +1450,7 @@ export const TenantChannelsPage: React.FC = () => {
             )
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
-                A configuração técnica (API e webhook) fica no Painel Agência. Aqui na clínica, use os botões
+                A configuração técnica (API e webhook) fica no Painel Agência. Aqui no painel do cliente, use os botões
                 operacionais para gerar QR code, reconectar e validar o número.
               </div>
             )}
@@ -1618,7 +1618,7 @@ export const TenantChannelsPage: React.FC = () => {
         </div>
       ) : tenant ? (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-5 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-          Seu usuario ainda nao tem permissao para operar o modulo de WhatsApp desta clinica.
+          Seu usuario ainda nao tem permissao para operar o modulo de WhatsApp deste cliente.
         </div>
       ) : null}
     </div>

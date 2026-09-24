@@ -345,7 +345,7 @@ const VisaoGeralPage: React.FC = () => {
           Visão Geral
         </h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          o mês da clínica num olhar · {MES_LABEL.format(new Date())}
+          o mês do cliente num olhar · {MES_LABEL.format(new Date())}
         </p>
       </div>
 

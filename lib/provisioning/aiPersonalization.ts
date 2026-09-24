@@ -75,7 +75,7 @@ export async function generateProvisioningBoardDraft(params: {
       role: 'Assistente de relacionamento',
       behavior: 'Organizada, cordial e focada em avancar leads para o proximo passo.',
     },
-    entryTrigger: 'Leads recebidos pelo canal principal da clinica.',
+    entryTrigger: 'Leads recebidos pelo canal principal do cliente.',
   };
 
   const supabase = createStaticAdminClient();

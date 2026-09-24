@@ -75,7 +75,7 @@ describe('UsersPage permissions', () => {
 
     expect(await screen.findByText('Carregando permissões')).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(screen.queryByRole('heading', { name: /Equipe da Clinica/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Equipe do Cliente/i })).not.toBeInTheDocument()
   })
 
   it('permite acesso a clinic_staff com override positivo', async () => {
@@ -84,7 +84,7 @@ describe('UsersPage permissions', () => {
 
     render(<UsersPage />)
 
-    expect(await screen.findByRole('heading', { name: /Equipe da Clinica/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Equipe do Cliente/i })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/admin/users?tenantId=clinic-1',
       expect.objectContaining({ method: 'GET', credentials: 'include' }),

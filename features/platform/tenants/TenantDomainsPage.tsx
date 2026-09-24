@@ -38,19 +38,19 @@ export const TenantDomainsPage: React.FC = () => {
     <div className="space-y-6 p-8 max-w-5xl mx-auto">
       <Link href={`/platform/tenants/${tenantId}`} className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
         <ArrowLeft size={16} />
-        Voltar para clinica
+        Voltar para o cliente
       </Link>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Dominios e subdominios</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Gerencie os hosts que resolvem esta clinica.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Gerencie os hosts que resolvem este cliente.</p>
 
         <div className="mt-6 flex gap-3">
           <input
             className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-card dark:text-white"
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder="clinica-exemplo.seudominio.com"
+            placeholder="cliente-exemplo.seudominio.com"
           />
           <button onClick={onCreate} disabled={saving || !host.trim()} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50">
             <PlusCircle size={16} />

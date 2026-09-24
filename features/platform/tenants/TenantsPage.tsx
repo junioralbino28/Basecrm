@@ -50,12 +50,12 @@ export const TenantsPage: React.FC = () => {
           headers: { accept: 'application/json' },
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinicas (HTTP ${res.status})`);
+        if (!res.ok) throw new Error(data?.error || `Falha ao carregar clientes (HTTP ${res.status})`);
         if (!active) return;
         setTenants(data?.tenants || []);
       } catch (e) {
         if (!active) return;
-        setError(e instanceof Error ? e.message : 'Falha ao carregar clinicas.');
+        setError(e instanceof Error ? e.message : 'Falha ao carregar clientes.');
       } finally {
         if (active) setLoading(false);
       }
@@ -82,10 +82,10 @@ export const TenantsPage: React.FC = () => {
         });
 
         const payload = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(payload?.error || 'Falha ao selecionar clinica.');
+        if (!response.ok) throw new Error(payload?.error || 'Falha ao selecionar cliente.');
         router.push(`/platform/tenants/${tenantId}/dashboard`);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Falha ao selecionar clinica.');
+        setError(e instanceof Error ? e.message : 'Falha ao selecionar cliente.');
       } finally {
         setSelectingTenantId(null);
       }
@@ -103,13 +103,13 @@ export const TenantsPage: React.FC = () => {
 
     const suffix = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').toLowerCase();
     const payload = {
-      companyName: mode === 'empty' ? `Clinica Migracao ${suffix}` : `Clinica Teste ${suffix}`,
-      subdomain: (mode === 'empty' ? `clinica-migracao-${suffix}` : `clinica-teste-${suffix}`).slice(0, 48),
+      companyName: mode === 'empty' ? `Cliente Migracao ${suffix}` : `Cliente Teste ${suffix}`,
+      subdomain: (mode === 'empty' ? `cliente-migracao-${suffix}` : `cliente-teste-${suffix}`).slice(0, 48),
       specialty: 'Odontologia',
       primaryGoal:
         mode === 'empty'
           ? 'Receber migracao segura do tenant legado sem funil inicial'
-          : 'Validar o fluxo multi-clinica e o atendimento operacional no CRM',
+          : 'Validar o fluxo multi-cliente e o atendimento operacional no CRM',
       serviceModel:
         mode === 'empty'
           ? 'Tenant limpo para migracao de dados legados'
@@ -136,15 +136,15 @@ export const TenantsPage: React.FC = () => {
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(
-          data?.error || (mode === 'empty' ? 'Falha ao criar clinica limpa.' : 'Falha ao criar clinica teste.')
+          data?.error || (mode === 'empty' ? 'Falha ao criar cliente limpo.' : 'Falha ao criar cliente teste.')
         );
       }
 
       const tenantId = data?.tenant?.organizationId as string | undefined;
       if (!tenantId) {
         throw new Error(mode === 'empty'
-          ? 'Clinica limpa criada sem organizationId retornado.'
-          : 'Clinica teste criada sem organizationId retornado.');
+          ? 'Cliente limpo criado sem organizationId retornado.'
+          : 'Cliente teste criado sem organizationId retornado.');
       }
 
       await handleOpenTenant(tenantId);
@@ -153,8 +153,8 @@ export const TenantsPage: React.FC = () => {
         e instanceof Error
           ? e.message
           : mode === 'empty'
-            ? 'Falha ao criar clinica limpa.'
-            : 'Falha ao criar clinica teste.'
+            ? 'Falha ao criar cliente limpo.'
+            : 'Falha ao criar cliente teste.'
       );
     } finally {
       if (mode === 'empty') {
@@ -169,9 +169,9 @@ export const TenantsPage: React.FC = () => {
     <div className="space-y-6 p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Clinicas</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Clientes</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Clinicas e ultimos runs de provisionamento.
+            Clientes e ultimos runs de provisionamento.
           </p>
         </div>
 
@@ -183,7 +183,7 @@ export const TenantsPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-wait disabled:opacity-70 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:border-amber-500/40 dark:hover:bg-amber-500/15"
           >
             <Building2 size={16} />
-            {isCreatingEmptyTenant ? 'Criando clinica limpa...' : 'Criar Clinica Limpa'}
+            {isCreatingEmptyTenant ? 'Criando cliente limpo...' : 'Criar Cliente Limpo'}
           </button>
 
           <button
@@ -193,7 +193,7 @@ export const TenantsPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-wait disabled:opacity-70 dark:border-white/10 dark:bg-card dark:text-slate-200 dark:hover:border-teal-500/40 dark:hover:text-teal-200"
           >
             <Building2 size={16} />
-            {isCreatingTestTenant ? 'Criando teste...' : 'Criar Clinica Teste'}
+            {isCreatingTestTenant ? 'Criando teste...' : 'Criar Cliente Teste'}
           </button>
 
           <Link
@@ -201,14 +201,14 @@ export const TenantsPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500"
           >
             <PlusCircle size={16} />
-            Nova Clinica
+            Novo Cliente
           </Link>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-card">
         <div className="grid grid-cols-[1.8fr_0.8fr_1fr_1fr_0.8fr] gap-4 border-b border-slate-200 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:border-white/10 dark:text-slate-400">
-          <div>Clinica</div>
+          <div>Cliente</div>
           <div>Edicao</div>
           <div>Ultimo status</div>
           <div>Funil inicial</div>
@@ -216,12 +216,12 @@ export const TenantsPage: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">Carregando clinicas...</div>
+          <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">Carregando clientes...</div>
         ) : error ? (
           <div className="px-6 py-12 text-sm text-rose-600 dark:text-rose-300">{error}</div>
         ) : tenants.length === 0 ? (
           <div className="px-6 py-12 text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma clinica provisionada ainda.
+            Nenhum cliente provisionado ainda.
           </div>
         ) : (
           tenants.map((tenant) => {
@@ -235,7 +235,7 @@ export const TenantsPage: React.FC = () => {
                 onClick={() => void handleOpenTenant(tenant.id)}
                 disabled={isSelecting}
                 className="grid w-full cursor-pointer grid-cols-[1.8fr_0.8fr_1fr_1fr_0.8fr] gap-4 border-b border-slate-100 px-6 py-5 text-left text-sm transition hover:bg-slate-50 hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)] disabled:cursor-wait disabled:opacity-70 last:border-b-0 dark:border-white/5 dark:hover:bg-white/5"
-                title={`Abrir clinica ${displayName}`}
+                title={`Abrir cliente ${displayName}`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 font-medium text-slate-900 dark:text-white">
@@ -246,7 +246,7 @@ export const TenantsPage: React.FC = () => {
                     {new Date(tenant.created_at).toLocaleString('pt-BR')}
                   </div>
                   <div className="mt-2 text-xs font-medium text-cyan-700 dark:text-cyan-300">
-                    Clique para abrir o workspace desta clinica
+                    Clique para abrir o workspace deste cliente
                   </div>
                 </div>
 

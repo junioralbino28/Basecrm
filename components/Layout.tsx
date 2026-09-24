@@ -327,7 +327,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     pathname === '/platform' ||
     pathname === '/platform/tenants' ||
     pathname === '/platform/tenants/new';
-  const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Selecione uma clinica';
+  const currentClinicName = tenant?.brandingConfig?.displayName || tenant?.organizationName || 'Selecione um cliente';
   const hasActiveClinic = Boolean(tenant?.organizationId);
   const isClinicWorkspaceActive = !isPlatformRoute && hasActiveClinic;
   const brandName = isAdmin
@@ -434,8 +434,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ? [
         { to: '/platform', icon: Building2, label: 'Plataforma', prefetch: 'dashboard' as const },
         { to: '/platform/team', icon: Users, label: 'Equipe da Agencia', prefetch: 'dashboard' as const },
-        { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clinicas', prefetch: 'dashboard' as const },
-        { to: '/platform/tenants/new', icon: PlusSquare, label: 'Nova Clinica', prefetch: 'dashboard' as const },
+        { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clientes', prefetch: 'dashboard' as const },
+        { to: '/platform/tenants/new', icon: PlusSquare, label: 'Novo Cliente', prefetch: 'dashboard' as const },
       ]
     : [];
 
@@ -576,7 +576,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <PageLoader />
           {!tenantLoading && !tenant?.organizationId ? (
             <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-              Redirecionando para Clinicas...
+              Redirecionando para Clientes...
             </p>
           ) : null}
         </div>
@@ -635,7 +635,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {[
             {
               key: 'clinica',
-              header: 'Clínica',
+              header: 'Cliente',
               items: showClinicNav ? clinicSidebarNav : [],
             },
             { key: 'agencia', header: 'Agência', items: adminSidebarNav },
@@ -793,7 +793,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface/50 rounded-lg transition-colors focus-visible-ring"
                         >
                           <PlusSquare className="w-4 h-4 text-slate-400" />
-                          Nova Clinica
+                          Novo Cliente
                         </Link>
                         <Link
                           href="/platform/team"
@@ -900,15 +900,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Header */}
           {/* `px-3` no celular: a 320px o `px-6` come 48px dos 320 e era parte do motivo de o
-              nome da clinica nao caber ao lado do selo. */}
+              nome do cliente nao caber ao lado do selo. */}
           <header className="h-16 bg-card border-b border-line flex items-center justify-between gap-2 px-3 md:px-6 z-40 shrink-0" role="banner">
             <div className="min-w-0 flex-1">
               {isAdmin ? (
                 <div className="flex min-w-0 items-center gap-2">
                   {/* O selo some no celular: ele nao encolhe e roubava a largura do nome da
-                      clinica, que e a informacao que importa saber de relance. */}
+                      cliente, que e a informacao que importa saber de relance. */}
                   <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area da clinica' : 'Selecione uma clinica'}
+                    {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area do cliente' : 'Selecione um cliente'}
                   </div>
 
                   {!isPlatformRoute && hasActiveClinic ? (
@@ -918,7 +918,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       href="/platform/tenants/new"
                       className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 md:inline-flex dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-cyan-500/40 dark:hover:text-cyan-200"
                     >
-                      Nova clinica
+                      Novo cliente
                     </Link>
                   ) : null
                   }
@@ -931,7 +931,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Folga menor no celular: com `gap-4` os quatro icones comiam ~208px dos 320 e
-                sobrava tao pouco que o nome da clinica virava "B...". */}
+                sobrava tao pouco que o nome do cliente virava "B...". */}
             <div className="flex shrink-0 items-center gap-0.5 md:gap-4">
               <button
                 type="button"
@@ -945,7 +945,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
 
               {/* Modo de depuracao e ferramenta de quem desenvolve: no celular ele cede o lugar
-                  para o nome da clinica, que e o que o operador precisa ver de relance. */}
+                  para o nome do cliente, que e o que o operador precisa ver de relance. */}
               <button
                 type="button"
                 onClick={toggleDebugMode}
@@ -1080,7 +1080,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       ) : null}
 
-      {/* Nudge de tarefas (N3): SÓ no workspace clínica — agência fora dele
+      {/* Nudge de tarefas (N3): SÓ no workspace cliente — agência fora dele
           (rotas /platform) não vê o pop-up. Intervalo vem da org (null = off). */}
       {isClinicWorkspaceActive ? <TaskNudge /> : null}
       <NotificacoesDeConversa

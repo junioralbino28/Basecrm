@@ -242,7 +242,7 @@ export const UsersPage: React.FC = () => {
                 credentials: 'include',
             });
             const data = await res.json().catch(() => null);
-            if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinicas (HTTP ${res.status})`);
+            if (!res.ok) throw new Error(data?.error || `Falha ao carregar clientes (HTTP ${res.status})`);
             setTenantOptions(data?.tenants || []);
         } catch {
             setTenantOptions([]);
@@ -511,7 +511,7 @@ export const UsersPage: React.FC = () => {
     const pageTitle =
         effectiveScope === 'agency'
             ? 'Equipe da Agencia'
-            : `Equipe da Clinica${selectedClinic?.branding_config?.displayName || selectedClinic?.name ? ` • ${selectedClinic?.branding_config?.displayName || selectedClinic?.name}` : ''}`;
+            : `Equipe do Cliente${selectedClinic?.branding_config?.displayName || selectedClinic?.name ? ` • ${selectedClinic?.branding_config?.displayName || selectedClinic?.name}` : ''}`;
     const isClinicScopeUnavailable = effectiveScope === 'clinic' && !selectedClinicId;
 
     return (
@@ -640,7 +640,7 @@ export const UsersPage: React.FC = () => {
                                             Cargo e escopo
                                         </div>
                                         <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                            Agencia ou clinica, com alteracao posterior por voce quando houver promocao ou mudanca de funcao.
+                                            Agencia ou cliente, com alteracao posterior por voce quando houver promocao ou mudanca de funcao.
                                         </div>
                                     </div>
 
@@ -803,14 +803,14 @@ export const UsersPage: React.FC = () => {
                                                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                                             }`}
                                         >
-                                            Convites da clinica
+                                            Convites do cliente
                                         </button>
                                     </div>
 
                                     {effectiveScope === 'clinic' ? (
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                                Clinica alvo
+                                                Cliente alvo
                                             </label>
                                             <select
                                                 value={selectedClinicId || ''}
@@ -818,7 +818,7 @@ export const UsersPage: React.FC = () => {
                                                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500 dark:border-line dark:bg-surface dark:text-slate-100"
                                                 disabled={tenantOptionsLoading}
                                             >
-                                                {!selectedClinicId ? <option value="">Selecione uma clinica</option> : null}
+                                                {!selectedClinicId ? <option value="">Selecione um cliente</option> : null}
                                                 {tenantOptions.map((option) => (
                                                     <option key={option.id} value={option.id}>
                                                         {option.branding_config?.displayName || option.name}
@@ -826,7 +826,7 @@ export const UsersPage: React.FC = () => {
                                                 ))}
                                             </select>
                                             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                                Separe os convites da agencia dos convites de cada clinica sem misturar os acessos.
+                                                Separe os convites da agencia dos convites de cada cliente sem misturar os acessos.
                                             </p>
                                         </div>
                                     ) : (

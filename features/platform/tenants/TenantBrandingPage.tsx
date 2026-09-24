@@ -56,11 +56,11 @@ export const TenantBrandingPage: React.FC = () => {
     <div className="space-y-6 p-8 max-w-5xl mx-auto">
       <Link href={`/platform/tenants/${tenantId}`} className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
         <ArrowLeft size={16} />
-        Voltar para clinica
+        Voltar para o cliente
       </Link>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-card">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Branding da clinica</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Branding do cliente</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Base de nome exibido, tema e cor principal.</p>
 
         {loading ? <div className="mt-6 text-sm text-slate-500 dark:text-slate-400">Carregando branding...</div> : null}
@@ -90,7 +90,10 @@ export const TenantBrandingPage: React.FC = () => {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Identidade visual</span>
               <select className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-card dark:text-white" value={form.brandTheme} onChange={(e) => setForm((current) => ({ ...current, brandTheme: e.target.value === 'clinica' ? 'clinica' : 'cenno' }))}>
                 <option value="cenno">CENNO (padrão da agência)</option>
-                <option value="clinica">Clínica (verde e bege)</option>
+                {/* O VALOR continua `clinica` — e a chave gravada em `branding_config` de cada
+                    cliente e em `[data-brand]` no CSS. So o rotulo muda: o tema e um visual
+                    (verde e bege), nao um tipo de negocio. */}
+                <option value="clinica">Verde e bege</option>
               </select>
               <span className="block text-xs text-slate-500 dark:text-slate-400">É o que a equipe deste cliente vê ao entrar. A agência vê sempre o tema CENNO.</span>
             </label>

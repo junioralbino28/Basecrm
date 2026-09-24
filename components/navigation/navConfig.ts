@@ -84,8 +84,8 @@ export function getSecondaryNav(options: {
 
   return [
     { id: 'platform', label: 'Plataforma', href: '/platform', icon: Building2 },
-    { id: 'platform_tenants', label: 'Clinicas', href: '/platform/tenants', icon: Building2 },
-    { id: 'platform_new_tenant', label: 'Nova Clinica', href: '/platform/tenants/new', icon: PlusSquare },
+    { id: 'platform_tenants', label: 'Clientes', href: '/platform/tenants', icon: Building2 },
+    { id: 'platform_new_tenant', label: 'Novo Cliente', href: '/platform/tenants/new', icon: PlusSquare },
     ...baseItems,
   ];
 }

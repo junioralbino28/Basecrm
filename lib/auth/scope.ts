@@ -70,9 +70,9 @@ export function getRoleLabel(role: unknown): string {
     case 'agency_staff':
       return 'Equipe da Agencia';
     case 'clinic_admin':
-      return 'Admin da Clinica';
+      return 'Admin do Cliente';
     case 'clinic_staff':
-      return 'Equipe da Clinica';
+      return 'Equipe do Cliente';
     case 'admin':
       return 'Admin';
     case 'vendedor':
@@ -109,13 +109,13 @@ export function getRoleOptions(params: {
     label: getRoleLabel(role),
     description:
       role === 'agency_admin'
-        ? 'Controle total da agencia, clinicas e permissoes.'
+        ? 'Controle total da agencia, clientes e permissoes.'
         : role === 'agency_staff'
           ? 'Opera a agencia com acessos customizaveis por permissao.'
           : role === 'clinic_admin'
-            ? 'Administra a operacao e a equipe da clinica.'
+            ? 'Administra a operacao e a equipe do cliente.'
             : role === 'clinic_staff'
-              ? 'Atua no operacional da clinica com acessos limitados.'
+              ? 'Atua no operacional do cliente com acessos limitados.'
               : role === 'admin'
                 ? 'Perfil legado de administrador.'
                 : 'Perfil legado operacional.',

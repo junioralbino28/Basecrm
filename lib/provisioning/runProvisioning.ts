@@ -127,7 +127,7 @@ export async function runProvisioning(params: {
       input: params.input,
     });
 
-    const boardKeyBase = slugify(`${params.input.specialty}-${params.input.companyName}`) || 'pipeline-clinica';
+    const boardKeyBase = slugify(`${params.input.specialty}-${params.input.companyName}`) || 'pipeline-cliente';
 
     const { data: board, error: boardError } = await supabase
       .from('boards')

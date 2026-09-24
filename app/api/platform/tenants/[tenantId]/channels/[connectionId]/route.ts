@@ -80,7 +80,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
           error:
             bindingError instanceof Error
               ? bindingError.message
-              : 'Falha ao vincular clinica a agencia para credencial global.',
+              : 'Falha ao vincular cliente a agencia para credencial global.',
         },
         500
       );

@@ -77,7 +77,7 @@ export function useTenantDetail() {
         headers: { accept: 'application/json' },
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao carregar clinica (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(data?.error || `Falha ao carregar cliente (HTTP ${res.status})`);
       setTenant(data?.tenant || null);
       setAccess({
         canManageChannelConfig: Boolean(data?.access?.canManageChannelConfig),
@@ -88,7 +88,7 @@ export function useTenantDetail() {
         canEditAutomations: Boolean(data?.access?.canEditAutomations),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar clinica.');
+      setError(e instanceof Error ? e.message : 'Falha ao carregar cliente.');
     } finally {
       setLoading(false);
     }

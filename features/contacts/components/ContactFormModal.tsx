@@ -227,7 +227,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               />
             )}
             <p className="text-[10px] text-slate-400 mt-1">
-              De onde esse contato veio (cadastre as origens da clínica para virar lista).
+              De onde esse contato veio (cadastre as origens do cliente para virar lista).
             </p>
           </div>
 

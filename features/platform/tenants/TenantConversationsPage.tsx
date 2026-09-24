@@ -1620,7 +1620,7 @@ export const TenantConversationsPage: React.FC = () => {
         {!channelConnections.length ? (
           <div className="space-y-3">
             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300">
-              Esta clinica ainda nao tem nenhuma conexao cadastrada.
+              Este cliente ainda nao tem nenhuma conexao cadastrada.
             </div>
             <Link
               href={`/platform/tenants/${tenantId}/whatsapp`}
@@ -1684,7 +1684,7 @@ export const TenantConversationsPage: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-              <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Escaneie no WhatsApp do numero da clinica</div>
+              <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Escaneie no WhatsApp do numero do cliente</div>
               <div className="grid gap-4 md:grid-cols-[260px_1fr]">
                 <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-card">
                   {activePairing.imageSrc ? (

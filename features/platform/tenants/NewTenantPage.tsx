@@ -45,11 +45,11 @@ export const NewTenantPage: React.FC = () => {
       });
 
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Falha ao preparar clinica (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(data?.error || `Falha ao preparar cliente (HTTP ${res.status})`);
 
       router.push('/platform/tenants');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao preparar clinica.');
+      setError(e instanceof Error ? e.message : 'Falha ao preparar cliente.');
     } finally {
       setIsSubmitting(false);
     }
