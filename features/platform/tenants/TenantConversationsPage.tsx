@@ -1053,7 +1053,11 @@ export const TenantConversationsPage: React.FC = () => {
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="shrink-0 border-b border-slate-800 bg-[#202c33] px-4 py-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* A 320px os quatro icones nao cabem na mesma linha do nome: seta, avatar e
+                    barra somam 236 dos 320 e sobrariam ~50px para o nome, que viraria "As…".
+                    Entao a barra DESCE para uma faixa propria — e quando desce vai para a
+                    direita (`ml-auto`), perto do polegar, em vez de ficar solta a esquerda. */}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                   <div className="flex min-w-0 items-center gap-2 md:gap-3">
                     {/* No celular a conversa OCUPA a tela inteira: sem esta seta nao ha como
                         voltar para a lista. No desktop as duas colunas convivem e ela some. */}
@@ -1091,7 +1095,7 @@ export const TenantConversationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="relative flex items-center gap-2">
+                  <div className="relative ml-auto flex items-center gap-0.5 sm:gap-1">
                     {/* Junior, 23/09: o painel de qualificacao NAO pode espremer a conversa.
                         Fica no topo a direita e ABRE POR CIMA (como o painel de contato do
                         WhatsApp), entao a area das mensagens continua inteira. */}
