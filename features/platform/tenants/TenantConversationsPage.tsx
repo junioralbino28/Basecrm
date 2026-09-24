@@ -252,6 +252,8 @@ export const TenantConversationsPage: React.FC = () => {
   const canAccessWhatsApp = access.canAccessWhatsApp;
 
   const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
+  /** O operador voltou para a lista de proposito (seta do celular)? Ver o efeito de selecao. */
+  const voltouParaListaRef = React.useRef(false);
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<InboxFilter>('all');
   const [selectedConnectionId, setSelectedConnectionId] = React.useState<string | 'all'>('all');
@@ -333,6 +335,11 @@ export const TenantConversationsPage: React.FC = () => {
         return;
       }
     }
+
+    // Voltar para a lista no celular e uma escolha do operador, nao "ainda nao escolhi nada":
+    // sem esta guarda, a seta de voltar reabria a primeira conversa no mesmo instante e nao
+    // havia como sair dela.
+    if (!selectedThreadId && voltouParaListaRef.current) return;
 
     if (!selectedThreadId || !inboxQuery.data.threads.some(thread => thread.id === selectedThreadId)) {
       setSelectedThreadId(inboxQuery.data.threads[0].id);
@@ -890,7 +897,10 @@ export const TenantConversationsPage: React.FC = () => {
                   <button
                     key={thread.id}
                     type="button"
-                    onClick={() => setSelectedThreadId(thread.id)}
+                    onClick={() => {
+                      voltouParaListaRef.current = false;
+                      setSelectedThreadId(thread.id);
+                    }}
                     className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
                       selectedThreadId === thread.id
                         ? 'border-transparent bg-[#202c33] shadow-md'
@@ -971,7 +981,10 @@ export const TenantConversationsPage: React.FC = () => {
                         voltar para a lista. No desktop as duas colunas convivem e ela some. */}
                     <button
                       type="button"
-                      onClick={() => setSelectedThreadId(null)}
+                      onClick={() => {
+                        voltouParaListaRef.current = true;
+                        setSelectedThreadId(null);
+                      }}
                       aria-label="Voltar para a lista de conversas"
                       className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white xl:hidden"
                     >

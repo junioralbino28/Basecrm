@@ -244,6 +244,36 @@ describe('TenantConversationsPage — caixa unificada', () => {
     expect(screen.queryByTestId('painel-negocio')).not.toBeInTheDocument();
   });
 
+  it('no celular mostra UM painel por vez: com conversa aberta, a lista sai de cena', () => {
+    // Medido em 24/09/2026 num Galaxy S9+ (320px): a grade so tem colunas a partir de `xl`, entao
+    // abaixo disso os dois paineis empilhavam dentro de um container recortado e a lista cobria o
+    // cartao da conversa pela metade. Aqui vale a regra do WhatsApp.
+    render(<TenantConversationsPage />);
+
+    // Classe a classe, e nao `toContain`: "hidden" casa dentro de "overflow-hidden" e o teste
+    // passaria verde com o painel visivel.
+    const classes = (el: Element | null) => new Set(String(el?.className || '').split(/\s+/));
+    const lista = classes(screen.getByText('Conversas').closest('section'));
+    const conversa = classes(screen.getByRole('button', { name: /Funil e etiquetas/ }).closest('section'));
+
+    expect(lista.has('hidden')).toBe(true);
+    expect(lista.has('xl:flex')).toBe(true); // no desktop as duas colunas convivem
+    expect(conversa.has('flex')).toBe(true);
+    expect(conversa.has('hidden')).toBe(false);
+  });
+
+  it('no celular a conversa tem volta para a lista — senao vira beco sem saida', () => {
+    render(<TenantConversationsPage />);
+
+    const voltar = screen.getByRole('button', { name: /Voltar para a lista de conversas/i });
+    expect(voltar.className).toContain('xl:hidden'); // no desktop a seta nao faz sentido
+
+    fireEvent.click(voltar);
+
+    expect(screen.getByText('Selecione uma conversa')).toBeInTheDocument();
+    expect(screen.getByText('Conversas').closest('section')?.className).toContain('flex');
+  });
+
   it('conversa sem negocio passa `sem-negocio` em vez de inventar um', () => {
     threads[0].deal_id = null;
     render(<TenantConversationsPage />);
