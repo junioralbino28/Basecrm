@@ -17,7 +17,7 @@ export type ConversionEventType = 'replied' | 'scheduled' | 'attended' | 'won';
 export const BUSINESS_MESSAGING_EVENT_LABELS_PT: Record<BusinessMessagingEventName, string> = {
   LeadSubmitted: 'Lead enviado (usamos para: respondeu)',
   QualifiedLead: 'Lead qualificado (usamos para: agendou)',
-  InitiateCheckout: 'Começou a finalizar a compra (usamos para: compareceu à consulta)',
+  InitiateCheckout: 'Começou a finalizar a compra (usamos para: compareceu ao que foi marcado)',
   Purchase: 'Compra (usamos para: fechou)',
   AddToCart: 'Adicionou ao carrinho',
   ViewContent: 'Viu conteúdo',
@@ -31,10 +31,16 @@ export const BUSINESS_MESSAGING_EVENT_LABELS_PT: Record<BusinessMessagingEventNa
   ReviewProvided: 'Escreveu avaliação',
 };
 
+/**
+ * Estes rótulos aparecem na TELA de configuração, e o CRM atende vários ramos: agência,
+ * videomonitoramento, clínica, e-commerce. Até 23/09/2026 diziam "a clínica falar", "consulta
+ * marcada" e "veio à consulta" — vocabulário de um cliente só, que confunde todos os outros.
+ * Mantêm-se genéricos de propósito; quem quiser o nome do próprio ramo muda o mapa de eventos.
+ */
 export const CONVERSION_EVENT_TYPE_LABELS_PT: Record<ConversionEventType, string> = {
-  replied: 'Respondeu (lead mandou mensagem depois de a clínica falar)',
-  scheduled: 'Agendou (consulta marcada)',
-  attended: 'Compareceu (veio à consulta)',
+  replied: 'Respondeu (o lead voltou a falar depois do primeiro contato)',
+  scheduled: 'Agendou (reunião ou consulta marcada)',
+  attended: 'Compareceu (participou do que foi marcado)',
   won: 'Fechou (negócio ganho)',
 };
 
