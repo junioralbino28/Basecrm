@@ -156,7 +156,26 @@ export const activitiesService = {
       const sb = supabase;
       if (!sb) return { data: null, error: new Error('Supabase não configurado') };
 
+      // A ORGANIZAÇÃO é obrigatória e não é detalhe: a RLS desta tabela é
+      // `can_operate_organization(organization_id)` para escrever e
+      // `can_access_organization(organization_id)` para ler — e as duas devolvem NULL quando o
+      // campo é nulo, o que em RLS significa negar. Até 24/09/2026 este insert ia SEM o campo,
+      // e o resultado era o pior dos dois mundos: as 16 atividades que existiam em produção
+      // eram invisíveis para todo mundo, e quem chamava (`useMoveDeal`) engolia o erro com
+      // `.catch(console.error)` — ninguém via nada falhar.
+      const organizationId = sanitizeUUID(activity.organizationId);
+      if (!organizationId) {
+        return {
+          data: null,
+          error: new Error(
+            'Atividade sem organização: o histórico ficaria invisível pela RLS. '
+            + 'Passe organizationId ao criar a atividade.',
+          ),
+        };
+      }
+
       const insertData: any = {
+        organization_id: organizationId,
         title: activity.title,
         description: activity.description || null,
         type: activity.type,

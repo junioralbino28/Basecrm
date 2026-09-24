@@ -61,7 +61,15 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         console.error('Usuário não autenticado');
         return null;
       }
-      const { data, error: addError } = await activitiesService.create(activity);
+
+      // A organização entra aqui e não em cada tela: o `create` recusa atividade sem ela
+      // (a RLS devolve NULL para campo nulo, o que significa negar), e antes de 24/09/2026
+      // isso gerava histórico invisível em silêncio. Quem já mandar a sua é respeitado;
+      // o padrão é a mesma organização que este contexto usa como chave de cache.
+      const { data, error: addError } = await activitiesService.create({
+        ...activity,
+        organizationId: activity.organizationId ?? profile.organization_id,
+      });
 
       if (addError) {
         console.error('Erro ao criar atividade:', addError.message);

@@ -141,6 +141,7 @@ export const useMoveDeal = () => {
       // 2. Create activity "Moveu para X" (fire and forget - don't block UI)
       const stageLabel = targetStage?.label || targetStageId;
       activitiesService.create({
+        organizationId,
         dealId,
         dealTitle: deal.title,
         type: 'STATUS_CHANGE',
@@ -162,6 +163,7 @@ export const useMoveDeal = () => {
         }).catch(console.error);
 
         activitiesService.create({
+          organizationId,
           dealId,
           dealTitle: deal.title,
           type: 'STATUS_CHANGE',
@@ -214,6 +216,7 @@ export const useMoveDeal = () => {
 
               if (!copyError) {
                 await activitiesService.create({
+                  organizationId,
                   dealId,
                   dealTitle: deal.title,
                   type: 'STATUS_CHANGE',

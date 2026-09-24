@@ -144,10 +144,17 @@ interface CreateActivityParams {
  */
 export const useCreateActivity = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   return useMutation({
     mutationFn: async ({ activity }: CreateActivityParams) => {
-      const { data, error } = await activitiesService.create(activity);
+      // A organização do tenant selecionado entra aqui, e não em cada tela: é a mesma que
+      // `useActivities` usa para ler. Sem ela o `create` recusa — antes de 24/09/2026 ele
+      // gravava sem o campo e a atividade nascia invisível pela RLS, sem erro nenhum.
+      const { data, error } = await activitiesService.create({
+        ...activity,
+        organizationId: activity.organizationId ?? tenant?.organizationId ?? '',
+      });
       if (error) throw error;
       return data!;
     },
