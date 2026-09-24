@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Espião compartilhado de TODAS as mutations da página (uma só basta pra
 // afirmar o payload de mark_as_read do auto-marcar-lida).
 const mutateSpy = vi.hoisted(() => vi.fn());
+const refetchInboxSpy = vi.hoisted(() => vi.fn());
 const searchParamsState = vi.hoisted(() => ({ query: '' }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
@@ -94,7 +95,7 @@ vi.mock('@tanstack/react-query', () => ({
         : {
             data: {
               threads,
-              assignees: [],
+              assignees: [{ id: 'user-1', display_name: 'Ana Souza', email: null, avatar_url: null }],
               summary: {
                 total: 3,
                 ai_active: 3,
@@ -108,8 +109,9 @@ vi.mock('@tanstack/react-query', () => ({
               },
             },
             isLoading: false,
+            isFetching: false,
             error: null,
-            refetch: vi.fn(),
+            refetch: refetchInboxSpy,
           };
     },
     useMutation: () => ({
@@ -242,6 +244,68 @@ describe('TenantConversationsPage — caixa unificada', () => {
     expect(screen.getByTestId('painel-negocio')).toBeInTheDocument();
     fireEvent.click(botao);
     expect(screen.queryByTestId('painel-negocio')).not.toBeInTheDocument();
+  });
+
+  it('a barra do cabecalho tem as quatro acoes como icone, cada uma com nome acessivel', () => {
+    // Escolha do Junior (24/09, opcao B): as tres de toda conversa a um toque, o resto no menu.
+    render(<TenantConversationsPage />);
+
+    for (const nome of [/Funil e etiquetas/, /Responsável/, /Marcar como lida/, /Mais ações/]) {
+      expect(screen.getByRole('button', { name: nome })).toBeInTheDocument();
+    }
+    // Um botao so de icone sem nome acessivel e invisivel para leitor de tela.
+    expect(screen.getByRole('button', { name: /Mais ações/ }).textContent).toBe('');
+  });
+
+  it('o icone de pessoa abre o responsavel, e escolher alguem grava e fecha', () => {
+    render(<TenantConversationsPage />);
+
+    expect(screen.queryByLabelText('Responsável')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Responsável/ }));
+
+    const select = screen.getByLabelText('Responsável') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'user-1' } });
+
+    expect(mutateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ body: { assigned_user_id: 'user-1' } }),
+    );
+    expect(screen.queryByLabelText('Responsável')).not.toBeInTheDocument();
+  });
+
+  it('os tres pontinhos da LISTA abrem um menu — antes o botao nao fazia nada', () => {
+    // O Junior clicou nele em 24/09 e nada acontecia: existia desde o espelho visual do
+    // WhatsApp, sem onClick. Um botao morto faz a pessoa achar que errou o toque.
+    render(<TenantConversationsPage />);
+
+    refetchInboxSpy.mockClear();
+    const botao = screen.getByRole('button', { name: /Mais opções da lista/ });
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(botao);
+
+    expect(botao).toHaveAttribute('aria-expanded', 'true');
+    // Sem filtro ligado o item de limpar existe, mas desabilitado e dizendo o porque.
+    expect(screen.getByRole('button', { name: /Sem filtros ativos/ })).toBeDisabled();
+
+    // E "Atualizar lista" recarrega DE VERDADE — so estar na tela nao prova nada.
+    fireEvent.click(screen.getByRole('button', { name: /Atualizar lista/ }));
+    expect(refetchInboxSpy).toHaveBeenCalledTimes(1);
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('com filtro ligado, o menu da lista oferece limpar todos de uma vez', () => {
+    render(<TenantConversationsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Não lidas/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Mais opções da lista/ }));
+
+    const limpar = screen.getByRole('button', { name: /Limpar filtros/ });
+    expect(limpar).toBeEnabled();
+    fireEvent.click(limpar);
+
+    // Voltou ao estado sem filtro: o proprio item passa a dizer que nao ha o que limpar.
+    fireEvent.click(screen.getByRole('button', { name: /Mais opções da lista/ }));
+    expect(screen.getByRole('button', { name: /Sem filtros ativos/ })).toBeDisabled();
   });
 
   it('no celular mostra UM painel por vez: com conversa aberta, a lista sai de cena', () => {

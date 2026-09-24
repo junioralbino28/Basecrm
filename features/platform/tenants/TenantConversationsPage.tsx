@@ -130,6 +130,18 @@ function statusTone(status: ConversationThreadListItem['status']) {
   return 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-300';
 }
 
+/**
+ * Cor da bolinha de status no cabecalho da conversa. Mesma escala do `statusTone`, so que
+ * cheia: aqui ela acompanha o texto do status, entao a cor e reforco e nunca a unica pista.
+ */
+function statusDot(status: ConversationThreadListItem['status']) {
+  if (status === 'ai_active') return 'bg-cyan-400';
+  if (status === 'human_queue') return 'bg-amber-400';
+  if (status === 'human_active') return 'bg-emerald-400';
+  if (status === 'resolved') return 'bg-violet-400';
+  return 'bg-slate-400';
+}
+
 function statusLabel(status: ConversationThreadListItem['status']) {
   if (status === 'ai_active') return 'IA ativa';
   if (status === 'human_queue') return 'Fila humana';
@@ -259,6 +271,9 @@ export const TenantConversationsPage: React.FC = () => {
   const [selectedConnectionId, setSelectedConnectionId] = React.useState<string | 'all'>('all');
   const [onlyUnread, setOnlyUnread] = React.useState(false);
   const [onlyUnassigned, setOnlyUnassigned] = React.useState(false);
+  /** Algum dos cinco filtros da lista esta ligado? Sem isso, "Limpar filtros" nao teria o que dizer. */
+  const temFiltroAtivo =
+    filter !== 'all' || onlyUnread || onlyUnassigned || search.trim() !== '' || selectedConnectionId !== 'all';
   const [composer, setComposer] = React.useState({
     direction: 'outbound' as 'outbound' | 'internal',
     author_name: buildDisplayName(profile),
@@ -278,6 +293,10 @@ export const TenantConversationsPage: React.FC = () => {
   const [isThreadPanelOpen, setIsThreadPanelOpen] = React.useState(false);
   // Qualificacao (funil/etiquetas/origem) tambem nasce FECHADA: a conversa e o que importa.
   const [isDealPanelOpen, setIsDealPanelOpen] = React.useState(false);
+  /** Popover do responsavel, ancorado no icone de pessoa da barra do cabecalho. */
+  const [isAssigneeOpen, setIsAssigneeOpen] = React.useState(false);
+  /** Menu dos tres pontinhos da LISTA. Ate 24/09/2026 o botao existia e nao fazia nada. */
+  const [isListMenuOpen, setIsListMenuOpen] = React.useState(false);
   const [isScriptsOpen, setIsScriptsOpen] = React.useState(false);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -766,13 +785,72 @@ export const TenantConversationsPage: React.FC = () => {
                 <MessagesSquare size={16} />
                 Conversas
               </div>
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
-                aria-label="Mais opções"
-              >
-                <MoreVertical size={16} />
-              </button>
+              {/* Este botao existia desde o espelho visual do WhatsApp e NAO FAZIA NADA — o
+                  Junior clicou em 24/09/2026 e nada aconteceu. Um botao morto e pior que a
+                  ausencia dele: a pessoa acha que errou o toque. Agora abre o que faz sentido
+                  para a LISTA (a conversa tem o menu dela, no cabecalho dela). */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsListMenuOpen(current => !current)}
+                  aria-expanded={isListMenuOpen}
+                  aria-controls="menu-lista-conversas"
+                  aria-label="Mais opções da lista"
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/10 ${isListMenuOpen ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
+                >
+                  <MoreVertical size={16} aria-hidden="true" />
+                </button>
+                {isListMenuOpen ? (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-20 cursor-default"
+                      aria-label="Fechar menu da lista"
+                      onClick={() => setIsListMenuOpen(false)}
+                    />
+                    <div
+                      id="menu-lista-conversas"
+                      className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-700 bg-[#202c33] py-1 shadow-[0_24px_60px_rgba(2,6,23,0.6)]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void inboxQuery.refetch();
+                          setIsListMenuOpen(false);
+                        }}
+                        disabled={inboxQuery.isFetching}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] font-medium text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <RefreshCcw
+                          size={15}
+                          className={inboxQuery.isFetching ? 'animate-spin' : undefined}
+                          aria-hidden="true"
+                        />
+                        {inboxQuery.isFetching ? 'Atualizando...' : 'Atualizar lista'}
+                      </button>
+                      {/* "Nao lidas" NAO entra aqui: ja existe como botao visivel logo abaixo.
+                          Limpar os filtros, sim — hoje sao cinco controles e nao ha como zerar
+                          todos de uma vez. */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter('all');
+                          setOnlyUnread(false);
+                          setOnlyUnassigned(false);
+                          setSearch('');
+                          setSelectedConnectionId('all');
+                          setIsListMenuOpen(false);
+                        }}
+                        disabled={!temFiltroAtivo}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] font-medium text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                      >
+                        <Filter size={15} aria-hidden="true" />
+                        {temFiltroAtivo ? 'Limpar filtros' : 'Sem filtros ativos'}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-3 space-y-3">
@@ -993,17 +1071,22 @@ export const TenantConversationsPage: React.FC = () => {
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-cyan-500 text-sm font-semibold text-white">
                       {getThreadAvatar(selectedThread)}
                     </div>
+                    {/* O nome fica com a linha inteira, e o status desce para a segunda como
+                        bolinha + texto. Com a etiqueta ao lado do nome, num celular de 320px
+                        sobrava "Juni…" — e o nome de quem esta do outro lado e justamente o que
+                        se precisa ver de relance. */}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h2 className="truncate text-base font-semibold text-white">
-                          {selectedThread.contact_name || selectedThread.title}
-                        </h2>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(selectedThread.status)}`}>
-                          {statusLabel(selectedThread.status)}
+                      <h2 className="truncate text-base font-semibold text-white">
+                        {selectedThread.contact_name || selectedThread.title}
+                      </h2>
+                      <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-slate-400">
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(selectedThread.status)}`}
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">
+                          {statusLabel(selectedThread.status)} • {selectedThread.contact_phone || 'Sem telefone'} • {formatRelative(selectedThread.last_message_sent_at || selectedThread.updated_at)}
                         </span>
-                      </div>
-                      <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {selectedThread.contact_phone || 'Sem telefone'} • {formatRelative(selectedThread.last_message_sent_at || selectedThread.updated_at)}
                       </div>
                     </div>
                   </div>
@@ -1012,20 +1095,21 @@ export const TenantConversationsPage: React.FC = () => {
                     {/* Junior, 23/09: o painel de qualificacao NAO pode espremer a conversa.
                         Fica no topo a direita e ABRE POR CIMA (como o painel de contato do
                         WhatsApp), entao a area das mensagens continua inteira. */}
+                    {/* Barra de icones (escolha do Junior, 24/09: opcao B). Os tres que ficam
+                        a um toque sao os de TODA conversa; o resto (atualizar, conectar
+                        WhatsApp, apagar lead, status) vive atras do menu. Antes eram dois
+                        botoes de texto que ocupavam uma faixa inteira do cabecalho e
+                        quebravam em duas linhas no celular. */}
                     <button
                       type="button"
                       onClick={() => setIsDealPanelOpen(current => !current)}
                       aria-expanded={isDealPanelOpen}
                       aria-controls="painel-qualificacao"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                      aria-label="Funil e etiquetas"
+                      title="Funil e etiquetas"
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 ${isDealPanelOpen ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
                     >
-                      <TagIcon size={14} aria-hidden="true" />
-                      Funil e etiquetas
-                      <ChevronDown
-                        size={14}
-                        className={`transition-transform ${isDealPanelOpen ? 'rotate-180' : ''}`}
-                        aria-hidden="true"
-                      />
+                      <TagIcon size={19} aria-hidden="true" />
                     </button>
                     {isDealPanelOpen ? (
                       <div
@@ -1049,16 +1133,84 @@ export const TenantConversationsPage: React.FC = () => {
                     ) : null}
                     <button
                       type="button"
-                      onClick={() => setIsThreadPanelOpen(current => !current)}
-                      aria-expanded={isThreadPanelOpen}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                      onClick={() => {
+                        setIsDealPanelOpen(false);
+                        setIsAssigneeOpen(current => !current);
+                      }}
+                      aria-expanded={isAssigneeOpen}
+                      aria-controls="popover-responsavel"
+                      aria-label={
+                        selectedThread.assignee?.display_name
+                          ? `Responsável: ${selectedThread.assignee.display_name}`
+                          : 'Responsável: sem responsável'
+                      }
+                      title={selectedThread.assignee?.display_name || 'Sem responsável'}
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 ${isAssigneeOpen ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
                     >
-                      Ações
-                      <ChevronDown
-                        size={14}
-                        className={`transition-transform ${isThreadPanelOpen ? 'rotate-180' : ''}`}
-                        aria-hidden="true"
-                      />
+                      <UserRound size={19} aria-hidden="true" />
+                    </button>
+                    {isAssigneeOpen ? (
+                      <div
+                        id="popover-responsavel"
+                        className="absolute right-0 top-full z-30 mt-2 w-[min(92vw,18rem)] rounded-2xl border border-slate-700 bg-[#202c33] p-3 shadow-[0_24px_60px_rgba(2,6,23,0.6)]"
+                      >
+                        <label
+                          htmlFor="select-responsavel"
+                          className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400"
+                        >
+                          <UserRound size={12} aria-hidden="true" />
+                          Responsável
+                        </label>
+                        <select
+                          id="select-responsavel"
+                          className="w-full rounded-xl border border-slate-700 bg-[#111b21] px-3 py-2 text-sm text-slate-100 outline-none"
+                          value={selectedThread.assigned_user_id || ''}
+                          onChange={event => {
+                            updateThreadMutation.mutate({
+                              threadId: selectedThread.id,
+                              body: { assigned_user_id: event.target.value || null },
+                            });
+                            setIsAssigneeOpen(false);
+                          }}
+                          disabled={updateThreadMutation.isPending}
+                        >
+                          <option value="">Sem responsavel</option>
+                          {assignees.map(assignee => (
+                            <option key={assignee.id} value={assignee.id}>
+                              {assignee.display_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateThreadMutation.mutate({
+                          threadId: selectedThread.id,
+                          body: { mark_as_read: true },
+                        })
+                      }
+                      disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
+                      aria-label="Marcar como lida"
+                      title="Marcar como lida"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <CheckCheck size={19} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDealPanelOpen(false);
+                        setIsAssigneeOpen(false);
+                        setIsThreadPanelOpen(current => !current);
+                      }}
+                      aria-expanded={isThreadPanelOpen}
+                      aria-label="Mais ações"
+                      title="Mais ações"
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 ${isThreadPanelOpen ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
+                    >
+                      <MoreVertical size={19} aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -1074,20 +1226,7 @@ export const TenantConversationsPage: React.FC = () => {
                       <RefreshCcw size={14} />
                       Atualizar
                     </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateThreadMutation.mutate({
-                          threadId: selectedThread.id,
-                          body: { mark_as_read: true },
-                        })
-                      }
-                      disabled={selectedThread.unread_count === 0 || updateThreadMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <CheckCheck size={14} />
-                      Marcar lida
-                    </button>
+                    {/* "Marcar lida" saiu daqui: virou o icone de tique duplo da barra. */}
                     {canAccessWhatsApp ? (
                       <button
                         type="button"
@@ -1117,34 +1256,9 @@ export const TenantConversationsPage: React.FC = () => {
                     ) : null}
                 </div>
 
-                <div className="mt-2 grid gap-2 lg:grid-cols-2">
-                  <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-1.5">
-                    <label className="mb-0.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      <UserRound size={12} />
-                      Responsável
-                    </label>
-                    <select
-                      className="w-full bg-transparent text-sm text-slate-100 outline-none"
-                      value={selectedThread.assigned_user_id || ''}
-                      onChange={event =>
-                        updateThreadMutation.mutate({
-                          threadId: selectedThread.id,
-                          body: {
-                            assigned_user_id: event.target.value || null,
-                          },
-                        })
-                      }
-                      disabled={updateThreadMutation.isPending}
-                    >
-                      <option value="">Sem responsavel</option>
-                      {assignees.map(assignee => (
-                        <option key={assignee.id} value={assignee.id}>
-                          {assignee.display_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
+                {/* O Responsavel saiu daqui: virou o icone de pessoa da barra do cabecalho.
+                    Deixar os dois duplicaria o mesmo controle em dois lugares. */}
+                <div className="mt-2 grid gap-2">
                   <div className="min-w-[220px] rounded-full border border-slate-700 bg-[#111b21] px-3 py-1.5">
                     <label className="mb-0.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <AlertCircle size={12} />
