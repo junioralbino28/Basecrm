@@ -253,11 +253,18 @@ export const useCompanies = () => {
  */
 export const useCreateContact = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   return useMutation({
     mutationFn: async (contact: Omit<Contact, 'id' | 'createdAt'>) => {
-      // organization_id will be auto-set by trigger
-      const { data, error } = await contactsService.create(contact);
+      // O comentário que estava aqui dizia "organization_id will be auto-set by trigger".
+      // Não existe gatilho nenhum: a coluna aceita NULL e não tem default (conferido no schema
+      // em 24/09/2026). Sem o campo, o contato nasce invisível pela RLS — o service passou a
+      // recusar em vez de deixar passar, e é aqui que a organização do cliente aberto existe.
+      const { data, error } = await contactsService.create({
+        ...contact,
+        organizationId: contact.organizationId ?? tenant?.organizationId,
+      });
       if (error) throw error;
       return data!;
     },

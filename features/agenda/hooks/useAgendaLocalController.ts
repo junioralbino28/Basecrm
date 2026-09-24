@@ -13,6 +13,7 @@ import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase/client';
 import { appointmentsLocalService, type AppointmentDoDia } from '@/lib/supabase/appointmentsLocal';
 import { reunioesDaIaService } from '@/lib/supabase/agendaReunioes';
+import { contactsService } from '@/lib/supabase/contacts';
 import { COLUNA_PADRAO_ID } from '../components/agendaFormato';
 
 /**
@@ -114,7 +115,15 @@ export function horaLocalDe(iso: string): string {
 }
 
 export type NovaConsulta = {
+  /** Contato que ja existe na lista. Vazio quando a marcacao e para alguem de fora dela. */
   contactId: string;
+  /**
+   * Lead que AINDA NAO esta em Contatos — indicacao que chamou no WhatsApp pessoal, prospeccao
+   * propria (pedido do Junior, 24/09/2026: "eu como dono da agenda preciso poder marcar hora
+   * mesmo que o lead nao esteja ali em contatos"). Vira contato na hora, porque `appointments`
+   * NAO tem coluna de nome: sem contato a marcacao apareceria anonima na grade.
+   */
+  novoContato?: { name: string; phone?: string };
   /** `null` = coluna padrao (organizacao sem equipe cadastrada). */
   professionalId: string | null;
   hora: string;
@@ -192,12 +201,34 @@ export function useAgendaLocalController() {
 
   const criarMutation = useMutation({
     mutationFn: async (nova: NovaConsulta) => {
-      if (!organizationId) throw new Error('Cliente não carregada ainda.');
+      if (!organizationId) throw new Error('Cliente não carregado ainda.');
+
+      // Marcação para alguém que ainda não está em Contatos: o contato nasce aqui, antes da
+      // consulta. Não é firula de cadastro — `appointments` não tem coluna de nome, e a grade
+      // monta o nome exclusivamente pelo join com `contacts`. Sem isto a marcação apareceria
+      // como "Sem contato" na agenda, que é exatamente o contrário de "deixar registrado".
+      let contactId = nova.contactId;
+      if (!contactId && nova.novoContato?.name.trim()) {
+        const { data: criado, error: erroContato } = await contactsService.create({
+          organizationId,
+          name: nova.novoContato.name.trim(),
+          email: '',
+          phone: nova.novoContato.phone?.trim() || '',
+          status: 'ACTIVE',
+          stage: 'LEAD',
+          source: 'agenda',
+        });
+        if (erroContato) throw erroContato;
+        if (!criado?.id) throw new Error('Não deu pra criar o contato.');
+        contactId = criado.id;
+      }
+      if (!contactId) throw new Error('Escolha um contato ou informe o nome de quem vai ser atendido.');
+
       const startsAtIso = paraIsoLocal(date, nova.hora);
       const fim = new Date(new Date(startsAtIso).getTime() + nova.duracaoMin * 60_000).toISOString();
       const { error } = await appointmentsLocalService.criar({
         organizationId,
-        contactId: nova.contactId,
+        contactId,
         professionalId: idDeProfissional(nova.professionalId),
         startsAtIso,
         endsAtIso: fim,

@@ -432,8 +432,27 @@ export const contactsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      // A ORGANIZAÇÃO é obrigatória, pela mesma razão das atividades (consertada em
+      // 24/09/2026): `contacts.organization_id` aceita NULL e não tem default, e a RLS desta
+      // tabela é `can_access_organization(organization_id)` para ler — que devolve NULL quando o
+      // campo é nulo, e NULL em RLS significa NEGAR. Um contato criado sem organização nasce
+      // invisível para todo mundo, inclusive para quem acabou de criá-lo.
+      // Até aqui isto nunca doeu em produção porque TODOS os contatos vinham do webhook da
+      // Evolution, que passa a organização explicitamente; quem não passava era o insert da TELA.
+      const organizationId = sanitizeUUID(contact.organizationId);
+      if (!organizationId) {
+        return {
+          data: null,
+          error: new Error(
+            'Contato sem organização: ele nasceria invisível pela RLS. '
+            + 'Passe organizationId ao criar o contato.',
+          ),
+        };
+      }
+
       const phoneE164 = normalizePhoneE164(contact.phone);
       const insertData = {
+        organization_id: organizationId,
         name: contact.name,
         email: sanitizeText(contact.email),
         phone: sanitizeText(phoneE164),

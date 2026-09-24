@@ -94,7 +94,12 @@ export const ContactsProvider: React.FC<{ children: ReactNode }> = ({ children }
         return null;
       }
 
-      const { data, error } = await contactsService.create(contact);
+      // Sem a organização o contato nasce invisível pela RLS — o service recusa, e é aqui que
+      // ela existe. Quem já mandou a sua (a agenda, marcando para alguém de fora) tem prioridade.
+      const { data, error } = await contactsService.create({
+        ...contact,
+        organizationId: contact.organizationId ?? profile.organization_id,
+      });
 
       if (error) {
         console.error('Erro ao criar contato:', error.message);

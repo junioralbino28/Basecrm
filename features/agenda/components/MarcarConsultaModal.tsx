@@ -46,15 +46,36 @@ export function MarcarConsultaModal({
   const [duracaoMin, setDuracaoMin] = React.useState(30);
   const [notes, setNotes] = React.useState('');
   const [busca, setBusca] = React.useState('');
+  /**
+   * Marcar para quem NÃO está em Contatos (pedido do Junior, 24/09/2026): indicação que chamou
+   * no WhatsApp pessoal, lead prospectado por ele. Como dono da agenda, a tela não pode barrar.
+   */
+  const [modoNovo, setModoNovo] = React.useState(false);
+  const [novoNome, setNovoNome] = React.useState('');
+  const [novoTelefone, setNovoTelefone] = React.useState('');
 
   // Só pergunta "com quem" quando a vaga tem mais de um dentista livre.
   const escolherProfissional = Boolean(livres && livres.length > 1);
 
+  // Acento importa: quem digita "Pulpitos" precisa achar "Púlpitos". Comparar sem os sinais
+  // dos dois lados — foi exatamente assim que uma busca "não achou" um contato que existia.
+  const semAcento = (valor: string) =>
+    valor.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
   const filtrados = React.useMemo(() => {
-    const q = busca.trim().toLowerCase();
+    const q = semAcento(busca.trim());
     if (!q) return contacts.slice(0, 50);
-    return contacts.filter((c) => (c.name || '').toLowerCase().includes(q)).slice(0, 50);
+    return contacts.filter((c) => semAcento(c.name || '').includes(q)).slice(0, 50);
   }, [contacts, busca]);
+
+  const buscaVazia = busca.trim() !== '' && filtrados.length === 0;
+  const nomeNovo = novoNome.trim();
+  const podeMarcar = modoNovo ? nomeNovo !== '' : contactId !== '';
+  const faltaDizer = modoNovo
+    ? 'Escreva o nome de quem vai ser atendido.'
+    : buscaVazia
+      ? 'Ninguém com esse nome na lista. Use "Marcar para alguém de fora da lista" aqui embaixo.'
+      : 'Escolha o contato na lista acima — só digitar o nome na busca não basta.';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
@@ -77,34 +98,84 @@ export function MarcarConsultaModal({
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!contactId || !escolhido) return;
-            await onConfirmar({ contactId, professionalId: escolhido, hora, duracaoMin, notes });
+            if (!podeMarcar || !escolhido) return;
+            await onConfirmar({
+              contactId: modoNovo ? '' : contactId,
+              novoContato: modoNovo
+                ? { name: nomeNovo, phone: novoTelefone.trim() || undefined }
+                : undefined,
+              professionalId: escolhido,
+              hora,
+              duracaoMin,
+              notes,
+            });
             onFechar();
           }}
         >
-          <div>
-            <label htmlFor="agenda-busca-contato" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Contato</label>
-            <input
-              id="agenda-busca-contato"
-              type="text"
-              placeholder="Buscar pelo nome…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className={`${CAMPO} mb-2`}
-            />
-            <select
-              aria-label="Contato da consulta"
-              required
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-              className={CAMPO}
-            >
-              <option value="">Escolha o contato…</option>
-              {filtrados.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          {modoNovo ? (
+            <div>
+              <label htmlFor="agenda-novo-nome" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Quem vai ser atendido
+              </label>
+              <input
+                id="agenda-novo-nome"
+                type="text"
+                placeholder="Nome de quem vai ser atendido"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                className={`${CAMPO} mb-2`}
+                autoFocus
+              />
+              <input
+                aria-label="Telefone (opcional)"
+                type="tel"
+                placeholder="Telefone (opcional)"
+                value={novoTelefone}
+                onChange={(e) => setNovoTelefone(e.target.value)}
+                className={CAMPO}
+              />
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                Entra em Contatos como lead, para a marcação contar nos seus números.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setModoNovo(false); setNovoNome(''); setNovoTelefone(''); }}
+                className="mt-2 text-xs font-semibold text-brand-600 hover:underline dark:text-brand-300"
+              >
+                Voltar para a lista de contatos
+              </button>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="agenda-busca-contato" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Contato</label>
+              <input
+                id="agenda-busca-contato"
+                type="text"
+                placeholder="Buscar pelo nome…"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                className={`${CAMPO} mb-2`}
+              />
+              <select
+                aria-label="Contato da consulta"
+                value={contactId}
+                onChange={(e) => setContactId(e.target.value)}
+                className={CAMPO}
+              >
+                <option value="">Escolha o contato…</option>
+                {filtrados.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => { setModoNovo(true); setContactId(''); setNovoNome(busca.trim()); }}
+                className="mt-2 text-xs font-semibold text-brand-600 hover:underline dark:text-brand-300"
+              >
+                Marcar para alguém de fora da lista
+              </button>
+            </div>
+          )}
 
           {escolherProfissional ? (
             <div>
@@ -138,9 +209,17 @@ export function MarcarConsultaModal({
             <input id="agenda-notas" type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className={CAMPO} placeholder="Ex.: avaliação, retorno…" />
           </div>
 
+          {/* Botão apagado sem explicação é o que travou o Junior em 24/09/2026: ele digitou o
+              nome na busca (que é só filtro), o botão não acendeu e a tela não disse nada. */}
+          {!podeMarcar ? (
+            <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              {faltaDizer}
+            </p>
+          ) : null}
+
           <button
             type="submit"
-            disabled={salvando || !contactId}
+            disabled={salvando || !podeMarcar}
             className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-500 disabled:opacity-50"
           >
             {salvando ? 'Marcando…' : 'Marcar'}

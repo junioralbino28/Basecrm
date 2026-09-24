@@ -778,7 +778,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   const canonicalPhone = getCanonicalConversationPhone(contactPhone) || contactPhone;
   const now = new Date().toISOString();
   let contactId: string | null = null;
-  let resolvedContactName: string | null = parsed.contactName;
+  // SÓ QUEM CHEGA NOMEIA O CONTATO. Uma mensagem de SAÍDA que entra por este webhook foi
+  // mandada do celular por uma pessoa (é o que `manualReplyTakesOver` detecta logo abaixo — o
+  // que a IA e o CRM enviam pela API não volta por aqui), e o `pushName` dela é o do DONO do
+  // número: o nome do perfil do WhatsApp da conta, não o do lead.
+  // Até 24/09/2026 esse nome era gravado como nome do LEAD. Medido em produção: 4 dos 6
+  // contatos do Cenno Hub viraram "Aurora | Assessoria Cenoura Hub", e na Dra. Jéssica Barros
+  // um contato virou "Barros Odontologia". O estrago não fica na lista de contatos — o nome
+  // segue para o contexto que a Aurora lê, para o título do evento no Google Agenda e para o
+  // lembrete de reunião que é enviado AO PRÓPRIO LEAD pelo WhatsApp.
+  // Este arquivo já tratava a direção corretamente para `authorName` (ver mais abaixo); era só
+  // o nome do contato que ficava de fora.
+  const nomeQuePodeRenomear = parsed.direction === 'inbound' ? parsed.contactName : null;
+  let resolvedContactName: string | null = nomeQuePodeRenomear;
 
   try {
     const contact = await upsertConversationContact({
@@ -786,7 +798,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
       organizationId: connectionResult.data.organization_id,
       phoneCandidates,
       canonicalPhone,
-      contactName: parsed.contactName,
+      contactName: nomeQuePodeRenomear,
       now,
     });
     contactId = contact.contactId;
