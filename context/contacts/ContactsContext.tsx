@@ -146,7 +146,15 @@ export const ContactsProvider: React.FC<{ children: ReactNode }> = ({ children }
         return null;
       }
 
-      const { data, error } = await companiesService.create(company);
+      // Sem a organização a empresa nasce invisível pela RLS — o service recusa, e é aqui que
+      // ela existe. Quem já mandou a sua (o cockpit do negócio) tem prioridade.
+      // `Company` aqui é alias de `Organization` (confusão de tipos que vem de antes), mas o
+      // service grava em `crm_companies`. O cast mantém a chamada como sempre foi e só acrescenta
+      // a organização, que é o que a RLS exige.
+      const { data, error } = await companiesService.create({
+        ...company,
+        organizationId: profile.organization_id,
+      } as unknown as Parameters<typeof companiesService.create>[0]);
 
       if (error) {
         console.error('Erro ao criar empresa:', error.message);

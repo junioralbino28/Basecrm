@@ -25,7 +25,7 @@ vi.mock('./client', () => ({
   supabase: { from: (...args: unknown[]) => from(...(args as [])) },
 }));
 
-import { contactsService } from './contacts';
+import { contactsService, companiesService } from './contacts';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 
@@ -105,6 +105,48 @@ describe('contactsService.create — organização obrigatória', () => {
       organization_id: ORG,
       name: 'Púlpitos Gênesis',
     });
+  });
+});
+
+describe('companiesService.create — organização obrigatória', () => {
+  beforeEach(() => {
+    from.mockClear();
+    insert.mockClear();
+    select.mockClear();
+    single.mockClear();
+    single.mockResolvedValue({
+      data: {
+        id: 'e1',
+        organization_id: ORG,
+        name: 'Alfa Relojoaria',
+        industry: null,
+        website: null,
+        created_at: '2026-09-24T12:00:00.000Z',
+        updated_at: '2026-09-24T12:00:00.000Z',
+      },
+      error: null,
+    });
+  });
+
+  it('recusa e NÃO grava quando a empresa vem sem organização', async () => {
+    // Medido em 24/09/2026: a ÚNICA empresa que existia em produção estava exatamente assim,
+    // invisível para todo mundo desde março — criada por este caminho.
+    const { data, error } = await companiesService.create({ name: 'Alfa Relojoaria' } as any);
+
+    expect(data).toBeNull();
+    expect(error?.message).toMatch(/organiza/i);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('grava organization_id no insert quando a organização vem preenchida', async () => {
+    const { data, error } = await companiesService.create({
+      name: 'Alfa Relojoaria',
+      organizationId: ORG,
+    } as any);
+
+    expect(error).toBeNull();
+    expect(data?.organizationId).toBe(ORG);
+    expect(insert.mock.calls[0][0]).toMatchObject({ organization_id: ORG, name: 'Alfa Relojoaria' });
   });
 });
 

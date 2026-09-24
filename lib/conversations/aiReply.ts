@@ -24,7 +24,7 @@ import {
   resolveClosingReplyEligibility,
 } from '@/lib/conversations/closingReply';
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
-import { buildContactProfileUpdate, normalizeLeadEmail, normalizeLeadName, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
+import { buildContactProfileUpdate, mesmaEmpresa, normalizeLeadCompany, normalizeLeadEmail, normalizeLeadName, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
 import {
   buildConversationThreadMetadataUpdate,
   readConversationThreadMetadata,
@@ -116,6 +116,10 @@ export const ConversationAutoReplySchema = z.object({
   // no CRM nunca e sobrescrito.
   leadName: z.string().max(80).nullable().optional()
     .describe('Nome que o lead disse ter nesta conversa (so o nome da pessoa), ou null'),
+  // Empresa ONDE ele trabalha, separada do RAMO (que continua em leadSegment). O card do funil
+  // mostrava "Sem empresa" sem nenhum jeito de mudar (Junior, 24/09).
+  leadCompany: z.string().max(120).nullable().optional()
+    .describe('Nome da empresa onde o lead trabalha, como ele falou, ou null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -138,6 +142,8 @@ export type ConversationAIReplyPayload = {
   leadSegment?: string | null;
   /** Nome que o lead disse ter; so troca o do perfil do WhatsApp, nunca o editado a mao. */
   leadName?: string | null;
+  /** Empresa ONDE ele trabalha (o ramo continua em leadSegment). */
+  leadCompany?: string | null;
 };
 
 export function formatRecentMessages(messages: RecentMessage[]) {
@@ -559,6 +565,7 @@ export async function generateConversationAutoReply(params: {
       leadEmail: resolveConfirmedLeadEmail(recentMessages, normalizeLeadEmail(generated.leadEmail)),
       leadSegment: normalizeLeadSegment(generated.leadSegment),
       leadName: normalizeLeadName(generated.leadName),
+      leadCompany: normalizeLeadCompany(generated.leadCompany),
     },
   };
 }
@@ -878,10 +885,10 @@ export async function executeConversationAIReply(params: {
 
   // E-mail e segmento que o lead informou vao para o contato. Nunca sobrescreve e-mail existente;
   // falha aqui nao derruba a resposta (ja enviada), so avisa.
-  if (thread.contact_id && (payload.leadEmail || payload.leadSegment || payload.leadName)) {
+  if (thread.contact_id && (payload.leadEmail || payload.leadSegment || payload.leadName || payload.leadCompany)) {
     const contactResult = await admin
       .from('contacts')
-      .select('email, notes, name')
+      .select('email, notes, name, company_name, client_company_id')
       .eq('id', thread.contact_id)
       .eq('organization_id', activeConnection.organization_id)
       .maybeSingle();
@@ -895,6 +902,7 @@ export async function executeConversationAIReply(params: {
           leadEmail: payload.leadEmail,
           leadSegment: payload.leadSegment,
           leadName: payload.leadName,
+          leadCompany: payload.leadCompany,
         });
     if (profileUpdate) {
       const contactUpdate = await admin
@@ -929,6 +937,35 @@ export async function executeConversationAIReply(params: {
             dealId: thread.deal_id,
             error: dealUpdate.error.message,
           });
+        }
+      }
+
+      // EMPRESA: a Aurora guarda o que o lead falou em `contacts.company_name` (texto), e
+      // vincula sozinha SO quando ja existe uma empresa cadastrada com esse nome. Criar
+      // empresa automatica encheria o CRM de duplicata por grafia; sem par exato, o nome fica
+      // de sugestao no card do negocio, a um clique de virar empresa de verdade.
+      if (profileUpdate.company_name && !contactResult.data?.client_company_id) {
+        const empresas = await admin
+          .from('crm_companies')
+          .select('id, name')
+          .eq('organization_id', activeConnection.organization_id)
+          .is('deleted_at', null)
+          .limit(200);
+        const par = (empresas.data || []).find((empresa: { id: string; name: string | null }) =>
+          mesmaEmpresa(empresa.name || '', profileUpdate.company_name as string));
+        if (par?.id) {
+          await admin.from('contacts')
+            .update({ client_company_id: par.id, updated_at: now })
+            .eq('id', thread.contact_id)
+            .eq('organization_id', activeConnection.organization_id);
+          if (thread.deal_id) {
+            // So preenche negocio que ainda esta SEM empresa — nunca troca a que alguem escolheu.
+            await admin.from('deals')
+              .update({ client_company_id: par.id, updated_at: now })
+              .eq('id', thread.deal_id)
+              .eq('organization_id', activeConnection.organization_id)
+              .is('client_company_id', null);
+          }
         }
       }
     }

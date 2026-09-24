@@ -60,6 +60,28 @@ export function normalizeLeadName(value: unknown) {
 }
 
 /**
+ * Nome da EMPRESA onde o lead trabalha, como ele falou na conversa ("trabalho na Alfa Relógios").
+ * Diferente de `leadSegment`, que é o ramo ("relojoaria"). Guardado como texto em
+ * `contacts.company_name`: vira sugestão de um clique no card do negócio, e é vinculado sozinho
+ * quando já existe uma empresa cadastrada com esse nome.
+ */
+export function normalizeLeadCompany(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const bruto = value.replace(/\s+/g, ' ').trim();
+  if (!bruto || bruto.length < 2 || bruto.length > 120) return null;
+  if (!temLetra(bruto)) return null;
+  if (/[@<>]|https?:/i.test(bruto)) return null;
+  return bruto;
+}
+
+/** Compara nome de empresa ignorando acento, caixa e espaço sobrando. */
+export function mesmaEmpresa(a: string, b: string) {
+  const limpa = (valor: string) =>
+    valor.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return limpa(a) === limpa(b);
+}
+
+/**
  * O nome do contato deve virar o que o lead DISSE?
  *
  * O CRM batiza o contato com o `pushName` do WhatsApp, que muitas vezes não é o nome da pessoa:
@@ -103,14 +125,26 @@ export function resolveLeadNameUpdate(input: {
  * e-mail so entra se o contato nao tem; o segmento vira uma linha "Segmento: X" nas notas, uma vez.
  */
 export function buildContactProfileUpdate(input: {
-  contact: { email?: string | null; notes?: string | null; name?: string | null } | null | undefined;
+  contact: {
+    email?: string | null;
+    notes?: string | null;
+    name?: string | null;
+    company_name?: string | null;
+  } | null | undefined;
   /** O nome que veio do perfil do WhatsApp — ver `resolveLeadNameUpdate`. */
   profileName?: string | null;
   leadEmail?: unknown;
   leadSegment?: unknown;
   leadName?: unknown;
+  leadCompany?: unknown;
 }) {
-  const update: { email?: string; notes?: string; name?: string } = {};
+  const update: { email?: string; notes?: string; name?: string; company_name?: string } = {};
+
+  // Empresa: só preenche quando o contato ainda não tem nenhuma. Nunca troca a que já está lá —
+  // quem corrige empresa é gente, no card do negócio.
+  const empresa = normalizeLeadCompany(input.leadCompany);
+  const empresaAtual = typeof input.contact?.company_name === 'string' ? input.contact.company_name.trim() : '';
+  if (empresa && !empresaAtual) update.company_name = empresa;
 
   const nome = resolveLeadNameUpdate({
     contact: input.contact,

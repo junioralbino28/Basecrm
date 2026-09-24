@@ -109,6 +109,8 @@ const transformContact = (db: DbContact): Contact => ({
   phone: normalizePhoneE164(db.phone),
   role: db.role || '',
   clientCompanyId: db.client_company_id || undefined,
+  // Texto livre do que o lead falou na conversa; vira sugestao no card do negocio.
+  companyName: db.company_name || undefined,
   companyId: db.client_company_id || '', // @deprecated - backwards compatibility
   avatar: db.avatar || '',
   notes: db.notes || '',
@@ -159,6 +161,8 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
   // Support both new clientCompanyId and deprecated companyId
   if (contact.clientCompanyId !== undefined) db.client_company_id = contact.clientCompanyId || null;
   else if (contact.companyId !== undefined) db.client_company_id = contact.companyId || null;
+  // Texto livre da empresa (o que o lead falou), separado da empresa cadastrada acima.
+  if (contact.companyName !== undefined) db.company_name = contact.companyName || null;
   if (contact.avatar !== undefined) db.avatar = contact.avatar || null;
   if (contact.notes !== undefined) db.notes = contact.notes || null;
   if (contact.status !== undefined) db.status = contact.status;
@@ -696,7 +700,23 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      // Mesma armadilha das atividades e dos contatos: `crm_companies.organization_id` aceita
+      // NULL, não tem default, e a RLS é `can_access_organization(organization_id)` — que devolve
+      // NULL, ou seja NEGAR, quando o campo é nulo. Medido em 24/09/2026: a ÚNICA empresa que
+      // existia em produção estava assim, invisível para todo mundo desde março.
+      const organizationId = sanitizeUUID(company.organizationId);
+      if (!organizationId) {
+        return {
+          data: null,
+          error: new Error(
+            'Empresa sem organização: ela nasceria invisível pela RLS. '
+            + 'Passe organizationId ao criar a empresa.',
+          ),
+        };
+      }
+
       const insertData = {
+        organization_id: organizationId,
         name: company.name,
         industry: sanitizeText(company.industry),
         website: sanitizeText(company.website),

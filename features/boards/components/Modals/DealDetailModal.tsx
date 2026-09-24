@@ -12,6 +12,7 @@ import { useTenant } from '@/context/TenantContext';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { DealTagSelector } from '@/features/tags/DealTagSelector';
 import { DealOriginSelector } from '@/features/tags/DealOriginSelector';
+import { DealCompanySelector } from '@/features/deals/DealCompanySelector';
 import { DealSheet } from '../DealSheet';
 import {
   analyzeLead,
@@ -582,7 +583,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                   <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2">
                     <Building2 size={14} /> Empresa (Conta)
                   </h3>
-                  <p className="text-slate-900 dark:text-white font-medium">{deal.companyName}</p>
+                  {/* Antes isto era só texto: quem chegava aqui pelo card lia "Sem empresa" e não
+                      tinha como mudar — o campo de empresa só existia no modal de CRIAR negócio,
+                      por onde o lead de WhatsApp nunca passa (Junior, 24/09). */}
+                  <DealCompanySelector
+                    clientCompanyId={deal.clientCompanyId}
+                    sugestao={contact?.companyName}
+                    onChange={(companyId) => updateDeal(deal.id, { clientCompanyId: companyId || undefined })}
+                  />
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2">

@@ -156,6 +156,12 @@ export interface Contact {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
   clientCompanyId?: ClientCompanyId; // CRM company this contact belongs to
+  /**
+   * Nome da empresa em TEXTO, do jeito que o lead falou na conversa. Não é a empresa cadastrada
+   * (essa é `clientCompanyId`): serve de sugestão para vincular depois, no card do negócio.
+   * A coluna existe no banco desde sempre; só não subia para a aplicação.
+   */
+  companyName?: string;
   name: string;
   role?: string;
   email: string;
