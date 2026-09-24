@@ -1323,7 +1323,11 @@ export const TenantConversationsPage: React.FC = () => {
                     <span>{composer.author_name || 'Sem autor'}</span>
                   </div>
                 </div>
-                <div className="relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-end gap-3">
+                {/* A 320px os quatro itens fixos (anexar 44 + enviar 48 + microfone 48 + 3 folgas
+                    de 12) comiam 176px e sobrava tao pouco para o campo que "Digite uma mensagem"
+                    quebrava em duas linhas dentro do oval. Folga menor no celular e o microfone —
+                    que esta DESABILITADO ate a v1.1 — sai de cena la. */}
+                <div className="relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-end gap-1.5 md:gap-3">
                   {/* Inputs ocultos: documento e foto/vídeo */}
                   <input
                     ref={documentInputRef}
@@ -1403,7 +1407,7 @@ export const TenantConversationsPage: React.FC = () => {
                   >
                     {sendAttachmentMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}
                   </button>
-                  <div className="rounded-[1.75rem] bg-[#2a3942] px-4 py-2">
+                  <div className="rounded-[1.75rem] bg-[#2a3942] px-3 py-2 md:px-4">
                     <textarea
                       className="min-h-8 w-full resize-none bg-transparent py-1 text-sm text-slate-100 outline-none placeholder:text-slate-400"
                       value={composer.content}
@@ -1435,7 +1439,7 @@ export const TenantConversationsPage: React.FC = () => {
                     </button>
                   </div>
                   {/* Mic: gravação de áudio é v1.1 (atrito MediaRecorder↔Evolution não verificado ao vivo). */}
-                  <div className="flex items-end">
+                  <div className="hidden items-end sm:flex">
                     <button
                       type="button"
                       disabled

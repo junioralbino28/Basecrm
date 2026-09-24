@@ -139,7 +139,9 @@ export function TenantClinicSwitcher({
   };
 
   return (
-    <div className={`relative ${className || ''}`}>
+    // `min-w-0` tambem AQUI: `truncate` so encolhe quando todo item flex da cadeia pode encolher.
+    // Sem isto no wrapper, o botao interno ja tinha `min-w-0` e o nome continuava estourando.
+    <div className={`relative min-w-0 ${className || ''}`}>
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}

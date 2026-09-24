@@ -899,11 +899,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Header */}
-          <header className="h-16 bg-card border-b border-line flex items-center justify-between px-6 z-40 shrink-0" role="banner">
-            <div className="min-w-0">
+          {/* `px-3` no celular: a 320px o `px-6` come 48px dos 320 e era parte do motivo de o
+              nome da clinica nao caber ao lado do selo. */}
+          <header className="h-16 bg-card border-b border-line flex items-center justify-between gap-2 px-3 md:px-6 z-40 shrink-0" role="banner">
+            <div className="min-w-0 flex-1">
               {isAdmin ? (
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                <div className="flex min-w-0 items-center gap-2">
+                  {/* O selo some no celular: ele nao encolhe e roubava a largura do nome da
+                      clinica, que e a informacao que importa saber de relance. */}
+                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
                     {isPlatformRoute ? 'Painel Agencia' : hasActiveClinic ? 'Area da clinica' : 'Selecione uma clinica'}
                   </div>
 
