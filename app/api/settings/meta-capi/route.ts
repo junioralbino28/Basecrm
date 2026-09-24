@@ -37,6 +37,7 @@ const UpdateSchema = z
   .object({
     enabled: z.boolean().optional(),
     datasetId: z.string().max(64).optional(),
+    whatsappBusinessAccountId: z.string().max(64).optional(),
     accessToken: z.string().max(1024).optional(),
     testEventCode: z.string().max(64).optional(),
     sendValue: z.boolean().optional(),
@@ -80,7 +81,7 @@ export async function GET() {
   const { data, error } = await admin
     .from('organization_settings')
     .select(
-      'meta_capi_enabled, meta_capi_dataset_id, meta_capi_access_token, meta_capi_test_event_code, meta_capi_send_value, meta_capi_event_map, conversion_region_ddds'
+      'meta_capi_enabled, meta_capi_dataset_id, meta_capi_whatsapp_business_account_id, meta_capi_access_token, meta_capi_test_event_code, meta_capi_send_value, meta_capi_event_map, conversion_region_ddds'
     )
     .eq('organization_id', auth.targetOrganizationId)
     .maybeSingle();
@@ -89,6 +90,7 @@ export async function GET() {
   return json({
     enabled: data?.meta_capi_enabled === true,
     datasetId: data?.meta_capi_dataset_id ?? '',
+    whatsappBusinessAccountId: data?.meta_capi_whatsapp_business_account_id ?? '',
     hasToken: Boolean(data?.meta_capi_access_token),
     tokenLast4: last4(data?.meta_capi_access_token),
     testEventCode: data?.meta_capi_test_event_code ?? '',
@@ -130,6 +132,8 @@ export async function POST(req: Request) {
   if (updates.sendValue !== undefined) dbUpdates.meta_capi_send_value = updates.sendValue;
   const datasetId = normalize(updates.datasetId);
   if (datasetId !== undefined) dbUpdates.meta_capi_dataset_id = datasetId;
+  const wabaId = normalize(updates.whatsappBusinessAccountId);
+  if (wabaId !== undefined) dbUpdates.meta_capi_whatsapp_business_account_id = wabaId;
   const accessToken = normalize(updates.accessToken);
   if (accessToken !== undefined) dbUpdates.meta_capi_access_token = accessToken;
   const testEventCode = normalize(updates.testEventCode);

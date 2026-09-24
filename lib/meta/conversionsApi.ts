@@ -48,7 +48,13 @@ export type BusinessMessagingEvent = {
   event_id: string;
   action_source: 'business_messaging';
   messaging_channel: 'whatsapp';
-  user_data: { ctwa_clid: string };
+  /**
+   * `ctwa_clid` sozinho NÃO basta: a Meta exige também a identificação da conta (medido em
+   * 23/09/2026, `error_subcode 2804116`). E o identificador tem que casar com o tipo do dataset:
+   * dataset da conta de WhatsApp aceita `whatsapp_business_account_id` e **recusa** `page_id`
+   * (`2804131`); pixel de site recusa o `whatsapp_business_account_id` (`2804132`).
+   */
+  user_data: { ctwa_clid: string; whatsapp_business_account_id?: string };
   custom_data?: { currency: string; value: number };
 };
 
@@ -63,6 +69,8 @@ export function buildBusinessMessagingEvent(input: {
   occurredAt: string | Date;
   eventId: string;
   ctwaClid: string;
+  /** ID da conta de WhatsApp Business dona do dataset. Sem ele a Meta recusa (2804116). */
+  whatsappBusinessAccountId?: string | null;
   value?: number | null;
   currency?: string;
 }): BusinessMessagingEvent {
@@ -77,6 +85,9 @@ export function buildBusinessMessagingEvent(input: {
     messaging_channel: 'whatsapp',
     user_data: { ctwa_clid: ctwaClid },
   };
+
+  const waba = input.whatsappBusinessAccountId?.trim();
+  if (waba) event.user_data.whatsapp_business_account_id = waba;
 
   if (typeof input.value === 'number' && Number.isFinite(input.value) && input.value > 0) {
     event.custom_data = {
@@ -102,9 +113,22 @@ export function classifyGraphError(status: number | null, body: unknown): { perm
       ? (body.error as Record<string, unknown>)
       : null;
   const code = typeof error?.code === 'number' ? error.code : null;
-  const message =
+  // `error.message` é quase sempre a frase genérica ("Invalid parameter") — o que resolve o
+  // problema vive em `error_user_msg` e no `error_subcode`. Guardar só o genérico custou uma
+  // madrugada de diagnóstico em 23/09/2026: dois defeitos diferentes (falta o id da conta;
+  // dataset errado) chegavam com a MESMA frase. O subcódigo é o que os distingue.
+  const detalhe = typeof error?.error_user_msg === 'string' ? error.error_user_msg.trim() : '';
+  const subcodigo = typeof error?.error_subcode === 'number' ? error.error_subcode : null;
+  const generico =
     (typeof error?.message === 'string' && error.message) ||
     (status ? `HTTP ${status}` : 'Falha de rede ao falar com a Meta');
+  const message = [
+    generico,
+    subcodigo !== null ? `[sub ${subcodigo}]` : '',
+    detalhe && detalhe !== generico ? `— ${detalhe}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   if (error?.is_transient === true) return { permanent: false, code, message };
   if (status !== null && status >= 500) return { permanent: false, code, message };

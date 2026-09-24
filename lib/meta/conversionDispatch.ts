@@ -35,6 +35,8 @@ type OrgCapiSettings = {
   organization_id: string;
   meta_capi_enabled: boolean;
   meta_capi_dataset_id: string | null;
+  /** Conta de WhatsApp Business dona do dataset. A Meta exige junto do `ctwa_clid`. */
+  meta_capi_whatsapp_business_account_id: string | null;
   meta_capi_access_token: string | null;
   meta_capi_test_event_code: string | null;
   meta_capi_send_value: boolean;
@@ -115,7 +117,7 @@ export async function dispatchPendingConversionEvents(params: {
   const settingsResult = await admin
     .from('organization_settings')
     .select(
-      'organization_id, meta_capi_enabled, meta_capi_dataset_id, meta_capi_access_token, meta_capi_test_event_code, meta_capi_send_value, meta_capi_event_map'
+      'organization_id, meta_capi_enabled, meta_capi_dataset_id, meta_capi_whatsapp_business_account_id, meta_capi_access_token, meta_capi_test_event_code, meta_capi_send_value, meta_capi_event_map'
     )
     .in('organization_id', organizationIds);
   if (settingsResult.error) throw new Error(`Falha ao ler a configuração da Meta: ${settingsResult.error.message}`);
@@ -191,6 +193,7 @@ export async function dispatchPendingConversionEvents(params: {
         occurredAt: event.occurred_at,
         eventId: event.meta_event_id,
         ctwaClid: click.ctwa_clid,
+        whatsappBusinessAccountId: settings.meta_capi_whatsapp_business_account_id,
         value,
         currency: 'BRL',
       });
