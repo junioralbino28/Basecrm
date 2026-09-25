@@ -13,6 +13,13 @@ import {
 } from '@/lib/conversations/dispatchConversationOutbound';
 import { toWhatsAppPhone } from '@/lib/phone';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
+import {
+  LIMITE_LEGENDA_EXTERNA,
+  LIMITE_TEXTO_EXTERNO,
+  assinarMensagemDoAtendente,
+  resolveAssinaturaAtivada,
+  resolveNomeDoAtendente,
+} from '@/lib/conversations/assinaturaAtendente';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -83,14 +90,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const parsed = MessageSchema.safeParse(body);
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
 
-  const authorName =
-    parsed.data.author_name?.trim() ||
-    getConversationAssigneeDisplayName({
-      email: (auth.profile as { email?: string | null }).email,
-      first_name: (auth.profile as { first_name?: string | null }).first_name,
-      last_name: (auth.profile as { last_name?: string | null }).last_name,
-      nickname: (auth.profile as { nickname?: string | null }).nickname,
-    });
+  const perfil = auth.profile as {
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    nickname?: string | null;
+  };
+
+  // Autor SEMPRE do perfil autenticado. O `author_name` do corpo e campo livre de ate 160
+  // caracteres: se vencesse, quem pode responder se passaria por outro atendente — e e exatamente
+  // esse campo que a IA le em `formatRecentMessages` para montar o historico da conversa.
+  const authorName = getConversationAssigneeDisplayName({
+    email: perfil.email,
+    first_name: perfil.first_name,
+    last_name: perfil.last_name,
+    nickname: perfil.nickname,
+  });
+
+  // Nome que o LEAD pode ver: sem o fallback de e-mail, que vazaria parte do endereco.
+  const nomeDoAtendente = resolveNomeDoAtendente(perfil);
 
   const now = new Date().toISOString();
   const admin = createStaticAdminClient();
@@ -112,6 +130,63 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const resolvedMessageType = attachment
     ? attachment.kind
     : parsed.data.message_type ?? 'text';
+
+  // O caminho de audio da Evolution (`sendAudio`) nao tem campo de legenda: o texto seria
+  // descartado e a linha ficaria gravada como "enviado" com algo que o lead nunca recebeu.
+  if (attachment?.kind === 'audio' && messageContent) {
+    return json({
+      error: 'Audio com texto ainda nao pode ser enviado junto. Mande o audio e o texto separados.',
+    }, 422);
+  }
+
+  // A decisao de assinar e tomada AQUI, antes de qualquer efeito (reserva da mensagem, pausa de
+  // automacao, chamada ao provider), e a mesma decisao vale do comeco ao fim desta tentativa.
+  const vaiEnviarExterno =
+    parsed.data.direction === 'outbound'
+    && parsed.data.send_external !== false
+    && Boolean(threadData.channel_connection_id);
+
+  type ConnectionRow = {
+    id: string;
+    provider: string | null;
+    channel_type: string | null;
+    name: string | null;
+    config: Record<string, unknown> | null;
+  };
+  let connectionRow: ConnectionRow | null = null;
+  if (vaiEnviarExterno) {
+    const connection = await admin
+      .from('channel_connections')
+      .select('id, provider, channel_type, name, config')
+      .eq('id', threadData.channel_connection_id)
+      .eq('organization_id', tenantId)
+      .maybeSingle();
+    if (connection.error) return json({ error: connection.error.message }, 500);
+    if (!connection.data) return json({ error: 'Channel connection not found for this conversation.' }, 404);
+    connectionRow = connection.data as ConnectionRow;
+  }
+
+  const assinaturaAtivada = vaiEnviarExterno && resolveAssinaturaAtivada(connectionRow?.config ?? null);
+
+  if (assinaturaAtivada && !nomeDoAtendente) {
+    return json({
+      error: 'Complete seu nome ou apelido no perfil: este numero assina as respostas com o nome de quem atende.',
+    }, 422);
+  }
+
+  const textoParaOLead = assinarMensagemDoAtendente({
+    texto: messageContent,
+    nomeDoAtendente,
+    ativada: assinaturaAtivada,
+  });
+
+  // Teto medido DEPOIS do prefixo: o schema valida o corpo, nao o que sai daqui.
+  const limiteExterno = attachment ? LIMITE_LEGENDA_EXTERNA : LIMITE_TEXTO_EXTERNO;
+  if (vaiEnviarExterno && textoParaOLead.length > limiteExterno) {
+    return json({
+      error: `Mensagem longa demais para o WhatsApp: ${textoParaOLead.length} de ${limiteExterno} caracteres${assinaturaAtivada ? ' (o nome do atendente entra na conta)' : ''}.`,
+    }, 422);
+  }
 
   // Anexo: re-resolve o arquivo pelo metadado `deal_files` (defesa em profundidade:
   // o file_path tem que pertencer a um deal DESTE tenant ligado à thread) e gera o
@@ -170,6 +245,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     };
   }
 
+  // Quem de fato mandou, congelado no servidor DEPOIS do metadado que veio do navegador — o
+  // payload nao pode forjar isto. Guarda o ator e o nome aplicado, nao o texto: reconstruir o
+  // payload inteiro so seria necessario para exportacao fiel, que nao existe neste produto.
+  deliveryMetadata = {
+    ...deliveryMetadata,
+    atendente: {
+      versao: 1,
+      atorId: auth.profile.id,
+      nome: nomeDoAtendente,
+      assinado: assinaturaAtivada,
+    },
+  };
+
   const storedContent =
     messageContent || (attachment ? attachment.file_name || `[${attachment.kind}]` : '');
 
@@ -201,20 +289,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         };
       }
 
-      const connection = await admin
-        .from('channel_connections')
-        .select('id, provider, channel_type, name, config')
-        .eq('id', threadData.channel_connection_id)
-        .eq('organization_id', tenantId)
-        .maybeSingle();
-      if (connection.error) throw new Error(connection.error.message);
-      if (!connection.data) throw new Error('Channel connection not found for this conversation.');
+      // A conexão já foi lida e validada antes de qualquer efeito, junto com a decisão de assinar.
+      if (!connectionRow) throw new Error('Channel connection not found for this conversation.');
 
-      const instanceName = (connection.data.config as any)?.instanceName;
+      const instanceName = (connectionRow.config as any)?.instanceName;
       const resolved = await resolveEvolutionCredentials({
         admin,
         tenantId,
-        connectionConfig: (connection.data.config as Record<string, unknown> | null) || {},
+        connectionConfig: (connectionRow.config as Record<string, unknown> | null) || {},
         profileRole: auth.profile.role,
         requesterOrganizationId: auth.profile.organization_id,
       });
@@ -236,7 +318,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
             kind: attachment.kind as ConversationAttachmentKind,
             mediaUrl: attachmentMediaUrl,
             fileName: attachment.file_name,
-            caption: messageContent || undefined,
+            caption: textoParaOLead || undefined,
             mimetype: attachment.mime_type,
           },
         });
@@ -257,7 +339,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
         instanceName,
         apiKey: resolved.apiKey,
         phone,
-        text: messageContent,
+        text: textoParaOLead,
       });
       return {
         status: 'sent',
