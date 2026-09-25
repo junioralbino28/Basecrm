@@ -239,6 +239,32 @@ describe('PATCH channel connection — regra do par (parecer do Codex, B7)', () 
     });
   });
 
+  it('liga a assinatura do atendente sem apagar o resto da configuração', async () => {
+    const response = await patch({ config: { signManualReplies: true } });
+
+    expect(response.status).toBe(200);
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({
+      config: { ...baseConfig, signManualReplies: true },
+    });
+  });
+
+  it('desligar grava o falso — não apaga o campo, para a tela não voltar ao estado antigo', async () => {
+    currentConfig = { ...baseConfig, signManualReplies: true };
+
+    const response = await patch({ config: { signManualReplies: false } });
+
+    expect(response.status).toBe(200);
+    const saved = updateMock.mock.calls[0]?.[0] as { config: Record<string, unknown> };
+    expect(saved.config.signManualReplies).toBe(false);
+  });
+
+  it('recusa valor que não seja booleano', async () => {
+    // `config` não é `.strict()`: antes deste campo existir no schema, um valor assim era
+    // IGNORADO em silêncio. Agora o tipo é verificado e o pedido inteiro é recusado.
+    expect((await patch({ config: { signManualReplies: 'sim' } })).status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it('apagar o endereço próprio é aceito: a conexão volta a usar o par da agência', async () => {
     const response = await patch({ config: { apiUrl: '' } });
 

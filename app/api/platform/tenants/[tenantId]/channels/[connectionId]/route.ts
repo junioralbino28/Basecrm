@@ -41,6 +41,9 @@ const ChannelUpdateSchema = z.object({
     meetingHostName: z.string().trim().regex(/^(?:[\p{L}\p{N} .'-]{1,80})?$/u).optional(),
     // Como a reuniao acontece ("videochamada pelo Google Meet, o link chega por aqui"); vazio volta ao padrao.
     meetingChannelText: z.string().trim().max(200).optional(),
+    // Assinar a resposta humana manual com o nome de quem atendeu. Todo numero tem o campo;
+    // ausente ou falso = o comportamento de hoje, sem nome na frente da mensagem.
+    signManualReplies: z.boolean().optional(),
   }).optional(),
   metadata: z.object({
     phoneNumber: z.string().max(40).optional(),
@@ -137,6 +140,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         }
         if (incoming.meetingHostName !== undefined) merged.meetingHostName = incoming.meetingHostName || undefined;
         if (incoming.meetingChannelText !== undefined) merged.meetingChannelText = incoming.meetingChannelText || undefined;
+        // Grava o `false` de proposito, em vez de apagar o campo: a tela precisa distinguir
+        // "desligado" de "nunca configurado" para nao piscar de volta ao valor antigo.
+        if (incoming.signManualReplies !== undefined) merged.signManualReplies = incoming.signManualReplies;
         if (incoming.webhookSecret !== undefined) {
           merged.webhookSecret =
             incoming.webhookSecret.trim() ||
