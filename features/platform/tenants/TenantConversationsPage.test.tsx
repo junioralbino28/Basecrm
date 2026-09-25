@@ -183,6 +183,47 @@ beforeEach(() => {
 });
 
 describe('TenantConversationsPage — caixa unificada', () => {
+  it('busca encontra a conversa por quem escreveu a última mensagem', async () => {
+    // Num número com vários atendentes, procurar pelo colega que respondeu é o caminho natural;
+    // o responsável atribuído pode ser outra pessoa, ou ninguém.
+    resetThreads();
+    threads[1].last_message_author = 'Vitoria';
+    threads[1].assignee = { id: 'user-1', display_name: 'Ana Souza', email: null, avatar_url: null };
+
+    render(<TenantConversationsPage />);
+    fireEvent.change(screen.getByPlaceholderText(/Pesquisar/i), { target: { value: 'Vitoria' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Paciente Comercial')).toBeInTheDocument();
+      expect(screen.queryByText('Paciente Histórico')).not.toBeInTheDocument();
+    });
+  });
+
+  it('o rótulo não confunde quem é responsável com quem falou', async () => {
+    resetThreads();
+    threads[0].status = 'human_active';
+    threads[0].assignee = { id: 'user-1', display_name: 'Ana Souza', email: null, avatar_url: null };
+
+    render(<TenantConversationsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+
+    expect(await screen.findByText(/Atendimento humano/)).toHaveTextContent('Responsável: Ana Souza');
+  });
+
+  it('em atendimento humano sem responsável, não diz que a IA pode responder', async () => {
+    // A IA está travada nesse estado; dizer o contrário faz o operador deixar a conversa parada.
+    resetThreads();
+    threads[0].status = 'human_active';
+    threads[0].assignee = null;
+    threads[0].assigned_user_id = null;
+
+    render(<TenantConversationsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+
+    expect(await screen.findByText(/Atendimento humano/)).toHaveTextContent('Sem responsável atribuído');
+    expect(screen.queryByText('IA pode responder')).not.toBeInTheDocument();
+  });
+
   it('abrir conversa com não-lidas MARCA como lida sozinha (regra do Junior 28/07)', async () => {
     // Antes só existia o botão manual "Marcar lida" — a bolinha do menu ficava
     // parada mesmo com a conversa escancarada na tela.

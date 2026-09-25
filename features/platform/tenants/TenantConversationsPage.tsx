@@ -151,8 +151,13 @@ function statusLabel(status: ConversationThreadListItem['status']) {
 }
 
 function routingLabel(thread: ConversationThreadListItem) {
-  if (thread.status === 'human_active' && thread.assignee?.display_name) {
-    return `Em atendimento humano por ${thread.assignee.display_name}`;
+  // Responsavel atribuido e dado de ROTEAMENTO, nao prova de quem escreveu a ultima mensagem —
+  // num numero com varios atendentes as duas coisas divergem o tempo todo. E sem responsavel a
+  // IA continua travada: dizer "IA pode responder" aqui deixava a conversa parada.
+  if (thread.status === 'human_active') {
+    return thread.assignee?.display_name
+      ? `Atendimento humano · Responsável: ${thread.assignee.display_name}`
+      : 'Atendimento humano · Sem responsável atribuído';
   }
   if (thread.status === 'human_queue') return 'Aguardando proximo atendente';
   if (thread.status === 'resolved') return 'Resolvida e liberada para IA no proximo contato';
@@ -655,6 +660,9 @@ export const TenantConversationsPage: React.FC = () => {
         thread.contact_phone,
         thread.last_message_preview,
         thread.assignee?.display_name,
+        // Quem escreveu a última mensagem: procurar pelo colega que respondeu é o caminho
+        // natural, e o responsável atribuído pode ser outra pessoa — ou ninguém.
+        thread.last_message_author,
       ]
         .filter(Boolean)
         .join(' ')

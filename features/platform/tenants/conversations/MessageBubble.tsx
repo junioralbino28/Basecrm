@@ -295,6 +295,17 @@ export const MessageBubble: React.FC<{ message: ConversationMessage }> = ({ mess
           </div>
         ) : null}
 
+        {/* Quem respondeu. Vale sempre, inclusive com a assinatura desligada: aqui e informacao
+            interna do CRM, e num numero com varios atendentes ela e o que evita confusao. */}
+        {!isInternal && isOutbound && message.author_name ? (
+          <div
+            data-testid="remetente-da-bolha"
+            className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-700"
+          >
+            {message.author_name}
+          </div>
+        ) : null}
+
         {attachment?.kind === 'audio' ? (
           <AudioBubble filePath={attachment.file_path} />
         ) : attachment?.kind === 'document' || attachment?.kind === 'video' ? (
