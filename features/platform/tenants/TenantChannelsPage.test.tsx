@@ -7,6 +7,9 @@ const state = vi.hoisted(() => ({
   pathname: '/platform/tenants/11111111-1111-4111-8111-111111111111/whatsapp',
   reload: vi.fn(async () => undefined),
   connectionStatus: 'connected' as 'pending' | 'connected' | 'disconnected' | 'error',
+  // Valor que o SERVIDOR devolve — muda para simular outro operador mexendo no mesmo numero.
+  aiEnabled: true,
+  signManualReplies: false,
 }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
@@ -39,7 +42,8 @@ vi.mock('./useTenantDetail', () => ({
           instanceName: 'comercial-vitoria-a1b2c3d4',
           apiUrl: 'https://evolution.example.com',
           sendMode: 'auto',
-          aiEnabled: true,
+          get aiEnabled() { return state.aiEnabled; },
+          get signManualReplies() { return state.signManualReplies; },
         },
         metadata: { phoneNumber: '+55 11 99999-0000' },
         last_healthcheck_at: null,
@@ -93,6 +97,9 @@ beforeEach(() => {
   state.role = 'clinic_admin';
   state.pathname = `/platform/tenants/${TENANT}/whatsapp`;
   state.connectionStatus = 'connected';
+  state.aiEnabled = true;
+  state.signManualReplies = false;
+  state.reload.mockImplementation(async () => undefined);
 });
 
 afterEach(() => {
@@ -260,5 +267,61 @@ describe('TenantChannelsPage — multi-numero', () => {
       }),
     ));
     expect(state.reload).toHaveBeenCalled();
+  });
+
+  it('liga a assinatura do atendente por número', async () => {
+    const fetchMock = vi.fn(() => jsonResponse({
+      ok: true,
+      channel: { id: CONNECTION, config: { signManualReplies: true } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TenantChannelsPage />);
+    const toggle = screen.getByRole('checkbox', { name: /assinar respostas/i });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/platform/tenants/${TENANT}/channels/${CONNECTION}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ config: { signManualReplies: true } }),
+      }),
+    ));
+    expect(state.reload).toHaveBeenCalled();
+  });
+
+  it('o interruptor volta a obedecer ao servidor depois de salvar', async () => {
+    // Outro operador desligou o mesmo número enquanto esta aba estava aberta. Sem limpar o
+    // palpite otimista, a aba mostraria "ligado" para sempre, contra o valor real.
+    const fetchMock = vi.fn(() => jsonResponse({
+      ok: true,
+      channel: { id: CONNECTION, config: { signManualReplies: false } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.reload.mockImplementation(async () => { state.signManualReplies = false; });
+
+    render(<TenantChannelsPage />);
+    const toggle = screen.getByRole('checkbox', { name: /assinar respostas/i });
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /assinar respostas/i })).not.toBeChecked());
+  });
+
+  it('o interruptor da IA tem o mesmo comportamento — era o mesmo defeito', async () => {
+    const fetchMock = vi.fn(() => jsonResponse({
+      ok: true,
+      channel: { id: CONNECTION, config: { aiEnabled: true } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.reload.mockImplementation(async () => { state.aiEnabled = true; });
+
+    render(<TenantChannelsPage />);
+    const toggle = screen.getByRole('checkbox', { name: 'IA responde automático' });
+    fireEvent.click(toggle); // desliga localmente
+
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'IA responde automático' })).toBeChecked());
   });
 });
