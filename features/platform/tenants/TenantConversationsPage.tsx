@@ -27,6 +27,7 @@ import { Modal } from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 import { MessageBubble } from './conversations/MessageBubble';
+import { feedbackDoEnvio } from './conversations/feedbackDoEnvio';
 import { ConversationHandoffCard } from './conversations/ConversationHandoffCard';
 import type { ConversationMeetingAction } from '@/lib/conversations/meetingHandoffAction';
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
@@ -495,30 +496,36 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao registrar mensagem (HTTP ${res.status})`);
-      return data as { ok: true; message: ConversationMessage; thread: ConversationThreadListItem; warning?: string | null };
+      return data as {
+        ok: true;
+        message: ConversationMessage;
+        thread: ConversationThreadListItem;
+        warning?: string | null;
+        delivery_status?: string | null;
+        replayed?: boolean;
+      };
     },
     onSuccess: data => {
       queryClient.setQueryData<MessagesResponse | undefined>(
         queryKeys.conversations.messages(data.thread.id),
-        current => ({
-          messages: [...(current?.messages || []), data.message],
-        })
+        current => {
+          const lista = current?.messages || [];
+          // Replay devolve a MESMA linha de antes: appendar de novo duplicaria a bolha.
+          if (lista.some(mensagem => mensagem.id === data.message.id)) return { messages: lista };
+          return { messages: [...lista, data.message] };
+        }
       );
       updateInboxThread(data.thread);
       setComposer(current => ({
         ...current,
         content: '',
       }));
-      setComposerFeedback(
-        data.warning
-          ? { kind: 'warning', text: `Mensagem registrada, mas o envio pela Evolution falhou: ${data.warning}` }
-          : {
-              kind: 'success',
-              text: composer.direction === 'outbound'
-                ? 'Mensagem enviada e registrada na conversa humana.'
-                : 'Nota interna registrada.',
-            }
-      );
+      setComposerFeedback(feedbackDoEnvio({
+        oQue: composer.direction === 'outbound' ? 'mensagem' : 'nota',
+        deliveryStatus: data.delivery_status ?? null,
+        warning: data.warning ?? null,
+        replayed: data.replayed,
+      }));
     },
     onError: error => {
       setComposerFeedback({
@@ -560,19 +567,31 @@ export const TenantConversationsPage: React.FC = () => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Falha ao enviar anexo (HTTP ${res.status})`);
-      return data as { ok: true; message: ConversationMessage; thread: ConversationThreadListItem; warning?: string | null };
+      return data as {
+        ok: true;
+        message: ConversationMessage;
+        thread: ConversationThreadListItem;
+        warning?: string | null;
+        delivery_status?: string | null;
+        replayed?: boolean;
+      };
     },
     onSuccess: data => {
       queryClient.setQueryData<MessagesResponse | undefined>(
         queryKeys.conversations.messages(data.thread.id),
-        current => ({ messages: [...(current?.messages || []), data.message] })
+        current => {
+          const lista = current?.messages || [];
+          if (lista.some(mensagem => mensagem.id === data.message.id)) return { messages: lista };
+          return { messages: [...lista, data.message] };
+        }
       );
       updateInboxThread(data.thread);
-      setComposerFeedback(
-        data.warning
-          ? { kind: 'warning', text: `Anexo registrado, mas o envio pela Evolution falhou: ${data.warning}` }
-          : { kind: 'success', text: 'Anexo enviado.' }
-      );
+      setComposerFeedback(feedbackDoEnvio({
+        oQue: 'anexo',
+        deliveryStatus: data.delivery_status ?? null,
+        warning: data.warning ?? null,
+        replayed: data.replayed,
+      }));
     },
     onError: error => {
       setComposerFeedback({
