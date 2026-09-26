@@ -26,6 +26,9 @@ export type CompletedOutbound = OutboundDeliveryOutcome & {
   messageId: string;
 };
 
+/** Frase unica para 'ficou pending e ninguem confirmou': a rota de replay reusa. */
+export const PENDING_REVIEW_WARNING = 'dispatch anterior permaneceu pending; revisão obrigatória';
+
 type DispatchMode = 'manual' | 'automation_simulation';
 
 type DispatchDependencies = {
@@ -70,7 +73,7 @@ export async function dispatchConversationOutbound(
       providerMessageId: prepared.providerMessageId ?? null,
       attemptLabel: null,
       error: prepared.status === 'pending'
-        ? 'dispatch anterior permaneceu pending; revisão obrigatória'
+        ? PENDING_REVIEW_WARNING
         : null,
       metadata: {},
       duplicate: true,
