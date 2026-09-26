@@ -72,7 +72,9 @@ describe('oauthState — state de uso unico, amarrado a tenant/conexao/responsav
       google_oauth_states: [{
         state: 'de-outro-tenant', organization_id: ORG_OUTRO, channel_connection_id: CONN, owner_id: OWNER,
         requested_by: REQUESTER, redirect_origin: 'https://crm.basea2.com',
-        created_at: '2026-09-22T00:00:00.000Z', expires_at: '2026-09-25T00:00:00.000Z', consumed_at: null,
+        // Validade RELATIVA ao relogio: a data cravada ('2026-09-25') expirou na vida real e o
+        // teste passou a falhar sozinho a partir daquele dia, parecendo bug de seguranca.
+        created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 10 * 60_000).toISOString(), consumed_at: null,
       }],
     });
     const claimed = await claimGoogleOAuthState({ admin: fake as never, state: 'de-outro-tenant' });
