@@ -20,6 +20,12 @@ import {
   resolveAssinaturaAtivada,
   resolveNomeDoAtendente,
 } from '@/lib/conversations/assinaturaAtendente';
+import {
+  conferirReplay,
+  fingerprintDoPedido,
+  warningDoReplay,
+  type PedidoDeEnvio,
+} from '@/lib/conversations/idempotenciaManual';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -131,6 +137,73 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     ? attachment.kind
     : parsed.data.message_type ?? 'text';
 
+  // ---------------------------------------------------------------- idempotencia
+  // A chave do CLIENTE identifica a tentativa logica; a consulta previa detecta replay ANTES de
+  // qualquer efeito (validacao, pausa de automacao, signed URL, provider). Sem chave do cliente
+  // (tela antiga), a rota gera uma no bloco de envio, como sempre — replay impossivel, custo zero.
+  const chaveDoCliente =
+    parsed.data.idempotency_key?.trim()
+    || req.headers.get('idempotency-key')?.trim()
+    || null;
+
+  const pedidoDoEnvio: PedidoDeEnvio = {
+    organizationId: tenantId,
+    threadId,
+    atorId: auth.profile.id,
+    direction: parsed.data.direction,
+    content: messageContent,
+    attachmentPath: attachment?.file_path ?? null,
+    sendExternal: parsed.data.send_external !== false,
+  };
+
+  const REPLAY_SELECT =
+    'id, thread_id, organization_id, direction, message_type, author_name, content, metadata, sent_at, created_at, delivery_status, delivery_error';
+
+  // Resposta de replay: a linha ORIGINAL e a thread ATUAL, sem update nenhum — o corpo do
+  // segundo POST nunca vaza para o preview, e a pausa de automacao nao roda de novo.
+  const responderReplay = async (linha: Record<string, unknown>) => {
+    const { delivery_status, delivery_error, ...message } = linha as {
+      delivery_status?: string | null;
+      delivery_error?: string | null;
+    } & Record<string, unknown>;
+    try {
+      const threadAtual = await loadConversationThreadInboxItem(admin, tenantId, threadId);
+      return json({
+        ok: true,
+        replayed: true,
+        message,
+        thread: threadAtual,
+        warning: warningDoReplay(delivery_status ?? null, delivery_error ?? null),
+        delivery_status: delivery_status ?? null,
+      }, 200);
+    } catch (loadError) {
+      return json({ error: loadError instanceof Error ? loadError.message : 'Falha ao carregar thread.' }, 500);
+    }
+  };
+
+  const CONFLITO_DE_CHAVE = {
+    error: 'Esta chave de envio ja foi usada com um pedido diferente. Nada foi reenviado.',
+    code: 'IDEMPOTENCY_CONFLICT',
+  };
+
+  if (parsed.data.direction === 'outbound' && chaveDoCliente) {
+    const existente = await admin
+      .from('conversation_messages')
+      .select(REPLAY_SELECT)
+      .eq('organization_id', tenantId)
+      .eq('idempotency_key', chaveDoCliente)
+      .maybeSingle();
+    if (existente.error) return json({ error: existente.error.message }, 500);
+    if (existente.data) {
+      // Replay e julgado contra o PEDIDO ORIGINAL, nunca contra perfil/configuracao/arquivo
+      // atuais: o que ja foi tentado nao passa por validacao de novo.
+      if (conferirReplay(existente.data, pedidoDoEnvio) === 'diferente') {
+        return json(CONFLITO_DE_CHAVE, 409);
+      }
+      return responderReplay(existente.data);
+    }
+  }
+
   // O caminho de audio da Evolution (`sendAudio`) nao tem campo de legenda: o texto seria
   // descartado e a linha ficaria gravada como "enviado" com algo que o lead nunca recebeu.
   if (attachment?.kind === 'audio' && messageContent) {
@@ -229,6 +302,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   let deliveryMetadata: Record<string, unknown> = parsed.data.metadata ?? {};
   let deliveryWarning: string | null = null;
+  let outboundDeliveryStatus: string | null = null;
   let persistedOutboundMessageId: string | null = null;
 
   // Metadata de mídia pra UI renderizar a bolha (doc/áudio/imagem) sem refetch.
@@ -258,6 +332,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     },
   };
 
+  // O fingerprint do pedido logico congela o vinculo chave->pedido no servidor; como o
+  // `atendente`, e escrito DEPOIS do spread para o navegador nao conseguir forjar.
+  if (parsed.data.direction === 'outbound') {
+    deliveryMetadata = {
+      ...deliveryMetadata,
+      intencao: { versao: 1, hash: fingerprintDoPedido(pedidoDoEnvio) },
+    };
+  }
+
   const storedContent =
     messageContent || (attachment ? attachment.file_name || `[${attachment.kind}]` : '');
 
@@ -273,10 +356,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   }
 
   if (parsed.data.direction === 'outbound') {
-    const idempotencyKey =
-      parsed.data.idempotency_key
-      || req.headers.get('idempotency-key')?.trim()
-      || `manual:${threadId}:${randomUUID()}`;
+    const idempotencyKey = chaveDoCliente || `manual:${threadId}:${randomUUID()}`;
 
     const deliver = async (): Promise<OutboundDeliveryOutcome> => {
       if (parsed.data.send_external === false || !threadData.channel_connection_id) {
@@ -371,10 +451,34 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
       deliver,
     });
     persistedOutboundMessageId = dispatched.messageId;
+
+    // Corrida que a consulta previa nao viu: dois POSTs simultaneos com a mesma chave, o INSERT
+    // decidiu e este e o perdedor. A pausa de automacao dele ja rodou (idempotente — e o mesmo
+    // efeito que o vencedor causou); daqui em diante, nenhum efeito novo.
+    if (dispatched.duplicate) {
+      const vencedora = await admin
+        .from('conversation_messages')
+        .select(REPLAY_SELECT)
+        .eq('id', dispatched.messageId)
+        .eq('organization_id', tenantId)
+        .maybeSingle();
+      if (vencedora.error) return json({ error: vencedora.error.message }, 500);
+      if (!vencedora.data) return json({ error: 'Mensagem idempotente nao encontrada.' }, 500);
+      if (conferirReplay(vencedora.data, pedidoDoEnvio) === 'diferente') {
+        return json(CONFLITO_DE_CHAVE, 409);
+      }
+      return responderReplay(vencedora.data);
+    }
+
+    outboundDeliveryStatus = dispatched.status;
+    // Falha e incerteza sao estados DIFERENTES: "failed" nao chegou e pode ser retentado;
+    // "unknown" pode ter chegado — reenviar as cegas e o que duplica mensagem para o lead.
     deliveryWarning =
-      dispatched.status === 'failed' || dispatched.status === 'unknown'
-        ? dispatched.error || 'Entrega não confirmada pela Evolution.'
-        : null;
+      dispatched.status === 'failed'
+        ? dispatched.error || 'A entrega falhou antes de chegar ao WhatsApp.'
+        : dispatched.status === 'unknown'
+          ? dispatched.error || 'Entrega não confirmada pela Evolution.'
+          : null;
   }
 
   const persisted = persistedOutboundMessageId
@@ -460,7 +564,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   try {
     const updatedThread = await loadConversationThreadInboxItem(admin, tenantId, threadId);
-    return json({ ok: true, message: data, thread: updatedThread, warning: deliveryWarning }, 201);
+    return json({ ok: true, message: data, thread: updatedThread, warning: deliveryWarning, delivery_status: outboundDeliveryStatus }, 201);
   } catch (loadError) {
     return json({ error: loadError instanceof Error ? loadError.message : 'Falha ao carregar thread atualizada.' }, 500);
   }
