@@ -177,12 +177,31 @@ vi.mock('./conversations/ConversationDealPanel', () => ({
 import { TenantConversationsPage } from './TenantConversationsPage';
 
 beforeEach(() => {
+  try { sessionStorage.clear(); } catch { /* jsdom sem storage */ }
   mutateSpy.mockClear();
   searchParamsState.query = '';
   resetThreads();
 });
 
 describe('TenantConversationsPage — caixa unificada', () => {
+  it('restaura no compositor o envio que ficou sem resposta, com a intenção preservada', async () => {
+    // A rede caiu depois do clique: o texto volta ao compositor ao abrir a conversa, e o
+    // próximo Enviar reutiliza a MESMA chave — o servidor devolve a tentativa original.
+    sessionStorage.setItem(
+      'basecrm:intencao-envio:thread-reception',
+      JSON.stringify({
+        chave: 'manual:thread-reception:tentativa-1',
+        corpo: 'texto que ficou sem resposta',
+        direcao: 'outbound',
+        anexoPath: null,
+      }),
+    );
+
+    render(<TenantConversationsPage />);
+
+    expect(await screen.findByDisplayValue('texto que ficou sem resposta')).toBeInTheDocument();
+  });
+
   it('busca encontra a conversa por quem escreveu a última mensagem', async () => {
     // Num número com vários atendentes, procurar pelo colega que respondeu é o caminho natural;
     // o responsável atribuído pode ser outra pessoa, ou ninguém.

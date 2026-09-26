@@ -28,6 +28,13 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { canManageClinicSettings } from '@/lib/auth/scope';
 import { MessageBubble } from './conversations/MessageBubble';
 import { feedbackDoEnvio } from './conversations/feedbackDoEnvio';
+import {
+  criarStorageDeIntencoes,
+  gerarChaveDeEnvio,
+  lerIntencaoPendente,
+  obterChaveDeEnvio,
+  resolverIntencao,
+} from '@/lib/conversations/intencaoDeEnvio';
 import { ConversationHandoffCard } from './conversations/ConversationHandoffCard';
 import type { ConversationMeetingAction } from '@/lib/conversations/meetingHandoffAction';
 import { useQuickScripts } from '@/features/inbox/hooks/useQuickScripts';
@@ -289,6 +296,24 @@ export const TenantConversationsPage: React.FC = () => {
     kind: 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
+  /**
+   * Intencao de envio pendente por conversa: a MESMA chave de idempotencia vale ate o servidor
+   * confirmar — e o que impede o clique de retry de virar segunda mensagem para o lead.
+   */
+  const [intencoes] = React.useState(() => criarStorageDeIntencoes());
+  /**
+   * Upload congelado por conversa: se o POST do anexo falhar DEPOIS do upload, o retry do mesmo
+   * arquivo reutiliza o file_path e a chave — um upload so, uma mensagem so. Vive em memoria:
+   * depois de recarregar a pagina o File nao existe mais de qualquer forma.
+   */
+  const uploadCongeladoRef = React.useRef<Record<string, {
+    marca: string;
+    chave: string;
+    file_path: string;
+    file_name: string;
+    mime_type?: string;
+    file_size?: number | null;
+  }>>({});
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = React.useState(false);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = React.useState(false);
@@ -324,6 +349,20 @@ export const TenantConversationsPage: React.FC = () => {
       author_name: current.author_name || buildDisplayName(profile),
     }));
   }, [profile]);
+
+  // Envio que ficou sem resposta (a rede caiu depois do clique): devolve o texto ao compositor
+  // ao abrir a conversa — o proximo Enviar reutiliza a MESMA chave e o servidor devolve a
+  // tentativa original em vez de criar uma segunda mensagem para o lead.
+  React.useEffect(() => {
+    if (!selectedThreadId) return;
+    const pendente = lerIntencaoPendente(intencoes, selectedThreadId);
+    if (!pendente || pendente.direcao !== 'outbound' || pendente.anexoPath || !pendente.corpo.trim()) return;
+    setComposer(current =>
+      current.content.trim()
+        ? current
+        : { ...current, direction: 'outbound', content: pendente.corpo }
+    );
+  }, [selectedThreadId, intencoes]);
 
   const inboxQuery = useQuery<InboxResponse>({
     queryKey: queryKeys.conversations.list({ tenantId }),
@@ -482,6 +521,16 @@ export const TenantConversationsPage: React.FC = () => {
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
+      // A chave nasce da INTENCAO (corpo+direcao), nao do clique: o retry do mesmo texto
+      // reutiliza a mesma chave, e o servidor devolve a tentativa original.
+      const idempotencyKey =
+        composer.direction === 'outbound' && selectedThreadId
+          ? obterChaveDeEnvio(intencoes, selectedThreadId, {
+              corpo: composer.content.trim(),
+              direcao: 'outbound',
+              anexoPath: null,
+            })
+          : undefined;
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
         method: 'POST',
         credentials: 'include',
@@ -492,6 +541,7 @@ export const TenantConversationsPage: React.FC = () => {
         body: JSON.stringify({
           ...composer,
           send_external: composer.direction === 'outbound',
+          ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
         }),
       });
       const data = await res.json().catch(() => null);
@@ -506,6 +556,8 @@ export const TenantConversationsPage: React.FC = () => {
       };
     },
     onSuccess: data => {
+      // Confirmado (enviado OU replay): a proxima tentativa identica e intencao nova.
+      resolverIntencao(intencoes, data.thread.id);
       queryClient.setQueryData<MessagesResponse | undefined>(
         queryKeys.conversations.messages(data.thread.id),
         current => {
@@ -543,9 +595,26 @@ export const TenantConversationsPage: React.FC = () => {
       if (!dealId) {
         throw new Error('Esta conversa ainda não tem oportunidade vinculada para anexar arquivos.');
       }
-      const { data: uploaded, error: uploadError } = await dealFilesService.uploadFile(dealId, input.file);
-      if (uploadError || !uploaded) {
-        throw new Error(uploadError instanceof Error ? uploadError.message : 'Falha ao subir o arquivo.');
+      // Retry do MESMO arquivo (nome+tamanho+data+legenda) reutiliza o upload e a chave da
+      // primeira tentativa: um upload so, uma mensagem so — mesmo que o POST anterior tenha
+      // morrido depois de a Evolution receber.
+      const threadDoAnexo = String(selectedThreadId);
+      const marca = `${input.file.name}:${input.file.size}:${input.file.lastModified}:${input.caption?.trim() || ''}`;
+      let congelado = uploadCongeladoRef.current[threadDoAnexo];
+      if (!congelado || congelado.marca !== marca) {
+        const { data: uploaded, error: uploadError } = await dealFilesService.uploadFile(dealId, input.file);
+        if (uploadError || !uploaded) {
+          throw new Error(uploadError instanceof Error ? uploadError.message : 'Falha ao subir o arquivo.');
+        }
+        congelado = {
+          marca,
+          chave: gerarChaveDeEnvio(threadDoAnexo),
+          file_path: uploaded.file_path,
+          file_name: uploaded.file_name,
+          mime_type: uploaded.mime_type ?? undefined,
+          file_size: uploaded.file_size ?? null,
+        };
+        uploadCongeladoRef.current[threadDoAnexo] = congelado;
       }
 
       const res = await fetch(`/api/platform/tenants/${tenantId}/conversations/${selectedThreadId}/messages`, {
@@ -556,12 +625,13 @@ export const TenantConversationsPage: React.FC = () => {
           direction: 'outbound',
           send_external: true,
           content: input.caption?.trim() || undefined,
+          idempotency_key: congelado.chave,
           attachment: {
             kind: input.kind,
-            file_path: uploaded.file_path,
-            file_name: uploaded.file_name,
-            mime_type: uploaded.mime_type ?? undefined,
-            file_size: uploaded.file_size ?? undefined,
+            file_path: congelado.file_path,
+            file_name: congelado.file_name,
+            mime_type: congelado.mime_type,
+            file_size: congelado.file_size ?? undefined,
           },
         }),
       });
@@ -577,6 +647,8 @@ export const TenantConversationsPage: React.FC = () => {
       };
     },
     onSuccess: data => {
+      // Confirmado: o proximo anexo e intencao nova, com upload e chave proprios.
+      delete uploadCongeladoRef.current[data.thread.id];
       queryClient.setQueryData<MessagesResponse | undefined>(
         queryKeys.conversations.messages(data.thread.id),
         current => {
