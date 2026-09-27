@@ -56,6 +56,11 @@ preferência (ou a preferência não existe).
 
 ### 3. Agendamento + confirmação
 
+- **Emenda do teste ao vivo (27/09, conversa "Rayanne"):** a preferência costuma chegar em
+  turno PÓS-handoff (encerramento), que hoje não persiste `requestedScheduleText` — no teste,
+  "à noite" ficou só no texto. A automação exige: **persistir a preferência na metadata da
+  thread sempre que vier no ramo consultoria, inclusive em closing reply** (mesma mecânica do
+  `gateCapacidade`, que já grava pós-handoff).
 - Parser da preferência combinada (`requestedScheduleText`, ex.: "quinta de manhã") → janela
   de busca; busca de slot livre de **60 min** reutilizando o motor atual com **duração
   parametrizada** (o default 40 da reunião comercial NÃO muda — parâmetro explícito só neste

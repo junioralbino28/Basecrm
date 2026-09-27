@@ -115,9 +115,10 @@ describe('prompt da Aurora — correcoes dos primeiros leads reais (23/09)', () 
   const template = () => getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
 
   it('avisa que o nome do WhatsApp costuma ser o da EMPRESA e manda perguntar com quem fala', () => {
-    expect(template()).toContain('e o nome da EMPRESA, nao da pessoa');
+    // Redacao mudou em 27/09 (perguntar o nome virou regra SEMPRE); a propriedade continua.
+    expect(template()).toContain('muitas vezes e o nome da EMPRESA');
     expect(template()).toContain('com quem eu falo?');
-    expect(template()).toContain('Use o primeiro nome da PESSOA so depois que ela disser qual e');
+    expect(template()).toContain('use o primeiro nome da PESSOA so depois que ela disser qual e');
   });
 
   it('poe teto nas perguntas antes de devolver leitura — senao vira interrogatorio', () => {
@@ -204,6 +205,20 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     const t = template();
     expect(t).toContain('- capacityGate: passed quando o lead confirmar');
     expect(t).toContain('unanswered quando ele desviar');
+  });
+
+  it('ajustes do teste ao vivo de 27/09: nome no comeco, preferencia anotada, encerramento da consultoria sem nome', () => {
+    const t = template();
+    // Feedback dele: "ela pediu o nome so no agendamento; tem que ser das primeiras coisas".
+    expect(t).toContain('SEMPRE que o lead ainda nao tiver dito o proprio nome');
+    expect(t).toContain('nunca so na hora de agendar');
+    expect(t).toContain('Se o lead ja se apresentou sozinho, nao pergunte de novo');
+    // "ja deixo essa hora reservada" antes de saber a hora: vetado.
+    expect(t).toContain('a preferencia fica ANOTADA');
+    expect(t).toContain('nao diga "reservada"');
+    // Encerramento do ramo consultoria nao solta nome de pessoa ("o Junior segue por aqui").
+    expect(t).toContain('em ENCERRAMENTO do caminho da CONSULTORIA');
+    expect(t).toContain('nao cite {{meetingHostName}} nem outra pessoa pelo nome');
   });
 
   it('o gate e SO da Cenoura Hub: o prompt padrao dos outros clientes nao ganhou gate', () => {
