@@ -74,5 +74,9 @@ fim-a-fim fica para a prévia.
 
 ## Validação
 
-Suíte completa e `tsc` lidos em comando separado; a falha preexistente conhecida é
-`lib/googleCalendar/oauthState.test.ts` (provada alheia na entrega 1). Sem push.
+Suíte completa e `tsc` lidos em comando separado. Sem push.
+
+> Nota (26/09): a falha que este plano chamava de "preexistente conhecida" em
+> `lib/googleCalendar/oauthState.test.ts` foi diagnosticada e CONSERTADA em `f21cf17` —
+> era fixture com `expires_at` cravado em 2026-09-25, que venceu no calendário real.
+> A suíte roda 100% verde desde então.
