@@ -43,7 +43,7 @@ begin
   values
     ('consultoria-diagnostico',
      'Consultoria de Diagnóstico',
-     'Downsell do gate de capacidade: R$997 (60 min + plano escrito + grupo de 1 mês). Vira crédito se fechar a mensalidade em até 1 mês.',
+     'Downsell do gate de capacidade: R$597 (60 min + plano escrito + grupo de 1 mês). Vira crédito se fechar a mensalidade em até 1 mês.',
      'SALES', false, 'CUSTOM', 'LEAD', 1, v_org)
   returning id into v_board;
 

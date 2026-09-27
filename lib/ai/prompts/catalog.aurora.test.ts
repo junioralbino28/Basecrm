@@ -163,7 +163,7 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
   it('oferece a consultoria SO depois do nao, nunca a quem passou, com o texto aprovado', () => {
     const t = template();
     expect(t).toContain('Consultoria de Diagnóstico: uma hora com o especialista');
-    expect(t).toContain('São R$997 à vista, ou 3x de R$350');
+    expect(t).toContain('São R$597 à vista, ou 3x de R$210');
     expect(t).toContain('esse valor vira crédito');
     expect(t).toContain('NUNCA e oferecida antes desse nao, e NUNCA a quem passou no gate');
   });
@@ -176,8 +176,21 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     expect(t).toContain('nunca diga que esta agendado antes da confirmacao do pagamento');
     expect(t).toContain('nunca use handoffType=meeting_confirmed nesse caminho');
     expect(t).toContain('devolva essa preferencia em requestedScheduleText');
-    expect(t).toContain('a equipe envia o link de pagamento');
     expect(t).toContain('handoffType=high_intent nesse turno');
+  });
+
+  it('envia os DOIS links reais do Mercado Pago na oferta aceita (criados em 27/09)', () => {
+    const t = template();
+    expect(t).toContain('pref_id=3597082494-ff2c9a70-8d49-418e-878d-efb22c3b57a2'); // R$597 a vista
+    expect(t).toContain('pref_id=3597082494-dd9c8eef-2e98-4074-9ed9-14c422ed4035'); // 3x de R$210
+    expect(t).toContain('À vista (R$597):');
+    expect(t).toContain('Em 3x de R$210:');
+    // Preco antigo (997/350, trocado por decisao dele em 27/09) nao pode sobrar no template:
+    expect(t).not.toContain('997');
+    expect(t).not.toContain('R$350');
+    expect(t).toContain('assim que o pagamento cair');
+    // O caminho antigo (equipe envia o link depois) morreu junto com a espera.
+    expect(t).not.toContain('a equipe envia o link de pagamento');
   });
 
   it('o preco do SERVICO continua sem ser dito, e o objetivo ganhou os dois ramos', () => {
@@ -197,6 +210,6 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     const padrao = getPromptCatalogMap().task_conversations_whatsapp_auto_reply.defaultTemplate;
     expect(padrao).not.toContain('GATE DE CAPACIDADE');
     expect(padrao).not.toContain('capacityGate');
-    expect(padrao).not.toContain('R$997');
+    expect(padrao).not.toContain('R$597');
   });
 });
