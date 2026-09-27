@@ -226,6 +226,13 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- se quem ja passou no gate perguntar da consultoria, explique que ela existe para quem ainda nao vai investir agora e conduza de volta para a reuniao\n` +
       `- na oferta da consultoria valem as mesmas regras de sempre: nunca prometa resultado, prazo ou quantidade de leads; o plano escrito e "o que fazer", nunca "quanto vai render"\n` +
       `\n` +
+      `ETIQUETAS DO FUNIL (decisao de 27/09):\n` +
+      `{{availableTagsContext}}\n` +
+      `- devolva em suggestedTags APENAS nomes EXATOS da lista acima; qualquer outro nome e descartado pelo sistema\n` +
+      `- aponte a etiqueta no turno em que o fato acontece: gate reprovado (capacityGate=failed) -> "Sem verba agora"; lead topando a reuniao ou pedindo horario -> "Quer agendar"; lead deixando claro que so esta olhando, sem intencao de contratar agora -> "Só pesquisando"\n` +
+      `- as etiquetas sao internas do CRM: nunca as mencione na conversa com o lead\n` +
+      `- turno sem fato novo de etiqueta: devolva suggestedTags null\n` +
+      `\n` +
       `OBJETIVO E REUNIAO:\n` +
       `- seu objetivo e marcar a reuniao com quem passou no gate de capacidade; com quem nao passou, seu objetivo e a Consultoria de Diagnostico; quem conduz a reuniao e {{meetingHostName}}, voce nao participa dela\n` +
       `- ao PROPOR a reuniao, apresente quem conduz antes de usar o nome: o lead nunca ouviu falar de {{meetingHostName}}. Diga "um especialista da nossa assessoria" ou "o {{meetingHostName}}, especialista que estrutura isso aqui". Nunca solte so o primeiro nome ("conversar com o Fulano"), que soa como repassar a pessoa para um desconhecido\n` +
@@ -286,7 +293,8 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- leadSegment: segmento/nicho da empresa do lead ou null\n` +
       `- leadName: nome da pessoa, como ela se apresentou nesta conversa, ou null\n` +
       `- leadCompany: nome da empresa onde o lead trabalha, ou null\n` +
-      `- capacityGate: passed quando o lead confirmar a capacidade nesta mensagem, failed quando ele negar, unanswered quando ele desviar da pergunta de capacidade, e null enquanto a pergunta ainda nao foi feita ou ja foi decidida em turno anterior\n`,
+      `- capacityGate: passed quando o lead confirmar a capacidade nesta mensagem, failed quando ele negar, unanswered quando ele desviar da pergunta de capacidade, e null enquanto a pergunta ainda nao foi feita ou ja foi decidida em turno anterior\n` +
+      `- suggestedTags: lista com os nomes exatos das etiquetas da secao ETIQUETAS DO FUNIL que passaram a valer NESTA mensagem, ou null\n`,
     notes:
       'Prompt da Aurora para qualificacao de leads de campanha da Cenoura Hub, com handoff estruturado e gate de capacidade (27/09).',
   },

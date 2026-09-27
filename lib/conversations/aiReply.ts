@@ -12,6 +12,12 @@ import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
 import { aplicarGateCapacidade } from '@/lib/conversations/gateCapacidade';
 import {
+  aplicarEtiquetasSugeridas,
+  buildAvailableTagsContext,
+  loadTagCatalog,
+  resolverEtiquetasSugeridas,
+} from '@/lib/conversations/etiquetasSugeridas';
+import {
   DEFAULT_MEETING_HOST_NAME,
   formatLocalDateTimeForPrompt,
   pickMeetingHostName,
@@ -125,6 +131,12 @@ export const ConversationAutoReplySchema = z.object({
   // Cenoura Hub instrui este campo; nos outros ele simplesmente nunca vem.
   capacityGate: z.enum(['passed', 'failed', 'unanswered']).nullable().optional()
     .describe('Resultado da pergunta de capacidade decidido NESTA mensagem, ou null'),
+  // Etiquetas do funil (27/09): a IA APONTA nomes do catalogo ({{availableTagsContext}} no prompt);
+  // quem aplica e o servidor (assign_deal_tag_system, provenance 'ai'), e o gatilho do banco inscreve
+  // o negocio nas automacoes publicadas. Nome fora do catalogo e descartado. So o prompt que carrega
+  // o placeholder instrui este campo; nos outros ele simplesmente nunca vem.
+  suggestedTags: z.array(z.string().max(80)).max(5).nullable().optional()
+    .describe('Etiquetas da lista ETIQUETAS DISPONIVEIS que passaram a valer NESTA mensagem (nome exato), ou null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -151,6 +163,8 @@ export type ConversationAIReplyPayload = {
   leadCompany?: string | null;
   /** Resultado do gate de capacidade decidido neste turno (Cenoura Hub, 27/09). */
   capacityGate?: 'passed' | 'failed' | 'unanswered' | null;
+  /** Etiquetas do catalogo apontadas pela IA neste turno; o servidor valida e aplica no negocio. */
+  suggestedTags?: string[] | null;
 };
 
 export function formatRecentMessages(messages: RecentMessage[]) {
@@ -455,6 +469,10 @@ export async function generateConversationAutoReply(params: {
     return { ok: false as const, reason: 'closing_unsupported' as const };
   }
   const meetingChannelText = readMeetingChannelText(generationConnectionConfig);
+  // Catalogo de etiquetas so para template que pede ({{availableTagsContext}}): nos demais,
+  // nem consulta sai — comportamento de hoje intocado.
+  const wantsTagContext = /\{\{\s*availableTagsContext\s*\}\}/.test(resolvedPrompt.content);
+  const tagCatalog = wantsTagContext ? await loadTagCatalog(admin, organizationId) : [];
   const conversationStageContext = closing
     ? buildClosingStageContext({
         handoff: closing.handoff,
@@ -483,6 +501,7 @@ export async function generateConversationAutoReply(params: {
     conversationStageContext,
     recentMessagesText: formatRecentMessages(recentMessages),
     calendarContext: calendarAvailability.calendarContext,
+    availableTagsContext: buildAvailableTagsContext(tagCatalog),
   });
 
   const generateOnce = () => generateText({
@@ -574,6 +593,12 @@ export async function generateConversationAutoReply(params: {
       leadName: normalizeLeadName(generated.leadName),
       leadCompany: normalizeLeadCompany(generated.leadCompany),
       capacityGate: generated.capacityGate ?? null,
+      // Validado contra o catalogo aqui mesmo: adiante so viajam nomes que existem.
+      suggestedTags: wantsTagContext
+        ? resolverEtiquetasSugeridas(tagCatalog, generated.suggestedTags)
+            .map((id) => tagCatalog.find((t) => t.id === id)?.name)
+            .filter((nome): nome is string => Boolean(nome))
+        : null,
     },
   };
 }
@@ -1029,6 +1054,31 @@ export async function executeConversationAIReply(params: {
     payload.capacityGate,
     now,
   );
+
+  // Etiquetas apontadas pela IA (27/09): validadas de novo contra o catalogo e aplicadas no negocio
+  // da conversa (provenance 'ai'); o gatilho do banco inscreve nas automacoes publicadas. Vale
+  // tambem quando a entrega falha (a classificacao veio da mensagem do LEAD). Erro aqui nunca
+  // derruba a resposta.
+  if (payload.suggestedTags?.length && thread.deal_id) {
+    try {
+      const catalogo = await loadTagCatalog(admin, activeConnection.organization_id);
+      const tagIds = resolverEtiquetasSugeridas(catalogo, payload.suggestedTags);
+      if (tagIds.length) {
+        await aplicarEtiquetasSugeridas({
+          admin,
+          organizationId: activeConnection.organization_id,
+          dealId: thread.deal_id,
+          tagIds,
+        });
+      }
+    } catch (error) {
+      console.warn('[Conversation AI] Failed to apply suggested tags', {
+        organizationId: activeConnection.organization_id,
+        threadId: payload.threadId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const threadUpdateBase = admin
     .from('conversation_threads')

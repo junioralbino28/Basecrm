@@ -236,3 +236,31 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     expect(padrao).not.toContain('R$597');
   });
 });
+
+describe('prompt da Aurora — etiquetas do funil (decisao de 27/09)', () => {
+  const template = () =>
+    getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+  it('carrega o catalogo pelo placeholder e restringe a IA aos nomes exatos', () => {
+    const t = template();
+    expect(t).toContain('ETIQUETAS DO FUNIL (decisao de 27/09):');
+    expect(t).toContain('{{availableTagsContext}}');
+    expect(t).toContain('APENAS nomes EXATOS da lista acima');
+    expect(t).toContain('- suggestedTags: lista com os nomes exatos das etiquetas');
+  });
+
+  it('amarra os momentos: gate reprovado, quer agendar, so pesquisando; e nunca fala de etiqueta com o lead', () => {
+    const t = template();
+    expect(t).toContain('gate reprovado (capacityGate=failed) -> "Sem verba agora"');
+    expect(t).toContain('lead topando a reuniao ou pedindo horario -> "Quer agendar"');
+    expect(t).toContain('sem intencao de contratar agora -> "Só pesquisando"');
+    expect(t).toContain('nunca as mencione na conversa com o lead');
+    expect(t).toContain('turno sem fato novo de etiqueta: devolva suggestedTags null');
+  });
+
+  it('as etiquetas sao SO da Cenoura Hub por enquanto: o prompt padrao nao ganhou o placeholder', () => {
+    const padrao = getPromptCatalogMap().task_conversations_whatsapp_auto_reply.defaultTemplate;
+    expect(padrao).not.toContain('availableTagsContext');
+    expect(padrao).not.toContain('suggestedTags');
+  });
+});

@@ -84,3 +84,18 @@ describe('gate de capacidade — contrato do structured output', () => {
     expect(ConversationAutoReplySchema.safeParse(base).success).toBe(true);
   });
 });
+
+describe('etiquetas sugeridas — contrato do structured output', () => {
+  const base = { replyText: 'ok' };
+
+  it('aceita lista de nomes, null e ausencia', () => {
+    expect(ConversationAutoReplySchema.safeParse({ ...base, suggestedTags: ['Quer agendar'] }).success).toBe(true);
+    expect(ConversationAutoReplySchema.safeParse({ ...base, suggestedTags: null }).success).toBe(true);
+    expect(ConversationAutoReplySchema.safeParse(base).success).toBe(true);
+  });
+
+  it('rejeita mais de 5 etiquetas num turno (o detector funciona)', () => {
+    const seis = ['a', 'b', 'c', 'd', 'e', 'f'];
+    expect(ConversationAutoReplySchema.safeParse({ ...base, suggestedTags: seis }).success).toBe(false);
+  });
+});

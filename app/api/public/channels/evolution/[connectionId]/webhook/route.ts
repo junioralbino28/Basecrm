@@ -269,6 +269,7 @@ export async function processDeferredAIReply(params: {
           leadName: nativeReply.object.leadName,
           leadCompany: nativeReply.object.leadCompany,
           capacityGate: nativeReply.object.capacityGate,
+          suggestedTags: nativeReply.object.suggestedTags,
           notificationEventId: insertedMessageId,
           authorName: agentName,
           metadata: {
