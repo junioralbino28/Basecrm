@@ -374,6 +374,8 @@ export function ChannelCalendarSettings({
   initialCalendar,
   assignees,
   disabled,
+  pairingDisabled,
+  hideConfig,
   onSaved,
 }: {
   tenantId: string;
@@ -381,6 +383,10 @@ export function ChannelCalendarSettings({
   initialCalendar: unknown;
   assignees: CalendarAssignee[];
   disabled: boolean;
+  /** Parear (OAuth do Google) e permissao separada da configuracao — decisao do Junior, 26/09. */
+  pairingDisabled?: boolean;
+  /** true = so a parte de parear aparece; expediente/bloqueios sao da agencia. */
+  hideConfig?: boolean;
   onSaved: () => void | Promise<void>;
 }) {
   const initial = React.useMemo(
@@ -442,6 +448,9 @@ export function ChannelCalendarSettings({
 
       {expanded ? (
         <div className="border-t border-slate-200 p-4 dark:border-white/10">
+          {/* Expediente, responsavel e bloqueios sao CONFIGURACAO (agencia); quem so pareia
+              ve apenas o Google Agenda abaixo. Decisao do Junior, 26/09. */}
+          {hideConfig ? null : (<>
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm font-medium text-slate-800 dark:text-slate-100">
             Permitir que a IA ofereça e agende horários livres
             <input type="checkbox" checked={form.enabled} disabled={disabled || saving} onChange={event => setForm(current => ({ ...current, enabled: event.target.checked }))} className="h-5 w-5 rounded border-slate-300 text-amber-500 focus:ring-amber-400" />
@@ -453,9 +462,11 @@ export function ChannelCalendarSettings({
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Antecedência mínima (min)<input className={`${FIELD_CLASS} mt-1`} type="number" min={0} max={10080} value={form.minimumNoticeMinutes} onChange={event => setForm(current => ({ ...current, minimumNoticeMinutes: Number(event.target.value) }))} disabled={disabled || saving} /></label>
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 md:col-span-2">Até quantos dias à frente<input className={`${FIELD_CLASS} mt-1 md:max-w-xs`} type="number" min={1} max={14} value={form.schedulingHorizonDays} onChange={event => setForm(current => ({ ...current, schedulingHorizonDays: Number(event.target.value) }))} disabled={disabled || saving} /></label>
           </div>
+          </>)}
 
-          <GoogleCalendarConnect key={`google-${initial.ownerId || 'sem-responsavel'}`} tenantId={tenantId} connectionId={connectionId} disabled={disabled || saving} />
+          <GoogleCalendarConnect key={`google-${initial.ownerId || 'sem-responsavel'}`} tenantId={tenantId} connectionId={connectionId} disabled={(pairingDisabled ?? disabled) || saving} />
 
+          {hideConfig ? null : (<>
           <WeeklyAvailabilityEditor value={form.weeklyHours} disabled={disabled || saving} onChange={weeklyHours => setForm(current => ({ ...current, weeklyHours }))} />
           <CalendarBlocksPanel key={initial.ownerId || 'sem-responsavel'} tenantId={tenantId} connectionId={connectionId} disabled={disabled || saving} />
 
@@ -465,6 +476,7 @@ export function ChannelCalendarSettings({
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar agenda
             </button>
           </div>
+          </>)}
         </div>
       ) : null}
     </section>

@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   // Valor que o SERVIDOR devolve — muda para simular outro operador mexendo no mesmo numero.
   aiEnabled: true,
   signManualReplies: false,
+  canManageChannelConfig: true,
+  canPairDevices: true,
 }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
@@ -52,7 +54,8 @@ vi.mock('./useTenantDetail', () => ({
       }],
     },
     access: {
-      canManageChannelConfig: true,
+      get canManageChannelConfig() { return state.canManageChannelConfig; },
+      get canPairDevices() { return state.canPairDevices; },
       canAccessWhatsApp: true,
       canAccessConversations: true,
       canReplyConversations: true,
@@ -99,6 +102,8 @@ beforeEach(() => {
   state.connectionStatus = 'connected';
   state.aiEnabled = true;
   state.signManualReplies = false;
+  state.canManageChannelConfig = true;
+  state.canPairDevices = true;
   state.reload.mockImplementation(async () => undefined);
 });
 
@@ -323,5 +328,20 @@ describe('TenantChannelsPage — multi-numero', () => {
 
     await waitFor(() => expect(state.reload).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'IA responde automático' })).toBeChecked());
+  });
+
+  it('painel do cliente: pareia (Reparear + Google) sem ver a configuração', () => {
+    // Decisão do Junior (26/09): conexões, IA e webhook são da agência; QR e OAuth da agenda
+    // ficam com o admin do cliente. Quem só pareia não vê os controles técnicos.
+    state.canManageChannelConfig = false;
+    state.canPairDevices = true;
+
+    render(<TenantChannelsPage />);
+
+    expect(screen.getByRole('button', { name: /Reparear/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'IA responde automático' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /assinar respostas/i })).not.toBeInTheDocument();
   });
 });

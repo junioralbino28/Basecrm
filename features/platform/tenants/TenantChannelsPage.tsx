@@ -189,6 +189,8 @@ export const TenantChannelsPage: React.FC = () => {
   const { profile } = useAuth();
   const { tenantId, tenant, access, loading, error, reload } = useTenantDetail();
   const canManageChannelConfig = access.canManageChannelConfig;
+  // Parear (QR + Google Agenda) e do admin do cliente; configurar e da agencia (26/09).
+  const canPairDevices = access.canPairDevices;
   const canAccessWhatsApp = access.canAccessWhatsApp;
   const isAgencyAdmin = isAgencyAdminRole(profile?.role);
   const isTechnicalRoute = pathname.endsWith('/channels');
@@ -977,7 +979,7 @@ export const TenantChannelsPage: React.FC = () => {
                           </button>
                         ) : null}
 
-                        {canManageChannelConfig ? (
+                        {canPairDevices ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -1104,6 +1106,7 @@ export const TenantChannelsPage: React.FC = () => {
                       </>) : null}
                     </div>
 
+                    {canManageChannelConfig ? (
                     <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 dark:border-white/10 dark:bg-card dark:text-slate-100">
                       <span>
                         IA responde automático
@@ -1122,7 +1125,9 @@ export const TenantChannelsPage: React.FC = () => {
                         className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                     </label>
+                    ) : null}
 
+                    {canManageChannelConfig ? (
                     <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 dark:border-white/10 dark:bg-card dark:text-slate-100">
                       <span>
                         Assinar respostas com o nome de quem atende
@@ -1144,6 +1149,7 @@ export const TenantChannelsPage: React.FC = () => {
                         className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                     </label>
+                    ) : null}
 
                     {tenantId ? (
                       <ChannelCalendarSettings
@@ -1152,6 +1158,8 @@ export const TenantChannelsPage: React.FC = () => {
                         initialCalendar={connection.config?.calendar}
                         assignees={tenant.calendar_assignees || []}
                         disabled={!canManageChannelConfig}
+                        pairingDisabled={!canPairDevices}
+                        hideConfig={!canManageChannelConfig}
                         onSaved={reload}
                       />
                     ) : null}

@@ -50,6 +50,7 @@ export function useTenantDetail() {
   const [tenant, setTenant] = React.useState<TenantDetail | null>(null);
   const [access, setAccess] = React.useState<{
     canManageChannelConfig: boolean;
+    canPairDevices: boolean;
     canAccessWhatsApp: boolean;
     canAccessConversations: boolean;
     canReplyConversations: boolean;
@@ -57,6 +58,7 @@ export function useTenantDetail() {
     canEditAutomations: boolean;
   }>({
     canManageChannelConfig: false,
+    canPairDevices: false,
     canAccessWhatsApp: false,
     canAccessConversations: false,
     canReplyConversations: false,
@@ -81,6 +83,7 @@ export function useTenantDetail() {
       setTenant(data?.tenant || null);
       setAccess({
         canManageChannelConfig: Boolean(data?.access?.canManageChannelConfig),
+        canPairDevices: Boolean(data?.access?.canPairDevices),
         canAccessWhatsApp: Boolean(data?.access?.canAccessWhatsApp),
         canAccessConversations: Boolean(data?.access?.canAccessConversations),
         canReplyConversations: Boolean(data?.access?.canReplyConversations),
