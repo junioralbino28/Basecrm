@@ -7,7 +7,8 @@
 
 ## Objetivo
 
-Quando um lead reprovado no gate topa a Consultoria de Diagnóstico (R$597 / 3x R$210) e paga,
+Quando um lead reprovado no gate topa a Consultoria de Diagnóstico (comunicada como **3x de
+R$210** — decisão de 27/09: a oferta ancora na parcela; o à vista de R$597 só sai a pedido) e paga,
 o sistema — sem intervenção humana: identifica QUEM pagou, move o negócio para "Paga" no funil
 Consultoria de Diagnóstico, marca a consultoria de **60 minutos** na agenda dentro da
 preferência de dia/período que a Aurora combinou, cria o evento no Google (se conectado) e a

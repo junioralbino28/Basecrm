@@ -164,7 +164,9 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
   it('oferece a consultoria SO depois do nao, nunca a quem passou, com o texto aprovado', () => {
     const t = template();
     expect(t).toContain('Consultoria de Diagnóstico: uma hora com o especialista');
-    expect(t).toContain('São R$597 à vista, ou 3x de R$210');
+    // Decisao dele de 27/09 (noite): a oferta ancora na PARCELA, nunca no total.
+    expect(t).toContain('São 3 parcelas de R$210');
+    expect(t).not.toContain('São R$597');
     expect(t).toContain('esse valor vira crédito');
     expect(t).toContain('NUNCA e oferecida antes desse nao, e NUNCA a quem passou no gate');
   });
@@ -180,12 +182,18 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     expect(t).toContain('handoffType=high_intent nesse turno');
   });
 
-  it('envia os DOIS links reais do Mercado Pago na oferta aceita (criados em 27/09)', () => {
+  it('envia SO o link do parcelado por padrao; o a vista fica como resposta a pedido', () => {
     const t = template();
+    expect(t).toContain('envie SO o link do parcelado');
+    expect(t).toContain('pref_id=3597082494-dd9c8eef-2e98-4074-9ed9-14c422ed4035'); // 3x de R$210 (default)
+    expect(t).toContain('3x de R$210:');
+    expect(t).toContain('trate o preco sempre como as 3 parcelas de R$210');
+    // O a vista nao e proibido: se o lead perguntar, ela responde R$597 e manda o link a vista.
     expect(t).toContain('pref_id=3597082494-ff2c9a70-8d49-418e-878d-efb22c3b57a2'); // R$597 a vista
-    expect(t).toContain('pref_id=3597082494-dd9c8eef-2e98-4074-9ed9-14c422ed4035'); // 3x de R$210
+    expect(t).toContain('se o lead PERGUNTAR quanto fica a vista');
+    expect(t).toContain('responda normalmente que a vista sao R$597');
     expect(t).toContain('À vista (R$597):');
-    expect(t).toContain('Em 3x de R$210:');
+    expect(t).not.toContain('envie os DOIS links');
     // Preco antigo (997/350, trocado por decisao dele em 27/09) nao pode sobrar no template:
     expect(t).not.toContain('997');
     expect(t).not.toContain('R$350');
