@@ -168,10 +168,14 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
     expect(t).toContain('NUNCA e oferecida antes desse nao, e NUNCA a quem passou no gate');
   });
 
-  it('no caminho da consultoria nao agenda: hora so depois do pagamento, e link vai via handoff', () => {
+  it('na consultoria combina a PREFERENCIA de hora, mas so confirma depois do pagamento (ajuste dele, 27/09)', () => {
     const t = template();
+    expect(t).toContain('combine a PREFERENCIA de dia e periodo');
+    expect(t).toContain('sem usar os horarios livres da agenda do contexto');
+    expect(t).toContain('so e CONFIRMADA depois que o pagamento cair');
+    expect(t).toContain('nunca diga que esta agendado antes da confirmacao do pagamento');
     expect(t).toContain('nunca use handoffType=meeting_confirmed nesse caminho');
-    expect(t).toContain('marcada pela equipe DEPOIS de o pagamento ser confirmado');
+    expect(t).toContain('devolva essa preferencia em requestedScheduleText');
     expect(t).toContain('a equipe envia o link de pagamento');
     expect(t).toContain('handoffType=high_intent nesse turno');
   });
