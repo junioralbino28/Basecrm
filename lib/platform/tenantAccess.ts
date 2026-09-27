@@ -61,5 +61,6 @@ export async function requireTenantAccess(tenantId: string, options: TenantAcces
     permissions,
     permissionOverrides,
     canManageChannelConfig: permissions['whatsapp.manage_connection'],
+    canPairDevices: permissions['whatsapp.pair_devices'],
   };
 }

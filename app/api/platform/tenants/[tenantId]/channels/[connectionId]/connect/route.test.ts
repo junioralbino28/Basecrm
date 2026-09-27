@@ -125,7 +125,7 @@ describe('POST connect', () => {
 
     expect(response.status).toBe(200);
     expect(requireTenantAccessMock).toHaveBeenCalledWith(TENANT, {
-      requiredPermissions: ['whatsapp.manage_connection'],
+      requiredPermissions: ['whatsapp.pair_devices'],
     });
     expect(createEvolutionInstanceMock).toHaveBeenCalledWith({
       apiUrl: 'https://evolution.example.com',

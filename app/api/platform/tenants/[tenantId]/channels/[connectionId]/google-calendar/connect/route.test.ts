@@ -75,9 +75,9 @@ describe('POST google-calendar/connect', () => {
     expect(createGoogleOAuthStateMock).not.toHaveBeenCalled();
   });
 
-  it('exige permissao whatsapp.manage_connection', async () => {
+  it('exige permissao whatsapp.pair_devices — parear e do admin do cliente (26/09)', async () => {
     await POST(request(), { params: Promise.resolve({ tenantId: TENANT, connectionId: CONNECTION }) });
-    expect(requireTenantAccessMock).toHaveBeenCalledWith(TENANT, { requiredPermissions: ['whatsapp.manage_connection'] });
+    expect(requireTenantAccessMock).toHaveBeenCalledWith(TENANT, { requiredPermissions: ['whatsapp.pair_devices'] });
   });
 
   it('sem GOOGLE_OAUTH_CLIENT_ID/SECRET, devolve 503 "nao configurado"', async () => {

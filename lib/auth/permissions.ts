@@ -17,6 +17,7 @@ export const APP_PERMISSIONS = [
   'conversations.reply',
   'whatsapp.access',
   'whatsapp.manage_connection',
+  'whatsapp.pair_devices',
   // Atividades e Tarefas
   'activities.view',
   'activities.manage',
@@ -84,6 +85,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'conversations.reply', label: 'Responder conversas', description: 'Enviar mensagens, registrar saida e notas internas na conversa.', group: 'Conversas e WhatsApp' },
   { key: 'whatsapp.access', label: 'WhatsApp', description: 'Abrir a area do WhatsApp, gerar QR code, testar conexao e reconectar o numero.', group: 'Conversas e WhatsApp' },
   { key: 'whatsapp.manage_connection', label: 'Configurar WhatsApp', description: 'Editar API URL, instance, chave e configuracoes estruturais da conexao.', group: 'Conversas e WhatsApp' },
+  { key: 'whatsapp.pair_devices', label: 'Parear aparelho e agenda', description: 'Escanear o QR code do WhatsApp e conectar/desconectar o Google Agenda do numero. Nao permite mexer na configuracao tecnica.', group: 'Conversas e WhatsApp' },
   // Atividades e Tarefas
   { key: 'activities.view', label: 'Ver atividades', description: 'Acompanhar o histórico e a linha do tempo de atividades.', group: 'Atividades e Tarefas' },
   { key: 'activities.manage', label: 'Gerenciar atividades', description: 'Criar, editar e concluir atividades.', group: 'Atividades e Tarefas' },
@@ -146,6 +148,7 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
   'funnels.manage',
   'whatsapp.access',
   'whatsapp.manage_connection',
+  'whatsapp.pair_devices',
   'reports.view',
   'reports.finance',
   'reports.professionals',
@@ -171,7 +174,13 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
  * A chave de API é da agência e o custo corre por ela; o prompt é o comportamento que a agência
  * vende e pelo qual responde.
  */
-const CLINIC_ADMIN_DENIED: readonly AppPermission[] = ['ai.configure'];
+/**
+ * 26/09/2026, decisao do Junior: "as conexoes, configuracao de IA, webhook, ficam APENAS na
+ * agencia — mas isso de OAuth da agenda e conectar whatsapp com QR code pode deixar" com o
+ * admin do cliente. Por isso ele perde `manage_connection` (Evolution/IA/webhook por numero)
+ * e ganha `pair_devices` (QR + Google Agenda), que nasce separada exatamente para isto.
+ */
+const CLINIC_ADMIN_DENIED: readonly AppPermission[] = ['ai.configure', 'whatsapp.manage_connection'];
 
 /** Equipe da agência: amplo, mas sem configurar conexão nem áreas mais sensíveis. */
 const AGENCY_STAFF_DENIED: readonly AppPermission[] = [

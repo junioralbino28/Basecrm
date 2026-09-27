@@ -29,7 +29,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
   const { tenantId, connectionId } = await ctx.params;
   const auth = await requireTenantAccess(tenantId, {
-    requiredPermissions: ['whatsapp.manage_connection'],
+    requiredPermissions: ['whatsapp.pair_devices'],
   });
   if ('error' in auth) return auth.error;
 

@@ -63,12 +63,14 @@ describe('ROLE_PERMISSION_DEFAULTS — completude e defaults', () => {
     }
   });
 
-  it('agency_admin tem TUDO liberado; clinic_admin tem tudo menos configurar a IA', () => {
+  it('agency_admin tem TUDO liberado; clinic_admin tem tudo menos configurar IA e conexão', () => {
     for (const key of APP_PERMISSIONS) {
       expect(ROLE_PERMISSION_DEFAULTS.agency_admin[key], `agency_admin.${key}`).toBe(true);
       // C2B (Junior, 17/09/2026): o motor de IA é da agência — provedor, chave, modelo e
       // prompt. O admin do cliente manda em todo o resto e pode PAUSAR a IA.
-      const esperado = key !== 'ai.configure';
+      // 26/09/2026: a configuração da CONEXÃO (Evolution/IA por número/webhook) também é da
+      // agência; o cliente fica com o pareamento (QR + Google Agenda), que é permissão própria.
+      const esperado = key !== 'ai.configure' && key !== 'whatsapp.manage_connection';
       expect(ROLE_PERMISSION_DEFAULTS.clinic_admin[key], `clinic_admin.${key}`).toBe(esperado);
     }
     expect(ROLE_PERMISSION_DEFAULTS.clinic_admin['ai.pause']).toBe(true);
@@ -157,5 +159,29 @@ describe('overrides e hasPermission continuam funcionando com chaves novas', () 
       'automation.operate',
       { 'automation.operate': true },
     )).toBe(true);
+  });
+});
+
+describe('parear aparelho e agenda e do CLIENTE; configurar conexao e da AGENCIA (decisao do Junior, 26/09)', () => {
+  // "as conexoes, configuracao de IA, webhook, ficam APENAS na agencia... mas isso de OAuth da
+  // agenda e conectar whatsapp com QR code pode deixar" com o admin do cliente.
+  it('clinic_admin pareia (QR + Google Agenda) mas NAO configura a conexao', () => {
+    const map = getDefaultPermissionMap('clinic_admin');
+    expect(map['whatsapp.pair_devices']).toBe(true);
+    expect(map['whatsapp.manage_connection']).toBe(false);
+  });
+
+  it('agencia continua com as duas', () => {
+    for (const role of ['agency_admin', 'admin']) {
+      const map = getDefaultPermissionMap(role);
+      expect(map['whatsapp.pair_devices'], role).toBe(true);
+      expect(map['whatsapp.manage_connection'], role).toBe(true);
+    }
+  });
+
+  it('clinic_staff nao pareia nem configura', () => {
+    const map = getDefaultPermissionMap('clinic_staff');
+    expect(map['whatsapp.pair_devices']).toBe(false);
+    expect(map['whatsapp.manage_connection']).toBe(false);
   });
 });

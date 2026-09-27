@@ -33,7 +33,7 @@ const CorpoSchema = z.object({
 export async function PUT(req: Request, ctx: { params: Promise<{ tenantId: string; connectionId: string }> }) {
   const { tenantId, connectionId } = await ctx.params;
   const auth = await requireTenantAccess(tenantId, {
-    requiredPermissions: ['whatsapp.manage_connection'],
+    requiredPermissions: ['whatsapp.pair_devices'],
   });
   if ('error' in auth) return auth.error;
 

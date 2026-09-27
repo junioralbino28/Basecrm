@@ -60,6 +60,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
     },
     access: {
       canManageChannelConfig: auth.canManageChannelConfig,
+      canPairDevices: auth.permissions['whatsapp.pair_devices'],
       canAccessWhatsApp: auth.permissions['whatsapp.access'],
       canAccessConversations: auth.permissions['conversations.access'],
       canReplyConversations: auth.permissions['conversations.reply'],
