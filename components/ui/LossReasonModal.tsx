@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useId } from 'react';
-import { X, ThumbsDown, DollarSign, Users, Clock, HelpCircle } from 'lucide-react';
+import { X, ThumbsDown, DollarSign, Users, Clock, HelpCircle, Wallet } from 'lucide-react';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
 
 interface LossReasonModalProps {
@@ -13,6 +13,9 @@ const QUICK_REASONS = [
   { label: 'Preço', icon: DollarSign, value: 'Preço muito alto' },
   { label: 'Concorrência', icon: Users, value: 'Perdeu para concorrente' },
   { label: 'Timing', icon: Clock, value: 'Momento inadequado' },
+  // Gate de capacidade (27/09): lead sem verba/condicao de investir agora. Vale para
+  // qualquer cliente do CRM, nao so para o funil da Cenoura Hub.
+  { label: 'Sem capacidade', icon: Wallet, value: 'Sem capacidade' },
   { label: 'Desistência', icon: X, value: 'Cliente desistiu' },
   { label: 'Outro', icon: HelpCircle, value: '' },
 ];

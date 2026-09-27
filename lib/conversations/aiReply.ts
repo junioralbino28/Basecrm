@@ -10,6 +10,7 @@ import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { loadConversationThreadInboxItem } from '@/lib/conversations/server';
+import { aplicarGateCapacidade } from '@/lib/conversations/gateCapacidade';
 import {
   DEFAULT_MEETING_HOST_NAME,
   formatLocalDateTimeForPrompt,
@@ -120,6 +121,10 @@ export const ConversationAutoReplySchema = z.object({
   // mostrava "Sem empresa" sem nenhum jeito de mudar (Junior, 24/09).
   leadCompany: z.string().max(120).nullable().optional()
     .describe('Nome da empresa onde o lead trabalha, como ele falou, ou null'),
+  // Gate de capacidade (27/09): a campanha le o resultado por anuncio de origem. So o prompt da
+  // Cenoura Hub instrui este campo; nos outros ele simplesmente nunca vem.
+  capacityGate: z.enum(['passed', 'failed', 'unanswered']).nullable().optional()
+    .describe('Resultado da pergunta de capacidade decidido NESTA mensagem, ou null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -144,6 +149,8 @@ export type ConversationAIReplyPayload = {
   leadName?: string | null;
   /** Empresa ONDE ele trabalha (o ramo continua em leadSegment). */
   leadCompany?: string | null;
+  /** Resultado do gate de capacidade decidido neste turno (Cenoura Hub, 27/09). */
+  capacityGate?: 'passed' | 'failed' | 'unanswered' | null;
 };
 
 export function formatRecentMessages(messages: RecentMessage[]) {
@@ -566,6 +573,7 @@ export async function generateConversationAutoReply(params: {
       leadSegment: normalizeLeadSegment(generated.leadSegment),
       leadName: normalizeLeadName(generated.leadName),
       leadCompany: normalizeLeadCompany(generated.leadCompany),
+      capacityGate: generated.capacityGate ?? null,
     },
   };
 }
@@ -1013,13 +1021,22 @@ export async function executeConversationAIReply(params: {
         }),
       });
 
+  // Gate de capacidade (27/09): grava o resultado do turno na conversa — e a campanha le por
+  // anuncio de origem. Turno sem gate (capacityGate null) passa direto, inclusive encerramento.
+  const nextMetadataComGate = aplicarGateCapacidade(
+    nextMetadata,
+    thread.metadata,
+    payload.capacityGate,
+    now,
+  );
+
   const threadUpdateBase = admin
     .from('conversation_threads')
     .update({
       status: nextStatus,
       last_message_at: now,
       updated_at: now,
-      metadata: nextMetadata,
+      metadata: nextMetadataComGate,
     })
     .eq('id', payload.threadId)
     .eq('organization_id', activeConnection.organization_id);
@@ -1065,7 +1082,8 @@ export async function executeConversationAIReply(params: {
       eventId: payload.notificationEventId || `${payload.threadId}:${now}`,
       contactLabel: thread.contact_name || thread.contact_phone || 'Lead',
       stage: 'delivery',
-      metadata: nextMetadata,
+      // O gate vem da mensagem do LEAD, entao vale mesmo com a entrega da resposta falhando.
+      metadata: nextMetadataComGate,
       errorMessage: deliveryWarning,
     });
     if (!failureResult.ok) {

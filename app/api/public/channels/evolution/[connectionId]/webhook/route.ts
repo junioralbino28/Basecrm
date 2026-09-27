@@ -263,6 +263,12 @@ export async function processDeferredAIReply(params: {
           requestedScheduleText: nativeReply.object.requestedScheduleText,
           leadEmail: nativeReply.object.leadEmail,
           leadSegment: nativeReply.object.leadSegment,
+          // Conserto (27/09): o modelo ja devolvia leadName/leadCompany e o dispatch ja os
+          // consumia, mas este montador — o unico do caminho nativo — nao os copiava; as
+          // features de 24/09 (nome de quem se apresenta, empresa no card) morriam aqui.
+          leadName: nativeReply.object.leadName,
+          leadCompany: nativeReply.object.leadCompany,
+          capacityGate: nativeReply.object.capacityGate,
           notificationEventId: insertedMessageId,
           authorName: agentName,
           metadata: {

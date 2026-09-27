@@ -9,7 +9,9 @@ describe('prompt da Aurora', () => {
     expect(prompt.defaultTemplate).toContain('Aurora');
     expect(prompt.defaultTemplate).toContain('Cenoura Hub');
     expect(prompt.defaultTemplate).toContain('uma pergunta por vez');
-    expect(prompt.defaultTemplate).toContain('nao mencione um valor minimo de investimento');
+    // 27/09: o valor minimo PASSOU a ser dito, mas so na pergunta-gate; fora dela segue proibido.
+    expect(prompt.defaultTemplate).toContain('aparece SO na pergunta de capacidade do gate');
+    expect(prompt.defaultTemplate).not.toContain('nao mencione um valor minimo de investimento de forma proativa');
     expect(prompt.defaultTemplate).toContain('nunca invente horarios');
     expect(prompt.defaultTemplate).toContain('duracao prevista de 40 minutos');
     expect(prompt.defaultTemplate).toContain('inicios separados por 60 minutos');
@@ -141,5 +143,56 @@ describe('prompt da Aurora — correcoes dos primeiros leads reais (23/09)', () 
     expect(t).toContain('o lead nunca ouviu falar de {{meetingHostName}}');
     expect(t).toContain('especialista da nossa assessoria');
     expect(t).toContain('Nunca solte so o primeiro nome');
+  });
+});
+
+describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/09)', () => {
+  const template = () =>
+    getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+  it('faz a pergunta de capacidade ANTES de propor reuniao, com o texto aprovado', () => {
+    const t = template();
+    expect(t).toContain('GATE DE CAPACIDADE E CONSULTORIA');
+    expect(t).toContain('verba mínima de R$1.000 por mês, que vai direto pra Meta');
+    expect(t).toContain('Isso cabe no seu momento agora?');
+    expect(t).toContain('nunca proponha reuniao sem ter feito essa pergunta');
+    // O gate vem antes da secao de reuniao no proprio template.
+    expect(t.indexOf('GATE DE CAPACIDADE')).toBeLessThan(t.indexOf('OBJETIVO E REUNIAO'));
+  });
+
+  it('oferece a consultoria SO depois do nao, nunca a quem passou, com o texto aprovado', () => {
+    const t = template();
+    expect(t).toContain('Consultoria de Diagnóstico: uma hora com o especialista');
+    expect(t).toContain('São R$997 à vista, ou 3x de R$350');
+    expect(t).toContain('esse valor vira crédito');
+    expect(t).toContain('NUNCA e oferecida antes desse nao, e NUNCA a quem passou no gate');
+  });
+
+  it('no caminho da consultoria nao agenda: hora so depois do pagamento, e link vai via handoff', () => {
+    const t = template();
+    expect(t).toContain('nunca use handoffType=meeting_confirmed nesse caminho');
+    expect(t).toContain('marcada pela equipe DEPOIS de o pagamento ser confirmado');
+    expect(t).toContain('a equipe envia o link de pagamento');
+    expect(t).toContain('handoffType=high_intent nesse turno');
+  });
+
+  it('o preco do SERVICO continua sem ser dito, e o objetivo ganhou os dois ramos', () => {
+    const t = template();
+    expect(t).toContain('nunca diga um valor do servico');
+    expect(t).toContain('marcar a reuniao com quem passou no gate de capacidade');
+    expect(t).toContain('com quem nao passou, seu objetivo e a Consultoria de Diagnostico');
+  });
+
+  it('instrui o campo capacityGate no retorno estruturado', () => {
+    const t = template();
+    expect(t).toContain('- capacityGate: passed quando o lead confirmar');
+    expect(t).toContain('unanswered quando ele desviar');
+  });
+
+  it('o gate e SO da Cenoura Hub: o prompt padrao dos outros clientes nao ganhou gate', () => {
+    const padrao = getPromptCatalogMap().task_conversations_whatsapp_auto_reply.defaultTemplate;
+    expect(padrao).not.toContain('GATE DE CAPACIDADE');
+    expect(padrao).not.toContain('capacityGate');
+    expect(padrao).not.toContain('R$997');
   });
 });
