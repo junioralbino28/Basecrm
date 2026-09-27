@@ -70,7 +70,9 @@ describe('ROLE_PERMISSION_DEFAULTS — completude e defaults', () => {
       // prompt. O admin do cliente manda em todo o resto e pode PAUSAR a IA.
       // 26/09/2026: a configuração da CONEXÃO (Evolution/IA por número/webhook) também é da
       // agência; o cliente fica com o pareamento (QR + Google Agenda), que é permissão própria.
-      const esperado = key !== 'ai.configure' && key !== 'whatsapp.manage_connection';
+      // 27/09/2026 ("1 tambem"): a aba Integrações inteira (API, MCP, webhooks) sai do cliente.
+      const negadas = ['ai.configure', 'whatsapp.manage_connection', 'settings.integrations'];
+      const esperado = !negadas.includes(key);
       expect(ROLE_PERMISSION_DEFAULTS.clinic_admin[key], `clinic_admin.${key}`).toBe(esperado);
     }
     expect(ROLE_PERMISSION_DEFAULTS.clinic_admin['ai.pause']).toBe(true);
@@ -183,5 +185,14 @@ describe('parear aparelho e agenda e do CLIENTE; configurar conexao e da AGENCIA
     const map = getDefaultPermissionMap('clinic_staff');
     expect(map['whatsapp.pair_devices']).toBe(false);
     expect(map['whatsapp.manage_connection']).toBe(false);
+  });
+
+  // 27/09/2026 ("1 tambem"): a aba Integracoes inteira — API, MCP e webhooks — e da agencia.
+  it('Integracoes (API/MCP/webhooks) some do cliente e fica na agencia', () => {
+    expect(getDefaultPermissionMap('clinic_admin')['settings.integrations']).toBe(false);
+    expect(getDefaultPermissionMap('clinic_staff')['settings.integrations']).toBe(false);
+    for (const role of ['agency_admin', 'admin', 'agency_staff']) {
+      expect(getDefaultPermissionMap(role)['settings.integrations'], role).toBe(true);
+    }
   });
 });

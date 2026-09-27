@@ -144,7 +144,7 @@ values
   (5, 'clinic_admin', 'settings.products', true),
   (5, 'clinic_admin', 'settings.professionals', true),
   (5, 'clinic_admin', 'settings.finance', true),
-  (5, 'clinic_admin', 'settings.integrations', true),
+  (5, 'clinic_admin', 'settings.integrations', false),
   (5, 'clinic_admin', 'settings.audit', true),
   (5, 'clinic_admin', 'settings.users.manage', true),
   (5, 'clinic_staff', 'dashboard.view', true),
@@ -437,6 +437,30 @@ begin
       and enabled
   ) then
     raise exception 'clinic_staff nao deveria parear na v5';
+  end if;
+
+  -- 27/09/2026 ("1 tambem"): a aba Integrações inteira — API, MCP e webhooks — é da agência.
+  -- A v4 congelada guarda o mundo antigo (clinic_admin via a aba); a v5 nega.
+  if not exists (
+    select 1
+    from public.role_permission_defaults
+    where defaults_version = 4
+      and role = 'clinic_admin'
+      and permission_key = 'settings.integrations'
+      and enabled
+  ) then
+    raise exception 'clinic_admin deveria continuar com settings.integrations na v4';
+  end if;
+
+  if exists (
+    select 1
+    from public.role_permission_defaults
+    where defaults_version = 5
+      and role = 'clinic_admin'
+      and permission_key = 'settings.integrations'
+      and enabled
+  ) then
+    raise exception 'clinic_admin ficou com settings.integrations na v5';
   end if;
 end;
 $$;

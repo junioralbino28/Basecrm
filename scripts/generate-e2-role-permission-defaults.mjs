@@ -30,6 +30,12 @@ const DESVIO_C2B_GOVERNANCA_IA = 'clinic_admin:ai.configure';
  * o cliente fica com `whatsapp.pair_devices` (QR + Google Agenda), criada na mesma decisao.
  */
 const DESVIO_PAREAMENTO = 'clinic_admin:whatsapp.manage_connection';
+/**
+ * Mudanca intencional das INTEGRACOES (Junior, 27/09/2026, "1 tambem"): `settings.integrations`
+ * (aba API/MCP/webhooks) deixa de nascer ligada para o admin do cliente — chave de API e MCP
+ * viram operacao da agencia (migration 20260927000000 alinha as guardas de api_keys no banco).
+ */
+const DESVIO_INTEGRACOES = 'clinic_admin:settings.integrations';
 const FROZEN_SNAPSHOTS = [
   {
     version: 1,
@@ -45,6 +51,7 @@ const FROZEN_SNAPSHOTS = [
       'vendedor:automation.operate',
       DESVIO_C2B_GOVERNANCA_IA,
       DESVIO_PAREAMENTO,
+      DESVIO_INTEGRACOES,
     ]),
   },
   {
@@ -56,7 +63,7 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260720020000_e3_role_defaults_v2.sql',
     ),
-    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO]),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO, DESVIO_INTEGRACOES]),
   },
   {
     version: 3,
@@ -67,7 +74,7 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260722000000_c2a_permission_defaults_v3.sql',
     ),
-    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO]),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO, DESVIO_INTEGRACOES]),
   },
   {
     version: 4,
@@ -78,8 +85,8 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260917000000_c2b_permission_defaults_v4_governanca_ia.sql',
     ),
-    // A v4 ja carrega a C2B (ai.configure desligada); o unico desvio dela e o pareamento.
-    allowedValueDrift: new Set([DESVIO_PAREAMENTO]),
+    // A v4 ja carrega a C2B (ai.configure desligada); desvios dela: pareamento e integracoes.
+    allowedValueDrift: new Set([DESVIO_PAREAMENTO, DESVIO_INTEGRACOES]),
   },
 ];
 
@@ -261,12 +268,12 @@ async function main() {
         'Snapshot SQL desatualizado. Rode npm run e2:permissions:snapshot:write e revise o diff.',
       );
     }
-    process.stdout.write('Snapshots v1/v2 congelados e v3 ativo validados.\n');
+    process.stdout.write(`Snapshots v1-v${DEFAULTS_VERSION - 1} congelados e v${DEFAULTS_VERSION} ativo validados.\n`);
     return;
   }
 
   writeFileSync(MIGRATION_PATH, expectedSql, 'utf8');
-  process.stdout.write(`Snapshot C2A v3 atualizado em ${MIGRATION_PATH}.\n`);
+  process.stdout.write(`Snapshot v${DEFAULTS_VERSION} atualizado em ${MIGRATION_PATH}.\n`);
 }
 
 const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

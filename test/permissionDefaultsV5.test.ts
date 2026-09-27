@@ -55,6 +55,14 @@ describe('PAREAMENTO — migration v5', () => {
     expect(sql).toContain("(5, 'agency_admin', 'whatsapp.pair_devices', true)");
   });
 
+  // 27/09/2026 ("1 tambem"): Integrações (API/MCP/webhooks) some do admin do cliente.
+  it('nega settings.integrations ao clinic_admin na v5, com a prova na migration', () => {
+    expect(sql).toContain("(5, 'clinic_admin', 'settings.integrations', false)");
+    expect(sql).toContain("(5, 'agency_admin', 'settings.integrations', true)");
+    expect(sql).toContain('clinic_admin deveria continuar com settings.integrations na v4');
+    expect(sql).toContain('clinic_admin ficou com settings.integrations na v5');
+  });
+
   it('nao e destrutiva', () => {
     expect(sql).not.toMatch(/\bDROP\b/i);
     expect(sql).not.toMatch(/\bTRUNCATE\b/i);

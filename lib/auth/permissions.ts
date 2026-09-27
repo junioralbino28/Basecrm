@@ -179,8 +179,16 @@ const CLINIC_STAFF_DENIED: readonly AppPermission[] = [
  * agencia — mas isso de OAuth da agenda e conectar whatsapp com QR code pode deixar" com o
  * admin do cliente. Por isso ele perde `manage_connection` (Evolution/IA/webhook por numero)
  * e ganha `pair_devices` (QR + Google Agenda), que nasce separada exatamente para isto.
+ *
+ * 27/09/2026, confirmacao dele ("1 tambem"): a aba Integracoes INTEIRA — API, MCP e webhooks —
+ * some do admin do cliente. Chave de API e MCP passam a ser operacao da agencia; a migration
+ * 20260927000000 alinha o banco (policies e RPCs de api_keys).
  */
-const CLINIC_ADMIN_DENIED: readonly AppPermission[] = ['ai.configure', 'whatsapp.manage_connection'];
+const CLINIC_ADMIN_DENIED: readonly AppPermission[] = [
+  'ai.configure',
+  'whatsapp.manage_connection',
+  'settings.integrations',
+];
 
 /** Equipe da agência: amplo, mas sem configurar conexão nem áreas mais sensíveis. */
 const AGENCY_STAFF_DENIED: readonly AppPermission[] = [

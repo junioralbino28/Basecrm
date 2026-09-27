@@ -20,7 +20,13 @@ import { shouldLoadTestEnvFiles } from './helpers/env';
 const DESVIO_C2B_POR_CARGO: Record<string, Record<string, boolean>> = {
   // + PAREAMENTO (Junior, 26/09/2026): `whatsapp.manage_connection` saiu do admin do cliente
   // (conexoes/IA/webhook sao da agencia); nos snapshots congelados ela ainda nasce ligada.
-  clinic_admin: { 'ai.configure': true, 'whatsapp.manage_connection': true },
+  // + INTEGRACOES (Junior, 27/09/2026, "1 tambem"): `settings.integrations` (aba API/MCP/
+  // webhooks) tambem saiu do admin do cliente; congelados guardam o valor antigo.
+  clinic_admin: {
+    'ai.configure': true,
+    'whatsapp.manage_connection': true,
+    'settings.integrations': true,
+  },
 };
 
 function valoresCongelados(role: string): Record<string, boolean> {
