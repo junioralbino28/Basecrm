@@ -18,7 +18,9 @@ import { shouldLoadTestEnvFiles } from './helpers/env';
  * carrega a decisão nova (ver test/c2bGovernancaIa.test.ts).
  */
 const DESVIO_C2B_POR_CARGO: Record<string, Record<string, boolean>> = {
-  clinic_admin: { 'ai.configure': true },
+  // + PAREAMENTO (Junior, 26/09/2026): `whatsapp.manage_connection` saiu do admin do cliente
+  // (conexoes/IA/webhook sao da agencia); nos snapshots congelados ela ainda nasce ligada.
+  clinic_admin: { 'ai.configure': true, 'whatsapp.manage_connection': true },
 };
 
 function valoresCongelados(role: string): Record<string, boolean> {

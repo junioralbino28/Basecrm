@@ -77,7 +77,9 @@ describe('C2B — migration v4', () => {
 
   it('materializa a v4 completa e ativa atomicamente', () => {
     expect(existsSync(V4_PATH), 'migration v4').toBe(true);
-    expect(tupleCount(sql, 4)).toBe(ROLES.length * APP_PERMISSIONS.length);
+    // A v4 esta CONGELADA em 42 permissoes; o catalogo cresceu depois com
+    // `whatsapp.pair_devices` (pareamento, 26/09/2026 — ver a migration v5).
+    expect(tupleCount(sql, 4)).toBe(ROLES.length * 42);
     expect(sql).toContain('set active_version = 4');
     expect(sql).toContain('v_active_version <> 3'); // exige a v3 ativa antes
     expect(sql).toContain('v_v4_rows <> 252');

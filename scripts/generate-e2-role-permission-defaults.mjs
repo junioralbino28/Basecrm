@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-const DEFAULTS_VERSION = 4;
+const DEFAULTS_VERSION = 5;
 const EXPECTED_ROLES = [
   'agency_admin',
   'agency_staff',
@@ -12,11 +12,11 @@ const EXPECTED_ROLES = [
   'admin',
   'vendedor',
 ];
-const START_MARKER = '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:START';
-const END_MARKER = '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:END';
+const START_MARKER = '-- PAREAMENTO_ROLE_PERMISSION_DEFAULTS_V5:START';
+const END_MARKER = '-- PAREAMENTO_ROLE_PERMISSION_DEFAULTS_V5:END';
 const MIGRATION_PATH = resolve(
   process.cwd(),
-  'supabase/migrations/20260917000000_c2b_permission_defaults_v4_governanca_ia.sql',
+  'supabase/migrations/20260926000000_permission_defaults_v5_pareamento.sql',
 );
 /**
  * Mudança intencional da C2B (Junior, 17/09/2026): `ai.configure` deixa de nascer ligada para
@@ -24,6 +24,12 @@ const MIGRATION_PATH = resolve(
  * congelados guardam o valor antigo, o desvio precisa ser declarado em cada um deles.
  */
 const DESVIO_C2B_GOVERNANCA_IA = 'clinic_admin:ai.configure';
+/**
+ * Mudanca intencional do PAREAMENTO (Junior, 26/09/2026): `whatsapp.manage_connection` deixa
+ * de nascer ligada para o admin do cliente — conexoes, IA por numero e webhook sao da agencia;
+ * o cliente fica com `whatsapp.pair_devices` (QR + Google Agenda), criada na mesma decisao.
+ */
+const DESVIO_PAREAMENTO = 'clinic_admin:whatsapp.manage_connection';
 const FROZEN_SNAPSHOTS = [
   {
     version: 1,
@@ -38,6 +44,7 @@ const FROZEN_SNAPSHOTS = [
       'clinic_staff:automation.operate',
       'vendedor:automation.operate',
       DESVIO_C2B_GOVERNANCA_IA,
+      DESVIO_PAREAMENTO,
     ]),
   },
   {
@@ -49,7 +56,7 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260720020000_e3_role_defaults_v2.sql',
     ),
-    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA]),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO]),
   },
   {
     version: 3,
@@ -60,7 +67,19 @@ const FROZEN_SNAPSHOTS = [
       process.cwd(),
       'supabase/migrations/20260722000000_c2a_permission_defaults_v3.sql',
     ),
-    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA]),
+    allowedValueDrift: new Set([DESVIO_C2B_GOVERNANCA_IA, DESVIO_PAREAMENTO]),
+  },
+  {
+    version: 4,
+    permissionCount: 42,
+    startMarker: '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:START',
+    endMarker: '-- C2B_ROLE_PERMISSION_DEFAULTS_V4:END',
+    path: resolve(
+      process.cwd(),
+      'supabase/migrations/20260917000000_c2b_permission_defaults_v4_governanca_ia.sql',
+    ),
+    // A v4 ja carrega a C2B (ai.configure desligada); o unico desvio dela e o pareamento.
+    allowedValueDrift: new Set([DESVIO_PAREAMENTO]),
   },
 ];
 

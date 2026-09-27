@@ -42,8 +42,9 @@ function tupleCount(sql: string, version: number): number {
 
 describe('C2A — defaults de permissões v3', () => {
   it('adiciona as quatro permissões próprias ao catálogo', () => {
-    // 41 na C2A + `ai.pause` da C2B (governança do motor de IA, 17/09/2026).
-    expect(APP_PERMISSIONS).toHaveLength(42);
+    // 41 na C2A + `ai.pause` da C2B (17/09/2026) + `whatsapp.pair_devices` do
+    // pareamento (26/09/2026).
+    expect(APP_PERMISSIONS).toHaveLength(43);
     expect(APP_PERMISSIONS).toEqual(expect.arrayContaining(NEW_PERMISSIONS));
   });
 
