@@ -20,7 +20,7 @@ import PageLoader from '@/components/PageLoader';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { isAgencyRole } from '@/lib/auth/scope';
+import { isAgencyAdminRole, isAgencyRole } from '@/lib/auth/scope';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Stethoscope, DollarSign, FileSpreadsheet, Tag as TagIcon } from 'lucide-react';
 
@@ -167,12 +167,16 @@ const ProfessionalsSettings: React.FC = () => {
 
 const IntegrationsSettings: React.FC = () => {
   type IntegrationsSubTab = 'api' | 'webhooks' | 'mcp';
+  const { profile } = useAuth();
+  // Webhook e da agencia (26/09); a RLS do banco ja nega o cliente — sem a sub-aba, ele
+  // nao encontra uma tela que so falharia vazia.
+  const mostraWebhooks = isAgencyAdminRole(profile?.role);
   const [subTab, setSubTab] = useState<IntegrationsSubTab>('api');
 
   useEffect(() => {
     const syncFromHash = () => {
     const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-    if (h === 'webhooks' || h === 'api' || h === 'mcp') setSubTab(h as IntegrationsSubTab);
+    if ((h === 'webhooks' && mostraWebhooks) || h === 'api' || h === 'mcp') setSubTab(h as IntegrationsSubTab);
     };
 
     syncFromHash();
@@ -196,7 +200,7 @@ const IntegrationsSettings: React.FC = () => {
     <div className="pb-10">
       <div className="flex items-center gap-2 mb-6">
         {([
-          { id: 'webhooks' as const, label: 'Webhooks' },
+          ...(mostraWebhooks ? [{ id: 'webhooks' as const, label: 'Webhooks' }] : []),
           { id: 'api' as const, label: 'API' },
           { id: 'mcp' as const, label: 'MCP' },
         ] as const).map((t) => {
@@ -219,7 +223,7 @@ const IntegrationsSettings: React.FC = () => {
       </div>
 
       {subTab === 'api' && <ApiKeysSection />}
-      {subTab === 'webhooks' && <WebhooksSection />}
+      {subTab === 'webhooks' && mostraWebhooks && <WebhooksSection />}
       {subTab === 'mcp' && <McpSection />}
     </div>
   );

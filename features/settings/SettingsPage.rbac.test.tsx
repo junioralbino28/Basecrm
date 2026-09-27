@@ -262,3 +262,22 @@ describe('SettingsPage permissions', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
+
+describe('sub-aba Webhooks é da agência (decisão do Junior, 26/09)', () => {
+  // A RLS de integration_inbound_sources/outbound_endpoints já só aceita role 'admin' no banco;
+  // sem esconder a sub-aba, o admin do cliente encontrava uma tela que falhava vazia.
+  it('admin do cliente não vê a sub-aba Webhooks dentro de Integrações', () => {
+    testState.role = 'clinic_admin'
+    render(<SettingsPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^Integrações$/i }))
+    expect(screen.queryByRole('button', { name: /^Webhooks$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^API$/i })).toBeInTheDocument()
+  })
+
+  it('agência vê a sub-aba Webhooks', () => {
+    testState.role = 'agency_admin'
+    render(<SettingsPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^Integrações$/i }))
+    expect(screen.getByRole('button', { name: /^Webhooks$/i })).toBeInTheDocument()
+  })
+})

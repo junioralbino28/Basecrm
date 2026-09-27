@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { cn } from '@/lib/utils/cn';
 import { useTenant } from '@/context/TenantContext';
-import { canManageClinicSettings } from '@/lib/auth/scope';
+import { isAgencyAdminRole } from '@/lib/auth/scope';
 
 type InboundSourceRow = {
   id: string;
@@ -111,7 +111,10 @@ export const WebhooksSection: React.FC = () => {
   const [confirmDeleteOutboundOpen, setConfirmDeleteOutboundOpen] = useState(false);
 
   const organizationId = tenant?.organizationId ?? null;
-  const canUse = canManageClinicSettings(profile?.role) && !!organizationId;
+  // Webhook e configuracao da AGENCIA (decisao do Junior, 26/09) — e a RLS de
+  // integration_inbound_sources/outbound_endpoints ja so aceita role 'admin' no banco:
+  // liberar a tela para o cliente so renderia uma secao que falha vazia.
+  const canUse = isAgencyAdminRole(profile?.role) && !!organizationId;
 
   const activeInbound = useMemo(() => sources.find((s) => s.active) || sources[0] || null, [sources]);
   const hasInbound = !!activeInbound && !!activeInbound.active;
