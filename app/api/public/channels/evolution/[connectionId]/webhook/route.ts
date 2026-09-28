@@ -22,6 +22,11 @@ import { loadFreshConversationAIGate } from '@/lib/conversations/conversationAIG
 import { recordConversationAIFailure } from '@/lib/conversations/conversationAIFailure';
 import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
 import {
+  readLeadEntryRoutes,
+  resolveLeadEntryRoute,
+  type LeadEntryRoute,
+} from '@/lib/conversations/leadEntryRouting';
+import {
   buildIdleNudgeScheduleMetadata,
   detectLeadDeferral,
   resolveIdleNudgeConfig,
@@ -572,6 +577,8 @@ async function ensureConversationDeal(params: {
   contactName: string | null;
   preview: string;
   now: string;
+  /** Rota de entrada casada pelo anúncio de origem (leadEntryRouting); null = fluxo de sempre. */
+  entryRoute?: LeadEntryRoute | null;
 }) {
   const {
     admin,
@@ -583,6 +590,7 @@ async function ensureConversationDeal(params: {
     contactName,
     preview,
     now,
+    entryRoute = null,
   } = params;
 
   if (threadDealId) return threadDealId;
@@ -615,7 +623,33 @@ async function ensureConversationDeal(params: {
     return existingDeal.data.id;
   }
 
-  const boardStage = await resolveDefaultBoardAndStage({ admin, organizationId });
+  // Roteador de entrada (28/09): o anúncio de origem escolhe o funil do lead
+  // NOVO. Funil configurado inválido (apagado, de outra org, sem etapa) cai no
+  // fluxo de sempre com aviso — configuração nunca derruba a entrada de lead.
+  let boardStage: { boardId: string; stageId: string } | null = null;
+  if (entryRoute) {
+    const routedStage = await admin
+      .from('board_stages')
+      .select('id, board_id')
+      .eq('organization_id', organizationId)
+      .eq('board_id', entryRoute.boardId)
+      .order('order', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (routedStage.error) throw new Error(routedStage.error.message);
+    if (routedStage.data?.id) {
+      boardStage = { boardId: entryRoute.boardId, stageId: routedStage.data.id };
+    } else {
+      console.warn('[Evolution webhook] Rota de entrada com funil invalido; usando o funil padrao', {
+        organizationId,
+        boardId: entryRoute.boardId,
+        sourceId: entryRoute.sourceId,
+      });
+    }
+  }
+  if (!boardStage) {
+    boardStage = await resolveDefaultBoardAndStage({ admin, organizationId });
+  }
   if (!boardStage) return null;
 
   const createdDeal = await admin
@@ -656,6 +690,26 @@ async function ensureConversationDeal(params: {
     .eq('organization_id', organizationId);
 
   if (threadUpdate.error) throw new Error(threadUpdate.error.message);
+
+  // Etiqueta de produto da rota (ex.: "CASA"): aplicada pela porta sancionada
+  // (assign_deal_tag_system, provenance 'automation'), que dispara o gancho
+  // tag→régua. Falha aqui nunca derruba a entrada do lead.
+  if (entryRoute?.tagId) {
+    const tagged = await admin.rpc('assign_deal_tag_system', {
+      p_organization_id: organizationId,
+      p_deal_id: createdDeal.data.id,
+      p_tag_id: entryRoute.tagId,
+      p_provenance: 'automation',
+    });
+    if (tagged.error) {
+      console.warn('[Evolution webhook] Falha ao aplicar etiqueta da rota de entrada', {
+        organizationId,
+        dealId: createdDeal.data.id,
+        tagId: entryRoute.tagId,
+        error: tagged.error.message,
+      });
+    }
+  }
 
   return createdDeal.data.id;
 }
@@ -1103,6 +1157,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         contactName: resolvedContactName,
         preview: content.slice(0, 160),
         now,
+        entryRoute: resolveLeadEntryRoute(
+          readLeadEntryRoutes(connectionResult.data.config as Record<string, unknown> | null),
+          parsed.adClick?.sourceId ?? null,
+        ),
       });
     } catch (error) {
       console.error('[Evolution webhook] Failed to create opportunity', {
