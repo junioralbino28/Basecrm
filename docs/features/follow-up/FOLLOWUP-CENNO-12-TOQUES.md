@@ -10,20 +10,36 @@
 > Contexto CENNO: lead veio de anúncio, falou com a Aurora no WhatsApp e não
 > marcou a reunião com o especialista. Multi-nicho: nada de exemplo de vertical.
 
-## Desenho da régua (motor existente, zero código novo nos passos)
+## Desenho revisado (modelo Kommo do Junior, 27/09 ~22h)
 
-- **Gatilho:** tag **"Follow-up"** aplicada ao negócio (categoria própria
-  "Automação", cardinalidade única).
-- **Estrutura:** `wait_for_event` (resposta do lead) com timeout em dias
-  (semântica `next_local_day`, respeita o fuso) intercalado com `send_message`:
-  - lead **respondeu** em qualquer ponto → a régua para (mecanismo de inbound
-    já existente) e a Aurora reassume a conversa normalmente;
-  - **timeout** → sai a mensagem do dia.
-- **Esperas entre toques:** 1, 1, 1, 3, 2, 2, 2, 3, 3, 2, 2, 3 dias
-  (= dias 1, 2, 3, 6, 8, 10, 12, 15, 18, 20, 22, 25).
-- **Depois do 12º toque sem resposta (proposta):** mover o negócio para
-  "Perdido" com motivo "Follow-up esgotado (25 dias)" — o card sai da frente
-  do funil, e o histórico fica. *(Decisão dele pendente.)*
+> Sugestão dele, adotada: *"era um segundo funil só de follow-up, cada dia era
+> uma etapa (12 etapas), todo dia de manhã enviava as mensagens intercalando o
+> horário entre dias, com envio unitário aleatório (1, 2, 5 minutos), e às
+> 23:59 quem não respondeu avançava para o próximo follow-up."*
+
+- **Funil próprio "Follow-up CENNO" com 12 etapas** (Dia 1, Dia 2, Dia 3,
+  Dia 6, ... Dia 25): o quadro MOSTRA quantos leads estão em cada dia do
+  follow-up — visibilidade operacional que a régua invisível não dá.
+- **Gatilho:** tag **"Follow-up"** aplicada ao negócio → `move_pipeline` para
+  o funil de follow-up (Dia 1).
+- **Virada do dia:** `wait_for_event` com timeout `next_local_day` (o motor já
+  tem a semântica "virou o dia local") → **timeout = não respondeu** → envia a
+  mensagem do dia e `move_stage` para a etapa seguinte. Dias sem toque (4, 5,
+  7...) são só espera: o card fica parado na etapa do próximo toque.
+- **Lead respondeu em qualquer ponto** → a régua para sozinha (inbound pause
+  existente), e o **upgrade vs Kommo**: a Aurora reassume a conversa na hora,
+  além de `move_pipeline` de volta para o funil CASA ("Respondeu").
+- **Janela de envio pela manhã:** o motor JÁ tem `quietHoursStart/End` por
+  automação com fuso — configura-se o silêncio para tudo fora da janela da
+  manhã, e as mensagens vencidas na virada do dia só saem dentro dela.
+- **Envio unitário aleatório (anti-ban, sem API oficial): PEÇA DE CÓDIGO NOVA.**
+  Hoje o tick despacharia os envios do dia em rajada ao abrir a janela. Falta
+  um espaçamento aleatório entre envios automatizados DA MESMA CONEXÃO
+  (ex.: 1 a 5 minutos, configurável por conexão, para TODOS os clientes).
+  O horário variando entre dias sai de graça: janela + jitter por lead já
+  produzem manhãs diferentes a cada dia.
+- **Depois do 12º toque sem resposta (proposta):** mover para "Perdido" com
+  motivo "Follow-up esgotado (25 dias)". *(Decisão dele pendente.)*
 - **Nasce em modo SIMULAÇÃO** (`delivery_mode = simulation` + kill-switch de
   envio real desligado): ele vê a régua rodando sem nenhuma mensagem sair de
   verdade, e libera o envio real depois.
