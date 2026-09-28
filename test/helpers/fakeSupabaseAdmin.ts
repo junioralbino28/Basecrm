@@ -17,6 +17,8 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
 
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const rpcErrors: Record<string, string> = {};
+  /** `data` que cada RPC devolve (por nome); sem entrada, devolve null como antes. */
+  const rpcResults: Record<string, unknown> = {};
   /** Falhas combinadas por (tabela, operacao) — para testar o que o codigo faz quando o banco recusa. */
   const forcedErrors: Record<string, string> = {};
   let sequence = 0;
@@ -207,7 +209,7 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
   function rpc(name: string, args: Record<string, unknown>) {
     rpcCalls.push({ name, args });
     const message = rpcErrors[name];
-    return Promise.resolve(message ? { data: null, error: { message } } : { data: null, error: null });
+    return Promise.resolve(message ? { data: null, error: { message } } : { data: rpcResults[name] ?? null, error: null });
   }
 
   /** Faz a proxima (e as seguintes) chamadas daquela tabela/operacao devolverem erro. */
@@ -215,5 +217,5 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
     forcedErrors[`${table}:${operation}`] = message;
   }
 
-  return { from, rpc, tables, rowsOf, rpcCalls, rpcErrors, failOn };
+  return { from, rpc, tables, rowsOf, rpcCalls, rpcErrors, rpcResults, failOn };
 }

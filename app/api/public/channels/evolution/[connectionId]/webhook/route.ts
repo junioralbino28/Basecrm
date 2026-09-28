@@ -1130,6 +1130,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   // que então chama `record_automation_opt_out`; o gate no banco continua recusando envio real
   // a contato com opt-out.
 
+  let conversaDevolvidaParaIA = false;
   if (parsed.direction === 'inbound' && parsed.providerMessageId) {
     const waitResolution = await admin.rpc('resolve_automation_wait_from_inbox', {
       p_channel_connection_id: connectionId,
@@ -1141,6 +1142,62 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
     });
     if (waitResolution.error) {
       return json({ error: 'Falha ao correlacionar resposta da automação.' }, 500);
+    }
+
+    // Lead respondeu a uma mensagem da régua (wait resolvido AGORA, não num reenvio duplicado):
+    // a conversa volta para a IA na hora (decisão do Junior, 28/09). Conversa em régua é conversa
+    // que esfriou — o travamento humano que existia é de antes do esfriamento. Espelha o PATCH do
+    // painel (status ai_active + destravar roteamento); a leitura do metadata é FRESCA porque o
+    // update lá em cima já somou o não-lido desta mensagem (mesmo cuidado do marcador de debounce).
+    // Caso real: o "oi" do Pedro em 28/09 recuperou a régua e morreu numa conversa human_active.
+    const reguaRecuperada =
+      Array.isArray(waitResolution.data)
+      && waitResolution.data.some((linha) => {
+        const evento = linha as { wait_id: string | null; duplicate: boolean | null };
+        return Boolean(evento.wait_id) && evento.duplicate === false;
+      });
+    if (reguaRecuperada && aiEnabled) {
+      const freshThread = await admin
+        .from('conversation_threads')
+        .select('status, metadata')
+        .eq('id', threadId)
+        .eq('organization_id', connectionResult.data.organization_id)
+        .maybeSingle();
+      if (freshThread.error || !freshThread.data) {
+        console.warn('[Evolution webhook] Falha ao ler a conversa recuperada pela régua', {
+          connectionId,
+          threadId,
+          error: freshThread.error?.message ?? 'conversa não encontrada',
+        });
+      } else if (freshThread.data.status === 'ai_active') {
+        conversaDevolvidaParaIA = true;
+      } else if (freshThread.data.status !== 'closed') {
+        const religada = await admin
+          .from('conversation_threads')
+          .update({
+            status: 'ai_active',
+            assigned_user_id: null,
+            updated_at: now,
+            metadata: buildConversationThreadMetadataUpdate(freshThread.data.metadata, {
+              routingMode: 'ai',
+              humanLocked: false,
+              aiLockedReason: null,
+              handoffRequestedAt: null,
+              queueAssignedUserId: null,
+            }),
+          })
+          .eq('id', threadId)
+          .eq('organization_id', connectionResult.data.organization_id);
+        if (religada.error) {
+          console.warn('[Evolution webhook] Falha ao devolver a conversa recuperada para a IA', {
+            connectionId,
+            threadId,
+            error: religada.error.message,
+          });
+        } else {
+          conversaDevolvidaParaIA = true;
+        }
+      }
     }
   }
 
@@ -1250,9 +1307,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
   }
 
   const automationWebhookUrl = String(connectionConfig.webhookUrl || '').trim();
+  // A recuperação da régua acabou de gravar ai_active no banco: o disparo da IA logo abaixo
+  // precisa enxergar isso para a Aurora responder ESTA mensagem, não só a próxima.
   const threadStatus =
     parsed.direction === 'inbound'
-      ? inboundThreadStatus
+      ? conversaDevolvidaParaIA
+        ? 'ai_active'
+        : inboundThreadStatus
       : threadResult.data?.status ?? 'resolved';
 
   // Encerramento: conversa na fila humana por handoff da IA, lead escreveu de novo, humano ainda nao assumiu.
