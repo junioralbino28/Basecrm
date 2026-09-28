@@ -141,6 +141,52 @@
 > anúncios do seu negócio, me chama nesse mesmo número que eu te ajudo.
 > Sucesso por aí, e obrigada pela atenção!
 
+## Métrica: recuperados por etapa (pedido dele, 28/09)
+
+> *"Quero saber exatamente quantos leads eu recupero em cada etapa do follow-up."*
+
+O desenho materializa a métrica sem tabela nova: **cada dia tem um passo
+próprio de "recuperado"** (o `move_pipeline` que devolve o card ao funil de
+vendas quando o lead responde naquele dia). Contar recuperação por etapa =
+contar execuções desses passos:
+
+```sql
+-- Recuperados por dia do follow-up (status 'done' no live; 'simulated' no ensaio)
+select s.idx as posicao, count(*) as recuperados
+from automation_jobs j
+join automation_versions v on v.id = j.version_id
+cross join lateral jsonb_array_elements(v.definition->'steps') with ordinality s(step, idx)
+where v.automation_id = '<id da automacao Follow-up>'
+  and (s.step->>'stepKey') = j.step_key::text
+  and s.step->>'type' = 'move_pipeline'
+  and s.step->'config'->>'boardId' <> '<id do funil de follow-up>'
+  and j.status in ('done', 'simulated')
+group by s.idx order by s.idx;
+```
+
+Complementos: enviados por dia (mesma consulta com `type='send_message'`) dá a
+taxa de recuperação por toque; e "esgotados" = enrollments que chegaram ao
+`move_stage` da etapa Esgotado. Tela de relatório fica para depois — o dado já
+nasce completo e imutável nos registros do motor.
+
+## Ensaio de 28/09 no banco de teste (verde, ciclo completo)
+
+Montado pelo compilador real em SIMULAÇÃO (funil `Follow-up CENNO` 13 etapas,
+automação de 49 passos): tag "Follow-up" aplicada pelo caminho do sistema →
+o gancho tag→régua inscreveu sozinho; entrada processada; espera do Dia 1
+armada; virada de dia forçada → **mensagem do Dia 1 saiu simulada com o nome
+renderizado** ("Oi Prova, tudo bem? Aqui é a Aurora, da CENNO HUB 😊...");
+card avançou (simulado) para Dia 2; resposta inbound do lead → espera resolveu
+e o passo **"recuperado no Dia 2"** executou (volta ao funil de vendas),
+régua concluída (`done`). Nenhuma chamada de envio real (trava no executor do
+ensaio + delivery simulation + kill-switch da org). Fixture apagado por
+contagem; funil, régua e tags ficaram montados no ambiente de teste.
+
+Achado de plataforma: a PRÉVIA roda com `AUTOMATION_LIVE_SENDS_ENABLED`
+desligado — o tick materializa e NÃO executa (por desenho). O ensaio rodou o
+executor real por script com envio travado. Para a régua rodar sozinha no
+ambiente de teste/produção, essa env precisa estar ligada no ambiente certo.
+
 ## Prova antes de ligar
 
 1. Régua montada no banco de TESTE, publicada em modo simulação.
