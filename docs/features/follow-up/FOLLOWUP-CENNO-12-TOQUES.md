@@ -32,12 +32,16 @@
 - **Janela de envio pela manhã:** o motor JÁ tem `quietHoursStart/End` por
   automação com fuso — configura-se o silêncio para tudo fora da janela da
   manhã, e as mensagens vencidas na virada do dia só saem dentro dela.
-- **Envio unitário aleatório (anti-ban, sem API oficial): PEÇA DE CÓDIGO NOVA.**
-  Hoje o tick despacharia os envios do dia em rajada ao abrir a janela. Falta
-  um espaçamento aleatório entre envios automatizados DA MESMA CONEXÃO
-  (ex.: 1 a 5 minutos, configurável por conexão, para TODOS os clientes).
-  O horário variando entre dias sai de graça: janela + jitter por lead já
-  produzem manhãs diferentes a cada dia.
+- **Envio unitário aleatório (anti-ban, sem API oficial): CONSTRUÍDO E PROVADO
+  (28/09).** Migration `20260928010000_automation_send_spacing`: fila por
+  conexão dentro do gate de envio (`defer_automation_jobs_before_claim`), com
+  configuração `channel_connections.config.automationSendSpacing =
+  {"minSeconds": 60, "maxSeconds": 300}` — por conexão, para todos os
+  clientes, padrão DESLIGADO (sem config o comportamento fica byte a byte como
+  hoje, contraprovado). Prova no banco de teste: 3 envios da mesma conexão
+  saíram 08:00 local, +4m46s e +4m30s. As respostas da Aurora na conversa NÃO
+  passam por aí e continuam imediatas. O horário variando entre dias sai de
+  graça: janela + sorteio por lead produzem manhãs diferentes a cada dia.
 - **Depois do 12º toque sem resposta (proposta):** mover para "Perdido" com
   motivo "Follow-up esgotado (25 dias)". *(Decisão dele pendente.)*
 - **Nasce em modo SIMULAÇÃO** (`delivery_mode = simulation` + kill-switch de
@@ -57,9 +61,12 @@
 
 ## As 12 mensagens (Aurora, WhatsApp)
 
-> `{{nome}}` = nome do lead quando conhecido. Regras seguidas: sem travessão,
-> sem promessa de resultado, sem preço de serviço, sem citar vertical de
-> exemplo, emoji leve como nos roteiros dele.
+> `{{nome}}` = nome do lead quando conhecido. Na montagem da régua vira o
+> placeholder NATIVO do motor `{{contato.primeiro_nome | default:"..."}}`
+> (já existe: contexto com contato/negócio/responsável/organização e fallback
+> obrigatório — zero código novo). Regras seguidas: sem travessão, sem
+> promessa de resultado, sem preço de serviço, sem citar vertical de exemplo,
+> emoji leve como nos roteiros dele.
 
 **D+1 — retomada leve**
 > Oi {{nome}}, tudo bem? Aqui é a Aurora, da CENNO HUB 😊
@@ -120,12 +127,12 @@
 > negócio, ou esse assunto saiu da sua lista por agora?
 > Me falando, eu paro de te chamar ou a gente marca de vez.
 
-**D+22 — penúltimo toque, porta aberta**
-> {{nome}}, não quero ser insistente, então esse é um dos meus últimos toques
-> por aqui.
-> Se o momento não é agora, tudo bem de verdade. Só não deixa de resolver isso
-> em algum momento, porque atendimento parado é venda que escapa todo dia.
-> Se quiser retomar, é só me responder aqui.
+**D+22 — penúltimo toque, provocativo (ajuste dele, 28/09: deixar entendido
+"pelo visto não tem interesse em melhorar seu negócio", com outras palavras)**
+> {{nome}}, vou ser sincera com você, com todo carinho 😊
+> Tanta mensagem sem resposta já me faz pensar que melhorar o atendimento e os
+> anúncios não é prioridade pro seu negócio agora.
+> Se eu estiver enganada, me responde essa aqui e a gente resolve isso de vez.
 
 **D+25 — encerramento elegante (estilo do roteiro dele)**
 > {{nome}}, vou deixar registrado aqui que o momento não era agora, sem
