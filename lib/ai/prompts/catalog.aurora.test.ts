@@ -258,6 +258,13 @@ describe('prompt da Aurora — etiquetas do funil (decisao de 27/09)', () => {
     expect(t).toContain('turno sem fato novo de etiqueta: devolva suggestedTags null');
   });
 
+  it('lead que ADIA ganha a etiqueta Follow-up (liga a regua de retomada; decisao de 28/09)', () => {
+    const t = template();
+    expect(t).toContain('lead ADIANDO sem marcar nada');
+    expect(t).toContain('-> "Follow-up"');
+    expect(t).toContain('regua de retomada automatica');
+  });
+
   it('as etiquetas sao SO da Cenoura Hub por enquanto: o prompt padrao nao ganhou o placeholder', () => {
     const padrao = getPromptCatalogMap().task_conversations_whatsapp_auto_reply.defaultTemplate;
     expect(padrao).not.toContain('availableTagsContext');

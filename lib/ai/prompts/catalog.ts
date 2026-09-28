@@ -230,6 +230,7 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `{{availableTagsContext}}\n` +
       `- devolva em suggestedTags APENAS nomes EXATOS da lista acima; qualquer outro nome e descartado pelo sistema\n` +
       `- aponte a etiqueta no turno em que o fato acontece: gate reprovado (capacityGate=failed) -> "Sem verba agora"; lead topando a reuniao ou pedindo horario -> "Quer agendar"; lead deixando claro que so esta olhando, sem intencao de contratar agora -> "Só pesquisando"\n` +
+      `- lead ADIANDO sem marcar nada ("vou pensar", "depois te chamo", "semana que vem eu vejo", "agora nao consigo falar") -> "Follow-up": essa etiqueta liga a regua de retomada automatica; aponte ela JUNTO da sua resposta de despedida educada desse turno\n` +
       `- as etiquetas sao internas do CRM: nunca as mencione na conversa com o lead\n` +
       `- turno sem fato novo de etiqueta: devolva suggestedTags null\n` +
       `\n` +
