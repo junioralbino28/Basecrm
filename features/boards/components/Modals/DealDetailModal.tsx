@@ -649,6 +649,36 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                   </div>
                 </div>
 
+                {/* FUNIL (Junior, 28/09): mover o negócio de funil manualmente,
+                    direto do card — vai para a PRIMEIRA etapa do funil escolhido. */}
+                {boards.length > 1 ? (
+                  <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Funil</h3>
+                    <select
+                      aria-label="Mover para outro funil"
+                      value={deal.boardId}
+                      onChange={(event) => {
+                        const destino = boardsById.get(event.target.value);
+                        if (!destino || destino.id === deal.boardId) return;
+                        const primeiraEtapa = destino.stages?.[0]?.id;
+                        if (!primeiraEtapa) {
+                          addToast('Esse funil ainda não tem etapas.', 'error');
+                          return;
+                        }
+                        updateDeal(deal.id, { boardId: destino.id, status: primeiraEtapa });
+                        addToast(`Movido para o funil "${destino.name}".`, 'success');
+                      }}
+                      className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+                    >
+                      {boards.map((boardOption) => (
+                        <option key={boardOption.id} value={boardOption.id}>
+                          {boardOption.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
                 {/* ETIQUETAS + ORIGEM (§N1.1: dois campos, cada um com sua lista) */}
                 {tagOrganizationId ? (
                   <>

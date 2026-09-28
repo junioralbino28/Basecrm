@@ -94,6 +94,10 @@ vi.mock('lucide-react', () => ({
   Plus: Icon,
 }));
 
+const crmMock = vi.hoisted(() => ({
+  updateDeal: vi.fn(),
+}));
+
 vi.mock('@/context/CRMContext', () => ({
   useCRM: () => {
     const board = {
@@ -107,6 +111,14 @@ vi.mock('@/context/CRMContext', () => ({
       defaultProductId: null,
       agentPersona: null,
       goal: null,
+    };
+
+    // Segundo funil: o seletor "mover de funil" só aparece com 2+ (Junior, 28/09).
+    const boardFollowUp = {
+      ...board,
+      id: 'board-2',
+      name: 'Follow-up',
+      stages: [{ id: 'stage-fu-1', label: 'Dia 1', order: 0, linkedLifecycleStage: 'MQL' }],
     };
 
     const deal = {
@@ -134,7 +146,7 @@ vi.mock('@/context/CRMContext', () => ({
     return {
       deals: [deal],
       contacts: [{ id: 'contact-1', stage: null }],
-      updateDeal: vi.fn(),
+      updateDeal: crmMock.updateDeal,
       deleteDeal: vi.fn(),
       activities: [],
       addActivity: vi.fn(),
@@ -145,7 +157,7 @@ vi.mock('@/context/CRMContext', () => ({
       removeItemFromDeal: vi.fn(),
       customFieldDefinitions: [],
       activeBoard: board,
-      boards: [board],
+      boards: [board, boardFollowUp],
       lifecycleStages: [],
     };
   },
@@ -186,5 +198,23 @@ describe('DealDetailModal', () => {
     // O input antigo ("Ex: VIP, Urgente, Q4...") escrevia texto livre direto em
     // deal.tags — driblaria cardinalidade, auditoria e o roteamento da C2B.
     expect(container.querySelector('input[placeholder*="VIP"]')).toBeNull();
+  });
+
+  it('mover de funil pelo card: escolher outro funil manda o negócio para a PRIMEIRA etapa dele (Junior, 28/09)', async () => {
+    const { fireEvent, screen } = await import('@testing-library/react');
+    const { DealDetailModal } = await import('./DealDetailModal');
+    crmMock.updateDeal.mockClear();
+
+    render(<DealDetailModal dealId="deal-1" isOpen={true} onClose={() => {}} />);
+
+    const seletor = screen.getByLabelText('Mover para outro funil') as HTMLSelectElement;
+    expect(seletor.value).toBe('board-1');
+
+    fireEvent.change(seletor, { target: { value: 'board-2' } });
+
+    expect(crmMock.updateDeal).toHaveBeenCalledWith('deal-1', {
+      boardId: 'board-2',
+      status: 'stage-fu-1',
+    });
   });
 });

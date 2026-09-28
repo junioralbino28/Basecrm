@@ -1,8 +1,10 @@
 'use client';
 
 /**
- * "Adicionar tag" do negócio (C2C, §N1.1) — desenho do Junior:
- * botão → menu de CATEGORIAS → etiquetas da categoria → seleciona.
+ * "Adicionar tag" do negócio (C2C, §N1.1) — desenho do Junior (revisto em 28/09):
+ * botão → LISTA ÚNICA com a categoria como cabeçalho e as etiquetas embaixo.
+ * (Os dois níveis escondiam as opções: "com um cliente isso não fica fácil
+ * e intuitivo".)
  *
  * Regras do contrato:
  * - A secretária NUNCA digita etiqueta que o sistema lê — só seleciona.
@@ -35,7 +37,6 @@ export function DealTagSelector({ organizationId, dealId, canAssign, canManage }
   const [busyTagId, setBusyTagId] = React.useState<string | null>(null);
   const [errorText, setErrorText] = React.useState<string | null>(null);
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [activeCategoryId, setActiveCategoryId] = React.useState<string | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const tagsById = React.useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
@@ -109,10 +110,13 @@ export function DealTagSelector({ organizationId, dealId, canAssign, canManage }
     void runMutation(tagId, () => dealTagsService.assign(organizationId, dealId, tagId));
   };
 
-  const activeCategory = activeCategoryId ? categoriesById.get(activeCategoryId) ?? null : null;
-  const selectableTags = activeCategoryId
-    ? tags.filter((tag) => tag.categoryId === activeCategoryId && !assignedTagIds.has(tag.id))
-    : [];
+  const selectableByCategory = React.useMemo(
+    () => categories.map((category) => ({
+      category,
+      selectable: tags.filter((tag) => tag.categoryId === category.id && !assignedTagIds.has(tag.id)),
+    })),
+    [categories, tags, assignedTagIds],
+  );
 
   return (
     <div data-testid="deal-tag-selector">
@@ -189,10 +193,7 @@ export function DealTagSelector({ organizationId, dealId, canAssign, canManage }
             <div className="relative mt-3" ref={menuRef}>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveCategoryId(null);
-                  setMenuOpen((open) => !open);
-                }}
+                onClick={() => setMenuOpen((open) => !open)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
@@ -204,7 +205,7 @@ export function DealTagSelector({ organizationId, dealId, canAssign, canManage }
                 <div
                   role="menu"
                   aria-label="Escolher etiqueta"
-                  className="absolute z-20 mt-2 w-64 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden"
+                  className="absolute z-20 mt-2 w-64 max-h-80 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl"
                 >
                   {categories.length === 0 ? (
                     <p className="px-3 py-3 text-xs text-slate-500">
@@ -212,52 +213,35 @@ export function DealTagSelector({ organizationId, dealId, canAssign, canManage }
                         ? 'Nenhuma categoria de etiqueta ainda. Crie as categorias e etiquetas em Configurações → Etiquetas.'
                         : 'Nenhuma etiqueta configurada ainda. Peça à administração para criar as categorias em Configurações.'}
                     </p>
-                  ) : activeCategory ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setActiveCategoryId(null)}
-                        className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                      >
-                        ← {activeCategory.label}
-                      </button>
-                      {activeCategory.cardinality === 'single' ? (
-                        <p className="px-3 pb-1 text-[10.5px] text-slate-400">
-                          Escolher outra substitui a atual.
-                        </p>
-                      ) : null}
-                      {selectableTags.length === 0 ? (
-                        <p className="px-3 py-2.5 text-xs text-slate-500">
-                          Todas as etiquetas desta categoria já estão aplicadas.
-                        </p>
-                      ) : (
-                        selectableTags.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => assignTag(tag.id)}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-                          >
-                            {tag.name}
-                          </button>
-                        ))
-                      )}
-                    </>
                   ) : (
-                    categories.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => setActiveCategoryId(category.id)}
-                        className="w-full flex items-center justify-between text-left px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-                      >
-                        {category.label}
-                        <span className="text-slate-400 text-xs">
-                          {tags.filter((tag) => tag.categoryId === category.id).length}
-                        </span>
-                      </button>
+                    selectableByCategory.map(({ category, selectable }) => (
+                      <div key={category.id} className="py-1 border-b border-slate-100 dark:border-white/5 last:border-b-0">
+                        <p className="px-3 pt-1.5 pb-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          {category.label}
+                          {category.cardinality === 'single' ? (
+                            <span className="ml-1 normal-case font-normal text-[10px] text-slate-400">
+                              · uma por vez
+                            </span>
+                          ) : null}
+                        </p>
+                        {selectable.length === 0 ? (
+                          <p className="px-3 py-1.5 text-xs text-slate-500 italic">
+                            Todas já aplicadas.
+                          </p>
+                        ) : (
+                          selectable.map((tag) => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              role="menuitem"
+                              onClick={() => assignTag(tag.id)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                              {tag.name}
+                            </button>
+                          ))
+                        )}
+                      </div>
                     ))
                   )}
                 </div>

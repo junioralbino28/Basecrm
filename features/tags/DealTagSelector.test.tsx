@@ -58,30 +58,35 @@ describe('DealTagSelector (C2C — a secretária seleciona, nunca digita)', () =
     expect(container.querySelector('textarea')).toBeNull();
   });
 
-  it('menu navega categoria → etiqueta e aplica por seleção', async () => {
+  it('menu abre em LISTA ÚNICA (categoria como cabeçalho, etiquetas embaixo) e aplica num clique — desenho do Junior, 28/09', async () => {
     mockData();
     vi.mocked(dealTagsService.assign).mockResolvedValue({ error: null });
     render(<DealTagSelector organizationId={ORG} dealId={DEAL} canAssign canManage={false} />);
     await screen.findByText('Nenhuma etiqueta aplicada.');
 
     fireEvent.click(screen.getByRole('button', { name: /Adicionar tag/i }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Procedimentos/i }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Facetas' }));
+    // Tudo visível de uma vez: cabeçalhos das duas categorias E as etiquetas,
+    // sem clique intermediário (o segundo nível escondia as opções do cliente).
+    expect(await screen.findByText('Procedimentos')).toBeInTheDocument();
+    expect(screen.getByText('Convênio')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Facetas' })).toBeInTheDocument();
+    // Categoria NÃO é mais botão de navegação: clicar direto na etiqueta aplica.
+    expect(screen.queryByRole('menuitem', { name: 'Procedimentos' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Facetas' }));
 
     await waitFor(() => {
       expect(dealTagsService.assign).toHaveBeenCalledWith(ORG, DEAL, 'tag-facetas');
     });
   });
 
-  it('categoria single avisa que escolher outra substitui a atual', async () => {
+  it('categoria single avisa no cabeçalho que é uma por vez', async () => {
     mockData();
     render(<DealTagSelector organizationId={ORG} dealId={DEAL} canAssign canManage={false} />);
     await screen.findByText('Nenhuma etiqueta aplicada.');
 
     fireEvent.click(screen.getByRole('button', { name: /Adicionar tag/i }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Convênio/i }));
 
-    expect(await screen.findByText('Escolher outra substitui a atual.')).toBeInTheDocument();
+    expect(await screen.findByText('· uma por vez')).toBeInTheDocument();
   });
 
   it('mostra a principal com estrela e permite trocar com um clique', async () => {
