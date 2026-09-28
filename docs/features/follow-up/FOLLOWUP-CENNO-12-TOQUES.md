@@ -22,10 +22,14 @@
   follow-up — visibilidade operacional que a régua invisível não dá.
 - **Gatilho:** tag **"Follow-up"** aplicada ao negócio → `move_pipeline` para
   o funil de follow-up (Dia 1).
-- **Virada do dia:** `wait_for_event` com timeout `next_local_day` (o motor já
-  tem a semântica "virou o dia local") → **timeout = não respondeu** → envia a
-  mensagem do dia e `move_stage` para a etapa seguinte. Dias sem toque (4, 5,
-  7...) são só espera: o card fica parado na etapa do próximo toque.
+- **Virada do dia:** `wait_for_event` com timeout `next_local_day` → **timeout
+  = não respondeu** → envia a mensagem do dia e `move_stage` para a etapa
+  seguinte. Dias sem toque (4, 5, 7...) são só espera. **Regra do Junior
+  (28/09): "a primeira mensagem tem que ser no dia seguinte que o lead não
+  respondeu"** — a migration `20260928020000` fez o runtime honrar a semântica:
+  o vencimento é a MEIA-NOITE LOCAL + N dias (não 24h corridas, que jogavam
+  quem esfriou à tarde para DOIS dias depois), e a janela da manhã + fila
+  espaçada definem a hora do envio.
 - **Lead respondeu em qualquer ponto** → a régua para sozinha (inbound pause
   existente), e o **upgrade vs Kommo**: a Aurora reassume a conversa na hora,
   além de `move_pipeline` de volta para o funil CASA ("Respondeu").
