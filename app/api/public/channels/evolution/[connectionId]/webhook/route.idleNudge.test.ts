@@ -221,3 +221,67 @@ describe('Evolution webhook — cutucada de inatividade so e agendada, nunca env
     expect(threadUpdates.filter((update) => update.table === 'conversation_threads')).toHaveLength(0);
   });
 });
+
+describe('Evolution webhook — conversa encerrada nao ganha cutucada (28/09)', () => {
+  function respostaDeDespedida() {
+    generateMock.mockResolvedValue({
+      ok: true,
+      source: 'catalog',
+      object: {
+        replyText: 'Boa noite, José Roberto!',
+        summary: null,
+        shouldHandoff: false,
+        handoffType: null,
+        handoffReason: null,
+        requestedScheduleAt: null,
+        requestedScheduleText: null,
+        conversationEnded: true,
+      },
+    });
+  }
+
+  it('a despedida sai, mas nenhum vencimento de cutucada e gravado', async () => {
+    respostaDeDespedida();
+
+    await runDeferredReply();
+
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const gravacoes = threadUpdates.filter((update) => update.table === 'conversation_threads');
+    expect(gravacoes.some((update) => (update.payload.metadata as Record<string, unknown>)?.aiInactivityNudgeDueAt)).toBe(false);
+  });
+
+  it('limpa a cutucada que sobrou de uma resposta anterior (senao ela sairia depois do "Boa noite")', async () => {
+    respostaDeDespedida();
+    executeMock.mockResolvedValue({
+      ok: true,
+      warning: null,
+      status: 'ai_active',
+      thread: {
+        metadata: {
+          aiPendingToken: 'pending-token',
+          lastInboundAt: '2026-09-28T21:34:44.000Z',
+          lastDirection: 'outbound',
+          aiInactivityNudgeToken: 'antigo:idle-nudge:1',
+          aiInactivityNudgeDueAt: '2026-09-28T21:49:14.000Z',
+        },
+      },
+    });
+
+    await runDeferredReply();
+
+    const limpeza = threadUpdates.find((update) => update.table === 'conversation_threads');
+    expect(limpeza).toBeDefined();
+    expect(limpeza!.payload.metadata).toMatchObject({
+      aiInactivityNudgeToken: null,
+      aiInactivityNudgeDueAt: null,
+      lastDirection: 'outbound',
+    });
+  });
+
+  it('caso positivo do detector: sem o sinal, a mesma resposta agenda a cutucada como sempre', async () => {
+    await runDeferredReply();
+
+    const agendada = threadUpdates.find((update) => update.table === 'conversation_threads');
+    expect((agendada!.payload.metadata as Record<string, unknown>).aiInactivityNudgeToken).toMatch(/:idle-nudge:/);
+  });
+});

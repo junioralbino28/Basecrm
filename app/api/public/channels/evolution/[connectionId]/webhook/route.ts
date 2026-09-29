@@ -27,6 +27,7 @@ import {
   type LeadEntryRoute,
 } from '@/lib/conversations/leadEntryRouting';
 import {
+  buildIdleNudgeClearedMetadata,
   buildIdleNudgeScheduleMetadata,
   detectLeadDeferral,
   resolveIdleNudgeConfig,
@@ -214,6 +215,7 @@ export async function processDeferredAIReply(params: {
   let executedReply:
     | Awaited<ReturnType<typeof executeConversationAIReply>>
     | null = null;
+  let conversaEncerrada = false;
 
   try {
     const nativeReply = promptKey ? await generateConversationAutoReply({
@@ -249,6 +251,7 @@ export async function processDeferredAIReply(params: {
         return;
       }
       nativeExecutionStarted = true;
+      conversaEncerrada = nativeReply.object.conversationEnded === true;
       executedReply = await executeConversationAIReply({
         admin,
         connection: {
@@ -424,6 +427,30 @@ export async function processDeferredAIReply(params: {
   ) {
     const threadMetadata = (executedReply.thread.metadata as Record<string, unknown> | null) || {};
     const idleNudge = resolveIdleNudgeConfig(freshConnectionConfig);
+
+    // Conversa encerrada (despedida, recusa, contato por engano): nao ha o que cutucar. O relogio
+    // dispara com a ultima mensagem sendo da Aurora, entao um agendamento que tenha sobrado de uma
+    // resposta anterior sairia depois do "Boa noite" — por isso limpa, nao so deixa de agendar.
+    // Caso real (28/09): "Ainda estou por aqui..." depois da despedida; o lead respondeu "Ja
+    // terminamos a conversa!".
+    if (conversaEncerrada) {
+      if (typeof threadMetadata.aiInactivityNudgeToken === 'string') {
+        const cleared = await admin
+          .from('conversation_threads')
+          .update({ metadata: buildIdleNudgeClearedMetadata({ metadata: threadMetadata }) })
+          .eq('id', threadId)
+          .eq('organization_id', organizationId);
+        if (cleared.error) {
+          console.warn('[Evolution webhook] Failed to clear inactivity nudge after conversation end', {
+            connectionId,
+            threadId,
+            error: cleared.error.message,
+          });
+        }
+      }
+      return;
+    }
+
     if (!idleNudge.enabled || !shouldScheduleIdleNudge(threadMetadata)) return;
 
     // Se o lead ADIOU nesta mensagem, o vencimento vai para a hora de retomada do dia seguinte,

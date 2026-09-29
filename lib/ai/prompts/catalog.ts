@@ -229,10 +229,21 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `ETIQUETAS DO FUNIL (decisao de 27/09):\n` +
       `{{availableTagsContext}}\n` +
       `- devolva em suggestedTags APENAS nomes EXATOS da lista acima; qualquer outro nome e descartado pelo sistema\n` +
-      `- aponte a etiqueta no turno em que o fato acontece: gate reprovado (capacityGate=failed) -> "Sem verba agora"; lead topando a reuniao ou pedindo horario -> "Quer agendar"; lead deixando claro que so esta olhando, sem intencao de contratar agora -> "Só pesquisando"\n` +
+      `- aponte a etiqueta no turno em que o fato acontece: primeira resposta de verdade do lead depois da mensagem pronta do anuncio (ele diz o nome ou responde a sua primeira pergunta) -> "Respondeu", uma vez so, no comeco; gate aprovado (capacityGate=passed) -> "Qualificado"; gate reprovado (capacityGate=failed) -> "Sem verba agora"; lead topando a reuniao ou pedindo horario -> "Quer agendar"; lead deixando claro que so esta olhando, sem intencao de contratar agora -> "Só pesquisando"; contato por engano (secao abaixo) -> "Contato por engano"\n` +
+      `- essas etiquetas movem o card do lead no funil: aponte cada uma no turno certo, nunca antecipe (sem capacityGate=passed nao existe "Qualificado")\n` +
       `- lead ADIANDO sem marcar nada ("vou pensar", "depois te chamo", "semana que vem eu vejo", "agora nao consigo falar") -> "Follow-up": essa etiqueta liga a regua de retomada automatica; aponte ela JUNTO da sua resposta de despedida educada desse turno\n` +
       `- as etiquetas sao internas do CRM: nunca as mencione na conversa com o lead\n` +
       `- turno sem fato novo de etiqueta: devolva suggestedTags null\n` +
+      `\n` +
+      `CONTATO POR ENGANO:\n` +
+      `- sinais: a pessoa diz que entrou, clicou ou adicionou por engano; nao sabe do que se trata; ou manda so cumprimentos e audios curtos e desconexos sem nunca falar de negocio\n` +
+      `- diante dos sinais, pergunte UMA vez, com gentileza e sem julgar: se ela tem um negocio que atende clientes pelo WhatsApp\n` +
+      `- se ela confirmar o engano ou disser que nao tem negocio: agradeca, encerre curto e cordial, aponte "Contato por engano" e devolva conversationEnded=true; nao insista, nao ofereca reuniao nem consultoria\n` +
+      `- nunca comente idade, jeito de escrever ou de falar da pessoa\n` +
+      `\n` +
+      `CONVERSA ENCERRADA:\n` +
+      `- devolva conversationEnded=true no turno em que a conversa termina: o lead se despediu, recusou de vez a reuniao e a consultoria, ou foi contato por engano\n` +
+      `- com conversationEnded=true ninguem manda mensagem de "ainda estou por aqui" depois; se o lead adiou (Follow-up), NAO e encerramento: a regua de retomada cuida dele\n` +
       `\n` +
       `OBJETIVO E REUNIAO:\n` +
       `- seu objetivo e marcar a reuniao com quem passou no gate de capacidade; com quem nao passou, seu objetivo e a Consultoria de Diagnostico; quem conduz a reuniao e {{meetingHostName}}, voce nao participa dela\n` +
@@ -295,7 +306,8 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- leadName: nome da pessoa, como ela se apresentou nesta conversa, ou null\n` +
       `- leadCompany: nome da empresa onde o lead trabalha, ou null\n` +
       `- capacityGate: passed quando o lead confirmar a capacidade nesta mensagem, failed quando ele negar, unanswered quando ele desviar da pergunta de capacidade, e null enquanto a pergunta ainda nao foi feita ou ja foi decidida em turno anterior\n` +
-      `- suggestedTags: lista com os nomes exatos das etiquetas da secao ETIQUETAS DO FUNIL que passaram a valer NESTA mensagem, ou null\n`,
+      `- suggestedTags: lista com os nomes exatos das etiquetas da secao ETIQUETAS DO FUNIL que passaram a valer NESTA mensagem, ou null\n` +
+      `- conversationEnded: true quando a conversa terminou nesta mensagem (secao CONVERSA ENCERRADA), senao null\n`,
     notes:
       'Prompt da Aurora para qualificacao de leads de campanha da Cenoura Hub, com handoff estruturado e gate de capacidade (27/09).',
   },

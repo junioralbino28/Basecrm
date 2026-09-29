@@ -137,6 +137,10 @@ export const ConversationAutoReplySchema = z.object({
   // o placeholder instrui este campo; nos outros ele simplesmente nunca vem.
   suggestedTags: z.array(z.string().max(80)).max(5).nullable().optional()
     .describe('Etiquetas da lista ETIQUETAS DISPONIVEIS que passaram a valer NESTA mensagem (nome exato), ou null'),
+  // Conversa encerrada (28/09): a cutucada de 15 min saia depois do "Boa noite!" de despedida e o
+  // lead respondeu "Ja terminamos a conversa!". Vale para todos os prompts; sem o campo, nada muda.
+  conversationEnded: z.boolean().nullable().optional()
+    .describe('true se a conversa TERMINOU nesta mensagem (o lead se despediu, recusou de vez ou disse que entrou em contato por engano) e nao ha nada a esperar dele; senao null'),
 });
 
 export type ConversationAIReplyPayload = {
@@ -599,6 +603,7 @@ export async function generateConversationAutoReply(params: {
             .map((id) => tagCatalog.find((t) => t.id === id)?.name)
             .filter((nome): nome is string => Boolean(nome))
         : null,
+      conversationEnded: generated.conversationEnded === true,
     },
   };
 }

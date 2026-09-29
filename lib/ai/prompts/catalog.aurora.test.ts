@@ -271,3 +271,31 @@ describe('prompt da Aurora — etiquetas do funil (decisao de 27/09)', () => {
     expect(padrao).not.toContain('suggestedTags');
   });
 });
+
+describe('prompt da Aurora — funil andando, contato por engano e conversa encerrada (29/09)', () => {
+  const template = () =>
+    getPromptCatalogMap().task_conversations_whatsapp_cenno_aurora.defaultTemplate;
+
+  it('amarra as etiquetas que movem o card: Respondeu no comeco, Qualificado so com o gate aprovado', () => {
+    const t = template();
+    expect(t).toContain('-> "Respondeu", uma vez so, no comeco');
+    expect(t).toContain('gate aprovado (capacityGate=passed) -> "Qualificado"');
+    expect(t).toContain('sem capacityGate=passed nao existe "Qualificado"');
+    expect(t).toContain('-> "Contato por engano"');
+  });
+
+  it('contato por engano: pergunta uma vez, encerra sem insistir e nunca comenta idade', () => {
+    const t = template();
+    expect(t).toContain('CONTATO POR ENGANO:');
+    expect(t).toContain('pergunte UMA vez, com gentileza e sem julgar');
+    expect(t).toContain('nao insista, nao ofereca reuniao nem consultoria');
+    expect(t).toContain('nunca comente idade');
+  });
+
+  it('conversa encerrada vira conversationEnded no retorno, e adiamento NAO e encerramento', () => {
+    const t = template();
+    expect(t).toContain('CONVERSA ENCERRADA:');
+    expect(t).toContain('se o lead adiou (Follow-up), NAO e encerramento');
+    expect(t).toContain('- conversationEnded: true quando a conversa terminou nesta mensagem');
+  });
+});
