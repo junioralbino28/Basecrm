@@ -1,6 +1,6 @@
 # SPEC — Central de Agentes, fase 1: o editor do agente
 
-> Status: **APROVADA pelo Junior (fase, critério e as 2 decisões, 29/09)**. Revisão adversarial interna integrada em 29/09 (`levantamento/revisao-adversarial-fatia-1.md`); revisão técnica do Codex pendente. Implementação começa pela fatia 1, em branch, sem tocar produção sem OK.
+> Status: **APROVADA pelo Junior (fase, critério e as 2 decisões, 29/09)**. Revisão adversarial interna integrada em 29/09 (`levantamento/revisao-adversarial-fatia-1.md`). Revisão técnica do Codex, com 21 itens, integrada em 29/09 (seção no fim). Implementação começa pela fatia 1, em branch, sem tocar produção sem OK.
 > Data: 29/09/2026. Base de leitura: worktree `feat/central-agentes`, HEAD `335f32b` (= produção).
 > Levantamentos com arquivo e linha: `levantamento/mapa-A-prompt.md`, `mapa-B-comportamento.md`, `mapa-C-modelo-telas.md`.
 > Análise da SquadOS que originou a proposta: https://claude.ai/artifact/DsFmx2E4sEfzWgtiGsNYrd (cópia no cérebro, `06-References/central-de-agentes-2026-09-29/`).
@@ -52,7 +52,7 @@ Critério de pronto aprovado pelo Junior em 29/09:
 | Rascunho | `ai_agents.draft` (jsonb: `prompt`, `settings`, `model`) com `draft_revision` (inteiro que sobe a cada salvamento), `draft_updated_at` e `draft_updated_by` | Editar e testar sem tocar o atendimento real. |
 | Publicar e Restaurar | Função SQL única `publish_ai_agent_version` (`security definer`, `search_path=''`), chamada **com o JWT do usuário** (`createClient`), nunca com a chave de serviço. Ela confere o papel por dentro, trava a linha (`select ... for update`) e só publica se a versão publicada **e** a `draft_revision` forem as esperadas; conflito vira 409. O autor vem de `auth.uid()`, nunca de parâmetro. Restaurar = publicar o conteúdo da versão escolhida como versão nova | Histórico linear e auditável, sem a corrida do publicar atual. Amarrar a `draft_revision` garante que o que foi publicado é o que foi testado (I5, I7). |
 | Agente ligado sem versão publicada | Ligar exige versão publicada, e um gatilho no banco garante isso. Se mesmo assim faltar em tempo de execução, a resposta falha com motivo `agent_unavailable`, que segue o mesmo caminho de `missing_prompt`: vai para a automação n8n do cliente, se houver uma configurada | Nunca responder em silêncio com outro prompt nosso. A automação n8n é o reserva que o próprio cliente configurou. |
-| Versões imutáveis | Gatilho recusa `update` em `ai_agent_versions`, exceto zerar o autor quando o usuário que publicou é apagado | "Imutável" vira regra do banco, não convenção, sem travar a exclusão de usuário. |
+| Versões imutáveis | Gatilho recusa `update` em `ai_agent_versions`, exceto zerar o autor quando o usuário que publicou é apagado. Os papéis comuns não escrevem nem apagam versão (GRANT) | A versão não muda depois de gravada, sem travar a exclusão de usuário. Não é histórico inviolável: a chave de serviço ainda apaga uma versão antiga não publicada, e nenhum código faz isso (revisão do Codex, achado 16). |
 | Prova da migração | Toda resposta nativa passa a gravar `prompt_sha256` (sha256 do texto do prompt usado, antes de trocar as variáveis). O script só cria o agente e liga o número quando o sha que ele calcula bate com o sha que a **produção** gravou numa resposta real daquele número. Erro de leitura do banco aborta o script em vez de cair no catálogo | Sem isso, a prova compara o script com ele mesmo, e um catálogo diferente na cópia local passaria (revisão adversarial, B1). |
 | Rastro protegido | A rota do n8n descarta do metadata externo as chaves de rastro (`native_ai`, `prompt_source`, `prompt_sha256`, `agent_id`, `agent_version`, `ai_timing`). A prova da migração só confia em resposta com `automation_source = 'native_crm'` | Senão uma automação externa forja a prova e, depois, os números da fatia 6. |
 | Ajustes do agente × do número | Do **agente** (versionados): nome, prompt, modelo, agrupar, dividir, memória, mídia, cutucada, encerramento, quem conduz e formato da reunião, pausar quando alguém responde pelo celular. Do **número** (ficam na conexão): IA ligada no número, assinatura do atendente, espaçamento da régua, agenda, URL, chave e modo de envio da Evolution | O primeiro grupo é como a IA se comporta; o segundo é do aparelho, da régua ou da operação. |
@@ -98,6 +98,10 @@ channel_connections + ai_agent_id uuid null,
 - O gatilho das versões não recusa `delete`: se recusasse, travaria a cascata de apagar um agente sem número e de apagar a organização. A versão publicada fica protegida pela FK, só a chave de serviço consegue apagar uma versão antiga solta, e nenhum código faz isso.
 - As FKs para `profiles` usam `on delete set null`, como `ai_prompt_templates`: apagar um usuário não pode travar por ele ter publicado uma versão.
 - Com FK nos dois sentidos entre as duas tabelas, o embed do PostgREST (`ai_agents(..., ai_agent_versions(...))`) fica ambíguo. Agente e versão são lidos em duas consultas simples.
+- **Funções da migração** (`security definer`, só `service_role`; ver "Migração"):
+  - `central_agentes_ultima_resposta_nativa(p_connection_id)` devolve o sha e a data da última resposta nativa entregue do número, olhando todas as conversas dele;
+  - `central_agentes_ligar_conexao(...)` liga o número numa transação só.
+- O gatilho da conexão cuida só de "agente sem versão publicada" (P0001). Agente de outra organização é recusado pela FK composta (23503), e assim o teste local prova a própria FK (revisão do Codex, achado 14).
 
 ## Runtime (fatia 1)
 
@@ -107,6 +111,7 @@ channel_connections + ai_agent_id uuid null,
 4. O modelo vem de `version.model || <a expressão de hoje, intacta>` (`orgSettings.ai_model || AI_DEFAULT_MODELS[provider] || AI_DEFAULT_MODELS.google`). Na v1, `model` é nulo, logo o de hoje. Provedor e chave continuam os da organização.
 5. O webhook passa a chamar o gerador também quando `aiPromptKey` é inválida mas o número tem agente. Se o agente sumir entre as duas leituras, o gerador recebe a chave nula e responde `missing_prompt`, nunca o prompt padrão.
 6. O metadata ganha `prompt_sha256` em toda resposta nativa e `agent_id`/`agent_version` só em número com agente. `prompt_source` continua `override` ou `default`, e ganha `agent`.
+7. **Exceção declarada ao "número sem agente continua igual"** (revisão do Codex, achado 9): a rota do n8n passa a descartar do metadata que recebe as seis chaves de rastro, em qualquer número. No código, ninguém lê essas chaves em mensagem do n8n (conferido em 29/09: só o webhook as escreve). O único leitor fora do repositório é a consulta de tempo de resposta do cérebro, que mede resposta nativa. Antes de publicar, conferir os fluxos do n8n dos números com `webhookUrl`.
 
 **Prova de equivalência** (teste obrigatório): com as mesmas entradas e o relógio congelado (a Aurora recebe `{{currentDateTime}}`, que vem de `new Date()` em `aiReply.ts:456`), o prompt renderizado pelo caminho antigo e o do agente com v1 migrada são strings idênticas. Isso vale para a Aurora, para a Julia, para um número com override em `ai_prompt_templates` e para um número sem nada. Hoje só o texto da Aurora tem testes de regressão; esta fatia cria a rede da Julia também.
 
@@ -115,32 +120,48 @@ channel_connections + ai_agent_id uuid null,
 Script `scripts/central-agentes/migrar-agentes.ts`, dentro do repositório, nunca commitado com segredo. Tem quatro modos:
 
 - `--prova`: só leitura.
-  - Para cada número com IA ligada ou chave de prompt definida, calcula o conteúdo efetivo de hoje com a mesma regra do runtime. A leitura é estrita: erro de banco aborta.
-  - Compara o sha256 calculado com o `prompt_sha256` da última resposta nativa real daquele número. O resultado é uma de quatro situações:
-    - `CONFERE`: igual, com resposta das últimas 72 horas;
-    - `DIVERGE`: diferente;
-    - `RESPOSTA ANTIGA`: igual, mas a resposta tem mais de 72 horas. Uma publicação nova sem resposta depois deixaria a prova velha;
+  - Para cada número com IA ligada ou chave de prompt definida, calcula o conteúdo efetivo de hoje com a mesma regra do runtime. A leitura é estrita: erro de banco aborta. As conexões são lidas em páginas, porque o PostgREST corta leitura grande sem erro (revisão do Codex, achado 18).
+  - Compara o sha256 calculado com o `prompt_sha256` da última resposta nativa **entregue** daquele número. O resultado é uma de quatro situações:
+    - `CONFERE`;
+    - `DIVERGE`;
+    - `RESPOSTA SEM SHA`: a última resposta entregue não tem sha válido. A prova falha fechada, sem voltar para uma resposta anterior;
     - `SEM RESPOSTA AINDA`.
+  - Quem escolhe essa resposta é a função do banco `central_agentes_ultima_resposta_nativa`, só para `service_role`. Entre todas as conversas do número, ela pega a mais recente com `automation_source = 'native_crm'`, `native_ai = true` e `delivery_status = 'sent'`, uma linha por resposta (`reply_part_index = 0`), em ordem determinística. Um limite de conversas ou de mensagens no script podia deixar a resposta mais nova de fora e usar uma antiga como prova (revisão do Codex, achados 11 e 12).
   - Número com chave de prompt inválida fica de fora (`CHAVE INVÁLIDA`): hoje ele responde `missing_prompt`, e virar agente faria ele passar a responder.
   - Agrupa num agente os números da mesma organização com o mesmo conteúdo, imprime o relatório e não grava nada.
 - `--criar --org <id>`: organização obrigatória. Cria o agente e a v1 (`source = 'migration'`, `settings = {}`, `model = null`) só para grupos em que todos os números estão em `CONFERE`. Não liga número nenhum. É idempotente: o mesmo sha na mesma organização não cria duplicado.
-- `--ligar <connectionId>`: refaz a prova do número no momento e só liga com `CONFERE` e com a versão publicada tendo o mesmo sha.
-- `--desligar <connectionId>`: volta `ai_agent_id` para nulo.
+- `--ligar <connectionId>`: acha no banco o agente de migração com o sha de hoje e pede à função `central_agentes_ligar_conexao` que ligue. A função trava a linha do número e, na mesma transação, confere de novo:
+  - a chave da conexão;
+  - o override ativo;
+  - a versão publicada do agente;
+  - a última resposta da produção.
+
+  Qualquer mudança no caminho recusa, com o motivo (revisão do Codex, achado 13).
+- `--desligar <connectionId>`: volta `ai_agent_id` para nulo e confirma a linha. Número inexistente é avisado, nunca dado como desligado (achado 19).
 - **Trava de banco:** toda escrita exige `--confirmar-banco <ref>` igual à referência que o script imprime. O `origin` do agente registra o commit do catálogo lido, para rastreio.
-- **Trava de catálogo:** escrita com `lib/ai/prompts/catalog.ts` alterado e não commitado é recusada. O script roda da cópia no mesmo commit publicado naquele ambiente.
+- **Trava da versão publicada:** `--prova`, `--criar` e `--ligar` exigem `--ramo-publicado <ramo>`: `main` em produção, a branch da prévia no teste. Depois de um `git fetch`, o script só segue se:
+  - a cópia estiver exatamente no commit publicado (`HEAD == origin/<ramo>`);
+  - os arquivos que decidem o prompt (`lib/ai/prompts/`, `lib/agents/`, `lib/conversations/aiAgentConfig.ts`) não tiverem mudança local.
+
+  Por quê (revisão do Codex, achado 10): comparar só o sha e a idade da resposta deixava passar uma publicação nova feita depois da última resposta. Uma cópia ainda no texto antigo calcularia o texto antigo e daria `CONFERE`.
+
+  Premissa: o ambiente só publica a partir desse ramo. Se a publicação estiver atrás dele (deploy com erro, rollback), a última resposta veio do texto antigo e a prova dá `DIVERGE`, nunca um `CONFERE` falso.
 
 Ordem (revista em 29/09, ao escrever o PLAN):
 1. Banco de teste primeiro (`zvwngsrflkicbbzfmrgy`), nesta ordem:
    - a migration;
-   - a prévia com o código novo, publicada pelo push;
+   - as variáveis de ambiente da prévia **restritas à branch** `feat/central-agentes`, apontando para o banco de teste. Sem elas, a prévia de uma branch nova recebe as variáveis genéricas de Preview, que apontam para o banco de PRODUÇÃO (aprendizado de 19/09). Por isso o primeiro push leva `[vercel skip]`; as variáveis são criadas depois que a branch existe no GitHub, e só então um commit vazio dispara o build;
+   - a prova de qual banco a prévia usa, pelo pedido real de login, antes de apontar `teste.crm.basea2.com` para ela;
    - uma resposta real do ensaio, que grava `prompt_sha256`;
-   - `--prova`, `--criar`, `--ligar` e `--desligar` num número de teste.
+   - `--prova`, `--criar`, `--ligar` e `--desligar` num número de teste, com `--ramo-publicado feat/central-agentes`.
 
    A resposta seguinte do ensaio tem que sair com `agent_version = 1` e o mesmo `prompt_sha256`.
 2. Produção, com o OK do Junior:
+   - antes de publicar, ver quais números têm automação n8n (`config.webhookUrl`) e se os fluxos deles mandam alguma das seis chaves de rastro no metadata do `/ai-reply`, que passam a ser descartadas (só leitura, com o OK dele);
    - **a migration ANTES do deploy.** A leitura da conexão passa a pedir `ai_agent_id`; se o código chegar antes da coluna, a leitura falha e a IA para em todos os clientes;
-   - depois o deploy, que fica **adormecido** (nenhum número ligado, nada muda além do `prompt_sha256` novo no metadata);
-   - por fim, depois de uma resposta real de cada uma, o `--prova`, só leitura.
+   - depois o deploy, que fica **adormecido**: nenhum número ligado, e as únicas mudanças são o `prompt_sha256` novo no metadata das respostas nativas e a limpeza das chaves de rastro na rota do n8n;
+   - por fim, depois de uma resposta real de cada uma, o `--prova`, só leitura, com `--ramo-publicado main`.
+   - Na operação: num número com agente, uma falha do agente (`agent_unavailable`) segue o caminho de `missing_prompt` e cai na automação n8n do cliente, se houver uma configurada, como já acontece com qualquer falha da IA nativa.
 3. **Ligar a Aurora e a Julia em produção fica para a entrega da fatia 2**, quando já existe o editor. Ligar antes deixaria as duas sem tela para editar o prompt. O aviso na Central de I.A também vai para a fatia 2, com o link para a página nova.
 
 ## Fatia 2 — editor com versões e Publicar
@@ -260,15 +281,26 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
   - equivalência byte a byte (4 cenários acima), incluindo o mesmo `prompt_sha256` nos dois caminhos;
   - `ai_agent_id` nulo não muda nenhuma saída dos testes atuais (suíte completa verde antes e depois);
   - toda resposta nativa grava `prompt_sha256`; `agent_id` e `agent_version` só aparecem em número com agente;
-  - a FK composta recusa ligar um número a agente de outro cliente;
+  - a FK composta recusa ligar um número a agente de outro cliente (23503); agente sem versão publicada, o gatilho recusa (P0001);
   - apagar agente com número ligado é recusado; sem número ligado, apaga; apagar a organização inteira continua funcionando;
   - `update` numa versão é recusado; apagar o usuário que publicou uma versão não trava (o autor vira nulo e o resto não muda);
-  - RLS e GRANT testados com chamada autenticada de verdade: agência lê, admin do cliente não lê, ninguém escreve direto;
-  - agente sem versão não liga;
+  - matriz de acesso do G2, com chamada de verdade (revisão do Codex, achado 15):
+    - identidades: anônimo, agência, cliente A e cliente B;
+    - operações: SELECT, INSERT, UPDATE e DELETE nas duas tabelas, e as três funções;
+    - resultado: só a agência lê, ninguém escreve direto e só `service_role` chama as funções;
   - chave de prompt inválida e sem agente responde `missing_prompt`, nunca o prompt padrão;
   - `agent_unavailable` registrado como falha de configuração;
   - a rota do n8n descarta as chaves de rastro do metadata externo;
-  - migração: `--criar` e `--ligar` recusam sem `CONFERE`; erro de leitura aborta; `--criar` sem `--org` é recusado.
+  - migração:
+    - `--criar` e `--ligar` recusam sem `CONFERE`;
+    - erro de leitura aborta;
+    - `--criar` sem `--org` é recusado;
+    - fora do commit publicado ou com mudança local nos arquivos do prompt, o script recusa;
+    - a função do banco escolhe a última resposta nativa entregue entre todas as conversas do número (teste com mais de 100 conversas) e falha fechada sem sha;
+    - ligar recusa, com o motivo, se a chave, o override, a versão ou a resposta mudaram;
+    - a leitura de conexões pagina (teste acima de 1.000 linhas);
+    - desligar confirma a linha;
+    - a volta da migration foi provada no banco local.
 - **Fatia 2:**
   - publicar cria N+1 e move o ponteiro atomicamente;
   - duas publicações com a mesma versão esperada: uma ganha, a outra recebe 409; publicar com `draft_revision` diferente da mostrada também recebe 409;
@@ -299,16 +331,32 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
 
 ## Portões de segurança aplicáveis (G1–G25)
 
-- **G2 e G13:** RLS e GRANT nas tabelas novas, escrita só por função `security definer` com `search_path=''` e papel conferido por dentro.
+- **G2 e G13:** RLS e GRANT nas tabelas novas, provados pela matriz anônimo × agência × cliente A × cliente B em CRUD e RPC (Task 2 do PLAN). Escrita só por função `security definer` com `search_path=''`.
 - **G3:** autorização no servidor em toda rota (`requireTenantAccess` com `adminOnly`), e as funções de escrita conferem o papel de novo por dentro.
 - **G4:** FK composta e checagem de organização em toda leitura.
 - **G5 e G19:** zod com `.strict()`, lista fechada de campos e limites: campo fora da lista recebe 400, nunca é ignorado em silêncio. A função de publicar também recusa chave desconhecida em `settings`, e o autor vem de `auth.uid()`, nunca do corpo.
 - **G7 e G18:** limite no teste e teto de tamanho.
 - **G15, G16 e G17:** preview sem ferramenta nem efeito, saída tratada como texto.
 - **G22:** a chave de IA nunca sai do servidor.
-- **G23:** migration só aditiva, sem reescrever `config` de conexão.
-- **G24:** versões são o registro de quem publicou o quê, e cada resposta registra a versão.
-- **G25:** agente sem versão não liga; ausência de agente = caminho atual.
+- **G20 (regra de negócio):** a tabela de invariantes abaixo. Cada uma tem teste negativo e fica garantida no banco ou no servidor, não na tela.
+- **G23:** migration só aditiva, sem reescrever `config` de conexão (revisão do Codex, achado 20). Antes da escrita em produção:
+  - a data do último backup e o estado do PITR registrados;
+  - a volta (`volta-fatia-1.sql`) provada no banco local: aplicar, voltar, aplicar;
+  - o ensaio completo no banco de teste.
+- **G24:** o rastro (versão e sha em cada resposta) é registro, não detecção. Esta fatia não cria alerta, então o G24 fica **NÃO-TESTADO** (revisão do Codex, achado 21).
+- **G25:** nenhum default de plataforma novo nesta fatia (N/A).
+
+| Invariante (G20) | Onde fica garantida | Teste negativo |
+|---|---|---|
+| Número sem agente responde como hoje | runtime: `ai_agent_id` nulo = caminho atual | equivalência (Task 7) e suíte atual verde |
+| Chave inválida, sem agente, não responde | gerador: chave nula vira `missing_prompt` | Tasks 6 e 8 |
+| Número não liga a agente de outro cliente | FK composta | Task 2 (23503) |
+| Número não liga a agente sem versão publicada | gatilho | Task 2 (P0001) |
+| Versão não muda depois de gravada | gatilho (exceto zerar o autor) | Task 2 |
+| Agente ligado não se apaga | FK `on delete no action` | Task 2 |
+| Um agente de migração por (cliente, sha) | índice único + função | Task 2 |
+| Só liga com a prova em `CONFERE` e o estado igual ao conferido | `central_agentes_ligar_conexao`, numa transação, com a linha travada | Tasks 2 e 10 |
+| Rastro nativo não é forjado pela rota do n8n | limpeza na rota | Task 9 |
 
 ## Achados fora do escopo, registrados para não se perderem
 
@@ -333,3 +381,25 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
 4. Rascunho na própria linha do agente × tabela de rascunhos.
 5. Custo calculado na leitura × gravado na escrita.
 6. O preview contornar o portão de envio só pela função nova, sem flag no gerador que o webhook usa.
+
+## Revisão do Codex (29/09) — como ficou
+
+Pontos 1, 2, 4, 5 e 6 aprovados. O 3 foi aprovado condicionado ao teste local da cascata, que continua obrigatório (Task 2 do PLAN, com ordem de parar se falhar). Achados:
+
+| # | Gravidade | O que mudou |
+|---|---|---|
+| 7 | importante | A Task 13 tem os comandos próprios desta entrega; o rito da branch da Aurora não é seguido ao pé da letra. A prévia nova só é construída depois de ganhar as variáveis da própria branch, porque sem elas usaria o banco de produção. |
+| 8 | bloqueante | O banco falso dos testes ganhou `.not`, com a semântica de NULL do SQL, antes do teste de equivalência da Aurora. |
+| 9 | menor | A limpeza das chaves de rastro na rota do n8n está declarada como exceção (Runtime, item 7). Os fluxos do n8n são conferidos antes de publicar. |
+| 10 | bloqueante | Trava da versão publicada: o script só roda com `HEAD == origin/<ramo publicado>` e sem mudança local nos arquivos do prompt. A janela de 72 horas saiu. |
+| 11 | bloqueante | A última resposta é escolhida por função do banco, entre todas as conversas do número. |
+| 12 | importante | Só conta resposta entregue, uma linha por resposta, e sem sha a prova falha fechada (`RESPOSTA SEM SHA`). |
+| 13 | importante | A ligação é feita por `central_agentes_ligar_conexao`, numa transação só, com a linha travada. Ela confere de novo a chave, o override, a versão e a resposta. |
+| 14 | importante | O gatilho cuida só de agente sem versão (P0001), e a FK composta responde por agente de outro cliente (23503). O teste agora prova a FK. |
+| 15 | importante | A matriz de acesso cobre anônimo, agência, cliente A e cliente B, em CRUD nas duas tabelas e nas três funções. |
+| 16 | menor | A redação da garantia de histórico mudou: protege contra UPDATE e contra os papéis comuns, sem prometer que a versão é inviolável para `service_role`. |
+| 17 | importante | O banco falso ganhou projeção opcional do `select`. O teste do portão fica vermelho sem a coluna nova. |
+| 18 | menor | A leitura de conexões pagina (teste acima de 1.000 linhas), e o agente candidato é achado por filtro no banco. |
+| 19 | menor | `--desligar` confirma a linha e distingue número inexistente. |
+| 20 | importante | G23: backup e PITR registrados antes da escrita, e a volta provada no banco local. |
+| 21 | menor | As invariantes foram para o G20, com tabela e testes negativos. O G24 fica NÃO-TESTADO e o G25 é N/A nesta fatia. |

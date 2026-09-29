@@ -5,14 +5,14 @@
 **Goal:** criar o cadastro de agente (`ai_agents` + `ai_agent_versions`) e fazer o atendimento de WhatsApp usar o prompt da versão publicada quando o número tem agente, com o resto do caminho byte a byte igual. Toda resposta nativa passa a gravar o sha256 do prompt usado, e o script de migração só cria e liga um agente quando o sha que ele calcula bate com o que a produção gravou.
 
 **Architecture:**
-- **Banco:** duas tabelas novas com RLS (leitura só da agência) e escrita só por função `security definer`. A coluna `channel_connections.ai_agent_id` entra com FK composta por organização, `on delete no action` (agente ligado não se apaga), e um gatilho que só aceita agente publicado. Outro gatilho recusa `update` em versão.
+- **Banco:** duas tabelas novas com RLS (leitura só da agência) e escrita só por função `security definer`. A coluna `channel_connections.ai_agent_id` entra com FK composta por organização, `on delete no action` (agente ligado não se apaga), e um gatilho que só aceita agente publicado. Outro gatilho recusa `update` em versão, exceto zerar o autor.
 - **Resposta:** `generateConversationAutoReply` lê a versão publicada logo depois do portão da IA. Troca só a fonte do prompt (e o modelo, se a versão tiver um) e devolve o sha256 do texto usado. Chave de prompt nula sem agente vira `missing_prompt`, nunca o prompt padrão. O webhook grava `prompt_sha256` em toda resposta nativa e `agent_id`/`agent_version` só com agente.
 - **Rastro protegido:** a rota do n8n descarta do metadata externo as chaves de rastro nativo, para ninguém forjar a prova.
-- **Resolução do prompt:** a resolução de hoje vira uma função pura usada pelo runtime. O script usa a variante estrita (erro de banco aborta) e confere o resultado contra o sha gravado pela produção.
+- **Prova e ligação no banco:** uma função escolhe a última resposta nativa entregue do número, entre todas as conversas dele. Outra liga o número numa transação só, conferindo de novo a chave, o override, a versão publicada e essa resposta. O script só roda da cópia no commit publicado e usa a leitura estrita (erro de banco aborta).
 
 **Tech Stack:** Next.js (rotas em `app/`), Supabase Postgres 15 (migrations em `supabase/migrations`), supabase-js, AI SDK (`ai`), Vitest (+ Supabase local via `npm run test:local`), TypeScript. O script roda com `npx --yes tsx@4.23.1` (versão já no cache do npx desta máquina; sem `--yes`, o npx para esperando confirmação).
 
-**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial integrada). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md`.
+**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial interna e a revisão do Codex integradas). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md`.
 
 **Regras do projeto que valem aqui:**
 - Nunca rodar teste, migration ou script contra o banco de produção sem o OK do Junior.
@@ -26,9 +26,12 @@
 
 | Arquivo | Ação | Responsabilidade |
 |---|---|---|
-| `supabase/migrations/20260930000000_central_agentes_fundacao.sql` | Criar | Tabelas, FKs compostas, gatilhos, RLS/GRANT, função de migração |
+| `supabase/migrations/20260930000000_central_agentes_fundacao.sql` | Criar | Tabelas, FKs compostas, gatilhos, RLS/GRANT, funções da migração (criar agente, última resposta nativa, ligar) |
+| `docs/features/central-de-agentes/volta-fatia-1.sql` | Criar | Volta da migration (G23), provada no banco local |
 | `test/centralAgentesFundacaoMigration.test.ts` | Criar | Prova do texto da migration (sem banco) |
-| `test/centralAgentesFundacao.local.test.ts` | Criar | Prova no Supabase local: RLS, GRANT, FKs, gatilhos, cascata, idempotência |
+| `test/centralAgentesFundacao.local.test.ts` | Criar | Prova no Supabase local: FKs, gatilhos, cascata, idempotência, matriz de acesso, prova e ligação |
+| `test/helpers/fakeSupabaseAdmin.ts` | Modificar | Banco falso: projeção do `select` e limite de linhas (opcionais), `.not`, resposta de RPC por argumento |
+| `test/helpers/fakeSupabaseAdmin.test.ts` | Criar | O que o banco falso passa a imitar |
 | `lib/ai/prompts/resolve.ts` | Criar | Resolução pura do prompt (override ativo → catálogo) e a variante estrita, sem `server-only` |
 | `lib/ai/prompts/resolve.test.ts` | Criar | Regras da resolução |
 | `lib/ai/prompts/server.ts` | Modificar | `getResolvedPrompt` delega para `resolve.ts` (comportamento igual) |
@@ -45,9 +48,9 @@
 | `lib/conversations/conversationDeliveryMetadata.test.ts` | Modificar | A limpeza tira só as chaves de rastro |
 | `app/api/public/channels/evolution/[connectionId]/ai-reply/route.ts` | Modificar | A rota do n8n limpa o metadata externo |
 | `app/api/public/channels/evolution/[connectionId]/ai-reply/route.rastro.test.ts` | Criar | A rota do n8n não grava rastro nativo |
-| `lib/agents/migracaoAgentes.ts` | Criar | Prova contra a produção, planejar, criar, ligar e desligar (usado pelo script) |
+| `lib/agents/migracaoAgentes.ts` | Criar | Prova contra a produção, planejar (paginado), criar, ligar (pela função do banco) e desligar (com confirmação) |
 | `lib/agents/migracaoAgentes.test.ts` | Criar | Regras da migração |
-| `scripts/central-agentes/migrar-agentes.ts` | Criar | Linha de comando `--prova/--criar/--ligar/--desligar` |
+| `scripts/central-agentes/migrar-agentes.ts` | Criar | Linha de comando `--prova/--criar/--ligar/--desligar`, com a trava da versão publicada |
 
 ---
 
@@ -104,8 +107,8 @@ describe('migration da fundação da Central de Agentes', () => {
     expect(existsSync(ARQUIVO)).toBe(true);
   });
 
-  it('o detector de corpo acha as três funções (caso positivo)', () => {
-    expect(corposDasFuncoes(sql)).toHaveLength(3);
+  it('o detector de corpo acha as cinco funções (caso positivo)', () => {
+    expect(corposDasFuncoes(sql)).toHaveLength(5);
   });
 
   it('cria as duas tabelas com a FK composta por organização e a revisão do rascunho', () => {
@@ -145,19 +148,23 @@ describe('migration da fundação da Central de Agentes', () => {
   });
 
   it('as funções que leem ou escrevem têm cabeçalho de segurança; nenhuma fica aberta a public', () => {
-    expect(semComentarios.match(/security definer\s*\nset search_path = ''/g)).toHaveLength(2);
-    expect(semComentarios).toContain(
-      'revoke all on function public.enforce_channel_connection_ai_agent_published() from public, anon, authenticated;',
-    );
-    expect(semComentarios).toContain(
-      'revoke all on function public.prevent_ai_agent_version_update() from public, anon, authenticated;',
-    );
-    expect(semComentarios).toContain(
-      'revoke all on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) from public, anon, authenticated;',
-    );
-    expect(semComentarios).toContain(
-      'grant execute on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) to service_role;',
-    );
+    expect(semComentarios.match(/security definer\s*\nset search_path = ''/g)).toHaveLength(4);
+    for (const assinatura of [
+      'enforce_channel_connection_ai_agent_published()',
+      'prevent_ai_agent_version_update()',
+      'create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb)',
+      'central_agentes_ultima_resposta_nativa(uuid)',
+      'central_agentes_ligar_conexao(uuid, uuid, text, text, text, text)',
+    ]) {
+      expect(semComentarios).toContain(`revoke all on function public.${assinatura} from public, anon, authenticated;`);
+    }
+    for (const assinatura of [
+      'create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb)',
+      'central_agentes_ultima_resposta_nativa(uuid)',
+      'central_agentes_ligar_conexao(uuid, uuid, text, text, text, text)',
+    ]) {
+      expect(semComentarios).toContain(`grant execute on function public.${assinatura} to service_role;`);
+    }
   });
 
   it('a migração confere o sha256 do prompt e é idempotente na função e no banco', () => {
@@ -168,10 +175,10 @@ describe('migration da fundação da Central de Agentes', () => {
     expect(semComentarios).toContain('create unique index if not exists ai_agents_migration_origin_unique');
   });
 
-  it('o gatilho da conexão só aceita agente publicado da mesma organização', () => {
+  it('o gatilho da conexão só cuida de agente sem versão; a organização fica com a FK composta (23503)', () => {
     const [gatilho] = corposDasFuncoes(sql);
     expect(gatilho).toContain('a.published_version_id is not null');
-    expect(gatilho).toContain('a.organization_id = new.organization_id');
+    expect(gatilho).not.toContain('a.organization_id');
     expect(semComentarios).toContain('before insert or update of ai_agent_id on public.channel_connections');
   });
 
@@ -185,12 +192,37 @@ describe('migration da fundação da Central de Agentes', () => {
     expect(semComentarios).not.toMatch(/before (update or delete|delete) on public\.ai_agent_versions/);
   });
 
-  it('não é destrutiva nem reescreve a config das conexões', () => {
+  it('a prova lê a última resposta nativa ENTREGUE do número, uma linha por resposta, sem voltar para trás', () => {
+    const [, , , ultima] = corposDasFuncoes(sql);
+    expect(ultima).toContain('t.channel_connection_id = p_connection_id');
+    expect(ultima).toContain("m.metadata ->> 'automation_source' = 'native_crm'");
+    expect(ultima).toContain("m.metadata ->> 'native_ai' = 'true'");
+    expect(ultima).toContain("m.metadata ->> 'delivery_status' = 'sent'");
+    expect(ultima).toContain("coalesce(m.metadata ->> 'reply_part_index', '0') = '0'");
+    expect(ultima).toContain('order by m.sent_at desc, m.created_at desc, m.id desc');
+    // O sha é validado no resultado, não no filtro: resposta mais nova sem sha devolve sha nulo (falha
+    // fechada) em vez de a função pular para uma resposta anterior que tenha sha.
+    expect(ultima).not.toMatch(/where[\s\S]*prompt_sha256[\s\S]*order by/);
+  });
+
+  it('ligar confere tudo de novo numa transação só, com a linha do número travada', () => {
+    const [, , , , ligar] = corposDasFuncoes(sql);
+    expect(ligar).toMatch(/from public\.channel_connections c\s+where c\.id = p_connection_id\s+for update;/);
+    expect(ligar).toContain("return 'chave_mudou'");
+    expect(ligar).toContain("return 'override_mudou'");
+    expect(ligar).toContain("return 'versao_publicada_diverge'");
+    expect(ligar).toContain('public.central_agentes_ultima_resposta_nativa(p_connection_id)');
+    expect(ligar).toContain("return 'prova_nao_confere'");
+    expect(ligar).toContain("return 'ligado'");
+  });
+
+  it('não é destrutiva, e o único update em conexão é o do ai_agent_id, dentro da função de ligar', () => {
     expect(semComentarios).not.toMatch(/\bdrop\s+table\b/i);
     expect(semComentarios).not.toMatch(/\bdrop\s+function\b/i);
     expect(semComentarios).not.toMatch(/\btruncate\b/i);
     expect(semComentarios).not.toMatch(/\bdelete\s+from\b/i);
-    expect(semComentarios).not.toMatch(/update\s+public\.channel_connections/i);
+    const updatesDeConexao = [...semComentarios.matchAll(/update\s+public\.channel_connections\s+set\s+(\w+)/gi)].map((m) => m[1]);
+    expect(updatesDeConexao).toEqual(['ai_agent_id']);
   });
 });
 ```
@@ -202,7 +234,7 @@ Expected: FAIL em "existe" (arquivo não encontrado) e nos demais.
 
 - [ ] **Step 3: Escrever a migration**
 
-A ordem das três funções no arquivo importa para o teste: gatilho da conexão, gatilho das versões, função de migração.
+A ordem das cinco funções no arquivo importa para o teste: gatilho da conexão, gatilho das versões, criar agente, última resposta nativa, ligar.
 
 ```sql
 -- =============================================================================
@@ -217,6 +249,7 @@ A ordem das três funções no arquivo importa para o teste: gatilho da conexão
 -- novas só por função security definer; leitura só da agência (agency_admin/admin).
 -- ORDEM DE PUBLICAÇÃO: esta migration entra em produção ANTES do deploy do código,
 -- porque a leitura da conexão passa a pedir a coluna ai_agent_id.
+-- VOLTA: docs/features/central-de-agentes/volta-fatia-1.sql (depois de tirar o código do ar).
 -- =============================================================================
 
 create table if not exists public.ai_agents (
@@ -286,6 +319,7 @@ end $$;
 -- `set null`, apagar o agente devolveria o número em silêncio ao prompt antigo. A checagem roda
 -- depois das cascatas do mesmo comando, então apagar a organização inteira continua funcionando
 -- (mesmo padrão das FKs compostas do funil, 20260718010000_funil_f2_publication.sql).
+-- Agente de outra organização: é esta FK que recusa (23503).
 alter table public.channel_connections
   add column if not exists ai_agent_id uuid null;
 
@@ -304,7 +338,9 @@ create index if not exists channel_connections_ai_agent_id_idx
   on public.channel_connections (ai_agent_id)
   where ai_agent_id is not null;
 
--- Ligar exige versão publicada (G25): nunca responder com agente vazio.
+-- Ligar exige versão publicada (G25 da SPEC, invariante G20): nunca responder com agente vazio.
+-- A organização NÃO é conferida aqui: agente de outra organização cai na FK composta acima (23503),
+-- e este gatilho fica só com o caso "agente sem versão publicada" (P0001).
 create or replace function public.enforce_channel_connection_ai_agent_published()
 returns trigger
 language plpgsql
@@ -317,7 +353,6 @@ begin
       select 1
       from public.ai_agents a
       where a.id = new.ai_agent_id
-        and a.organization_id = new.organization_id
         and a.published_version_id is not null
     ) then
       raise exception 'ai_agent_not_published' using errcode = 'P0001';
@@ -334,9 +369,10 @@ create trigger channel_connections_ai_agent_published
   before insert or update of ai_agent_id on public.channel_connections
   for each row execute function public.enforce_channel_connection_ai_agent_published();
 
--- Versão é imutável (G24). Só UPDATE é recusado: recusar DELETE travaria a cascata de apagar um
--- agente sem número e de apagar a organização. A versão publicada já é protegida pela FK do ponteiro.
--- A única mudança aceita é zerar o autor: apagar o usuário que publicou faz o Postgres rodar
+-- Versão não muda depois de gravada. Só UPDATE é recusado: recusar DELETE travaria a cascata de apagar
+-- um agente sem número e de apagar a organização. A versão publicada é protegida pela FK do ponteiro, e
+-- os papéis comuns não escrevem nem apagam (GRANT); a chave de serviço ainda apaga versão antiga não
+-- publicada. A única mudança aceita é zerar o autor: apagar o usuário que publicou faz o Postgres rodar
 -- `update ... set published_by = null` (FK on delete set null), e recusar isso travaria a exclusão dele.
 create or replace function public.prevent_ai_agent_version_update()
 returns trigger
@@ -447,24 +483,181 @@ $$;
 
 revoke all on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) from public, anon, authenticated;
 grant execute on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) to service_role;
+
+-- Prova da migração: sha e data da ÚLTIMA resposta nativa ENTREGUE do número, entre TODAS as conversas
+-- dele, uma linha por resposta (parte 0). A resposta nativa não grava channel_connection_id na mensagem;
+-- o número vem da conversa. O sha é validado no resultado, não no filtro: se a resposta mais nova não
+-- tem sha válido, volta sha nulo e a prova falha fechada, sem pular para uma resposta anterior.
+create or replace function public.central_agentes_ultima_resposta_nativa(p_connection_id uuid)
+returns table (out_sha256 text, out_sent_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    case when m.metadata ->> 'prompt_sha256' ~ '^[0-9a-f]{64}$' then m.metadata ->> 'prompt_sha256' end,
+    m.sent_at
+  from public.conversation_messages m
+  join public.conversation_threads t
+    on t.id = m.thread_id
+   and t.organization_id = m.organization_id
+  where t.channel_connection_id = p_connection_id
+    and m.direction = 'outbound'
+    and m.metadata ->> 'automation_source' = 'native_crm'
+    and m.metadata ->> 'native_ai' = 'true'
+    and m.metadata ->> 'delivery_status' = 'sent'
+    and coalesce(m.metadata ->> 'reply_part_index', '0') = '0'
+  order by m.sent_at desc, m.created_at desc, m.id desc
+  limit 1;
+$$;
+
+revoke all on function public.central_agentes_ultima_resposta_nativa(uuid) from public, anon, authenticated;
+grant execute on function public.central_agentes_ultima_resposta_nativa(uuid) to service_role;
+
+-- Liga o número ao agente numa transação só, conferindo de novo o que o script conferiu: a chave da
+-- conexão, o override ativo, a versão publicada do agente e a última resposta da produção. A linha do
+-- número fica travada até o fim, e qualquer mudança no caminho recusa, com o motivo.
+create or replace function public.central_agentes_ligar_conexao(
+  p_connection_id uuid,
+  p_agent_id uuid,
+  p_chave_bruta text,
+  p_prompt_key text,
+  p_prompt_source text,
+  p_sha256 text
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid;
+  v_config jsonb;
+  v_agente_atual uuid;
+  v_override uuid;
+  v_producao text;
+begin
+  if p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then
+    return 'sha_invalido';
+  end if;
+
+  select c.organization_id, c.config, c.ai_agent_id
+    into v_org, v_config, v_agente_atual
+  from public.channel_connections c
+  where c.id = p_connection_id
+  for update;
+  if not found then
+    return 'conexao_inexistente';
+  end if;
+  if v_agente_atual is not null then
+    return 'ja_ligada';
+  end if;
+  if (v_config ->> 'aiPromptKey') is distinct from p_chave_bruta then
+    return 'chave_mudou';
+  end if;
+
+  if p_prompt_source = 'default' then
+    if exists (
+      select 1
+      from public.ai_prompt_templates t
+      where t.organization_id = v_org
+        and t.key = p_prompt_key
+        and t.is_active
+        and t.content <> ''
+    ) then
+      return 'override_mudou';
+    end if;
+  elsif p_prompt_source = 'override' then
+    select t.id
+      into v_override
+    from public.ai_prompt_templates t
+    where t.organization_id = v_org
+      and t.key = p_prompt_key
+      and t.is_active
+      and encode(extensions.digest(t.content, 'sha256'), 'hex') = p_sha256
+    limit 1
+    for share;
+    if not found then
+      return 'override_mudou';
+    end if;
+  else
+    return 'origem_invalida';
+  end if;
+
+  if not exists (
+    select 1
+    from public.ai_agents a
+    join public.ai_agent_versions v
+      on v.id = a.published_version_id
+     and v.agent_id = a.id
+     and v.organization_id = a.organization_id
+    where a.id = p_agent_id
+      and a.organization_id = v_org
+      and encode(extensions.digest(v.prompt, 'sha256'), 'hex') = p_sha256
+  ) then
+    return 'versao_publicada_diverge';
+  end if;
+
+  select r.out_sha256
+    into v_producao
+  from public.central_agentes_ultima_resposta_nativa(p_connection_id) r;
+  if v_producao is distinct from p_sha256 then
+    return 'prova_nao_confere';
+  end if;
+
+  update public.channel_connections
+     set ai_agent_id = p_agent_id
+   where id = p_connection_id;
+  return 'ligado';
+end;
+$$;
+
+revoke all on function public.central_agentes_ligar_conexao(uuid, uuid, text, text, text, text) from public, anon, authenticated;
+grant execute on function public.central_agentes_ligar_conexao(uuid, uuid, text, text, text, text) to service_role;
 ```
 
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `npx vitest run test/centralAgentesFundacaoMigration.test.ts`
-Expected: PASS (12 testes).
+Expected: PASS (14 testes).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Escrever a volta (G23)**
+
+Criar `docs/features/central-de-agentes/volta-fatia-1.sql`:
+
+```sql
+-- VOLTA da fatia 1 da Central de Agentes (supabase/migrations/20260930000000_central_agentes_fundacao.sql).
+-- ORDEM: primeiro tirar do ar o código que lê ai_agent_id (senão o portão da IA falha e a IA para em
+-- todos os clientes); só depois rodar isto. Nunca em produção sem o OK do Junior. Provada no banco local
+-- (Task 2, Step 3): aplicar -> voltar -> aplicar.
+begin;
+drop trigger if exists channel_connections_ai_agent_published on public.channel_connections;
+alter table public.channel_connections drop constraint if exists channel_connections_ai_agent_fk;
+drop index if exists public.channel_connections_ai_agent_id_idx;
+alter table public.channel_connections drop column if exists ai_agent_id;
+drop function if exists public.central_agentes_ligar_conexao(uuid, uuid, text, text, text, text);
+drop function if exists public.central_agentes_ultima_resposta_nativa(uuid);
+drop function if exists public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb);
+drop function if exists public.enforce_channel_connection_ai_agent_published();
+drop table if exists public.ai_agent_versions cascade;
+drop table if exists public.ai_agents cascade;
+drop function if exists public.prevent_ai_agent_version_update();
+delete from supabase_migrations.schema_migrations where version = '20260930000000';
+commit;
+```
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/20260930000000_central_agentes_fundacao.sql test/centralAgentesFundacaoMigration.test.ts
+git add supabase/migrations/20260930000000_central_agentes_fundacao.sql test/centralAgentesFundacaoMigration.test.ts docs/features/central-de-agentes/volta-fatia-1.sql
 git diff --cached --stat
-git commit -m "feat(central-agentes): migration da fundacao (ai_agents, versoes, ai_agent_id na conexao)"
+git commit -m "feat(central-agentes): migration da fundacao (ai_agents, versoes, ai_agent_id, prova e ligacao no banco)"
 ```
 
 ---
 
-### Task 2: Prova no Supabase local (RLS, GRANT, FKs, gatilhos, cascata, idempotência)
+### Task 2: Prova no Supabase local (FKs, gatilhos, cascata, matriz de acesso, prova e ligação)
 
 **Files:**
 - Test: `test/centralAgentesFundacao.local.test.ts`
@@ -490,6 +683,7 @@ const describeLocal = describe.skipIf(!isLocalSupabase);
 
 const sha256 = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
 const PROMPT = 'Voce e a Aurora. {{contactName}}\n{{recentMessagesText}}';
+const AURORA = 'task_conversations_whatsapp_cenno_aurora';
 
 describeLocal('Central de Agentes, fundação — Supabase local', () => {
   let runId = '';
@@ -500,7 +694,8 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
   let agenteB = '';
   const usuarios: string[] = [];
   let emailAgencia = '';
-  let emailCliente = '';
+  let emailClienteA = '';
+  let emailClienteB = '';
   const senha = `Vitest!${randomUUID()}`;
 
   async function criarUsuario(role: 'agency_admin' | 'clinic_admin', organizationId: string) {
@@ -540,8 +735,33 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
       p_organization_id: organizationId,
       p_name: 'Aurora',
       p_prompt: prompt,
-      p_origin: { sha256: sha256(prompt), promptKey: 'task_conversations_whatsapp_cenno_aurora', promptSource: 'default' },
+      p_origin: { sha256: sha256(prompt), promptKey: AURORA, promptSource: 'default' },
     });
+  }
+
+  async function novaConexao(nome: string, config: Record<string, unknown> = {}) {
+    const admin = getSupabaseAdminClient();
+    return requireSupabaseData(await admin
+      .from('channel_connections')
+      .insert({ organization_id: orgA, provider: 'evolution', channel_type: 'whatsapp', name: `${nome} ${runId}`, config })
+      .select('id')
+      .single(), `insert conexao ${nome}`).id as string;
+  }
+
+  /** Metadata de resposta nativa entregue, parte 0, como o webhook grava. */
+  function nativa(sha: string | null, extra: Record<string, unknown> = {}) {
+    return {
+      automation_source: 'native_crm',
+      native_ai: true,
+      delivery_status: 'sent',
+      reply_part_index: 0,
+      ...(sha ? { prompt_sha256: sha } : {}),
+      ...extra,
+    };
+  }
+
+  function mensagem(threadId: string, sentAt: string, metadata: Record<string, unknown>, direction = 'outbound') {
+    return { thread_id: threadId, organization_id: orgA, direction, content: 'x', sent_at: sentAt, metadata };
   }
 
   beforeAll(async () => {
@@ -549,15 +769,10 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     runId = fixtures.runId;
     orgA = fixtures.orgA.organizationId;
     orgB = fixtures.orgB.organizationId;
-    const admin = getSupabaseAdminClient();
-    const conexao = await admin
-      .from('channel_connections')
-      .insert({ organization_id: orgA, provider: 'evolution', channel_type: 'whatsapp', name: `Central ${runId}`, config: { aiEnabled: false } })
-      .select('id')
-      .single();
-    conexaoA = requireSupabaseData(conexao, 'insert conexao A').id;
+    conexaoA = await novaConexao('Central', { aiEnabled: false });
     emailAgencia = await criarUsuario('agency_admin', orgA);
-    emailCliente = await criarUsuario('clinic_admin', orgA);
+    emailClienteA = await criarUsuario('clinic_admin', orgA);
+    emailClienteB = await criarUsuario('clinic_admin', orgB);
   }, 120_000);
 
   afterAll(async () => {
@@ -608,18 +823,19 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     expect(desligada.data?.ai_agent_id).toBeNull();
   });
 
-  it('recusa ligar o número ao agente de outra organização (FK composta)', async () => {
+  it('a FK composta recusa ligar o número ao agente de outra organização (23503)', async () => {
     const outro = await criarAgente(orgB, `${PROMPT}\nB`);
     agenteB = (outro.data as Array<{ out_agent_id: string }>)[0].out_agent_id;
     const tentativa = await getSupabaseAdminClient().from('channel_connections').update({ ai_agent_id: agenteB }).eq('id', conexaoA);
     expect(tentativa.error?.code).toBe('23503');
   });
 
-  it('recusa ligar a agente sem versão publicada', async () => {
+  it('o gatilho recusa ligar a agente sem versão publicada (P0001)', async () => {
     const admin = getSupabaseAdminClient();
     const vazio = await admin.from('ai_agents').insert({ organization_id: orgA, name: 'Sem versao' }).select('id').single();
     const vazioId = requireSupabaseData(vazio, 'insert agente vazio').id;
     const tentativa = await admin.from('channel_connections').update({ ai_agent_id: vazioId }).eq('id', conexaoA);
+    expect(tentativa.error?.code).toBe('P0001');
     expect(tentativa.error?.message).toContain('ai_agent_not_published');
   });
 
@@ -690,33 +906,149 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     }
   });
 
-  it('agência lê os agentes; admin do cliente não lê; ninguém escreve direto', async () => {
-    const agencia = await entrar(emailAgencia);
-    const lidos = await agencia.from('ai_agents').select('id');
-    expect(lidos.error).toBeNull();
-    const ids = (lidos.data ?? []).map((row) => row.id);
-    expect(ids).toContain(agenteA);
-    expect(ids).toContain(agenteB);
-    const escrita = await agencia.from('ai_agents').insert({ organization_id: orgA, name: 'Direto' });
-    expect(escrita.error?.code).toBe('42501');
+  it('matriz de acesso (G2): anônimo, agência, cliente A e cliente B, nas duas tabelas e nas três funções', async () => {
+    const identidades = {
+      anonimo: createClient(getSupabaseUrl(), getAnonKey(), { auth: { persistSession: false, autoRefreshToken: false } }),
+      agencia: await entrar(emailAgencia),
+      clienteA: await entrar(emailClienteA),
+      clienteB: await entrar(emailClienteB),
+    };
+    const escritas = {
+      ai_agents: {
+        insert: { organization_id: orgA, name: 'Direto' },
+        update: { name: 'Mexido' },
+        coluna: 'id',
+      },
+      ai_agent_versions: {
+        insert: { agent_id: agenteA, organization_id: orgA, version: 99, prompt: 'x', source: 'publish' },
+        update: { note: 'mexi' },
+        coluna: 'agent_id',
+      },
+    };
+    const funcoes: Array<[string, Record<string, unknown>]> = [
+      ['create_ai_agent_from_legacy_prompt', { p_organization_id: orgA, p_name: 'X', p_prompt: 'x', p_origin: { sha256: sha256('x') } }],
+      ['central_agentes_ultima_resposta_nativa', { p_connection_id: conexaoA }],
+      ['central_agentes_ligar_conexao', {
+        p_connection_id: conexaoA, p_agent_id: agenteA, p_chave_bruta: null, p_prompt_key: AURORA, p_prompt_source: 'default', p_sha256: sha256(PROMPT),
+      }],
+    ];
 
-    const cliente = await entrar(emailCliente);
-    const doCliente = await cliente.from('ai_agents').select('id');
-    expect(doCliente.error).toBeNull();
-    expect(doCliente.data).toEqual([]);
-    const versoesDoCliente = await cliente.from('ai_agent_versions').select('id');
-    expect(versoesDoCliente.data).toEqual([]);
+    for (const [nome, cliente] of Object.entries(identidades)) {
+      for (const [tabela, caso] of Object.entries(escritas)) {
+        const lidos = await cliente.from(tabela).select('id');
+        if (nome === 'anonimo') {
+          expect(lidos.error?.code, `${nome} lê ${tabela}`).toBe('42501');
+        } else if (nome === 'agencia') {
+          expect(lidos.error, `${nome} lê ${tabela}`).toBeNull();
+          expect(lidos.data?.length, `${nome} lê ${tabela}`).toBeGreaterThan(0);
+        } else {
+          expect(lidos.error, `${nome} lê ${tabela}`).toBeNull();
+          expect(lidos.data, `${nome} lê ${tabela}`).toEqual([]);
+        }
+        const tentativas = [
+          await cliente.from(tabela).insert(caso.insert),
+          await cliente.from(tabela).update(caso.update).eq(caso.coluna, agenteA),
+          await cliente.from(tabela).delete().eq(caso.coluna, agenteA),
+        ];
+        for (const tentativa of tentativas) expect(tentativa.error?.code, `${nome} escreve em ${tabela}`).toBe('42501');
+      }
+      for (const [funcao, args] of funcoes) {
+        const chamada = await cliente.rpc(funcao, args);
+        expect(chamada.error?.code, `${nome} chama ${funcao}`).toBe('42501');
+      }
+    }
+
+    const admin = getSupabaseAdminClient();
+    const intacto = await admin.from('ai_agents').select('name').eq('id', agenteA).single();
+    expect(intacto.data?.name).toBe('Aurora');
+    const ligado = await admin.from('channel_connections').select('ai_agent_id').eq('id', conexaoA).single();
+    expect(ligado.data?.ai_agent_id).toBeNull();
   });
 
-  it('a função de migração não roda como usuário logado', async () => {
-    const agencia = await entrar(emailAgencia);
-    const tentativa = await agencia.rpc('create_ai_agent_from_legacy_prompt', {
-      p_organization_id: orgA,
-      p_name: 'X',
-      p_prompt: 'x',
-      p_origin: { sha256: sha256('x') },
-    });
-    expect(tentativa.error?.code).toBe('42501');
+  it('a última resposta nativa entregue do número vem de qualquer uma das conversas dele (mais de 100) e falha fechada', async () => {
+    const admin = getSupabaseAdminClient();
+    const conexao = await novaConexao('Prova');
+    const conversas = requireSupabaseData(await admin
+      .from('conversation_threads')
+      .insert(Array.from({ length: 120 }, (_, i) => ({
+        organization_id: orgA,
+        channel_connection_id: conexao,
+        title: `Prova ${i} ${runId}`,
+        last_message_at: new Date(Date.UTC(2026, 8, 29, 12, i)).toISOString(),
+      })))
+      .select('id, title'), 'insert 120 conversas') as Array<{ id: string; title: string }>;
+    // A resposta mais nova fica na conversa com o last_message_at mais ANTIGO: um limite por conversa
+    // recente a deixaria de fora e usaria uma resposta anterior como prova.
+    const primeira = conversas.find((c) => c.title.startsWith('Prova 0 '))!.id;
+    assertNoSupabaseError(await admin.from('conversation_messages').insert([
+      ...conversas.slice(1).map((c, i) => mensagem(c.id, `2026-09-29T10:${String(i % 60).padStart(2, '0')}:00Z`, nativa('a'.repeat(64)))),
+      mensagem(primeira, '2026-09-29T11:00:00Z', nativa('b'.repeat(64))),
+      mensagem(primeira, '2026-09-29T11:00:00Z', nativa('b'.repeat(64), { reply_part_index: 1 })),
+      mensagem(primeira, '2026-09-29T11:30:00Z', nativa('c'.repeat(64), { delivery_status: 'failed' })),
+      mensagem(primeira, '2026-09-29T11:40:00Z', nativa('d'.repeat(64), { automation_source: 'n8n' })),
+      mensagem(primeira, '2026-09-29T11:50:00Z', nativa('e'.repeat(64)), 'inbound'),
+    ]), 'insert mensagens da prova');
+
+    const achada = await admin.rpc('central_agentes_ultima_resposta_nativa', { p_connection_id: conexao });
+    expect(achada.error).toBeNull();
+    expect(achada.data).toEqual([{ out_sha256: 'b'.repeat(64), out_sent_at: expect.stringMatching(/^2026-09-29T11:00:00/) }]);
+
+    // Falha fechada: a resposta entregue mais nova sem sha válido devolve sha nulo; a função não volta
+    // para uma resposta anterior que tenha sha.
+    assertNoSupabaseError(await admin.from('conversation_messages').insert(
+      mensagem(primeira, '2026-09-29T12:00:00Z', nativa(null)),
+    ), 'insert resposta sem sha');
+    const semSha = await admin.rpc('central_agentes_ultima_resposta_nativa', { p_connection_id: conexao });
+    expect(semSha.data).toEqual([{ out_sha256: null, out_sent_at: expect.stringMatching(/^2026-09-29T12:00:00/) }]);
+  });
+
+  it('ligar confere tudo de novo numa transação só e recusa, com o motivo, se algo mudou', async () => {
+    const admin = getSupabaseAdminClient();
+    const texto = `${PROMPT}\nLigar`;
+    const sha = sha256(texto);
+    const agente = ((await criarAgente(orgA, texto)).data as Array<{ out_agent_id: string }>)[0].out_agent_id;
+    const conexao = await novaConexao('Ligar', { aiPromptKey: AURORA });
+    const conversa = requireSupabaseData(await admin
+      .from('conversation_threads')
+      .insert({ organization_id: orgA, channel_connection_id: conexao, title: `Ligar ${runId}` })
+      .select('id')
+      .single(), 'insert conversa ligar').id as string;
+    const responder = async (shaDaResposta: string, sentAt: string) =>
+      assertNoSupabaseError(await admin.from('conversation_messages').insert(mensagem(conversa, sentAt, nativa(shaDaResposta))), 'insert resposta');
+    const ligar = async (troca: Record<string, unknown> = {}) => {
+      const r = await admin.rpc('central_agentes_ligar_conexao', {
+        p_connection_id: conexao,
+        p_agent_id: agente,
+        p_chave_bruta: AURORA,
+        p_prompt_key: AURORA,
+        p_prompt_source: 'default',
+        p_sha256: sha,
+        ...troca,
+      });
+      expect(r.error).toBeNull();
+      return r.data as string;
+    };
+
+    await responder('f'.repeat(64), '2026-09-29T10:00:00Z');
+    expect(await ligar()).toBe('prova_nao_confere');
+
+    await responder(sha, '2026-09-29T11:00:00Z');
+    expect(await ligar({ p_chave_bruta: null })).toBe('chave_mudou');
+
+    const override = requireSupabaseData(await admin
+      .from('ai_prompt_templates')
+      .insert({ organization_id: orgA, key: AURORA, content: 'Outro texto', version: 1, is_active: true })
+      .select('id')
+      .single(), 'insert override').id;
+    expect(await ligar()).toBe('override_mudou');
+    assertNoSupabaseError(await admin.from('ai_prompt_templates').delete().eq('id', override), 'apagar override');
+
+    expect(await ligar({ p_agent_id: agenteA })).toBe('versao_publicada_diverge');
+
+    expect(await ligar()).toBe('ligado');
+    const ligada = await admin.from('channel_connections').select('ai_agent_id').eq('id', conexao).single();
+    expect(ligada.data?.ai_agent_id).toBe(agente);
+    expect(await ligar()).toBe('ja_ligada');
   });
 });
 ```
@@ -724,16 +1056,27 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
 - [ ] **Step 2: Rodar contra o Supabase local**
 
 Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
-Expected: PASS (11 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local).
+Expected: PASS (12 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local).
 
 Se "apagar a organização inteira" falhar com 23503 em `channel_connections_ai_agent_fk`, **parar**: a premissa da SPEC de que `no action` deixa a cascata passar está errada, e a decisão volta para o Junior antes de qualquer outra task.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Provar a volta no banco local (G23): aplicar → voltar → aplicar**
+
+Run: `docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres < docs/features/central-de-agentes/volta-fatia-1.sql`
+Expected: `COMMIT`, sem erro.
+
+Run: `docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/migrations/20260930000000_central_agentes_fundacao.sql`
+Expected: termina sem erro (a migration reaplica sobre o banco voltado).
+
+Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
+Expected: PASS (12 testes) de novo. Se o PostgREST acusar tabela ou função inexistente logo depois da volta, o cache de esquema dele ficou velho: `docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "notify pgrst, 'reload schema'"` e rodar de novo.
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add test/centralAgentesFundacao.local.test.ts
 git diff --cached --stat
-git commit -m "test(central-agentes): RLS, GRANT, FKs, gatilhos e cascata no Supabase local"
+git commit -m "test(central-agentes): FKs, gatilhos, cascata, matriz de acesso, prova e ligacao no Supabase local"
 ```
 
 ---
@@ -924,11 +1267,97 @@ git commit -m "refactor(prompts): resolucao pura do prompt e leitura estrita par
 
 ### Task 4: O portão da IA traz `ai_agent_id`
 
+O banco falso devolve a linha inteira, qualquer que seja o `select`, e o `tsconfig.json` exclui os arquivos `*.test.*` do typecheck. Sem o passo 1, o teste deste portão passaria sem a mudança que ele quer provar (revisão do Codex, achado 17). Por isso o banco falso ganha uma projeção opcional, ligada só neste teste; os testes antigos continuam vendo o que viam.
+
 **Files:**
+- Modify: `test/helpers/fakeSupabaseAdmin.ts` (opções, `select` com projeção)
+- Create: `test/helpers/fakeSupabaseAdmin.test.ts`
 - Modify: `lib/conversations/conversationAIGate.ts:7-24`
 - Test: `lib/conversations/conversationAIGate.agente.test.ts`
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [ ] **Step 1: Teste do banco falso que falha**
+
+Criar `test/helpers/fakeSupabaseAdmin.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { createFakeSupabaseAdmin } from './fakeSupabaseAdmin';
+
+describe('banco falso: projeção do select (opcional)', () => {
+  const linhas = { t: [{ id: '1', a: 'x', b: 'y' }] };
+
+  it('com projetarSelect, devolve só as colunas pedidas', async () => {
+    const { data } = await createFakeSupabaseAdmin(linhas, { projetarSelect: true }).from('t').select('id, a');
+    expect(data).toEqual([{ id: '1', a: 'x' }]);
+  });
+
+  it('sem a opção, devolve a linha inteira, como sempre', async () => {
+    const { data } = await createFakeSupabaseAdmin(linhas).from('t').select('id');
+    expect(data).toEqual([{ id: '1', a: 'x', b: 'y' }]);
+  });
+});
+```
+
+- [ ] **Step 2: Rodar e ver falhar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: FAIL no primeiro teste (a linha volta inteira).
+
+- [ ] **Step 3: Projeção opcional no banco falso**
+
+Em `test/helpers/fakeSupabaseAdmin.ts`, antes de `createFakeSupabaseAdmin`:
+
+```ts
+/** Opções do banco falso. Tudo desligado por padrão: os testes antigos continuam vendo o que viam. */
+export type FakeSupabaseAdminOptions = {
+  /** Devolve só as colunas pedidas no `.select()` (nomes simples separados por vírgula), como o PostgREST. */
+  projetarSelect?: boolean;
+};
+```
+
+A assinatura passa a ser:
+
+```ts
+export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes: FakeSupabaseAdminOptions = {}) {
+```
+
+Dentro de `from(table)`, junto das outras variáveis:
+
+```ts
+    let projecao: string[] | null = null;
+```
+
+O `select` do builder:
+
+```ts
+      select: (columns?: string) => {
+        if (opcoes.projetarSelect && columns && columns.trim() !== '*') {
+          projecao = columns.split(',').map((column) => column.trim()).filter(Boolean);
+        }
+        return builder;
+      },
+```
+
+E o fim da leitura em `run()` (onde hoje está o `return` com `structuredClone`):
+
+```ts
+      // Como o banco de verdade, a leitura devolve CÓPIA: quem leu fica com a foto daquele instante,
+      // e uma escrita posterior de outro processo não muda o que ele tem em mãos.
+      const copias = selected.map((row) => structuredClone(row));
+      const colunas = projecao;
+      return Promise.resolve({
+        data: colunas ? copias.map((row) => Object.fromEntries(colunas.map((column) => [column, row[column]]))) : copias,
+        error: null,
+      });
+```
+
+- [ ] **Step 4: Rodar e ver passar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: PASS (2 testes).
+
+- [ ] **Step 5: Escrever o teste do portão que falha**
 
 ```ts
 // @vitest-environment node
@@ -939,12 +1368,14 @@ import { loadFreshConversationAIGate } from './conversationAIGate';
 const ORG = '11111111-1111-4111-8111-111111111111';
 const CONN = '22222222-2222-4222-8222-222222222222';
 
+// projetarSelect: a linha volta só com as colunas que o código pede. Sem `ai_agent_id` no select,
+// o teste fica vermelho, que é o que ele precisa provar.
 function semear(aiAgentId: string | null) {
   return createFakeSupabaseAdmin({
     channel_connections: [{ id: CONN, organization_id: ORG, name: 'Comercial', config: { aiEnabled: true }, ai_agent_id: aiAgentId }],
     ai_feature_flags: [{ organization_id: ORG, key: 'ai_conversation_auto_reply', enabled: true }],
     organization_settings: [{ organization_id: ORG, ai_enabled: true }],
-  });
+  }, { projetarSelect: true });
 }
 
 describe('portão da IA e o agente do número', () => {
@@ -962,12 +1393,12 @@ describe('portão da IA e o agente do número', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [ ] **Step 6: Rodar e ver falhar**
 
 Run: `npx vitest run lib/conversations/conversationAIGate.agente.test.ts`
-Expected: FAIL de tipo/asserção: `ai_agent_id` não existe no tipo `FreshConversationAIConnection` (o `tsc` acusa; o vitest pode passar o primeiro caso porque o banco falso devolve a linha inteira; o passo 3 fecha o tipo e a leitura real).
+Expected: FAIL no primeiro teste: `ai_agent_id` chega `undefined`, porque o `select` de hoje não pede a coluna.
 
-- [ ] **Step 3: Mudar o tipo e a leitura**
+- [ ] **Step 7: Mudar o tipo e a leitura**
 
 Em `lib/conversations/conversationAIGate.ts`, o tipo:
 
@@ -993,17 +1424,17 @@ e a consulta:
     .maybeSingle();
 ```
 
-- [ ] **Step 4: Rodar e ver passar (e a suíte do portão)**
+- [ ] **Step 8: Rodar e ver passar (e a suíte do portão)**
 
-Run: `npx vitest run lib/conversations/conversationAIGate`
+Run: `npx vitest run lib/conversations/conversationAIGate test/helpers/fakeSupabaseAdmin.test.ts`
 Expected: PASS nos testes novos e no `conversationAIGate.test.ts` existente.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add lib/conversations/conversationAIGate.ts lib/conversations/conversationAIGate.agente.test.ts
+git add test/helpers/fakeSupabaseAdmin.ts test/helpers/fakeSupabaseAdmin.test.ts lib/conversations/conversationAIGate.ts lib/conversations/conversationAIGate.agente.test.ts
 git diff --cached --stat
-git commit -m "feat(central-agentes): portao da IA le o agente do numero"
+git commit -m "feat(central-agentes): portao da IA le o agente do numero (banco falso com projecao opcional)"
 ```
 
 ---
@@ -1391,10 +1822,79 @@ git commit -m "feat(central-agentes): resposta usa a versao publicada do agente 
 
 ### Task 7: Prova de equivalência byte a byte (legado × agente)
 
+O prompt da Aurora tem `{{availableTagsContext}}` (`lib/ai/prompts/catalog.ts:231`). Com ele, o gerador lê o catálogo de etiquetas (`aiReply.ts:484-485`, `loadTagCatalog`), que filtra `.not('category_id', 'is', null)` (`lib/conversations/etiquetasSugeridas.ts:54`). O banco falso não tem `.not`: sem os passos 1 a 4, o teste da Aurora quebra com TypeError antes de comparar os prompts (revisão do Codex, achado 8).
+
 **Files:**
+- Modify: `test/helpers/fakeSupabaseAdmin.ts` (o `.not`)
+- Modify: `test/helpers/fakeSupabaseAdmin.test.ts`
 - Test: `lib/conversations/aiReply.equivalencia.test.ts`
 
-- [ ] **Step 1: Escrever o teste**
+- [ ] **Step 1: Teste do banco falso que falha**
+
+Acrescentar em `test/helpers/fakeSupabaseAdmin.test.ts`:
+
+```ts
+describe('banco falso: .not com a semântica de NULL do SQL', () => {
+  const semear = () => createFakeSupabaseAdmin({
+    tags: [
+      { id: 't1', category_id: 'c1' },
+      { id: 't2', category_id: null },
+      { id: 't3' },
+      { id: 't4', category_id: 'c2' },
+    ],
+  });
+
+  it("not('col', 'is', null) fica só com quem tem valor", async () => {
+    const { data } = await semear().from('tags').select('id').not('category_id', 'is', null);
+    expect(data.map((row) => row.id)).toEqual(['t1', 't4']);
+  });
+
+  it("not('col', 'eq', x) deixa de fora o igual e também o nulo, como no SQL", async () => {
+    const { data } = await semear().from('tags').select('id').not('category_id', 'eq', 'c1');
+    expect(data.map((row) => row.id)).toEqual(['t4']);
+  });
+
+  it('operador que o banco falso não conhece falha alto, em vez de filtrar errado', () => {
+    expect(() => semear().from('tags').select('id').not('category_id', 'in', '(c1)')).toThrow('não suportado');
+  });
+});
+```
+
+- [ ] **Step 2: Rodar e ver falhar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: FAIL com "not is not a function".
+
+- [ ] **Step 3: Ensinar `.not` ao banco falso**
+
+Em `test/helpers/fakeSupabaseAdmin.ts`, no builder, depois de `is`:
+
+```ts
+      not: (column: string, operator: string, value: unknown) => {
+        // Como no SQL: NOT (col IS NULL) é "tem valor"; NOT (col = x) também deixa de fora a linha nula.
+        if (operator === 'is') {
+          filters.push((row) => (readColumn(row, column) ?? null) !== value);
+          return builder;
+        }
+        if (operator === 'eq') {
+          filters.push((row) => {
+            const current = readColumn(row, column);
+            return current !== null && current !== undefined && current !== value;
+          });
+          return builder;
+        }
+        throw new Error(`fakeSupabaseAdmin: .not com operador '${operator}' não suportado`);
+      },
+```
+
+e acrescentar `not` à lista do comentário do topo do arquivo.
+
+- [ ] **Step 4: Rodar e ver passar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: PASS (5 testes).
+
+- [ ] **Step 5: Escrever o teste de equivalência**
 
 ```ts
 // @vitest-environment node
@@ -1536,15 +2036,15 @@ describe('equivalência byte a byte: número sem agente × agente com a v1 migra
 });
 ```
 
-- [ ] **Step 2: Rodar**
+- [ ] **Step 6: Rodar**
 
 Run: `npx vitest run lib/conversations/aiReply.equivalencia.test.ts`
 Expected: PASS (4 testes). Se algum dos três primeiros falhar, **parar**: o caminho do agente não é equivalente e a Task 6 tem que ser revista antes de qualquer outra.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add lib/conversations/aiReply.equivalencia.test.ts
+git add test/helpers/fakeSupabaseAdmin.ts test/helpers/fakeSupabaseAdmin.test.ts lib/conversations/aiReply.equivalencia.test.ts
 git diff --cached --stat
 git commit -m "test(central-agentes): prova byte a byte do prompt enviado e do sha (legado x agente)"
 ```
@@ -1777,6 +2277,8 @@ git commit -m "feat(central-agentes): webhook responde pelo agente e registra ve
 
 A rota externa (`ai-reply`) aceita `metadata` livre (até 20 chaves), e o merge só protege as chaves do sistema. O rastro nativo entra pela mesma porta (`payload.metadata`), então a proteção tem que ficar na rota do n8n. Sem ela, quem tem o segredo do webhook grava `prompt_sha256` e forja a prova da migração.
 
+É a única mudança desta fatia para número sem agente, além do `prompt_sha256` novo, e a SPEC a declara como exceção (Runtime, item 7; revisão do Codex, achado 9). No código, só o webhook escreve essas chaves e ninguém as lê em mensagem do n8n; os fluxos do n8n são conferidos antes de publicar (Task 13).
+
 **Files:**
 - Modify: `lib/conversations/conversationDeliveryMetadata.ts`
 - Modify: `lib/conversations/conversationDeliveryMetadata.test.ts`
@@ -1971,26 +2473,92 @@ git commit -m "fix(conversas): rota do n8n nao grava as chaves de rastro da resp
 
 ### Task 10: Módulo de migração com prova contra a produção
 
-A prova antiga comparava o script com ele mesmo: se o cálculo errasse, a v1 e a nova prova erravam igual e o hash batia (revisão adversarial, B1). Agora a referência é o `prompt_sha256` que a **produção** gravou na última resposta nativa de cada número (Task 8), e toda leitura é estrita.
+A prova antiga comparava o script com ele mesmo: se o cálculo errasse, a v1 e a nova prova erravam igual e o hash batia (revisão adversarial, B1). Agora a referência é o `prompt_sha256` que a **produção** gravou na última resposta nativa de cada número (Task 8), e toda leitura é estrita. A revisão do Codex fechou mais quatro buracos, e todos entram aqui:
+- quem escolhe a resposta é a função do banco `central_agentes_ultima_resposta_nativa`, que olha todas as conversas do número (achado 11);
+- vale a última resposta entregue, uma linha por resposta, e sem sha válido a prova falha fechada (achado 12);
+- quem liga é `central_agentes_ligar_conexao`, que confere tudo de novo numa transação só (achado 13);
+- as conexões são lidas em páginas, o agente candidato é achado por filtro no banco (achado 18), e desligar confirma a linha (achado 19).
+
+Situações de cada número na prova:
+- `CONFERE`: o sha calculado é igual ao da última resposta nativa entregue;
+- `DIVERGE`: os dois sha são diferentes;
+- `RESPOSTA_SEM_SHA`: a última resposta entregue não tem sha válido (a prova não volta para uma resposta anterior);
+- `SEM_RESPOSTA_AINDA`: nenhuma resposta nativa entregue nas conversas do número.
+
+Só grupo com todos os números em `CONFERE` vira agente, e só a função do banco liga. A trava de que a cópia é o commit publicado fica no script (Task 11), porque depende do git.
 
 **Files:**
+- Modify: `test/helpers/fakeSupabaseAdmin.ts` (limite de linhas opcional; resposta de RPC por argumento)
+- Modify: `test/helpers/fakeSupabaseAdmin.test.ts`
 - Create: `lib/agents/migracaoAgentes.ts`
 - Test: `lib/agents/migracaoAgentes.test.ts`
 
-Situações de cada número na prova:
-- `CONFERE`: o sha calculado é igual ao da última resposta nativa, e ela tem menos de 72 horas;
-- `DIVERGE`: os dois sha são diferentes;
-- `RESPOSTA_ANTIGA`: o sha é igual, mas a resposta tem mais de 72 horas (uma publicação nova sem resposta depois deixaria a prova velha);
-- `SEM_RESPOSTA_AINDA`: nenhuma resposta nativa com `prompt_sha256` nas conversas recentes do número.
+- [ ] **Step 1: Testes do banco falso que falham**
 
-Só grupo com todos os números em `CONFERE` vira agente, e só `CONFERE` liga.
+Acrescentar em `test/helpers/fakeSupabaseAdmin.test.ts`:
 
-- [ ] **Step 1: Escrever o teste que falha**
+```ts
+describe('banco falso: limite de linhas e RPC por argumento', () => {
+  it('maxLinhas corta a leitura como o limite de linhas do PostgREST', async () => {
+    const linhas = { t: Array.from({ length: 5 }, (_, i) => ({ id: String(i) })) };
+    const { data } = await createFakeSupabaseAdmin(linhas, { maxLinhas: 3 }).from('t').select('id');
+    expect(data).toHaveLength(3);
+  });
+
+  it('rpcResults aceita uma função dos argumentos', async () => {
+    const admin = createFakeSupabaseAdmin();
+    admin.rpcResults.eco = (args: Record<string, unknown>) => [{ recebido: args.x }];
+    expect((await admin.rpc('eco', { x: 7 })).data).toEqual([{ recebido: 7 }]);
+  });
+});
+```
+
+- [ ] **Step 2: Rodar e ver falhar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: FAIL nos dois testes novos.
+
+- [ ] **Step 3: Limite de linhas e RPC por argumento no banco falso**
+
+Em `FakeSupabaseAdminOptions` (Task 4), acrescentar:
+
+```ts
+  /** Corta toda leitura neste número de linhas, como o `max_rows` do PostgREST (1.000 no local). */
+  maxLinhas?: number;
+```
+
+Em `run()`, logo depois de `if (limitCount !== null) selected = selected.slice(0, limitCount);`:
+
+```ts
+      if (opcoes.maxLinhas !== undefined) selected = selected.slice(0, opcoes.maxLinhas);
+```
+
+E o `rpc` passa a aceitar resultado em função dos argumentos:
+
+```ts
+  function rpc(name: string, args: Record<string, unknown>) {
+    rpcCalls.push({ name, args });
+    const message = rpcErrors[name];
+    if (message) return Promise.resolve({ data: null, error: { message } });
+    const result = rpcResults[name];
+    const data = typeof result === 'function' ? (result as (a: Record<string, unknown>) => unknown)(args) : result ?? null;
+    return Promise.resolve({ data, error: null });
+  }
+```
+
+(o comentário de `rpcResults` passa a dizer "valor fixo, ou função dos argumentos").
+
+- [ ] **Step 4: Rodar e ver passar**
+
+Run: `npx vitest run test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: PASS (7 testes).
+
+- [ ] **Step 5: Escrever o teste do módulo que falha**
 
 ```ts
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { createFakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
+import { createFakeSupabaseAdmin, type FakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
 import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
 import {
   criarAgentes,
@@ -2006,103 +2574,71 @@ const OUTRA = '99999999-9999-4999-8999-999999999999';
 const AURORA = 'task_conversations_whatsapp_cenno_aurora';
 const TEXTO_AURORA = getPromptCatalogMap()[AURORA].defaultTemplate;
 const SHA_AURORA = sha256Hex(TEXTO_AURORA);
-const AGORA = Date.parse('2026-09-30T12:00:00.000Z');
-const HA_1H = '2026-09-30T11:00:00.000Z';
-const HA_4_DIAS = '2026-09-26T12:00:00.000Z';
+const RESPOSTA_EM = '2026-09-30T11:00:00+00:00';
 
 function conexao(id: string, org: string, config: Record<string, unknown>, aiAgentId: string | null = null) {
   return { id, organization_id: org, name: `Numero ${id}`, provider: 'evolution', channel_type: 'whatsapp', config, ai_agent_id: aiAgentId };
 }
 
-function conversa(id: string, connectionId: string, org = ORG) {
-  return { id, organization_id: org, channel_connection_id: connectionId, last_message_at: HA_1H };
-}
-
-function respostaNativa(threadId: string, sha: string, sentAt = HA_1H, extra: Record<string, unknown> = {}) {
-  return {
-    thread_id: threadId,
-    organization_id: ORG,
-    direction: 'outbound',
-    sent_at: sentAt,
-    metadata: { automation_source: 'native_crm', native_ai: true, prompt_source: 'default', prompt_sha256: sha, ...extra },
+/** A última resposta nativa entregue de cada número, como a função do banco devolveria (null = sem sha). */
+function comRespostas(admin: FakeSupabaseAdmin, porNumero: Record<string, string | null>) {
+  admin.rpcResults.central_agentes_ultima_resposta_nativa = (args: Record<string, unknown>) => {
+    const id = String(args.p_connection_id);
+    return id in porNumero ? [{ out_sha256: porNumero[id], out_sent_at: RESPOSTA_EM }] : [];
   };
+  return admin;
 }
 
 describe('prova contra a produção', () => {
-  it('lê o sha da última resposta nativa do número', async () => {
-    const admin = createFakeSupabaseAdmin({
-      conversation_threads: [conversa('t1', 'c1'), conversa('t2', 'c2')],
-      conversation_messages: [
-        respostaNativa('t1', 'a'.repeat(64), '2026-09-30T10:00:00.000Z'),
-        respostaNativa('t1', 'b'.repeat(64), '2026-09-30T11:30:00.000Z'),
-        respostaNativa('t2', 'c'.repeat(64), '2026-09-30T11:59:00.000Z'),
-      ],
-    });
-    expect(await ultimaRespostaNativa(admin as never, { id: 'c1', organization_id: ORG }))
-      .toEqual({ sha256: 'b'.repeat(64), sentAt: '2026-09-30T11:30:00.000Z' });
+  it('lê o sha e a data pela função do banco', async () => {
+    const admin = comRespostas(createFakeSupabaseAdmin(), { c1: 'b'.repeat(64) });
+    expect(await ultimaRespostaNativa(admin as never, { id: 'c1' })).toEqual({ sha256: 'b'.repeat(64), sentAt: RESPOSTA_EM });
+    expect(admin.rpcCalls).toEqual([{ name: 'central_agentes_ultima_resposta_nativa', args: { p_connection_id: 'c1' } }]);
   });
 
-  it('ignora resposta que não é do caminho nativo (n8n, sem native_ai, sem sha)', async () => {
-    const admin = createFakeSupabaseAdmin({
-      conversation_threads: [conversa('t1', 'c1')],
-      conversation_messages: [
-        respostaNativa('t1', 'a'.repeat(64), '2026-09-30T11:50:00.000Z', { automation_source: 'n8n' }),
-        respostaNativa('t1', 'b'.repeat(64), '2026-09-30T11:40:00.000Z', { native_ai: false }),
-        { thread_id: 't1', organization_id: ORG, direction: 'outbound', sent_at: '2026-09-30T11:30:00.000Z', metadata: { automation_source: 'native_crm', native_ai: true } },
-      ],
-    });
-    expect(await ultimaRespostaNativa(admin as never, { id: 'c1', organization_id: ORG })).toBeNull();
+  it('sem resposta devolve null; resposta com sha fora do formato devolve sha nulo', async () => {
+    const admin = comRespostas(createFakeSupabaseAdmin(), { c2: 'nao-e-sha', c3: null });
+    expect(await ultimaRespostaNativa(admin as never, { id: 'c1' })).toBeNull();
+    expect(await ultimaRespostaNativa(admin as never, { id: 'c2' })).toEqual({ sha256: null, sentAt: RESPOSTA_EM });
+    expect(await ultimaRespostaNativa(admin as never, { id: 'c3' })).toEqual({ sha256: null, sentAt: RESPOSTA_EM });
   });
 
-  it('erro de leitura aborta em vez de devolver vazio', async () => {
-    const admin = createFakeSupabaseAdmin({ conversation_threads: [conversa('t1', 'c1')] });
-    admin.failOn('conversation_messages', 'select', 'boom');
-    await expect(ultimaRespostaNativa(admin as never, { id: 'c1', organization_id: ORG })).rejects.toThrow('boom');
+  it('erro da função aborta em vez de devolver vazio', async () => {
+    const admin = createFakeSupabaseAdmin();
+    admin.rpcErrors.central_agentes_ultima_resposta_nativa = 'boom';
+    await expect(ultimaRespostaNativa(admin as never, { id: 'c1' })).rejects.toThrow('boom');
   });
 });
 
 describe('migração do prompt de hoje para agentes', () => {
   it('agrupa por organização e prompt, e marca cada número com a situação na produção', async () => {
-    const admin = createFakeSupabaseAdmin({
+    const admin = comRespostas(createFakeSupabaseAdmin({
       channel_connections: [
         conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA, aiAgentName: 'Aurora' }),
         conexao('c2', ORG, { aiEnabled: true, aiPromptKey: AURORA }),
-        conexao('c3', OUTRA, { aiEnabled: true, aiPromptKey: AURORA }),
+        conexao('c3', ORG, { aiEnabled: true, aiPromptKey: AURORA }),
+        conexao('c4', OUTRA, { aiEnabled: true, aiPromptKey: AURORA }),
       ],
-      conversation_threads: [conversa('t1', 'c1'), conversa('t2', 'c2')],
-      conversation_messages: [respostaNativa('t1', SHA_AURORA), respostaNativa('t2', 'f'.repeat(64))],
-    });
-    const plano = await planejarMigracao(admin as never, { agora: AGORA });
+    }), { c1: SHA_AURORA, c2: 'f'.repeat(64), c3: null });
+    const plano = await planejarMigracao(admin as never);
     expect(plano.grupos).toHaveLength(2);
     const doOrg = plano.grupos.find((g) => g.organizationId === ORG)!;
     expect(doOrg).toMatchObject({ promptKey: AURORA, promptSource: 'default', sha256: SHA_AURORA, nome: 'Aurora', pronto: false });
     expect(doOrg.conexoes).toEqual([
-      { id: 'c1', name: 'Numero c1', situacao: 'CONFERE', respostaEm: HA_1H },
-      { id: 'c2', name: 'Numero c2', situacao: 'DIVERGE', respostaEm: HA_1H },
+      { id: 'c1', name: 'Numero c1', situacao: 'CONFERE', respostaEm: RESPOSTA_EM },
+      { id: 'c2', name: 'Numero c2', situacao: 'DIVERGE', respostaEm: RESPOSTA_EM },
+      { id: 'c3', name: 'Numero c3', situacao: 'RESPOSTA_SEM_SHA', respostaEm: RESPOSTA_EM },
     ]);
     const daOutra = plano.grupos.find((g) => g.organizationId === OUTRA)!;
     expect(daOutra.conexoes[0]).toMatchObject({ situacao: 'SEM_RESPOSTA_AINDA', respostaEm: null });
   });
 
   it('com todos os números em CONFERE o grupo fica pronto', async () => {
-    const admin = createFakeSupabaseAdmin({
+    const admin = comRespostas(createFakeSupabaseAdmin({
       channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })],
-      conversation_threads: [conversa('t1', 'c1')],
-      conversation_messages: [respostaNativa('t1', SHA_AURORA)],
-    });
-    const plano = await planejarMigracao(admin as never, { agora: AGORA });
+    }), { c1: SHA_AURORA });
+    const plano = await planejarMigracao(admin as never);
     expect(plano.grupos[0]).toMatchObject({ pronto: true });
-  });
-
-  it('resposta com o mesmo sha mas com mais de 72 horas não conta como prova', async () => {
-    const admin = createFakeSupabaseAdmin({
-      channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })],
-      conversation_threads: [conversa('t1', 'c1')],
-      conversation_messages: [respostaNativa('t1', SHA_AURORA, HA_4_DIAS)],
-    });
-    const plano = await planejarMigracao(admin as never, { agora: AGORA });
-    expect(plano.grupos[0]).toMatchObject({ pronto: false });
-    expect(plano.grupos[0].conexoes[0].situacao).toBe('RESPOSTA_ANTIGA');
   });
 
   it('ignora número já ligado, sem IA e com chave inválida; --incluir força o sem IA', async () => {
@@ -2113,21 +2649,28 @@ describe('migração do prompt de hoje para agentes', () => {
         conexao('invalida', ORG, { aiEnabled: true, aiPromptKey: 'chave_invalida' }),
       ],
     });
-    const plano = await planejarMigracao(admin as never, { agora: AGORA });
+    const plano = await planejarMigracao(admin as never);
     expect(plano.grupos).toHaveLength(0);
     expect(plano.ignoradas.map((i) => [i.id, i.motivo])).toEqual([
+      ['invalida', 'chave_invalida'],
       ['ligada', 'ja_ligada'],
       ['sem-ia', 'sem_ia'],
-      ['invalida', 'chave_invalida'],
     ]);
-    const forcado = await planejarMigracao(admin as never, { incluir: ['sem-ia'], agora: AGORA });
+    const forcado = await planejarMigracao(admin as never, { incluir: ['sem-ia'] });
     expect(forcado.grupos.map((g) => g.conexoes[0].id)).toEqual(['sem-ia']);
   });
 
   it('erro ao ler o override aborta o plano (nunca cai no catálogo)', async () => {
     const admin = createFakeSupabaseAdmin({ channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })] });
     admin.failOn('ai_prompt_templates', 'select', 'boom');
-    await expect(planejarMigracao(admin as never, { agora: AGORA })).rejects.toThrow('boom');
+    await expect(planejarMigracao(admin as never)).rejects.toThrow('boom');
+  });
+
+  it('lê todas as conexões, em páginas, acima do limite de linhas do PostgREST', async () => {
+    const conexoes = Array.from({ length: 1001 }, (_, i) => conexao(`c${String(i).padStart(4, '0')}`, ORG, { aiEnabled: false }));
+    const admin = createFakeSupabaseAdmin({ channel_connections: conexoes }, { maxLinhas: 1000 });
+    const plano = await planejarMigracao(admin as never);
+    expect(plano.ignoradas).toHaveLength(1001);
   });
 
   it('criarAgentes só cria grupo pronto, só da organização pedida, com o sha do próprio conteúdo', async () => {
@@ -2135,11 +2678,11 @@ describe('migração do prompt de hoje para agentes', () => {
     admin.rpcResults.create_ai_agent_from_legacy_prompt = [{ out_agent_id: 'a1', out_version_id: 'v1', out_created: true }];
     const pronto = {
       organizationId: ORG, promptKey: AURORA, promptSource: 'default' as const, conteudo: 'X', sha256: sha256Hex('X'), nome: 'Aurora', pronto: true,
-      conexoes: [{ id: 'c1', name: 'n', situacao: 'CONFERE' as const, respostaEm: HA_1H }],
+      conexoes: [{ id: 'c1', name: 'n', situacao: 'CONFERE' as const, respostaEm: RESPOSTA_EM }],
     };
     const naoPronto = {
       ...pronto, conteudo: 'Y', sha256: sha256Hex('Y'), pronto: false,
-      conexoes: [{ id: 'c2', name: 'm', situacao: 'DIVERGE' as const, respostaEm: HA_1H }],
+      conexoes: [{ id: 'c2', name: 'm', situacao: 'DIVERGE' as const, respostaEm: RESPOSTA_EM }],
     };
 
     const r = await criarAgentes(admin as never, { organizationId: ORG, grupos: [pronto, naoPronto], catalogCommit: 'abc1234' });
@@ -2159,42 +2702,52 @@ describe('migração do prompt de hoje para agentes', () => {
       .rejects.toThrow('outra organizacao');
   });
 
-  it('ligarConexao só liga com a prova em CONFERE e com a versão publicada no mesmo sha', async () => {
-    const semear = (promptPublicado: string, shaNaProducao = SHA_AURORA) => createFakeSupabaseAdmin({
+  it('ligarConexao acha o agente no banco e manda para a função a chave bruta, a origem e o sha', async () => {
+    const semear = () => createFakeSupabaseAdmin({
       channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })],
-      conversation_threads: [conversa('t1', 'c1')],
-      conversation_messages: [respostaNativa('t1', shaNaProducao)],
-      ai_agents: [{ id: 'a1', organization_id: ORG, published_version_id: 'v1', origin: { kind: 'migration', sha256: SHA_AURORA } }],
-      ai_agent_versions: [{ id: 'v1', agent_id: 'a1', organization_id: ORG, version: 1, prompt: promptPublicado }],
+      ai_agents: [
+        { id: 'a1', organization_id: ORG, published_version_id: 'v1', origin: { kind: 'migration', sha256: SHA_AURORA } },
+        { id: 'a2', organization_id: ORG, published_version_id: 'v2', origin: { kind: 'migration', sha256: 'f'.repeat(64) } },
+      ],
     });
 
-    const certo = semear(TEXTO_AURORA);
-    expect(await ligarConexao(certo as never, 'c1', AGORA)).toEqual({ ok: true, agentId: 'a1' });
-    expect(certo.tables.channel_connections[0].ai_agent_id).toBe('a1');
+    const certo = semear();
+    certo.rpcResults.central_agentes_ligar_conexao = 'ligado';
+    expect(await ligarConexao(certo as never, 'c1')).toEqual({ ok: true, agentId: 'a1' });
+    expect(certo.rpcCalls).toEqual([{
+      name: 'central_agentes_ligar_conexao',
+      args: { p_connection_id: 'c1', p_agent_id: 'a1', p_chave_bruta: AURORA, p_prompt_key: AURORA, p_prompt_source: 'default', p_sha256: SHA_AURORA },
+    }]);
 
-    const producaoDiverge = semear(TEXTO_AURORA, 'f'.repeat(64));
-    expect(await ligarConexao(producaoDiverge as never, 'c1', AGORA)).toEqual({ ok: false, motivo: 'prova_nao_confere', detalhe: 'DIVERGE' });
-    expect(producaoDiverge.tables.channel_connections[0].ai_agent_id).toBeNull();
-
-    const versaoDiverge = semear(`${TEXTO_AURORA} `);
-    expect(await ligarConexao(versaoDiverge as never, 'c1', AGORA)).toEqual({ ok: false, motivo: 'versao_publicada_diverge' });
-    expect(versaoDiverge.tables.channel_connections[0].ai_agent_id).toBeNull();
+    const recusado = semear();
+    recusado.rpcResults.central_agentes_ligar_conexao = 'prova_nao_confere';
+    expect(await ligarConexao(recusado as never, 'c1')).toEqual({ ok: false, motivo: 'prova_nao_confere' });
   });
 
-  it('desligarConexao volta o número ao caminho de hoje', async () => {
+  it('ligarConexao sem agente criado para aquele sha não chama a função', async () => {
+    const admin = createFakeSupabaseAdmin({
+      channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })],
+      ai_agents: [{ id: 'a2', organization_id: ORG, published_version_id: 'v2', origin: { kind: 'migration', sha256: 'f'.repeat(64) } }],
+    });
+    expect(await ligarConexao(admin as never, 'c1')).toEqual({ ok: false, motivo: 'agente_nao_criado' });
+    expect(admin.rpcCalls).toEqual([]);
+  });
+
+  it('desligarConexao confirma a linha desligada e distingue número inexistente', async () => {
     const admin = createFakeSupabaseAdmin({ channel_connections: [conexao('c1', ORG, { aiEnabled: true }, 'a1')] });
     expect(await desligarConexao(admin as never, 'c1')).toEqual({ ok: true });
     expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
+    expect(await desligarConexao(admin as never, 'nao-existe')).toEqual({ ok: false, detalhe: 'conexao_inexistente' });
   });
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [ ] **Step 6: Rodar e ver falhar**
 
 Run: `npx vitest run lib/agents/migracaoAgentes.test.ts`
 Expected: FAIL com "Failed to resolve import ./migracaoAgentes".
 
-- [ ] **Step 3: Criar `lib/agents/migracaoAgentes.ts`**
+- [ ] **Step 7: Criar `lib/agents/migracaoAgentes.ts`**
 
 ```ts
 import { createHash } from 'node:crypto';
@@ -2210,10 +2763,8 @@ export function sha256Hex(texto: string) {
 }
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
-/** A resposta usada como prova tem que ser recente: uma publicação nova sem resposta depois deixaria a prova velha. */
-export const JANELA_DA_PROVA_MS = 72 * 60 * 60 * 1000;
-const CONVERSAS_RECENTES = 100;
-const RESPOSTAS_RECENTES = 500;
+/** Página da leitura de conexões: abaixo do `max_rows` do PostgREST (1.000 no local). */
+const PAGINA = 500;
 
 type ConexaoLida = {
   id: string;
@@ -2223,7 +2774,7 @@ type ConexaoLida = {
   ai_agent_id: string | null;
 };
 
-export type SituacaoNaProducao = 'CONFERE' | 'DIVERGE' | 'RESPOSTA_ANTIGA' | 'SEM_RESPOSTA_AINDA';
+export type SituacaoNaProducao = 'CONFERE' | 'DIVERGE' | 'RESPOSTA_SEM_SHA' | 'SEM_RESPOSTA_AINDA';
 
 export type ConexaoDoGrupo = {
   id: string;
@@ -2253,76 +2804,61 @@ export type ConexaoIgnorada = {
 };
 
 /**
- * O sha que a PRODUÇÃO gravou na última resposta nativa deste número (metadata.prompt_sha256). É a prova
- * independente: o script calcula o prompt com o catálogo da cópia onde roda; se a cópia divergir do que está
- * publicado, os dois sha não batem. Só vale resposta do caminho nativo (automation_source = native_crm e
- * native_ai = true). A resposta nativa não grava channel_connection_id na mensagem; o número vem da conversa.
+ * O sha que a PRODUÇÃO gravou na última resposta nativa entregue deste número (metadata.prompt_sha256).
+ * É a prova independente: o script calcula o prompt com o código da cópia onde roda, e a trava do
+ * script garante que essa cópia é o commit publicado. Quem escolhe a resposta é a função do banco
+ * central_agentes_ultima_resposta_nativa, entre TODAS as conversas do número. Sem sha válido nela,
+ * volta `sha256: null` e a prova falha fechada.
  */
 export async function ultimaRespostaNativa(
   admin: SupabaseClient,
-  conexao: { id: string; organization_id: string },
-): Promise<{ sha256: string; sentAt: string } | null> {
-  const conversas = await admin
-    .from('conversation_threads')
-    .select('id')
-    .eq('organization_id', conexao.organization_id)
-    .eq('channel_connection_id', conexao.id)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(CONVERSAS_RECENTES);
-  if (conversas.error) throw new Error(`Falha ao ler as conversas do numero ${conexao.id}: ${conversas.error.message}`);
-  const doNumero = new Set(((conversas.data ?? []) as Array<{ id: string }>).map((c) => c.id));
-  if (doNumero.size === 0) return null;
-
-  const mensagens = await admin
-    .from('conversation_messages')
-    .select('thread_id, sent_at, metadata')
-    .eq('organization_id', conexao.organization_id)
-    .eq('direction', 'outbound')
-    .order('sent_at', { ascending: false })
-    .limit(RESPOSTAS_RECENTES);
-  if (mensagens.error) throw new Error(`Falha ao ler as respostas do numero ${conexao.id}: ${mensagens.error.message}`);
-
-  for (const mensagem of (mensagens.data ?? []) as Array<{ thread_id: string; sent_at: string; metadata: Record<string, unknown> | null }>) {
-    if (!doNumero.has(mensagem.thread_id)) continue;
-    const meta = mensagem.metadata ?? {};
-    if (meta.automation_source !== 'native_crm' || meta.native_ai !== true) continue;
-    if (typeof meta.prompt_sha256 !== 'string' || !SHA256_HEX.test(meta.prompt_sha256)) continue;
-    return { sha256: meta.prompt_sha256, sentAt: mensagem.sent_at };
-  }
-  return null;
+  conexao: { id: string },
+): Promise<{ sha256: string | null; sentAt: string } | null> {
+  const { data, error } = await admin.rpc('central_agentes_ultima_resposta_nativa', { p_connection_id: conexao.id });
+  if (error) throw new Error(`Falha ao ler a ultima resposta do numero ${conexao.id}: ${error.message}`);
+  const [linha] = (data ?? []) as Array<{ out_sha256: string | null; out_sent_at: string }>;
+  if (!linha) return null;
+  const sha256 = typeof linha.out_sha256 === 'string' && SHA256_HEX.test(linha.out_sha256) ? linha.out_sha256 : null;
+  return { sha256, sentAt: linha.out_sent_at };
 }
 
-function situacaoNaProducao(
-  shaCalculado: string,
-  producao: { sha256: string; sentAt: string } | null,
-  agora: number,
-): SituacaoNaProducao {
+function situacaoNaProducao(shaCalculado: string, producao: { sha256: string | null } | null): SituacaoNaProducao {
   if (!producao) return 'SEM_RESPOSTA_AINDA';
-  if (producao.sha256 !== shaCalculado) return 'DIVERGE';
-  if (agora - Date.parse(producao.sentAt) > JANELA_DA_PROVA_MS) return 'RESPOSTA_ANTIGA';
-  return 'CONFERE';
+  if (!producao.sha256) return 'RESPOSTA_SEM_SHA';
+  return producao.sha256 === shaCalculado ? 'CONFERE' : 'DIVERGE';
+}
+
+/** Todas as conexões de WhatsApp, em páginas por id: o PostgREST corta leitura grande sem erro. */
+async function lerConexoes(admin: SupabaseClient, organizationId?: string): Promise<ConexaoLida[]> {
+  const todas: ConexaoLida[] = [];
+  let depoisDe: string | null = null;
+  for (;;) {
+    let consulta = admin
+      .from('channel_connections')
+      .select('id, organization_id, name, config, ai_agent_id')
+      .eq('provider', 'evolution')
+      .eq('channel_type', 'whatsapp');
+    if (organizationId) consulta = consulta.eq('organization_id', organizationId);
+    if (depoisDe) consulta = consulta.gt('id', depoisDe);
+    const { data, error } = await consulta.order('id', { ascending: true }).limit(PAGINA);
+    if (error) throw new Error(`Falha ao ler conexoes: ${error.message}`);
+    const pagina = (data ?? []) as ConexaoLida[];
+    todas.push(...pagina);
+    if (pagina.length < PAGINA) return todas;
+    depoisDe = pagina[pagina.length - 1].id;
+  }
 }
 
 /** Só leitura. Um grupo por (organização, sha256 do prompt efetivo de hoje), com a situação de cada número. */
 export async function planejarMigracao(
   admin: SupabaseClient,
-  filtro: { organizationId?: string; incluir?: string[]; agora?: number } = {},
+  filtro: { organizationId?: string; incluir?: string[] } = {},
 ): Promise<{ grupos: GrupoPlanejado[]; ignoradas: ConexaoIgnorada[] }> {
-  const agora = filtro.agora ?? Date.now();
-  let consulta = admin
-    .from('channel_connections')
-    .select('id, organization_id, name, config, ai_agent_id')
-    .eq('provider', 'evolution')
-    .eq('channel_type', 'whatsapp');
-  if (filtro.organizationId) consulta = consulta.eq('organization_id', filtro.organizationId);
-  const { data, error } = await consulta;
-  if (error) throw new Error(`Falha ao ler conexoes: ${error.message}`);
-
   const incluir = new Set(filtro.incluir ?? []);
   const grupos = new Map<string, GrupoPlanejado>();
   const ignoradas: ConexaoIgnorada[] = [];
 
-  for (const conexao of (data ?? []) as ConexaoLida[]) {
+  for (const conexao of await lerConexoes(admin, filtro.organizationId)) {
     const base = { id: conexao.id, name: conexao.name, organizationId: conexao.organization_id };
     const config = conexao.config ?? {};
     if (conexao.ai_agent_id) {
@@ -2349,7 +2885,7 @@ export async function planejarMigracao(
     const item: ConexaoDoGrupo = {
       id: conexao.id,
       name: conexao.name,
-      situacao: situacaoNaProducao(sha256, producao, agora),
+      situacao: situacaoNaProducao(sha256, producao),
       respostaEm: producao?.sentAt ?? null,
     };
 
@@ -2416,24 +2952,27 @@ export async function criarAgentes(
   return { criados, pulados };
 }
 
+/** Motivos com que a função do banco central_agentes_ligar_conexao recusa. */
+export type MotivoDoBanco =
+  | 'sha_invalido'
+  | 'conexao_inexistente'
+  | 'ja_ligada'
+  | 'chave_mudou'
+  | 'override_mudou'
+  | 'origem_invalida'
+  | 'versao_publicada_diverge'
+  | 'prova_nao_confere';
+
 export type ResultadoLigar =
   | { ok: true; agentId: string }
-  | {
-      ok: false;
-      motivo:
-        | 'conexao_inexistente'
-        | 'ja_ligada'
-        | 'chave_invalida'
-        | 'prompt_inexistente'
-        | 'prova_nao_confere'
-        | 'agente_nao_criado'
-        | 'versao_publicada_diverge'
-        | 'nao_gravou';
-      detalhe?: string;
-    };
+  | { ok: false; motivo: MotivoDoBanco | 'chave_invalida' | 'prompt_inexistente' | 'agente_nao_criado' };
 
-/** Refaz a prova no momento: só liga com CONFERE e com a versão publicada no mesmo sha. */
-export async function ligarConexao(admin: SupabaseClient, connectionId: string, agora = Date.now()): Promise<ResultadoLigar> {
+/**
+ * Calcula o prompt de hoje, acha o agente de migração com o mesmo sha e pede ao banco para ligar. A função
+ * do banco confere tudo de novo numa transação só (chave, override, versão publicada e a última resposta da
+ * produção), com a linha do número travada, e devolve o motivo quando recusa.
+ */
+export async function ligarConexao(admin: SupabaseClient, connectionId: string): Promise<ResultadoLigar> {
   const lida = await admin
     .from('channel_connections')
     .select('id, organization_id, name, config, ai_agent_id')
@@ -2444,73 +2983,68 @@ export async function ligarConexao(admin: SupabaseClient, connectionId: string, 
   if (!conexao) return { ok: false, motivo: 'conexao_inexistente' };
   if (conexao.ai_agent_id) return { ok: false, motivo: 'ja_ligada' };
 
-  const { promptKey } = resolveConversationAIAgentConfig(conexao.config ?? {});
+  const config = conexao.config ?? {};
+  const { promptKey } = resolveConversationAIAgentConfig(config);
   if (!promptKey) return { ok: false, motivo: 'chave_invalida' };
   const resolvido = await buscarPromptResolvidoEstrito(admin, conexao.organization_id, promptKey);
   if (!resolvido) return { ok: false, motivo: 'prompt_inexistente' };
   const sha256 = sha256Hex(resolvido.content);
 
-  const situacao = situacaoNaProducao(sha256, await ultimaRespostaNativa(admin, conexao), agora);
-  if (situacao !== 'CONFERE') return { ok: false, motivo: 'prova_nao_confere', detalhe: situacao };
-
-  const agentes = await admin
+  const candidato = await admin
     .from('ai_agents')
-    .select('id, organization_id, published_version_id, origin')
-    .eq('organization_id', conexao.organization_id);
-  if (agentes.error) throw new Error(`Falha ao ler os agentes: ${agentes.error.message}`);
-  const candidato = ((agentes.data ?? []) as Array<{ id: string; published_version_id: string | null; origin: Record<string, unknown> | null }>)
-    .find((a) => a.origin?.kind === 'migration' && a.origin?.sha256 === sha256 && a.published_version_id);
-  if (!candidato?.published_version_id) return { ok: false, motivo: 'agente_nao_criado' };
-
-  const versao = await admin
-    .from('ai_agent_versions')
-    .select('id, prompt')
-    .eq('id', candidato.published_version_id)
-    .eq('agent_id', candidato.id)
-    .maybeSingle();
-  if (versao.error) throw new Error(`Falha ao ler a versao publicada: ${versao.error.message}`);
-  const prompt = (versao.data as { prompt: string } | null)?.prompt;
-  if (typeof prompt !== 'string' || sha256Hex(prompt) !== sha256) return { ok: false, motivo: 'versao_publicada_diverge' };
-
-  const gravacao = await admin
-    .from('channel_connections')
-    .update({ ai_agent_id: candidato.id })
-    .eq('id', connectionId)
+    .select('id')
     .eq('organization_id', conexao.organization_id)
-    .is('ai_agent_id', null);
-  if (gravacao.error) return { ok: false, motivo: 'nao_gravou', detalhe: gravacao.error.message };
+    .eq('origin->>kind', 'migration')
+    .eq('origin->>sha256', sha256)
+    .maybeSingle();
+  if (candidato.error) throw new Error(`Falha ao ler o agente candidato: ${candidato.error.message}`);
+  const agentId = (candidato.data as { id: string } | null)?.id;
+  if (!agentId) return { ok: false, motivo: 'agente_nao_criado' };
 
-  const conferida = await admin.from('channel_connections').select('ai_agent_id').eq('id', connectionId).maybeSingle();
-  if ((conferida.data as { ai_agent_id: string | null } | null)?.ai_agent_id !== candidato.id) {
-    return { ok: false, motivo: 'nao_gravou' };
-  }
-  return { ok: true, agentId: candidato.id };
+  const { data, error } = await admin.rpc('central_agentes_ligar_conexao', {
+    p_connection_id: connectionId,
+    p_agent_id: agentId,
+    p_chave_bruta: typeof config.aiPromptKey === 'string' ? config.aiPromptKey : null,
+    p_prompt_key: promptKey,
+    p_prompt_source: resolvido.source,
+    p_sha256: sha256,
+  });
+  if (error) throw new Error(`Falha ao ligar o numero ${connectionId}: ${error.message}`);
+  if (data === 'ligado') return { ok: true, agentId };
+  return { ok: false, motivo: data as MotivoDoBanco };
 }
 
-/** Volta o número ao caminho de hoje. O config da conexão nunca foi tocado; nada mais a restaurar. */
+/** Volta o número ao caminho de hoje, confirmando a linha. O config da conexão nunca foi tocado. */
 export async function desligarConexao(admin: SupabaseClient, connectionId: string): Promise<{ ok: true } | { ok: false; detalhe: string }> {
-  const { error } = await admin.from('channel_connections').update({ ai_agent_id: null }).eq('id', connectionId);
+  const { data, error } = await admin
+    .from('channel_connections')
+    .update({ ai_agent_id: null })
+    .eq('id', connectionId)
+    .select('id');
   if (error) return { ok: false, detalhe: error.message };
+  if (!data || data.length === 0) return { ok: false, detalhe: 'conexao_inexistente' };
   return { ok: true };
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [ ] **Step 8: Rodar e ver passar**
 
-Run: `npx vitest run lib/agents/`
-Expected: PASS (agentRuntime + migracaoAgentes, 11 testes neste arquivo).
+Run: `npx vitest run lib/agents/ test/helpers/fakeSupabaseAdmin.test.ts`
+Expected: PASS (agentRuntime, migracaoAgentes com 12 testes, e o banco falso).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add lib/agents/migracaoAgentes.ts lib/agents/migracaoAgentes.test.ts
+git add test/helpers/fakeSupabaseAdmin.ts test/helpers/fakeSupabaseAdmin.test.ts lib/agents/migracaoAgentes.ts lib/agents/migracaoAgentes.test.ts
 git diff --cached --stat
-git commit -m "feat(central-agentes): modulo de migracao com prova contra o sha gravado pela producao"
+git commit -m "feat(central-agentes): migracao com prova e ligacao pelas funcoes do banco"
 ```
 
 ---
 
 ### Task 11: Script de linha de comando
+
+A prova compara o prompt calculado nesta cópia com o que a produção gravou. Isso só vale se a cópia for o código publicado: comparar só o sha deixava passar uma publicação nova feita depois da última resposta (revisão do Codex, achado 10). Por isso `--prova`, `--criar` e `--ligar` exigem `--ramo-publicado`, fazem `git fetch` e só seguem com `HEAD == origin/<ramo>` e sem mudança local nos arquivos que decidem o prompt. Premissa: o ambiente só publica a partir desse ramo; se a publicação estiver atrás dele, a última resposta veio do texto antigo e a prova dá `DIVERGE`.
 
 **Files:**
 - Create: `scripts/central-agentes/migrar-agentes.ts`
@@ -2521,18 +3055,19 @@ git commit -m "feat(central-agentes): modulo de migracao com prova contra o sha 
 /**
  * Central de Agentes, fatia 1 — migração do prompt de hoje para agentes.
  *
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova [--org <uuid>] [--incluir <id,id>]
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --confirmar-banco <ref> [--incluir <id,id>]
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar <connectionId> --confirmar-banco <ref>
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova --ramo-publicado <ramo> [--org <uuid>] [--incluir <id,id>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --ramo-publicado <ramo> --confirmar-banco <ref> [--incluir <id,id>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar <connectionId> --ramo-publicado <ramo> --confirmar-banco <ref>
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --desligar <connectionId> --confirmar-banco <ref>
+ *
+ * <ramo> é o que o ambiente publica: `main` em produção; a branch da prévia no teste. A prova só vale com
+ * esta cópia exatamente no commit publicado (HEAD == origin/<ramo>, depois de um fetch) e sem mudança local
+ * nos arquivos que decidem o prompt. Premissa: o ambiente só publica a partir desse ramo; se a publicação
+ * estiver atrás dele, a última resposta veio do texto antigo e a prova dá DIVERGE, nunca um CONFERE falso.
  *
  * Credenciais no ambiente (nunca impressas): NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_URL, e
  * SUPABASE_SECRET_KEY ou SUPABASE_SERVICE_ROLE_KEY. Toda escrita exige --confirmar-banco com a
  * referência do projeto que o script imprime, para nunca escrever no banco errado.
- *
- * A prova compara o prompt calculado AQUI com o sha que a produção gravou na última resposta nativa de
- * cada número. Rodar da cópia no MESMO commit que está publicado; escrita com lib/ai/prompts/catalog.ts
- * alterado e não commitado é recusada.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
@@ -2541,9 +3076,11 @@ import {
   desligarConexao,
   ligarConexao,
   planejarMigracao,
-  type GrupoPlanejado,
   type ConexaoIgnorada,
+  type GrupoPlanejado,
 } from '@/lib/agents/migracaoAgentes';
+
+const ARQUIVOS_DO_PROMPT = ['lib/ai/prompts', 'lib/agents', 'lib/conversations/aiAgentConfig.ts'];
 
 function argumento(nome: string) {
   const i = process.argv.indexOf(nome);
@@ -2580,18 +3117,32 @@ async function main() {
   }
   const ref = referenciaDoBanco(url);
   const commit = git(['rev-parse', 'HEAD']);
-  const catalogoAlterado = git(['status', '--porcelain', '--', 'lib/ai/prompts/catalog.ts']) !== '';
+  const promptAlterado = git(['status', '--porcelain', '--', ...ARQUIVOS_DO_PROMPT]) !== '';
   console.log(`Banco: ${ref}`);
-  console.log(`Commit: ${commit}${catalogoAlterado ? ' (catalog.ts com mudanca nao commitada)' : ''}`);
+  console.log(`Commit: ${commit}${promptAlterado ? ' (arquivos do prompt com mudanca local)' : ''}`);
 
   const escreve = tem('--criar') || tem('--ligar') || tem('--desligar');
   if (escreve && argumento('--confirmar-banco') !== ref) {
     console.error(`Escrita recusada: passe --confirmar-banco ${ref} para confirmar o banco.`);
     process.exit(2);
   }
-  if (escreve && catalogoAlterado) {
-    console.error('Escrita recusada: lib/ai/prompts/catalog.ts tem mudanca nao commitada.');
-    process.exit(2);
+
+  if (tem('--prova') || tem('--criar') || tem('--ligar')) {
+    const ramo = argumento('--ramo-publicado');
+    if (!ramo) {
+      console.error('Passe --ramo-publicado <ramo>: main em producao; a branch da previa no teste.');
+      process.exit(2);
+    }
+    git(['fetch', 'origin', ramo]);
+    const publicado = git(['rev-parse', `origin/${ramo}`]);
+    if (publicado !== commit) {
+      console.error(`Recusado: esta copia esta em ${commit.slice(0, 7)} e ${ramo} publicado esta em ${publicado.slice(0, 7)}. A prova so vale com o codigo publicado.`);
+      process.exit(2);
+    }
+    if (promptAlterado) {
+      console.error(`Recusado: ha mudanca local em arquivo que decide o prompt (${ARQUIVOS_DO_PROMPT.join(', ')}).`);
+      process.exit(2);
+    }
   }
 
   const admin = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -2619,7 +3170,7 @@ async function main() {
   const ligar = argumento('--ligar');
   if (ligar) {
     const r = await ligarConexao(admin, ligar);
-    console.log(r.ok ? `LIGADO numero=${ligar} agente=${r.agentId}` : `NAO LIGOU numero=${ligar} motivo=${r.motivo}${r.detalhe ? ` (${r.detalhe})` : ''}`);
+    console.log(r.ok ? `LIGADO numero=${ligar} agente=${r.agentId}` : `NAO LIGOU numero=${ligar} motivo=${r.motivo}`);
     process.exit(r.ok ? 0 : 1);
   }
 
@@ -2648,15 +3199,17 @@ Expected: sem erros (`tsconfig.json` inclui `**/*.ts`, então `scripts/` é conf
 Run (sem credenciais no ambiente): `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova`
 Expected: "Faltam NEXT_PUBLIC_SUPABASE_URL..." e saída 2.
 
-Run (apontando para o Supabase local, com a chave local no ambiente): `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --confirmar-banco local`
-Expected: "--criar exige --org <uuid>" e saída 2, sem ler nada.
+Com as credenciais do Supabase local no ambiente:
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova` → "Passe --ramo-publicado" e saída 2.
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova --ramo-publicado main` → "Recusado: esta copia esta em ..." e saída 2 (a branch local está à frente do `main`).
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --confirmar-banco local --ramo-publicado main` → recusado antes de ler o banco.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add scripts/central-agentes/migrar-agentes.ts
 git diff --cached --stat
-git commit -m "feat(central-agentes): script de migracao com trava de banco, de organizacao e de catalogo"
+git commit -m "feat(central-agentes): script de migracao com trava de banco, de organizacao e da versao publicada"
 ```
 
 ---
@@ -2677,7 +3230,7 @@ Expected: sem avisos (`--max-warnings 0`).
 - [ ] **Step 2: Local**
 
 Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
-Expected: PASS (11 testes).
+Expected: PASS (12 testes).
 
 - [ ] **Step 3: Atualizar a SPEC e o cérebro** com o que a implementação mostrou (apenas se algo mudou) e commitar.
 
@@ -2685,24 +3238,40 @@ Expected: PASS (11 testes).
 
 ### Task 13: Publicação (cada passo com o OK do Junior)
 
-Seguir o rito do cérebro: `06-References/basecrm-rito-publicacao/LEIA-ME.md`. Antes de qualquer `--criar` ou `--ligar`, conferir que o `HEAD` da cópia onde o script roda é o commit publicado naquele ambiente: a prova compara o catálogo desta cópia com o que a produção gravou.
+**Não seguir ao pé da letra** o rito `06-References/basecrm-rito-publicacao/LEIA-ME.md` (revisão do Codex, achado 7). Ele é da branch `feat/aurora-implantacao`:
+- o passo 3 dele empurra para `main` **e** para a branch da Aurora;
+- o `poll_deploys.py` só procura a prévia da branch da Aurora (linha 38) e espera também a produção.
+
+Desta entrega valem os comandos abaixo. Do rito, só se usam:
+- o `prova_login.py`;
+- os `sqlteste.py`/`sqlprod.py` para leitura;
+- o `poll_deploys.py` na produção, depois de a branch dele virar argumento com padrão `feat/aurora-implantacao` (assim o uso de hoje não muda).
 
 - [ ] **Step 1: Banco de teste (`zvwngsrflkicbbzfmrgy`)**
-  1. Aplicar a migration.
-  2. Se for pelo MCP (`apply_migration`), corrigir a `version` em `supabase_migrations.schema_migrations` para `20260930000000`.
-  3. Publicar a prévia da branch **pelo push** (`git push origin feat/central-agentes`, com o OK dele), nunca pela CLI da Vercel, e provar pelo pedido de login que a prévia usa o banco de teste. Só então apontar `teste.crm.basea2.com` para ela.
-  4. Provocar uma mensagem de teste no número do ensaio e conferir que a resposta gravou `prompt_sha256`, com `prompt_source` igual ao de antes e sem `agent_id`.
-  5. Rodar `--prova --org <organização do ensaio>` com as credenciais do banco de teste no ambiente, lidas do cofre em processo e nunca impressas. O número tem que sair `CONFERE`.
-  6. `--criar --org <organização do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy`.
-  7. `--ligar <conexão do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy`.
-  8. Provocar outra mensagem e conferir: `prompt_source = 'agent'`, `agent_version = 1` e o **mesmo** `prompt_sha256` da resposta do passo 4.
-  9. `--desligar` e conferir que a próxima resposta volta sem `agent_id`, com o mesmo sha.
+  1. Aplicar a migration no banco de teste pelo MCP do Supabase (`apply_migration`) e corrigir a `version` em `supabase_migrations.schema_migrations` para `20260930000000`.
+  2. Primeiro push da branch, sem build: um commit vazio com `[vercel skip]` na mensagem, e `git push origin HEAD:feat/central-agentes` (OK dele). Sem variáveis próprias, a prévia de uma branch nova recebe as variáveis genéricas de Preview, que apontam para o banco de **produção** (aprendizado de 19/09).
+  3. Com a branch já no GitHub, criar na Vercel as variáveis de Preview restritas à branch `feat/central-agentes`, iguais às da `feat/aurora-implantacao` (URL e chaves do banco de teste). Lidas e gravadas em processo, nunca impressas.
+  4. Commit vazio sem `[vercel skip]` e push da branch: agora a Vercel constrói a prévia.
+  5. Esperar a prévia READY pela API da Vercel: `GET /v6/deployments?projectId=<projeto>&target=preview`, filtrando `meta.githubCommitRef = feat/central-agentes` e o sha, com o token lido do cofre em processo.
+  6. Provar pelo pedido real de login que a prévia usa `zvwngsrflkicbbzfmrgy` (o `prova_login.py`, apontado para a URL da prévia). Só então apontar `teste.crm.basea2.com` para ela (`POST /v2/deployments/{id}/aliases`).
+  7. Provocar uma mensagem de teste no número do ensaio e conferir que a resposta gravou `prompt_sha256`, com `prompt_source` igual ao de antes e sem `agent_id`.
+  8. `--prova --org <organização do ensaio> --ramo-publicado feat/central-agentes`, com as credenciais do banco de teste no ambiente, lidas do cofre em processo e nunca impressas. O número tem que sair `CONFERE`.
+  9. `--criar --org <organização do ensaio> --ramo-publicado feat/central-agentes --confirmar-banco zvwngsrflkicbbzfmrgy`.
+  10. `--ligar <conexão do ensaio> --ramo-publicado feat/central-agentes --confirmar-banco zvwngsrflkicbbzfmrgy`.
+  11. Provocar outra mensagem e conferir: `prompt_source = 'agent'`, `agent_version = 1` e o **mesmo** `prompt_sha256` da resposta do passo 7.
+  12. `--desligar <conexão do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy` e conferir que a próxima resposta volta sem `agent_id`, com o mesmo sha.
 - [ ] **Step 2: Produção — migration ANTES do deploy**
-  1. Aplicar a migration no banco de produção (`eqidsihasmwwamkaqfka`).
-  2. Conferir que a coluna existe (`select ai_agent_id from public.channel_connections limit 1` sem erro).
-  3. Só então `git push origin HEAD:main`.
-  4. Acompanhar o deploy (`poll_deploys.py <sha>`) e devolver o alias de teste para a prévia (toda publicação de produção o leva junto).
+  1. Leitura, com o OK dele: quais números têm `config.webhookUrl` (automação n8n), e se os fluxos deles mandam no metadata do `/ai-reply` alguma das seis chaves de rastro, que passam a ser descartadas (revisão do Codex, achado 9).
+  2. **G23, antes da escrita** (revisão do Codex, achado 20):
+     - registrar a data do último backup do projeto de produção e se o PITR está ligado (painel do Supabase ou `get_project` do MCP, só leitura);
+     - sem backup do dia, não aplicar;
+     - a volta (`volta-fatia-1.sql`) já foi provada no banco local (Task 2, Step 3).
+  3. Aplicar a migration no banco de produção (`eqidsihasmwwamkaqfka`) e corrigir a `version`, como no teste.
+  4. Conferir que a coluna existe (`select ai_agent_id from public.channel_connections limit 1` sem erro).
+  5. Só então: `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD` e `git push origin HEAD:main`. Não empurrar para nenhuma outra branch.
+  6. Esperar produção READY e **devolver `teste.crm.basea2.com` para a prévia**, porque toda publicação de produção leva esse domínio junto. O `poll_deploys.py` com a branch como argumento faz as duas coisas. Provar os dois bancos pelo `prova_login.py`.
 - [ ] **Step 3: Produção adormecida**
   - a próxima resposta real da Aurora sai como antes (`prompt_source = 'default'`, sem `agent_id`) e agora com `prompt_sha256`;
-  - depois de uma resposta real de cada uma, `--prova` só leitura em produção, com o relatório guardado no cérebro. Aurora e Julia têm que sair `CONFERE`.
+  - depois de uma resposta real de cada uma, `--prova --ramo-publicado main`, só leitura, com o relatório guardado no cérebro. Aurora e Julia têm que sair `CONFERE`;
+  - operação (revisão do Codex, ponto 2): num número com agente, uma falha do agente (`agent_unavailable`) cai na automação n8n do cliente, se houver, como qualquer falha da IA nativa.
 - [ ] **Step 4:** Ligar Aurora e Julia em produção **não** faz parte desta fatia. Fica para a entrega da fatia 2, junto do editor, do 409 no PATCH de `aiPromptKey`, da trava do catálogo e do aviso na Central de I.A.
