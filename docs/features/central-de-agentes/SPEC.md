@@ -1,6 +1,6 @@
 # SPEC — Central de Agentes, fase 1: o editor do agente
 
-> Status: **PROPOSTA para revisão (Codex) e aprovação do Junior.** Não implementar antes da aprovação.
+> Status: **APROVADA pelo Junior (fase, critério e as 2 decisões, 29/09)**; revisão técnica do Codex pendente. Implementação começa pela fatia 1, em branch, sem tocar produção sem OK.
 > Data: 29/09/2026. Base de leitura: worktree `feat/central-agentes`, HEAD `335f32b` (= produção).
 > Levantamentos com arquivo e linha: `levantamento/mapa-A-prompt.md`, `mapa-B-comportamento.md`, `mapa-C-modelo-telas.md`.
 > Análise da SquadOS que originou a proposta: https://claude.ai/artifact/DsFmx2E4sEfzWgtiGsNYrd (cópia no cérebro, `06-References/central-de-agentes-2026-09-29/`).
@@ -13,7 +13,7 @@
 - **Rascunho e publicado ficam separados.** Você edita, testa numa conversa simulada que não manda nada no WhatsApp e publica. A próxima resposta real já sai com a versão nova, e cada resposta registra qual versão respondeu.
 - **Toda publicação vira uma versão** com autor e data; comparar e voltar uma versão é um clique.
 - **Seis entregas, nesta ordem:** (1) o cadastro e a migração da Aurora e da Julia, sem tela; (2) o editor com versões e Publicar; (3) o teste sem enviar. Com as três, o critério de pronto que você aprovou está cumprido. Depois: (4) os ajustes escondidos na tela, escritos como frase; (5) o modelo por agente com tempo e custo de cada resposta; (6) a tela da agência com todos os agentes.
-- **Preciso de você em duas decisões pequenas**, no fim do documento.
+- **Suas duas decisões (29/09):** a pausa do lado do cliente continua só para o cliente inteiro, e o teste ganha o botão "Explicar esta resposta".
 
 ## Problema e resultado esperado
 
@@ -154,7 +154,7 @@ Ordem: banco de teste primeiro (`zvwngsrflkicbbzfmrgy`); depois, em produção e
   - as partes da resposta como sairiam no WhatsApp;
   - "o que o agente fez": os campos estruturados já existentes (repasse e motivo, pedido de horário, nome, e-mail, empresa e segmento captados, etiquetas sugeridas, gate de capacidade, resumo);
   - o tempo (`ai_timing`) e os tokens.
-- **Explicar esta resposta:** botão sob demanda que faz uma segunda chamada, depois da resposta, e mostra "por que respondeu assim" em português, rotulado como explicação gerada depois. Não altera a resposta testada. (Decisão 2 abaixo.)
+- **Explicar esta resposta:** botão sob demanda que faz uma segunda chamada, depois da resposta, e mostra "por que respondeu assim" em português, rotulado como explicação gerada depois. Não altera a resposta testada. Aprovado pelo Junior em 29/09. Entra no mesmo limite de testes.
 - **Limites:**
   - 20 testes a cada 10 minutos por pessoa;
   - no máximo 30 mensagens simuladas de 2 mil caracteres cada;
@@ -269,15 +269,10 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
 6. A policy de `channel_connections` é de 10/03 e usa o papel legado. Hoje a proteção real está nas rotas, que usam a chave de serviço.
 7. `boards.agent_*` (nome e comportamento por funil) não alimenta o atendimento. Fica para a fase 3 ("agente por funil"), que decide se unifica.
 
-## Decisões pedidas ao Junior
+## Decisões do Junior sobre esta SPEC (29/09, ~05h20)
 
-1. **Pausar por número, do lado do cliente.**
-   - Hoje o admin do cliente só pausa a IA do cliente inteiro; pausar um número ficou só com a agência desde 26/09.
-   - Recomendo manter assim na fase 1. Se quiser que o cliente pause um agente específico, isso entra depois como botão próprio, sem abrir o resto da configuração.
-2. **"Explicar esta resposta" no teste.**
-   - É um botão que, depois da resposta de teste, pede ao modelo uma frase dizendo por que respondeu assim.
-   - Gasta uma chamada a mais da chave do cliente, só quando alguém clica.
-   - Recomendo incluir: é o "motivo" que a fase aprovada promete, sem mexer na resposta testada.
+1. **Pausar por número, do lado do cliente: "manter assim".** Na fase 1 o admin do cliente continua pausando só a IA do cliente inteiro (`/api/settings/ai`). Pausar um número ou um agente continua com a agência.
+2. **"Explicar esta resposta" no teste: "pode incluir".** Entra na fatia 3 como botão sob demanda: uma chamada a mais, só quando alguém clica, sem alterar a resposta testada.
 
 ## Pontos para o Codex aprovar ou contestar
 
