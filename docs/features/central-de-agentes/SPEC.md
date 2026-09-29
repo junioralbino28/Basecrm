@@ -53,8 +53,8 @@ Critério de pronto aprovado pelo Junior em 29/09:
 | Publicar e Restaurar | Função SQL única `publish_ai_agent_version` (`security definer`, `search_path=''`, só agência), atômica, com trava otimista pela versão esperada (conflito vira 409). Restaurar = publicar o conteúdo da versão escolhida como versão nova | Histórico linear e auditável, sem a corrida do publicar atual. |
 | Agente ligado sem versão publicada | Ligar exige versão publicada. Se mesmo assim faltar em tempo de execução, a resposta falha com motivo `agent_unavailable`, como já acontece com `missing_prompt` | Nunca responder em silêncio com outro prompt. |
 | Ajustes do agente × do número | Do **agente** (versionados): nome, prompt, modelo, agrupar, dividir, memória, mídia, cutucada, encerramento, quem conduz e formato da reunião, pausar quando alguém responde pelo celular. Do **número** (ficam na conexão): IA ligada no número, assinatura do atendente, espaçamento da régua, agenda, URL, chave e modo de envio da Evolution | O primeiro grupo é como a IA se comporta; o segundo é do aparelho, da régua ou da operação. |
-| Leitura dos ajustes do agente | Com o número ligado, o runtime lê só a versão publicada; campo ausente = constante de hoje. A migração grava na v1 os valores efetivos de hoje, por extenso | Uma fonte só por número ligado; nada de "qual vale?". |
-| Rotas antigas depois de ligar | O PATCH da conexão recusa (409, "configurado no agente X") os campos do primeiro grupo num número ligado. A Central de I.A troca o editor do WhatsApp por um aviso com link para a Central de Agentes | Mudança que não tem efeito é pior que mudança recusada. |
+| Leitura dos ajustes do agente | Na fatia 1 o agente assume **só o prompt** (e o modelo, nulo na v1); os ajustes continuam sendo lidos de onde são hoje. Na fatia 4, com o número ligado, cada ajuste segue a ordem: valor publicado no agente → valor da conexão (o de hoje) → constante do código. A v1 nasce com `settings = {}` | Ler os ajustes do agente muda 10 pontos do webhook e o executor da cutucada (ver fatia 4). Se a migração gravasse os valores na fatia 1 e eles só fossem lidos na fatia 4, uma mudança feita no número nesse meio-tempo se perderia na virada. Com a v1 vazia, a virada da fatia 4 não muda nada até alguém publicar um valor. |
+| Rotas antigas depois de ligar | Fatia 1: a Central de I.A troca o editor do WhatsApp por um aviso com link para a Central de Agentes nos clientes com agente ligado. Fatia 4: o PATCH da conexão recusa (409, "configurado no agente X") os campos do primeiro grupo num número ligado | Mudança que não tem efeito é pior que mudança recusada. |
 | Catálogo no código | Os textos de `catalog.ts` viram "modelo de origem" (base da biblioteca da fase 2) e continuam valendo para números sem agente | Depois da migração, editar o catálogo não muda Aurora nem Julia. O `describe` de `catalog.aurora.test.ts` passa a dizer isso. |
 | Rastro | Toda resposta grava no metadata `agent_id`, `agent_version` e `prompt_source` (`agent`, `override` ou `catalog`), junto do `ai_timing` | Prova que "a próxima resposta já saiu com a mudança". |
 | Quem mexe | Só `agency_admin` (e o legado `admin`) cria, edita, testa, publica e liga | Decisões de 30/07 e 17/09. `agency_staff` e o cliente não entram na fase 1. |
@@ -92,21 +92,21 @@ channel_connections + ai_agent_id uuid null,
 
 ## Runtime (fatia 1)
 
-1. `processDeferredAIReply` e `generateConversationAutoReply` recebem a conexão fresca, como hoje. Se `ai_agent_id` for nulo, **o caminho atual não muda em nada**.
+1. As leituras da conexão (`loadFreshConversationAIGate`, a carga inicial do webhook) passam a trazer `ai_agent_id`. Se ele for nulo, **o caminho atual não muda em nada**.
 2. Se houver agente, uma leitura carrega a versão publicada (agente e versão da mesma organização). O conteúdo do prompt vem de `version.prompt`, e não de `getResolvedPrompt`. As 12 variáveis, o histórico, `renderPromptTemplate`, o esquema de saída e a medição continuam os mesmos.
-3. Os ajustes vêm de `resolveAgentSettings(version.settings)`: cada campo ausente cai na constante de hoje. É função pura, com teste.
-4. O modelo vem de `version.model ?? organization_settings.ai_model ?? AI_DEFAULT_MODELS[provider]`. Provedor e chave continuam os da organização.
+3. Os ajustes **não mudam de lugar nesta fatia**: agrupar, dividir, memória, mídia, cutucada, encerramento, celular, nome e reunião continuam lidos da conexão e das constantes, como hoje.
+4. O modelo vem de `version.model ?? organization_settings.ai_model ?? AI_DEFAULT_MODELS[provider]`. Na v1, `model` é nulo, logo o de hoje. Provedor e chave continuam os da organização.
 5. O metadata da resposta ganha `agent_id`, `agent_version` e `prompt_source`.
 
-**Prova de equivalência** (teste obrigatório): com as mesmas entradas, o prompt renderizado pelo caminho antigo e o do agente com v1 migrada são strings idênticas, e os ajustes resolvidos são iguais aos de hoje. Isso vale para a Aurora, para a Julia, para um número com override em `ai_prompt_templates` e para um número sem nada. Hoje só o texto da Aurora tem testes de regressão; esta fatia cria a rede da Julia também.
+**Prova de equivalência** (teste obrigatório): com as mesmas entradas, o prompt renderizado pelo caminho antigo e o do agente com v1 migrada são strings idênticas. Isso vale para a Aurora, para a Julia, para um número com override em `ai_prompt_templates` e para um número sem nada. Hoje só o texto da Aurora tem testes de regressão; esta fatia cria a rede da Julia também.
 
 ## Migração da Aurora e da Julia (fatia 1)
 
 Script `scripts/central-agentes/migrar-agentes.ts`, dentro do repositório, nunca commitado com segredo. Tem quatro modos:
 
-- `--prova`: só leitura. Para cada número com IA ligada ou chave de prompt definida, calcula o conteúdo efetivo de hoje (o mesmo que `getResolvedPrompt` devolve), o sha256 e os ajustes efetivos. Agrupa em agentes os números com prompt e ajustes idênticos. Imprime o relatório e não grava nada.
-- `--criar`: cria os agentes e a v1 (`source = 'migration'`) a partir do relatório, sem ligar nenhum número.
-- `--ligar <connectionId>`: refaz a prova daquele número no momento e só liga se o sha256 e os ajustes baterem.
+- `--prova`: só leitura. Para cada número com IA ligada ou chave de prompt definida, calcula o conteúdo efetivo de hoje (o mesmo que `getResolvedPrompt` devolve) e o sha256. Agrupa num agente os números da mesma organização com o mesmo conteúdo. Imprime o relatório e não grava nada.
+- `--criar`: cria os agentes e a v1 (`source = 'migration'`, `settings = {}`, `model = null`) a partir do relatório, sem ligar nenhum número.
+- `--ligar <connectionId>`: refaz a prova daquele número no momento e só liga se o sha256 bater.
 - `--desligar <connectionId>`: volta `ai_agent_id` para nulo.
 
 Ordem: banco de teste primeiro (`zvwngsrflkicbbzfmrgy`); depois, em produção e com o OK do Junior, a migration (tabelas vazias, nada muda), `--prova`, `--criar`, `--ligar` na Aurora, observação das próximas respostas reais (`agent_version = 1`, sem falha, tempo normal) e, por fim, a Julia.
@@ -167,6 +167,19 @@ Ordem: banco de teste primeiro (`zvwngsrflkicbbzfmrgy`); depois, em produção e
 
 Antes de mexer: **testes de caracterização** que travam o comportamento atual, porque hoje nenhum teste fixa 7000/2000 ms, as 240 letras e 3 partes, as 12 mensagens ou as 2 respostas em 60 min (mapa B).
 
+**Pontos de leitura que passam a usar `resolveAgentSettings`** (agente → conexão → constante), só para número ligado:
+- agrupar: `webhook/route.ts:1425`, calculado antes de agendar a resposta;
+- memória: `webhook/route.ts:193-200`;
+- dividir: `aiReply.ts:885`;
+- encerramento: `webhook/route.ts:176` e `:1360`, com `closingReply.ts:14-15`;
+- mídia: `webhook/route.ts:817` e `:186`;
+- celular: `webhook/route.ts:944`;
+- cutucada: agendamento em `webhook/route.ts:440` e **envio no executor separado `lib/conversations/idleNudgeRunner.ts:156`**, que também precisa resolver pelo agente;
+- nome: `aiAgentConfig.ts` e `webhook/route.ts:145/288`;
+- reunião: `resolveMeetingHostName` (`aiReply.ts:347-371`) e `readMeetingChannelText` (`closingReply.ts:20-23`).
+
+Número sem agente continua lendo como hoje. Se números ligados ao mesmo agente têm valores diferentes na conexão, a tela mostra "varia por número" até alguém publicar um valor no agente.
+
 | Ajuste | Frase na tela | Padrão (= hoje) | Limites |
 |---|---|---|---|
 | Agrupar | "Espera **7** segundos depois da última mensagem antes de responder (**2** segundos quando o lead vem de um anúncio)." | 7 s / 2 s | 1–60 s / 0–60 s |
@@ -213,14 +226,18 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
   - duas publicações com a mesma versão esperada: uma ganha, a outra recebe 409;
   - restaurar cria versão nova com `restored_from`;
   - a verificação ao vivo aponta cada item da lista, e os prompts atuais não disparam nenhum;
-  - o PATCH da conexão recusa ajustes de agente num número ligado;
+  - a Central de I.A mostra o aviso com link, e não o editor, em cliente com agente ligado;
   - admin do cliente recebe 403 em todas as rotas.
 - **Fatia 3:**
   - nenhuma linha nova em conversas, mensagens, negócios, contatos, etiquetas, jobs e eventos depois de um teste;
   - nenhuma chamada à Evolution;
   - limite de testes respeitado;
   - preview com agente pausado funciona.
-- **Fatia 4:** caracterização antes; padrão ausente = comportamento de hoje; limites rejeitados pela validação.
+- **Fatia 4:**
+  - caracterização antes;
+  - agente sem valor = valor da conexão = comportamento de hoje, nos 10 pontos de leitura e no executor da cutucada;
+  - limites rejeitados pela validação;
+  - o PATCH da conexão recusa ajustes de agente num número ligado.
 - **Fatia 5:** tokens gravados nas duas gerações; custo nulo quando o modelo não está na tabela, nunca inventado.
 - **Fatia 6:** só agência; período limitado; tela com os três estados.
 - **Toda fatia:**
@@ -264,7 +281,7 @@ Cada frase tem "Voltar ao padrão". Os valores entram no rascunho e só valem de
 
 ## Pontos para o Codex aprovar ou contestar
 
-1. A divisão entre ajustes do agente e do número, e o PATCH recusar (em vez de ignorar) campo de agente em número ligado.
+1. A divisão entre ajustes do agente e do número, a ordem agente → conexão → constante, e o PATCH recusar (em vez de ignorar) campo de agente em número ligado.
 2. Falhar com `agent_unavailable` em vez de cair no prompt antigo.
 3. FK composta com `on delete set null (ai_agent_id)` (Postgres 15+). Conferir a versão do Supabase do projeto.
 4. Rascunho na própria linha do agente × tabela de rascunhos.
