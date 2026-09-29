@@ -3240,7 +3240,7 @@ Expected: PASS (12 testes).
 
 **Não seguir ao pé da letra** o rito `06-References/basecrm-rito-publicacao/LEIA-ME.md` (revisão do Codex, achado 7). Ele é da branch `feat/aurora-implantacao`:
 - o passo 3 dele empurra para `main` **e** para a branch da Aurora;
-- o `poll_deploys.py` só procura a prévia da branch da Aurora (linha 38) e espera também a produção.
+- o `poll_deploys.py` só procura a prévia da branch da Aurora (linha 39) e espera também a produção.
 
 Desta entrega valem os comandos abaixo. Do rito, só se usam:
 - o `prova_login.py`;
