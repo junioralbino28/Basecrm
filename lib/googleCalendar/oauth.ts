@@ -38,6 +38,7 @@ const GOOGLE_CALENDAR_OAUTH_SCOPE = GOOGLE_CALENDAR_OAUTH_SCOPES.join(' ');
 
 /** O Google exige redirect URI EXATO cadastrado no client OAuth. */
 export const GOOGLE_CALENDAR_OAUTH_ALLOWED_ORIGINS = [
+  'https://crm.cennohub.com.br',
   'https://crm.basea2.com',
   'https://teste.crm.basea2.com',
   'http://localhost:3000',

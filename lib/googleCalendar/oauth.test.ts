@@ -62,7 +62,8 @@ describe('oauth — URL de consentimento, origem permitida e cache de access tok
     ]));
   });
 
-  it('so aceita os 3 redirect origins cadastrados no Google Cloud; rejeita qualquer outro', () => {
+  it('so aceita os redirect origins cadastrados no Google Cloud; rejeita qualquer outro', () => {
+    expect(isAllowedGoogleOAuthOrigin('https://crm.cennohub.com.br')).toBe(true);
     expect(isAllowedGoogleOAuthOrigin('https://crm.basea2.com')).toBe(true);
     expect(isAllowedGoogleOAuthOrigin('https://teste.crm.basea2.com')).toBe(true);
     expect(isAllowedGoogleOAuthOrigin('http://localhost:3000')).toBe(true);
