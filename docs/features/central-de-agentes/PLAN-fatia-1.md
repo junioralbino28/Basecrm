@@ -175,9 +175,12 @@ describe('migration da fundação da Central de Agentes', () => {
     expect(semComentarios).toContain('before insert or update of ai_agent_id on public.channel_connections');
   });
 
-  it('versão é imutável: o gatilho recusa update e não recusa delete (senão travaria a cascata)', () => {
+  it('versão é imutável: o gatilho recusa update, exceto zerar o autor, e não recusa delete (senão travaria a cascata)', () => {
     const [, versoes] = corposDasFuncoes(sql);
     expect(versoes).toContain("raise exception 'ai_agent_version_immutable'");
+    // Apagar o usuário que publicou faz o Postgres rodar `update ... set published_by = null` (FK on delete
+    // set null). Sem esta exceção, o gatilho travaria a exclusão do usuário.
+    expect(versoes).toContain("(to_jsonb(new) - 'published_by') = (to_jsonb(old) - 'published_by')");
     expect(semComentarios).toContain('before update on public.ai_agent_versions');
     expect(semComentarios).not.toMatch(/before (update or delete|delete) on public\.ai_agent_versions/);
   });
@@ -333,12 +336,18 @@ create trigger channel_connections_ai_agent_published
 
 -- Versão é imutável (G24). Só UPDATE é recusado: recusar DELETE travaria a cascata de apagar um
 -- agente sem número e de apagar a organização. A versão publicada já é protegida pela FK do ponteiro.
+-- A única mudança aceita é zerar o autor: apagar o usuário que publicou faz o Postgres rodar
+-- `update ... set published_by = null` (FK on delete set null), e recusar isso travaria a exclusão dele.
 create or replace function public.prevent_ai_agent_version_update()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  if new.published_by is null
+     and (to_jsonb(new) - 'published_by') = (to_jsonb(old) - 'published_by') then
+    return new;
+  end if;
   raise exception 'ai_agent_version_immutable' using errcode = 'P0001';
 end;
 $$;
@@ -637,6 +646,24 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     expect(tentativa.error?.message).toContain('ai_agent_version_immutable');
   });
 
+  it('apagar o usuário que publicou uma versão não trava: o autor vira nulo e o resto não muda', async () => {
+    const admin = getSupabaseAdminClient();
+    await criarUsuario('agency_admin', orgA);
+    const autorId = usuarios.at(-1)!;
+    const versao = await admin
+      .from('ai_agent_versions')
+      .insert({ agent_id: agenteA, organization_id: orgA, version: 2, prompt: `${PROMPT}\nv2`, source: 'publish', published_by: autorId })
+      .select('id')
+      .single();
+    const versaoId = requireSupabaseData(versao, 'insert versao com autor').id;
+
+    const apagado = await admin.auth.admin.deleteUser(autorId);
+    expect(apagado.error).toBeNull();
+
+    const depois = await admin.from('ai_agent_versions').select('published_by, prompt, version').eq('id', versaoId).single();
+    expect(depois.data).toEqual({ published_by: null, prompt: `${PROMPT}\nv2`, version: 2 });
+  });
+
   it('apagar a organização inteira leva agente, versões e número ligado juntos', async () => {
     const admin = getSupabaseAdminClient();
     const org = await admin.from('organizations').insert({ name: `Vitest Org C ${runId}` }).select('id').single();
@@ -697,7 +724,7 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
 - [ ] **Step 2: Rodar contra o Supabase local**
 
 Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
-Expected: PASS (10 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local).
+Expected: PASS (11 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local).
 
 Se "apagar a organização inteira" falhar com 23503 em `channel_connections_ai_agent_fk`, **parar**: a premissa da SPEC de que `no action` deixa a cascata passar está errada, e a decisão volta para o Junior antes de qualquer outra task.
 
@@ -2650,7 +2677,7 @@ Expected: sem avisos (`--max-warnings 0`).
 - [ ] **Step 2: Local**
 
 Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
-Expected: PASS (10 testes).
+Expected: PASS (11 testes).
 
 - [ ] **Step 3: Atualizar a SPEC e o cérebro** com o que a implementação mostrou (apenas se algo mudou) e commitar.
 
