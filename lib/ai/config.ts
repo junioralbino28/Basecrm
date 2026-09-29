@@ -43,22 +43,30 @@ export type AIProvider = 'google' | 'openai' | 'anthropic';
  * const model = getModel('openai', 'sua-api-key', '');
  * ```
  */
-export const getModel = (provider: AIProvider, apiKey: string, modelId: string) => {
+export const getModel = (
+    provider: AIProvider,
+    apiKey: string,
+    modelId: string,
+    // fetch proprio (opcional): quem mede a resposta da IA conta aqui as chamadas HTTP ao provedor,
+    // inclusive as novas tentativas que o SDK faz sozinho (ver lib/ai/medicaoResposta.ts).
+    options?: { fetch?: typeof fetch },
+) => {
     if (!apiKey) {
         throw new Error('API Key is missing');
     }
+    const fetchOpcional = options?.fetch ? { fetch: options.fetch } : {};
 
     switch (provider) {
         case 'google':
-            const google = createGoogleGenerativeAI({ apiKey });
+            const google = createGoogleGenerativeAI({ apiKey, ...fetchOpcional });
             return google(modelId || AI_DEFAULT_MODELS.google);
 
         case 'openai':
-            const openai = createOpenAI({ apiKey });
+            const openai = createOpenAI({ apiKey, ...fetchOpcional });
             return openai(modelId || AI_DEFAULT_MODELS.openai);
 
         case 'anthropic':
-            const anthropic = createAnthropic({ apiKey });
+            const anthropic = createAnthropic({ apiKey, ...fetchOpcional });
             return anthropic(modelId || AI_DEFAULT_MODELS.anthropic);
 
         default:

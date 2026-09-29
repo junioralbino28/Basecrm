@@ -5,6 +5,7 @@ import { generateText, NoObjectGeneratedError, Output } from 'ai';
 import { z } from 'zod';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { getModel, type AIProvider } from '@/lib/ai/config';
+import { criarFetchContador, type AIReplyTiming } from '@/lib/ai/medicaoResposta';
 import { getResolvedPrompt } from '@/lib/ai/prompts/server';
 import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
@@ -393,6 +394,7 @@ export async function generateConversationAutoReply(params: {
     closing = null,
     threadMetadata = null,
   } = params;
+  const inicio = Date.now();
 
   const generationGate = await loadFreshConversationAIGate({
     admin,
@@ -434,10 +436,12 @@ export async function generateConversationAutoReply(params: {
     .eq('id', organizationId)
     .maybeSingle();
 
+  const fetchContador = criarFetchContador();
   const model = getModel(
     provider,
     apiKey,
-    orgSettings?.ai_model || AI_DEFAULT_MODELS[provider] || AI_DEFAULT_MODELS.google
+    orgSettings?.ai_model || AI_DEFAULT_MODELS[provider] || AI_DEFAULT_MODELS.google,
+    { fetch: fetchContador.fetch },
   );
 
   const resolvedPrompt = await getResolvedPrompt(
@@ -450,6 +454,7 @@ export async function generateConversationAutoReply(params: {
   }
 
   const currentDateTime = new Date().toISOString();
+  const inicioAgenda = Date.now();
   const calendarAvailability = await loadAvailableMeetingSlots({
     admin,
     organizationId,
@@ -457,6 +462,7 @@ export async function generateConversationAutoReply(params: {
     connectionConfig: generationConnectionConfig,
     now: currentDateTime,
   });
+  const calendarMs = Date.now() - inicioAgenda;
   const timezone = calendarAvailability.calendar?.timezone
     || (typeof orgSettings?.automation_timezone === 'string' && orgSettings.automation_timezone.trim()
       ? orgSettings.automation_timezone.trim().slice(0, 64)
@@ -508,15 +514,34 @@ export async function generateConversationAutoReply(params: {
     availableTagsContext: buildAvailableTagsContext(tagCatalog),
   });
 
-  const generateOnce = () => generateText({
-    model,
-    maxRetries: 2,
-    // No Gemini 3 os tokens de raciocinio contam neste teto; 1.200 truncava o JSON e derrubava a
-    // resposta (falha "provider" no ensaio de 20/09). A resposta util continua limitada pelo prompt.
-    maxOutputTokens: 4096,
-    output: Output.object({ schema: ConversationAutoReplySchema }),
-    prompt,
-  });
+  let generations = 0;
+  let repairedOutput = false;
+  const generateOnce = () => {
+    generations += 1;
+    return generateText({
+      model,
+      maxRetries: 2,
+      // No Gemini 3 os tokens de raciocinio contam neste teto; 1.200 truncava o JSON e derrubava a
+      // resposta (falha "provider" no ensaio de 20/09). A resposta util continua limitada pelo prompt.
+      maxOutputTokens: 4096,
+      output: Output.object({ schema: ConversationAutoReplySchema }),
+      prompt,
+    });
+  };
+  const inicioModelo = Date.now();
+  const medir = (): AIReplyTiming => {
+    const agora = Date.now();
+    return {
+      total_ms: agora - inicio,
+      setup_ms: inicioModelo - inicio - calendarMs,
+      calendar_ms: calendarMs,
+      model_ms: agora - inicioModelo,
+      model_http_calls: fetchContador.contagem.chamadas,
+      model_http_errors: [...fetchContador.contagem.falhas],
+      generations,
+      repaired: repairedOutput,
+    };
+  };
 
   // 2a janela de 20/09: o Gemini devolveu, de vez em quando, algo que nao era o objeto esperado
   // (`AI_NoObjectGeneratedError: could not parse the response`) e a conversa caia na fila humana.
@@ -524,24 +549,35 @@ export async function generateConversationAutoReply(params: {
   // der, uma segunda geracao. So a segunda falha vira falha de provedor.
   let generated: z.infer<typeof ConversationAutoReplySchema>;
   try {
-    generated = (await generateOnce()).output;
-  } catch (error) {
-    if (!NoObjectGeneratedError.isInstance(error)) throw error;
-    const rawText = typeof error.text === 'string' ? error.text : null;
-    const repairedText = repairStructuredOutputText(rawText);
-    const repaired = repairedText ? ConversationAutoReplySchema.safeParse(JSON.parse(repairedText)) : null;
-    if (repaired?.success) {
-      console.warn('[Conversation AI] Structured output repaired from raw text', { organizationId });
-      generated = repaired.data;
-    } else {
-      console.warn('[Conversation AI] Structured output could not be parsed; retrying once', {
-        organizationId,
-        finishReason: error.finishReason ?? null,
-        text: rawText ? rawText.slice(0, 300) : null,
-      });
+    try {
       generated = (await generateOnce()).output;
+    } catch (error) {
+      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+      const rawText = typeof error.text === 'string' ? error.text : null;
+      const repairedText = repairStructuredOutputText(rawText);
+      const repaired = repairedText ? ConversationAutoReplySchema.safeParse(JSON.parse(repairedText)) : null;
+      if (repaired?.success) {
+        console.warn('[Conversation AI] Structured output repaired from raw text', { organizationId });
+        generated = repaired.data;
+        repairedOutput = true;
+      } else {
+        console.warn('[Conversation AI] Structured output could not be parsed; retrying once', {
+          organizationId,
+          finishReason: error.finishReason ?? null,
+          text: rawText ? rawText.slice(0, 300) : null,
+        });
+        generated = (await generateOnce()).output;
+      }
     }
+  } catch (error) {
+    // A medicao vai junto do erro: a falha de provedor e justamente o caso em que mais importa saber
+    // quanto tempo passou e quantas vezes o provedor recusou (ver lib/ai/medicaoResposta.ts).
+    if (error && typeof error === 'object') {
+      (error as { aiTiming?: AIReplyTiming }).aiTiming = medir();
+    }
+    throw error;
   }
+  const modelTiming = medir();
   let replyText = generated.replyText.trim();
   let handoffType = generated.handoffType ?? null;
   let requestedScheduleAt = generated.requestedScheduleAt ?? null;
@@ -581,6 +617,8 @@ export async function generateConversationAutoReply(params: {
   return {
     ok: true as const,
     source: resolvedPrompt.source,
+    // Pos-processamento (politica de agenda, etiquetas) entra no total: e rapido, mas e tempo do lead.
+    timing: { ...modelTiming, total_ms: Date.now() - inicio } satisfies AIReplyTiming,
     object: {
       replyText,
       summary: generated.summary?.trim() || null,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getPromptCatalogMap } from './catalog';
+import { formatRecentMessages } from '@/lib/conversations/aiReply';
 
 describe('prompt da Aurora', () => {
   it('mantem a qualificacao consultiva e o handoff estruturado da Cenoura Hub', () => {
@@ -290,6 +291,24 @@ describe('prompt da Aurora — funil andando, contato por engano e conversa ence
     expect(t).toContain('pergunte UMA vez, com gentileza e sem julgar');
     expect(t).toContain('nao insista, nao ofereca reuniao nem consultoria');
     expect(t).toContain('nunca comente idade');
+  });
+
+  it('primeira mensagem: se apresenta antes de pedir o nome (feedback dele: "foi bem seca, nem se apresentou")', () => {
+    const t = template();
+    expect(t).toContain('PRIMEIRA MENSAGEM (ainda nao ha nenhuma mensagem do CRM no historico)');
+    expect(t).toContain('apresente-se ("aqui é a Aurora, da Cenoura Hub")');
+    expect(t).toContain('so ENTAO pergunte o nome');
+    expect(t).toContain('Varie as palavras de uma conversa para outra');
+    // Com UM exemplo, as 3 geracoes de teste copiaram a mesma frase de abertura: agora sao tres, marcados como tom.
+    expect(t).toContain('Exemplos de TOM, nunca para copiar');
+    // A abertura real de 29/09, 01:04, que motivou a regra, fica nomeada como o que NAO fazer.
+    expect(t).toContain('Nunca abra so com a pergunta do nome e nunca use "antes de mais nada"');
+    // A regra do nome continua valendo, agora amarrada a apresentacao.
+    expect(t).toContain('sempre DEPOIS de se apresentar');
+    // O "CRM" da regra e o mesmo rotulo que o historico usa para mensagem enviada.
+    expect(formatRecentMessages([
+      { id: 'm1', direction: 'outbound', message_type: 'text', author_name: 'Aurora', content: 'Oi', sent_at: '2026-09-29T04:04:08.000Z', metadata: {} },
+    ] as never)).toContain('CRM');
   });
 
   it('conversa encerrada vira conversationEnded no retorno, e adiamento NAO e encerramento', () => {

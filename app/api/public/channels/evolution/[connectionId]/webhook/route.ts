@@ -15,6 +15,7 @@ import {
 import { isNomeDeContatoFraco } from '@/lib/conversations/leadProfile';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
+import { lerMedicaoDoErro, resumirMedicao } from '@/lib/ai/medicaoResposta';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import { evaluateWebhookAuth, readWebhookSecretFromRequest } from '@/lib/conversations/webhookAuth';
 import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
@@ -216,6 +217,11 @@ export async function processDeferredAIReply(params: {
     | Awaited<ReturnType<typeof executeConversationAIReply>>
     | null = null;
   let conversaEncerrada = false;
+  // Espera antes da geracao (debounce + midia + leituras), medida desde a gravacao da mensagem do lead:
+  // o token nasce como `${mensagemId}:${Date.now()}` logo depois do insert.
+  const inicioGeracao = Date.now();
+  const gravadaEm = Number(aiPendingToken.split(':').at(-1));
+  const queueMs = Number.isFinite(gravadaEm) && gravadaEm > 0 ? inicioGeracao - gravadaEm : null;
 
   try {
     const nativeReply = promptKey ? await generateConversationAutoReply({
@@ -287,6 +293,8 @@ export async function processDeferredAIReply(params: {
             ai_debounce_ms: aiDebounceMs,
             ai_pending_token: aiPendingToken,
             closing_reply: closingReply,
+            // Tempo de cada etapa desta resposta (lib/ai/medicaoResposta.ts), para qualquer IA de cliente.
+            ai_timing: { ...nativeReply.timing, queue_ms: queueMs },
           },
           automationSource: 'native_crm',
           closingReply,
@@ -331,7 +339,10 @@ export async function processDeferredAIReply(params: {
     const rawModelText = nativeAiError && typeof nativeAiError === 'object' && typeof (nativeAiError as { text?: unknown }).text === 'string'
       ? ` | texto: ${String((nativeAiError as { text: string }).text).replace(/\s+/g, ' ').slice(0, 160)}`
       : '';
-    nativeFailureError = (nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError)) + rawModelText;
+    const medicaoDaFalha = lerMedicaoDoErro(nativeAiError);
+    nativeFailureError = (nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError))
+      + rawModelText
+      + (medicaoDaFalha ? ` | ${resumirMedicao(medicaoDaFalha)}` : '');
     console.warn('[Evolution webhook] Native AI reply failed', {
       connectionId,
       threadId,
