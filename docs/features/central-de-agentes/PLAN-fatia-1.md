@@ -2,29 +2,36 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** criar o cadastro de agente (`ai_agents` + `ai_agent_versions`) e fazer o atendimento de WhatsApp usar o prompt da versão publicada quando o número tem agente, com o resto do caminho byte a byte igual. Toda resposta nativa entregue passa a gravar um evento de prova (`ai_reply_events`: sha256 do prompt, chave, commit da publicação e hora da entrega), e o script de migração só cria e liga um agente quando o sha que ele calcula bate com o do evento que a publicação no ar gravou.
+**Goal:** criar o cadastro de agente (`ai_agents` + `ai_agent_versions`) e fazer o atendimento de WhatsApp usar o prompt da versão publicada quando o número tem agente, com o resto do caminho byte a byte igual. Toda resposta nativa entregue passa a gravar um evento de prova (`ai_reply_events`: sha256 do prompt, chave, origem do texto, commit da publicação e hora da entrega), e o script de migração só cria e liga um agente quando o sha que ele calcula bate com o do evento que a publicação no ar gravou.
 
 **Architecture:**
 - **Banco:** duas tabelas novas com RLS (leitura só da agência) e escrita só por função `security definer`. A coluna `channel_connections.ai_agent_id` entra com FK composta por organização, `on delete no action` (agente ligado não se apaga), e um gatilho que só aceita agente publicado. Outro gatilho recusa `update` em versão, exceto zerar o autor.
 - **Resposta:** `generateConversationAutoReply` lê a versão publicada logo depois do portão da IA. Troca só a fonte do prompt (e o modelo, se a versão tiver um) e devolve o sha256 do texto usado. Chave de prompt nula sem agente vira `missing_prompt`, nunca o prompt padrão. O webhook grava `prompt_sha256` em toda resposta nativa e `agent_id`/`agent_version` só com agente.
 - **Evento de prova:** a tabela `ai_reply_events` só é escrita pelo caminho nativo, com a chave de serviço. Depois que a última parte é aceita pela Evolution, `executeConversationAIReply` grava o evento que o webhook mandou em `replyEvent`. A rota do n8n e a cutucada não mandam `replyEvent` e seguem iguais. O commit vem de `VERCEL_GIT_COMMIT_SHA`.
 - **Rastro protegido:** as rotas do n8n e manual descartam do metadata recebido as chaves de rastro nativo. A prova não lê metadata de mensagem nenhuma.
-- **Prova e ligação no banco:** uma função devolve a última resposta entregue pelo caminho de hoje (sem agente), pela hora da entrega. Outra liga o número numa transação só e confere de novo:
+- **Prova e ligação no banco:** uma função devolve o último evento de prova do caminho de hoje (sem agente), pela hora da entrega. Outra liga o número numa transação só e confere de novo:
   - a chave bruta e a efetiva;
   - o override, com a tabela de prompts travada contra escrita;
   - a versão publicada, com a linha do agente travada;
-  - a publicação, a chave e o sha dessa resposta.
+  - a publicação, a chave, a origem (padrão ou override) e o sha desse evento.
 
-  Criar agente é serializado por organização e sha.
-- **Publicação no ar:** o script lê, pela API da Vercel, qual deployment o domínio serve e o commit dele. Só segue se esse commit for o da cópia e se nenhum deployment mais novo do ramo existir (transição ou rollback). Confere antes da prova, antes de ligar e de novo depois de ligar; se a publicação mudou, desliga na hora.
+  Criar agente é serializado por organização e sha. O que a prova afirma, e por que ela não depende de o evento ser o da última resposta, está na SPEC ("O que a prova afirma").
+- **Publicação no ar:** o script conhece os dois ambientes pelo banco (lista fechada: banco → projeto da Vercel → domínios → ramo). Lê, pela API da Vercel, os domínios do projeto e o deployment que **cada** domínio serve, e só segue se:
+  - a lista fechada é exatamente a dos domínios que o projeto tem na Vercel;
+  - todos servem o mesmo deployment, do projeto certo, do ramo certo, `READY`, com o commit da cópia;
+  - em produção ele é o de produção e está promovido; no teste ele **não** é o de produção;
+  - não há deployment mais novo do ramo construindo, em rollout, ou pronto sem ser o servido.
+
+  Confere antes da prova, antes de ligar, dentro da função do banco e de novo depois de ligar. Depois de ligar, **qualquer** coisa que impeça confirmar a publicação (inclusive erro de rede) desfaz a ligação, só do agente recém-ligado, e a linha é conferida. Uma chamada de ligar que falha sem resposta do banco recebe o mesmo tratamento. Nesta fatia o script só liga número no ambiente de teste: em produção, falta conferir o endereço do webhook de cada número (SPEC, "O que a prova afirma").
 
 **Tech Stack:** Next.js (rotas em `app/`), Supabase Postgres 15 (migrations em `supabase/migrations`), supabase-js, AI SDK (`ai`), Vitest (+ Supabase local via `npm run test:local`), TypeScript. O script roda com `npx --yes tsx@4.23.1` (versão já no cache do npx desta máquina; sem `--yes`, o npx para esperando confirmação).
 
-**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial interna e as duas rodadas do Codex integradas). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md` e `devolutiva-codex-2-fatia-1.md`.
+**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial interna e as três rodadas do Codex integradas). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md`, `devolutiva-codex-2-fatia-1.md` e `devolutiva-codex-3-fatia-1.md`.
 
 **Regras do projeto que valem aqui:**
 - Nunca rodar teste, migration ou script contra o banco de produção sem o OK do Junior.
 - Nunca dar push nem deploy sem o OK dele.
+- **Nunca empurrar uma branch nova para o GitHub nesta entrega** (nem `feat/central-agentes`). Conferido na Vercel em 05/10: as cinco variáveis de banco genéricas valem para Preview **e** Production ao mesmo tempo, o projeto não tem Ignored Build Step nem `vercel.json`, e as prévias são públicas. Uma branch sem variável própria vira uma prévia pública com as credenciais de produção. O ensaio usa a branch que já tem variáveis próprias do banco de teste, `feat/aurora-implantacao` (Task 13).
 - Ler o resultado da suíte num comando **separado** antes de cada commit, e conferir o `git diff --stat` (fim de linha no Windows).
 - Segredo nunca impresso nem commitado.
 
@@ -37,7 +44,7 @@
 | `supabase/migrations/20260930000000_central_agentes_fundacao.sql` | Criar | Tabelas do agente, tabela do evento de prova, FKs compostas, gatilhos, RLS/GRANT, funções da migração (criar agente, última resposta nativa, ligar) |
 | `docs/features/central-de-agentes/volta-fatia-1.sql` | Criar | Volta da migration (G23), provada no banco local |
 | `test/centralAgentesFundacaoMigration.test.ts` | Criar | Prova do texto da migration (sem banco) |
-| `test/centralAgentesFundacao.local.test.ts` | Criar | Prova no Supabase local: FKs, gatilhos, cascata, idempotência, matriz de acesso, prova, ligação e as corridas (duas sessões `pg` de verdade) |
+| `test/centralAgentesFundacao.local.test.ts` | Criar | Prova no Supabase local: FKs, gatilhos, cascata, idempotência, matriz de acesso, prova, ligação e as corridas (sessões `pg` de verdade, com a espera pela trava observada em `pg_locks`) |
 | `test/helpers/fakeSupabaseAdmin.ts` | Modificar | Banco falso: projeção do `select` e limite de linhas (opcionais), `.not`, resposta de RPC por argumento |
 | `test/helpers/fakeSupabaseAdmin.test.ts` | Criar | O que o banco falso passa a imitar |
 | `lib/ai/prompts/resolve.ts` | Criar | Resolução pura do prompt (override ativo → catálogo) e a variante estrita, sem `server-only` |
@@ -61,11 +68,11 @@
 | `app/api/public/channels/evolution/[connectionId]/ai-reply/route.rastro.test.ts` | Criar | A rota do n8n não grava rastro nativo nem manda evento de prova |
 | `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.ts` | Modificar | A rota manual limpa as chaves de rastro do metadata que o navegador manda |
 | `app/api/platform/tenants/[tenantId]/conversations/[threadId]/messages/route.rastro.test.ts` | Criar | O envio manual forjado, inclusive o local (`send_external: false`), não grava rastro nativo |
-| `lib/agents/migracaoAgentes.ts` | Criar | Prova contra a produção, planejar (paginado), criar, ligar (pela função do banco) e desligar (com confirmação) |
-| `lib/agents/migracaoAgentes.test.ts` | Criar | Regras da migração |
-| `lib/agents/publicacaoVercel.ts` | Criar | Qual commit o domínio serve (alias → deployment), recusando transição e rollback |
+| `lib/agents/migracaoAgentes.ts` | Criar | Prova contra a produção, planejar (paginado), criar, ligar (pela função do banco; chamada sem resposta não conta como "não ligou"), ligar com conferência da publicação antes e depois (desfaz se não confirmar) e desligar (com confirmação; condicionado ao agente no desfazer) |
+| `lib/agents/migracaoAgentes.test.ts` | Criar | Regras da migração, inclusive a falha na chamada de ligar e na conferência depois de ligar |
+| `lib/agents/publicacaoVercel.ts` | Criar | Qual commit os domínios de um ambiente servem (alias → deployment), conferindo a lista de domínios do projeto, projeto, ramo, alvo e promoção, e recusando transição, rollout e deployment mais novo não servido |
 | `lib/agents/publicacaoVercel.test.ts` | Criar | Os casos da publicação no ar, com a API falsa |
-| `scripts/central-agentes/migrar-agentes.ts` | Criar | Linha de comando `--prova/--criar/--ligar/--desligar`, com as travas da versão publicada e da publicação no ar |
+| `scripts/central-agentes/migrar-agentes.ts` | Criar | Linha de comando `--prova/--criar/--ligar/--desligar`; o ambiente (domínios, ramo, projeto) sai do banco conectado, numa lista fechada; `--ligar` em produção fica recusado nesta fatia |
 
 ---
 
@@ -226,12 +233,14 @@ describe('migration da fundação da Central de Agentes', () => {
     expect(semComentarios).not.toMatch(/before (update or delete|delete) on public\.ai_agent_versions/);
   });
 
-  it('a prova lê só o evento: a última resposta entregue pelo caminho de hoje, pela hora da entrega', () => {
+  it('a prova lê só o evento: o último do caminho de hoje, pela hora da entrega', () => {
     const [, , , ultima] = corposDasFuncoes(sql);
     expect(ultima).toContain('from public.ai_reply_events e');
     expect(ultima).toContain('e.channel_connection_id = p_connection_id');
     expect(ultima).toContain('e.agent_id is null');
     expect(ultima).toContain('order by e.delivered_at desc, e.id desc');
+    // Devolve também a ORIGEM do texto (padrão ou override): a ligação exige a testemunha do mesmo caso.
+    expect(ultima).toContain('e.prompt_source');
     // Mensagem manual ou do n8n não entra na prova, com o metadata que tiver (2ª rodada, achado 1).
     expect(ultima).not.toContain('conversation_messages');
     expect(ultima).not.toContain('metadata');
@@ -264,6 +273,9 @@ describe('migration da fundação da Central de Agentes', () => {
       expect(ligar).toContain(`return '${motivo}'`);
     }
     expect(ligar).toContain('public.central_agentes_ultima_resposta_nativa(p_connection_id)');
+    // A testemunha tem que ser do mesmo caso: mesma chave, mesma origem (padrão ou override) e mesmo sha
+    // (3ª rodada do Codex, achado 5).
+    expect(ligar).toContain('v_prova_origem is distinct from p_prompt_source');
   });
 
   it('não é destrutiva, e o único update em conexão é o do ai_agent_id, dentro da função de ligar', () => {
@@ -593,19 +605,24 @@ $$;
 revoke all on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) from public, anon, authenticated;
 grant execute on function public.create_ai_agent_from_legacy_prompt(uuid, text, text, jsonb) to service_role;
 
--- Prova da migração (2ª rodada do Codex, achados 1, 3 e 5): a ÚLTIMA resposta ENTREGUE do número pelo
+-- Prova da migração (2ª rodada do Codex, achados 1, 3 e 5): o ÚLTIMO EVENTO de prova do número pelo
 -- caminho de hoje (sem agente), pela hora em que a entrega terminou. Lê só ai_reply_events: mensagem
 -- manual ou do n8n não entra, com o metadata que tiver. Resposta dada por um agente (número ligado e
 -- depois desligado) não prova o caminho de hoje. As FKs compostas do evento garantem que ele é da
 -- organização do número e da conversa.
+-- Não é "a última resposta entregue": uma resposta cujo registro falhou não tem evento. A prova do TEXTO
+-- não depende disso (3ª rodada, achado 5): o evento é uma testemunha de que A PUBLICAÇÃO R, com a chave K
+-- e a origem O (padrão ou override), chega ao texto de sha S. Para o padrão isso só depende de R e de K;
+-- para o override, a ligação confere o conteúdo ativo direto. E a ligação confere de novo, na hora, a
+-- publicação, a chave e o override.
 create or replace function public.central_agentes_ultima_resposta_nativa(p_connection_id uuid)
-returns table (out_sha256 text, out_prompt_key text, out_release_commit text, out_delivered_at timestamptz)
+returns table (out_sha256 text, out_prompt_key text, out_prompt_source text, out_release_commit text, out_delivered_at timestamptz)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select e.prompt_sha256, e.prompt_key, e.release_commit, e.delivered_at
+  select e.prompt_sha256, e.prompt_key, e.prompt_source, e.release_commit, e.delivered_at
   from public.ai_reply_events e
   where e.channel_connection_id = p_connection_id
     and e.agent_id is null
@@ -623,8 +640,8 @@ grant execute on function public.central_agentes_ultima_resposta_nativa(uuid) to
 --    que existe, mas não a AUSÊNCIA de linha;
 --  - a versão publicada do agente, com a linha do agente travada (FOR SHARE): o ponteiro não muda entre a
 --    conferência e a ligação;
---  - a última resposta entregue pelo caminho de hoje: mesma publicação que o script conferiu no domínio,
---    mesma chave efetiva e mesmo sha.
+--  - o último evento de prova do caminho de hoje: mesma publicação que o script conferiu nos domínios,
+--    mesma chave efetiva, mesma origem (padrão ou override) e mesmo sha.
 -- Qualquer diferença recusa, com o motivo.
 create or replace function public.central_agentes_ligar_conexao(
   p_connection_id uuid,
@@ -650,6 +667,7 @@ declare
   v_versao_sha text;
   v_prova_sha text;
   v_prova_chave text;
+  v_prova_origem text;
   v_prova_publicacao text;
 begin
   if p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then
@@ -736,8 +754,8 @@ begin
     return 'versao_publicada_diverge';
   end if;
 
-  select r.out_sha256, r.out_prompt_key, r.out_release_commit
-    into v_prova_sha, v_prova_chave, v_prova_publicacao
+  select r.out_sha256, r.out_prompt_key, r.out_prompt_source, r.out_release_commit
+    into v_prova_sha, v_prova_chave, v_prova_origem, v_prova_publicacao
   from public.central_agentes_ultima_resposta_nativa(p_connection_id) r;
   if not found then
     return 'prova_nao_confere';
@@ -745,7 +763,12 @@ begin
   if v_prova_publicacao is distinct from p_publicacao then
     return 'publicacao_diverge';
   end if;
-  if v_prova_chave is distinct from v_chave_efetiva or v_prova_sha is distinct from p_sha256 then
+  -- A testemunha tem que ser do MESMO caso (3ª rodada do Codex, achado 5): mesma chave, mesma origem e
+  -- mesmo sha. Com a origem igual, "a publicação R, com a chave K, sem override, usa o texto de sha S" não
+  -- depende de quando o evento foi gravado. Um evento de override com o mesmo sha não prova o padrão.
+  if v_prova_chave is distinct from v_chave_efetiva
+     or v_prova_origem is distinct from p_prompt_source
+     or v_prova_sha is distinct from p_sha256 then
     return 'prova_nao_confere';
   end if;
 
@@ -808,7 +831,11 @@ git commit -m "feat(central-agentes): migration da fundacao (agente, versoes, ev
 
 Pré-requisito: Docker aberto e `npx supabase start` (o runner `npm run test:local` recusa qualquer banco que não seja `127.0.0.1:54321`). Aplicar as migrations no local com `npx supabase db reset` se o banco local ainda não tiver a migration nova.
 
-As corridas (2ª rodada do Codex, achados 4 e 8) são provadas com **duas sessões de verdade**: uma pelo driver `pg` (já é dependência do projeto, `lib/installer/migrations.ts`), direto na porta `54322` do banco local, segurando uma transação aberta; a outra pelo PostgREST (`rpc`). A chamada travada é detectada por `Promise.race` com 400 ms; a senha do banco local é a padrão do Supabase (`postgres`), e `SUPABASE_DB_URL` no ambiente troca a URL se precisar.
+As corridas (2ª rodada do Codex, achados 4 e 8) são provadas com **duas sessões de verdade**: uma pelo driver `pg` (já é dependência do projeto, `lib/installer/migrations.ts`), direto no Postgres local, segurando uma transação aberta; a outra pelo PostgREST (`rpc`) ou por uma segunda sessão `pg`.
+
+Duas correções da 3ª rodada do Codex entram aqui:
+- **A espera é observada, não presumida (achado 7).** Um `Promise.race` com tempo não prova que a chamada esperou a trava: se ela só começasse depois do `commit`, devolveria o mesmo resultado e o teste ficaria verde sem exercitar nada. Agora a sessão que segura a transação consulta `pg_blocking_pids` até ver outra sessão **bloqueada por ela**, confere em `pg_locks` **qual** trava está pendente (a `ShareRowExclusiveLock` da tabela de prompts, a `transactionid` da linha do agente, a `advisory` da criação) e só então faz o `commit`.
+- **A URL do Postgres é uma constante local (achado 2).** O runner `test:local` valida a URL REST, mas repassa o ambiente inteiro; uma `SUPABASE_DB_URL` remota no shell faria estes testes escreverem fora do local. Não existe mais variável de ambiente para essa URL: é `127.0.0.1:54322` (`supabase/config.toml`, `[db] port`), conferida antes de qualquer sessão. Se a porta local mudar, muda-se a constante.
 
 - [ ] **Step 1: Escrever o teste**
 
@@ -828,18 +855,24 @@ const isLocalSupabase = process.env.SUPABASE_TEST_TARGET === 'local'
   && Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const describeLocal = describe.skipIf(!isLocalSupabase);
 
-const DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+/**
+ * Postgres do `supabase start` (supabase/config.toml, [db] port). Constante de propósito, sem variável de
+ * ambiente: o runner repassa o ambiente inteiro, e uma URL remota nele nunca pode fazer este teste abrir
+ * sessão fora do local (3ª rodada do Codex, achado 2).
+ */
+const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const sha256 = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
 const PROMPT = 'Voce e a Aurora. {{contactName}}\n{{recentMessagesText}}';
 const AURORA = 'task_conversations_whatsapp_cenno_aurora';
 const PADRAO = 'task_conversations_whatsapp_auto_reply';
 /** Commit da publicação que "respondeu" (VERCEL_GIT_COMMIT_SHA): 40 hex. */
 const PUBLICACAO = 'a'.repeat(40);
-const PENDENTE = Symbol('pendente');
 
-/** Resolve com PENDENTE se a chamada ainda não voltou em 400 ms: é como se prova que ela está travada. */
-function aindaTravada<T>(chamada: Promise<T>) {
-  return Promise.race([chamada, new Promise<typeof PENDENTE>((resolve) => setTimeout(() => resolve(PENDENTE), 400))]);
+function exigirPostgresLocal() {
+  const alvo = new URL(DB_URL);
+  if (!['127.0.0.1', 'localhost'].includes(alvo.hostname) || alvo.port !== '54322' || alvo.pathname !== '/postgres') {
+    throw new Error('RECUSADO: as corridas so abrem sessao no Postgres local (127.0.0.1:54322).');
+  }
 }
 
 type Papel = 'agency_admin' | 'agency_staff' | 'admin' | 'clinic_admin';
@@ -954,9 +987,32 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
   }
 
   async function sessaoPg() {
+    exigirPostgresLocal();
     const client = new Client({ connectionString: DB_URL });
     await client.connect();
     return client;
+  }
+
+  /**
+   * Espera até outra sessão estar BLOQUEADA por `dona` (pg_blocking_pids) e devolve as travas que ela está
+   * pedindo e ainda não ganhou. Prova que a chamada concorrente chegou ao banco e está esperando aquela
+   * trava; não basta ela demorar. Roda na própria sessão que segura a transação.
+   */
+  async function esperarBloqueadoPor(dona: Client) {
+    const limite = Date.now() + 5000;
+    for (;;) {
+      const bloqueadas = await dona.query('select a.pid from pg_stat_activity a where pg_backend_pid() = any(pg_blocking_pids(a.pid))');
+      if (bloqueadas.rows.length > 0) {
+        const pids = bloqueadas.rows.map((linha) => linha.pid as number);
+        const travas = await dona.query(
+          "select l.locktype, l.mode, coalesce(l.relation::regclass::text, '') as relacao from pg_locks l where not l.granted and l.pid = any($1::int[])",
+          [pids],
+        );
+        return travas.rows as Array<{ locktype: string; mode: string; relacao: string }>;
+      }
+      if (Date.now() > limite) throw new Error('nenhuma sessao ficou esperando a trava em 5 s: a chamada concorrente nao travou');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 
   beforeAll(async () => {
@@ -1009,7 +1065,7 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     expect(resultado.error?.message).toContain('origin_sha256_mismatch');
   });
 
-  it('duas criações simultâneas do mesmo prompt voltam o MESMO agente, sem 23505 (achado 8)', async () => {
+  it('criação concorrente do mesmo prompt: a segunda espera a trava da primeira e volta o MESMO agente, sem 23505 (achado 8)', async () => {
     const texto = `${PROMPT}\nConcorrente`;
     const [a, b] = await Promise.all([sessaoPg(), sessaoPg()]);
     try {
@@ -1017,9 +1073,21 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
         'select out_agent_id, out_created from public.create_ai_agent_from_legacy_prompt($1, $2, $3, $4::jsonb)',
         [orgA, 'Concorrente', texto, JSON.stringify({ sha256: sha256(texto), promptKey: AURORA, promptSource: 'default' })],
       );
-      const [r1, r2] = await Promise.all([chamada(a), chamada(b)]);
-      expect(r1.rows[0].out_agent_id).toBe(r2.rows[0].out_agent_id);
-      expect([r1.rows[0].out_created, r2.rows[0].out_created].sort()).toEqual([false, true]);
+      // A cria dentro de uma transação ABERTA: segura a trava de (organização, sha) e o agente ainda não é
+      // visível para ninguém.
+      await a.query('begin');
+      const primeira = await chamada(a);
+      expect(primeira.rows[0].out_created).toBe(true);
+
+      const segunda = chamada(b);
+      // B tem que estar parada na trava ADVISORY, antes da busca. Sem ela, B passaria pela busca vazia e
+      // pararia no índice único (espera `transactionid`), para depois receber 23505.
+      const travas = await esperarBloqueadoPor(a);
+      expect(travas.map((t) => t.locktype)).toContain('advisory');
+
+      await a.query('commit');
+      const resultado = await segunda;
+      expect(resultado.rows[0]).toEqual({ out_agent_id: primeira.rows[0].out_agent_id, out_created: false });
     } finally {
       await Promise.all([a.end(), b.end()]);
     }
@@ -1190,11 +1258,15 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
           for (const tentativa of tentativas) expect(tentativa.error?.code, `${nome} escreve em ${tabela} da org ${alvo.org}`).toBe('42501');
         }
       }
-      // O evento de prova é só da chave de serviço: nem leitura para quem é agência.
-      const eventos = await cliente.from('ai_reply_events').select('id');
-      expect(eventos.error?.code, `${nome} lê ai_reply_events`).toBe('42501');
-      const forja = await cliente.from('ai_reply_events').insert(evento(conexaoA, conexaoA, sha256(PROMPT), '2026-09-29T10:00:00Z'));
-      expect(forja.error?.code, `${nome} escreve em ai_reply_events`).toBe('42501');
+      // O evento de prova é só da chave de serviço: nem leitura para quem é agência. CRUD inteiro negado
+      // (G2 pede as quatro operações; 3ª rodada do Codex, achado 9).
+      const tentativasNoEvento = [
+        await cliente.from('ai_reply_events').select('id'),
+        await cliente.from('ai_reply_events').insert(evento(conexaoA, conexaoA, sha256(PROMPT), '2026-09-29T10:00:00Z')),
+        await cliente.from('ai_reply_events').update({ prompt_key: PADRAO }).eq('channel_connection_id', conexaoA),
+        await cliente.from('ai_reply_events').delete().eq('channel_connection_id', conexaoA),
+      ];
+      for (const tentativa of tentativasNoEvento) expect(tentativa.error?.code, `${nome} em ai_reply_events`).toBe('42501');
       for (const [funcao, args] of funcoes) {
         const chamada = await cliente.rpc(funcao, args);
         expect(chamada.error?.code, `${nome} chama ${funcao}`).toBe('42501');
@@ -1242,6 +1314,7 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     expect(achada.data).toEqual([{
       out_sha256: 'b'.repeat(64),
       out_prompt_key: AURORA,
+      out_prompt_source: 'default',
       out_release_commit: PUBLICACAO,
       out_delivered_at: expect.stringMatching(/^2026-09-29T11:00:00/),
     }]);
@@ -1298,6 +1371,11 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
     await responder({ prompt_key: PADRAO }, '2026-09-29T10:45:00Z');
     expect(await tentar()).toBe('prova_nao_confere');
 
+    // Mesmo sha, mesma chave e mesma publicação, mas o texto daquela resposta veio de um override: não
+    // prova o padrão (3ª rodada do Codex, achado 5).
+    await responder({ prompt_source: 'override' }, '2026-09-29T10:50:00Z');
+    expect(await tentar()).toBe('prova_nao_confere');
+
     await responder({}, '2026-09-29T11:00:00Z');
     expect(await tentar({ p_chave_bruta: null })).toBe('chave_mudou');
     expect(await tentar({ p_prompt_key: PADRAO })).toBe('chave_efetiva_diverge');
@@ -1332,9 +1410,16 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
         'insert into public.ai_prompt_templates (organization_id, key, content, version, is_active) values ($1, $2, $3, 1, true)',
         [orgA, AURORA, 'Override em andamento'],
       );
-      const chamada = ligar(conexao, agente, sha256(texto));
-      // Sem a trava, a função não acharia a linha (IF EXISTS vazio) e ligaria. Com ela, fica esperando.
-      expect(await aindaTravada(chamada)).toBe(PENDENTE);
+      // `.then` dispara o pedido agora (o construtor do supabase-js só manda quando alguém espera por ele).
+      const chamada = ligar(conexao, agente, sha256(texto)).then((r) => r);
+      // Sem a trava, a função não acharia a linha (IF EXISTS vazio) e ligaria. Com ela, a chamada fica
+      // parada pedindo a ShareRowExclusiveLock da tabela de prompts, segurada pelo INSERT desta sessão.
+      const travas = await esperarBloqueadoPor(a);
+      expect(travas).toContainEqual(expect.objectContaining({
+        locktype: 'relation',
+        mode: 'ShareRowExclusiveLock',
+        relacao: expect.stringMatching(/ai_prompt_templates$/),
+      }));
       await a.query('commit');
       const resultado = await chamada;
       expect(resultado.error).toBeNull();
@@ -1362,8 +1447,11 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
       await a.query('begin');
       // Publicação da v2 em andamento: a linha do agente está travada por esta transação.
       await a.query('update public.ai_agents set published_version_id = $1 where id = $2', [v2, agente]);
-      const chamada = ligar(conexao, agente, sha256(texto));
-      expect(await aindaTravada(chamada)).toBe(PENDENTE);
+      const chamada = ligar(conexao, agente, sha256(texto)).then((r) => r);
+      // A chamada já passou pela tabela de prompts e pelo número, e para no FOR SHARE do agente: espera a
+      // transação desta sessão (trava `transactionid`), que é quem está mudando o ponteiro.
+      const travas = await esperarBloqueadoPor(a);
+      expect(travas.map((t) => t.locktype)).toContain('transactionid');
       await a.query('commit');
       const resultado = await chamada;
       expect(resultado.error).toBeNull();
@@ -1380,11 +1468,13 @@ describeLocal('Central de Agentes, fundação — Supabase local', () => {
 - [ ] **Step 2: Rodar contra o Supabase local**
 
 Run: `npm run test:local -- test/centralAgentesFundacao.local.test.ts`
-Expected: PASS (16 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local). Se as duas corridas falharem com `ECONNREFUSED` na porta 54322, é a URL do banco: conferir `npx supabase status` e passar `SUPABASE_DB_URL` no ambiente.
+Expected: PASS (16 testes), e o `afterAll` sem erro. Se o local não tiver a migration, rodar antes `npx supabase db reset` (apaga só o banco local). Se as corridas falharem com `ECONNREFUSED` na porta 54322, conferir `npx supabase status` e a porta em `supabase/config.toml` (`[db] port`); a URL é constante de propósito e não tem variável de ambiente.
 
 Se "apagar a organização inteira" falhar com 23503 em `channel_connections_ai_agent_fk`, **parar**: a premissa da SPEC de que `no action` deixa a cascata passar está errada, e a decisão volta para o Junior antes de qualquer outra task.
 
-Se uma corrida devolver o resultado sem passar por `PENDENTE`, a trava não está segurando: conferir que a função começa por `lock table` e que o `for share` está na leitura do agente, antes de mexer no teste.
+Se uma corrida falhar com "nenhuma sessao ficou esperando a trava", a chamada concorrente não travou: conferir que a função começa por `lock table`, que o `for share` está na leitura do agente e que a criação pede a trava advisory antes da busca. Se a trava pendente for de outro tipo (por exemplo `transactionid` na criação), a função está esperando no lugar errado. Nos dois casos o defeito é da função, não do teste.
+
+O papel `postgres` do banco local precisa enxergar `pg_stat_activity` e `pg_locks` das outras sessões; as duas visões mostram `pid` e trava para qualquer papel (só o texto da consulta é escondido), então não depende de permissão extra.
 
 - [ ] **Step 3: Provar a volta no banco local (G23): aplicar → voltar → aplicar**
 
@@ -3085,16 +3175,19 @@ describe('rota do n8n e o rastro nativo', () => {
     const payload = executeConversationAIReplyMock.mock.calls[0][0].payload;
     expect(payload.metadata).toEqual({ campanha: 'meta' });
     expect(payload.automationSource).toBe('n8n');
+    // Um pedido válido do n8n nunca leva evento de prova ao executor.
+    expect('replyEvent' in payload).toBe(false);
   });
 
-  it('não manda evento de prova, nem quando o corpo tenta mandar um', async () => {
-    await request({
+  it('corpo que tenta mandar o evento de prova é recusado pelo schema estrito (400) e nada é executado', async () => {
+    // AIReplySchema é `.strict()`: campo fora da lista não chega ao executor (3ª rodada do Codex, achado 6).
+    const response = await request({
       threadId: THREAD_ID,
       replyText: 'Oi!',
       replyEvent: { promptSha256: 'a'.repeat(64), promptKey: 'task_x', promptSource: 'default', agentId: null, agentVersion: null },
     });
-    const payload = executeConversationAIReplyMock.mock.calls[0][0].payload;
-    expect('replyEvent' in payload).toBe(false);
+    expect(response.status).toBe(400);
+    expect(executeConversationAIReplyMock).not.toHaveBeenCalled();
   });
 
   it('sem metadata, continua sem metadata', async () => {
@@ -3298,21 +3391,26 @@ git commit -m "fix(conversas): rotas do n8n e manual nao gravam as chaves de ras
 
 ### Task 10: Módulo de migração com prova contra a produção e a publicação no ar
 
-A prova antiga comparava o script com ele mesmo: se o cálculo errasse, a v1 e a nova prova erravam igual e o hash batia (revisão adversarial, B1). Agora a referência é o **evento de prova** que a produção gravou na última resposta nativa entregue de cada número (`ai_reply_events`, Tasks 1 e 8), e toda leitura é estrita. As duas rodadas do Codex fecharam mais buracos, e todos entram aqui:
-- quem escolhe a resposta é a função do banco `central_agentes_ultima_resposta_nativa`, pela hora da **entrega**, só entre respostas do caminho de hoje (achados 11 e 12; 2ª rodada, 3 e 5);
+A prova antiga comparava o script com ele mesmo: se o cálculo errasse, a v1 e a nova prova erravam igual e o hash batia (revisão adversarial, B1). Agora a referência é o **evento de prova** que a produção gravou (`ai_reply_events`, Tasks 1 e 8), e toda leitura é estrita. As três rodadas do Codex fecharam mais buracos, e todos entram aqui:
+- quem escolhe o evento é a função do banco `central_agentes_ultima_resposta_nativa`, pela hora da **entrega**, só entre respostas do caminho de hoje (achados 11 e 12; 2ª rodada, 3 e 5);
 - a prova não lê metadata de mensagem: manual e n8n não entram, com o que gravarem (2ª rodada, 1);
-- o evento carrega a **chave** que respondeu e o **commit da publicação**; a prova só confere quando os dois batem com a configuração de hoje e com o que o domínio serve (2ª rodada, 2 e 7);
+- o evento carrega a **chave** que respondeu, a **origem** do texto (padrão ou override) e o **commit da publicação**; a prova só confere quando os três batem com a configuração de hoje e com o que os domínios servem (2ª rodada, 2 e 7; 3ª rodada, 5);
 - quem liga é `central_agentes_ligar_conexao`, que confere tudo de novo numa transação só (achado 13; 2ª rodada, 4);
+- a publicação é lida por **ambiente**: todos os domínios que atendem aquele banco, o projeto, o ramo, o alvo e a promoção; e a lista fechada de domínios tem que ser a que o projeto tem na Vercel (3ª rodada, 4);
+- depois de ligar, **qualquer** falha em confirmar a publicação desfaz a ligação, só do agente recém-ligado, e a linha é conferida (3ª rodada, 3);
+- uma chamada de ligação que falha **sem resposta do banco** (rede, tempo esgotado, deadlock) é tratada como ligação possível: a linha é conferida e, se o número ficou com o agente, a ligação é desfeita (mesma família do achado 3);
 - as conexões são lidas em páginas, o agente candidato é achado por filtro no banco (achado 18), e desligar confirma a linha (achado 19).
 
 Situações de cada número na prova:
-- `CONFERE`: o sha calculado é igual ao do evento, com a mesma chave e a mesma publicação;
-- `DIVERGE`: mesma chave e publicação, sha diferente (o texto mudou: override, catálogo);
+- `CONFERE`: o sha calculado é igual ao do evento, com a mesma chave, a mesma origem e a mesma publicação;
+- `DIVERGE`: mesma chave e publicação, sha ou origem diferente (o texto mudou: override, catálogo);
 - `CHAVE_DIVERGE`: o evento respondeu com outra chave (a configuração do número mudou depois da resposta);
 - `PUBLICACAO_DIVERGE`: o evento veio de outra publicação (deploy ou rollback depois da resposta), ou sem commit (fora da Vercel, ou sem as variáveis de sistema);
 - `SEM_RESPOSTA_AINDA`: nenhum evento do caminho de hoje para o número.
 
-Só grupo com todos os números em `CONFERE` vira agente, e só a função do banco liga. A trava de que a cópia é o commit publicado fica no script (Task 11), porque depende do git; a leitura de qual commit o domínio serve fica em `lib/agents/publicacaoVercel.ts`, para ser testada sem rede.
+Só grupo com todos os números em `CONFERE` vira agente, e só a função do banco liga. A trava de que a cópia é o commit publicado fica no script (Task 11), porque depende do git; a leitura de qual commit os domínios servem fica em `lib/agents/publicacaoVercel.ts`, para ser testada sem rede.
+
+Campos da API da Vercel conferidos nas respostas reais do projeto em 05/10 (só leitura): `/v4/aliases/{domínio}` devolve `deploymentId`, `projectId` e `redirect`; `/v13/deployments/{id}` devolve `id`, `projectId`, `readyState`, `readySubstate` (`PROMOTED` no deployment de produção, `STAGED` na prévia), `target` (`production` ou nulo), `createdAt` e `meta.githubCommitSha`/`githubCommitRef`; a lista `/v7/deployments` devolve `uid`, `state`, `readyState`, `readySubstate`, `created` e `createdAt`; `/v9/projects/{id}/domains` devolve `domains[].name` e `redirect`, e `pagination.next` (nulo com os quatro domínios de hoje). O filtro `branch` da lista também foi conferido: pedindo `main` e `feat/aurora-implantacao` vieram só deployments do ramo pedido, e sem filtro vieram os dois misturados.
 
 **Files:**
 - Modify: `test/helpers/fakeSupabaseAdmin.ts` (limite de linhas opcional; resposta de RPC por argumento)
@@ -3389,60 +3487,140 @@ Expected: PASS (7 testes).
 ```ts
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { criarClienteVercel, lerPublicacaoNoAr, type ClienteVercel } from './publicacaoVercel';
+import { criarClienteVercel, lerPublicacaoNoAr, type AmbientePublicado, type ClienteVercel } from './publicacaoVercel';
 
 const ATIVO = 'dpl_ativo';
 const COMMIT = 'a'.repeat(40);
-const OPCOES = { dominio: 'teste.crm.basea2.com', ramo: 'feat/central-agentes', projectId: 'prj_x' };
+const PROJETO = 'prj_crm';
+const DE_TESTE = ['teste.crm.exemplo.com'];
+const DE_PRODUCAO = ['crm.exemplo.com', 'crm.outro.com.br'];
+const TESTE: AmbientePublicado = { dominios: DE_TESTE, outrosDominiosDoProjeto: DE_PRODUCAO, ramo: 'feat/ensaio', projectId: PROJETO, producao: false };
+const PRODUCAO: AmbientePublicado = { dominios: DE_PRODUCAO, outrosDominiosDoProjeto: DE_TESTE, ramo: 'main', projectId: PROJETO, producao: true };
 
-type Deploy = { uid: string; readyState: string; createdAt: number; meta?: Record<string, string> };
+type Deploy = {
+  uid?: string; id?: string; projectId?: string; readyState: string; readySubstate?: string;
+  target?: string | null; createdAt: number; meta?: Record<string, string>;
+};
 
-/** API falsa: alias → deployment ativo → lista do ramo. */
-function api(opcoes: { alias?: Record<string, unknown>; ativo?: Partial<Deploy>; lista?: Deploy[] } = {}): ClienteVercel {
-  const ativo: Deploy = { uid: ATIVO, readyState: 'READY', createdAt: 1000, meta: { githubCommitSha: COMMIT, githubCommitRef: OPCOES.ramo }, ...opcoes.ativo };
+/** API falsa: domínios do projeto → alias (por domínio) → deployment ativo → lista do ramo. */
+function api(opcoes: {
+  ambiente?: AmbientePublicado;
+  doProjeto?: Record<string, unknown>;
+  alias?: Record<string, Record<string, unknown>>;
+  ativo?: Partial<Deploy>;
+  lista?: Deploy[];
+} = {}): ClienteVercel {
+  const ambiente = opcoes.ambiente ?? TESTE;
+  const ativo: Deploy = {
+    id: ATIVO,
+    projectId: PROJETO,
+    readyState: 'READY',
+    readySubstate: ambiente.producao ? 'PROMOTED' : 'STAGED',
+    target: ambiente.producao ? 'production' : null,
+    createdAt: 1000,
+    meta: { githubCommitSha: COMMIT, githubCommitRef: ambiente.ramo },
+    ...opcoes.ativo,
+  };
   return async (caminho) => {
-    if (caminho.startsWith('/v4/aliases/')) return opcoes.alias ?? { deploymentId: ATIVO };
+    if (caminho === `/v9/projects/${PROJETO}/domains`) {
+      return opcoes.doProjeto ?? { domains: [...DE_TESTE, ...DE_PRODUCAO].map((name) => ({ name, redirect: null })), pagination: { next: null } };
+    }
+    if (caminho.startsWith('/v4/aliases/')) {
+      const dominio = decodeURIComponent(caminho.slice('/v4/aliases/'.length));
+      return opcoes.alias?.[dominio] ?? { deploymentId: ATIVO, projectId: PROJETO, redirect: null };
+    }
     if (caminho.startsWith(`/v13/deployments/${ATIVO}`)) return ativo;
-    if (caminho.startsWith('/v7/deployments?')) return { deployments: opcoes.lista ?? [ativo] };
+    if (caminho.startsWith('/v7/deployments?')) return { deployments: opcoes.lista ?? [{ uid: ATIVO, readyState: 'READY', createdAt: 1000 }] };
     throw new Error(`caminho inesperado ${caminho}`);
   };
 }
 
-describe('qual commit o domínio serve', () => {
-  it('alias → deployment pronto do ramo → commit', async () => {
-    expect(await lerPublicacaoNoAr(api(), OPCOES)).toEqual({ ok: true, commit: COMMIT, deploymentId: ATIVO, criadoEm: 1000 });
+describe('qual commit os domínios do ambiente servem', () => {
+  it('teste: alias → prévia pronta do ramo → commit', async () => {
+    expect(await lerPublicacaoNoAr(api(), TESTE)).toEqual({ ok: true, commit: COMMIT, deploymentId: ATIVO, criadoEm: 1000 });
+  });
+
+  it('produção: os dois domínios servem o mesmo deployment de produção, promovido', async () => {
+    expect(await lerPublicacaoNoAr(api({ ambiente: PRODUCAO }), PRODUCAO)).toMatchObject({ ok: true, commit: COMMIT });
   });
 
   it('aceita o id em deployment.id e ignora deployments mais antigos ou com erro', async () => {
     const r = await lerPublicacaoNoAr(api({
-      alias: { deployment: { id: ATIVO } },
+      alias: { 'teste.crm.exemplo.com': { deployment: { id: ATIVO }, projectId: PROJETO } },
       lista: [
         { uid: 'dpl_velho', readyState: 'READY', createdAt: 900 },
         { uid: 'dpl_quebrado', readyState: 'ERROR', createdAt: 1100 },
         { uid: ATIVO, readyState: 'READY', createdAt: 1000 },
       ],
-    }), OPCOES);
+    }), TESTE);
     expect(r).toMatchObject({ ok: true, commit: COMMIT });
   });
 
-  it('alias sem deployment', async () => {
-    expect(await lerPublicacaoNoAr(api({ alias: { deploymentId: null } }), OPCOES)).toMatchObject({ ok: false, motivo: 'alias_sem_deployment' });
+  it('alias sem deployment, de outro projeto, ou que só redireciona', async () => {
+    const com = (alias: Record<string, unknown>) => lerPublicacaoNoAr(api({ alias: { 'teste.crm.exemplo.com': alias } }), TESTE);
+    expect(await com({ deploymentId: null, projectId: PROJETO })).toMatchObject({ ok: false, motivo: 'alias_sem_deployment' });
+    expect(await com({ deploymentId: ATIVO, projectId: 'prj_outro' })).toMatchObject({ ok: false, motivo: 'projeto_diverge' });
+    expect(await com({ deploymentId: ATIVO, projectId: PROJETO, redirect: 'outro.com' })).toMatchObject({ ok: false, motivo: 'alias_redireciona' });
   });
 
-  it('deployment sem commit de 40 hex, de outro ramo, ou ainda não pronto', async () => {
-    expect(await lerPublicacaoNoAr(api({ ativo: { meta: { githubCommitRef: OPCOES.ramo } } }), OPCOES)).toMatchObject({ ok: false, motivo: 'deployment_sem_commit' });
-    expect(await lerPublicacaoNoAr(api({ ativo: { meta: { githubCommitSha: COMMIT, githubCommitRef: 'main' } } }), OPCOES)).toMatchObject({ ok: false, motivo: 'ramo_diverge' });
-    expect(await lerPublicacaoNoAr(api({ ativo: { readyState: 'BUILDING' } }), OPCOES)).toMatchObject({ ok: false, motivo: 'nao_pronta' });
+  it('domínios do mesmo ambiente servindo deployments diferentes', async () => {
+    const r = await lerPublicacaoNoAr(api({
+      ambiente: PRODUCAO,
+      alias: { 'crm.outro.com.br': { deploymentId: 'dpl_outro', projectId: PROJETO } },
+    }), PRODUCAO);
+    expect(r).toMatchObject({ ok: false, motivo: 'dominios_divergem' });
   });
 
-  it('transição: um deployment mais novo do ramo ainda construindo', async () => {
-    const r = await lerPublicacaoNoAr(api({ lista: [{ uid: 'dpl_novo', readyState: 'BUILDING', createdAt: 2000 }, { uid: ATIVO, readyState: 'READY', createdAt: 1000 }] }), OPCOES);
-    expect(r).toMatchObject({ ok: false, motivo: 'em_transicao' });
+  it('a lista fechada tem que ser a do projeto: domínio novo na Vercel, domínio que saiu, ou lista incompleta', async () => {
+    const com = (doProjeto: Record<string, unknown>) => lerPublicacaoNoAr(api({ doProjeto }), TESTE);
+    const todos = [...DE_TESTE, ...DE_PRODUCAO].map((name) => ({ name, redirect: null as string | null }));
+    // Domínio novo no projeto, fora da lista: serviria tráfego sem ser conferido.
+    expect(await com({ domains: [...todos, { name: 'novo.exemplo.com', redirect: null }], pagination: { next: null } }))
+      .toMatchObject({ ok: false, motivo: 'dominios_do_projeto_divergem', detalhe: expect.stringContaining('novo.exemplo.com') });
+    // Domínio da lista que saiu do projeto, ou que passou a só redirecionar.
+    expect(await com({ domains: todos.slice(1), pagination: { next: null } }))
+      .toMatchObject({ ok: false, motivo: 'dominios_do_projeto_divergem', detalhe: expect.stringContaining(DE_TESTE[0]) });
+    expect(await com({ domains: [{ name: DE_TESTE[0], redirect: 'outro.com' }, ...todos.slice(1)], pagination: { next: null } }))
+      .toMatchObject({ ok: false, motivo: 'dominios_do_projeto_divergem' });
+    // Lista incompleta (paginada): recusa em vez de conferir pela metade.
+    expect(await com({ domains: todos, pagination: { next: 123 } })).toMatchObject({ ok: false, motivo: 'dominios_do_projeto_divergem' });
+    // Domínio fora da lista que só redireciona não serve conteúdo: não impede.
+    expect(await com({ domains: [...todos, { name: 'www.exemplo.com', redirect: 'crm.exemplo.com' }], pagination: { next: null } }))
+      .toMatchObject({ ok: true, commit: COMMIT });
   });
 
-  it('rollback: um deployment mais novo do ramo está pronto e não é o que o domínio serve', async () => {
-    const r = await lerPublicacaoNoAr(api({ lista: [{ uid: 'dpl_novo', readyState: 'READY', createdAt: 2000 }, { uid: ATIVO, readyState: 'READY', createdAt: 1000 }] }), OPCOES);
-    expect(r).toMatchObject({ ok: false, motivo: 'rollback' });
+  it('deployment de outro projeto, sem commit de 40 hex, de outro ramo, ou ainda não pronto', async () => {
+    const com = (ativo: Partial<Deploy>) => lerPublicacaoNoAr(api({ ativo }), TESTE);
+    expect(await com({ projectId: 'prj_outro' })).toMatchObject({ ok: false, motivo: 'projeto_diverge' });
+    expect(await com({ meta: { githubCommitRef: TESTE.ramo } })).toMatchObject({ ok: false, motivo: 'deployment_sem_commit' });
+    expect(await com({ meta: { githubCommitSha: COMMIT, githubCommitRef: 'main' } })).toMatchObject({ ok: false, motivo: 'ramo_diverge' });
+    expect(await com({ readyState: 'BUILDING' })).toMatchObject({ ok: false, motivo: 'nao_pronta' });
+  });
+
+  it('alvo errado: domínio de teste servido pelo deployment de PRODUÇÃO; produção não promovida ou de prévia', async () => {
+    // Toda publicação de produção leva o domínio de teste junto: o "teste" passa a ser a produção.
+    expect(await lerPublicacaoNoAr(api({ ativo: { target: 'production', readySubstate: 'PROMOTED' } }), TESTE))
+      .toMatchObject({ ok: false, motivo: 'alvo_diverge' });
+    expect(await lerPublicacaoNoAr(api({ ambiente: PRODUCAO, ativo: { target: null, readySubstate: 'STAGED' } }), PRODUCAO))
+      .toMatchObject({ ok: false, motivo: 'alvo_diverge' });
+    expect(await lerPublicacaoNoAr(api({ ambiente: PRODUCAO, ativo: { readySubstate: 'STAGED' } }), PRODUCAO))
+      .toMatchObject({ ok: false, motivo: 'alvo_diverge' });
+  });
+
+  it('transição: deployment mais novo do ramo construindo, ou qualquer rollout em andamento', async () => {
+    const novo = (d: Partial<Deploy>) => lerPublicacaoNoAr(api({
+      lista: [{ uid: 'dpl_novo', readyState: 'READY', createdAt: 2000, ...d }, { uid: ATIVO, readyState: 'READY', createdAt: 1000 }],
+    }), TESTE);
+    expect(await novo({ readyState: 'BUILDING' })).toMatchObject({ ok: false, motivo: 'em_transicao' });
+    expect(await novo({ readySubstate: 'ROLLING' })).toMatchObject({ ok: false, motivo: 'em_transicao' });
+    expect(await lerPublicacaoNoAr(api({ ativo: { readySubstate: 'ROLLING' } }), TESTE)).toMatchObject({ ok: false, motivo: 'em_transicao' });
+  });
+
+  it('deployment mais novo do ramo pronto e não servido (rollback, ou promoção que ainda não aconteceu)', async () => {
+    const r = await lerPublicacaoNoAr(api({
+      lista: [{ uid: 'dpl_novo', readyState: 'READY', createdAt: 2000 }, { uid: ATIVO, readyState: 'READY', createdAt: 1000 }],
+    }), TESTE);
+    expect(r).toMatchObject({ ok: false, motivo: 'mais_novo_nao_servido' });
   });
 });
 
@@ -3469,20 +3647,41 @@ Expected: FAIL com "Failed to resolve import ./publicacaoVercel".
 
 ```ts
 // Sem 'server-only': usado pelo script scripts/central-agentes/migrar-agentes.ts, fora do Next.
-// Lê, pela API da Vercel, qual commit um domínio está servindo AGORA (2ª rodada do Codex, achado 2):
-// `HEAD == origin/<ramo>` diz o que FOI publicado, não o que está no ar. Um rollback, ou um deploy
-// ainda construindo, deixa o domínio num commit diferente do ramo sem mexer no git.
+// Lê, pela API da Vercel, qual commit um ambiente está servindo AGORA (2ª rodada do Codex, achado 2;
+// 3ª rodada, achado 4): `HEAD == origin/<ramo>` diz o que FOI publicado, não o que está no ar. Um
+// rollback, um deploy ainda construindo ou um domínio apontando para outro deployment deixam o tráfego
+// num commit diferente do ramo sem mexer no git.
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const EM_ANDAMENTO = new Set(['QUEUED', 'INITIALIZING', 'BUILDING']);
 
+/** Um ambiente publicado: TODOS os domínios que atendem aquele banco, e de onde ele é publicado. */
+export type AmbientePublicado = {
+  dominios: readonly string[];
+  /** Domínios do MESMO projeto que atendem o outro ambiente. Com `dominios`, formam a lista fechada do projeto. */
+  outrosDominiosDoProjeto: readonly string[];
+  ramo: string;
+  projectId: string;
+  /** Produção exige o deployment de produção, promovido. Teste exige que NÃO seja o de produção. */
+  producao: boolean;
+};
+
+export type MotivoDaPublicacao =
+  | 'dominios_do_projeto_divergem'
+  | 'alias_sem_deployment'
+  | 'alias_redireciona'
+  | 'projeto_diverge'
+  | 'dominios_divergem'
+  | 'deployment_sem_commit'
+  | 'ramo_diverge'
+  | 'alvo_diverge'
+  | 'nao_pronta'
+  | 'em_transicao'
+  | 'mais_novo_nao_servido';
+
 export type PublicacaoNoAr =
   | { ok: true; commit: string; deploymentId: string; criadoEm: number }
-  | {
-      ok: false;
-      motivo: 'alias_sem_deployment' | 'deployment_sem_commit' | 'ramo_diverge' | 'nao_pronta' | 'em_transicao' | 'rollback';
-      detalhe: string;
-    };
+  | { ok: false; motivo: MotivoDaPublicacao; detalhe: string };
 
 /** GET autenticado na API da Vercel; devolve o JSON. Lança em resposta fora de 2xx. */
 export type ClienteVercel = (caminho: string) => Promise<unknown>;
@@ -3497,52 +3696,100 @@ export function criarClienteVercel(opcoes: { token: string; teamId: string; fetc
   };
 }
 
+type DominiosDoProjeto = {
+  domains?: Array<{ name?: string; redirect?: string | null }>;
+  pagination?: { next?: number | null } | null;
+};
+
+type Alias = {
+  deploymentId?: string | null;
+  deployment?: { id?: string } | null;
+  projectId?: string | null;
+  redirect?: string | null;
+};
+
 type Deployment = {
   uid?: string;
   id?: string;
+  projectId?: string;
   readyState?: string;
   state?: string;
+  readySubstate?: string;
+  target?: string | null;
   createdAt?: number;
   created?: number;
   meta?: Record<string, string>;
 };
 
+const recusa = (motivo: MotivoDaPublicacao, detalhe: string): PublicacaoNoAr => ({ ok: false, motivo, detalhe });
+
 /**
- * alias (domínio) → deployment ativo → commit; depois a lista de deployments do ramo, para recusar:
- *  - transição: um deployment mais novo do ramo ainda construindo (o domínio vai mudar de commit);
- *  - rollback: um deployment mais novo do ramo pronto, e o domínio servindo um mais antigo.
+ * Domínios do projeto → cada domínio do ambiente → alias → deployment. Só devolve `ok` se:
+ *  - a lista fechada (este ambiente + o outro) é exatamente a dos domínios do projeto que servem conteúdo:
+ *    um domínio novo na Vercel que ainda não entrou na lista serviria tráfego sem ser conferido;
+ *  - todos os domínios servem o MESMO deployment, do projeto certo, sem redirecionar;
+ *  - o deployment é do ramo, está READY, tem commit, e é do alvo certo (produção promovida, ou prévia);
+ *  - não há rollout em andamento, nem deployment mais novo do ramo construindo (transição) ou pronto sem
+ *    ser o servido (rollback, ou promoção que ainda não aconteceu: recusa conservadora).
  * Deployment mais novo com ERROR/CANCELED nunca foi para o ar e é ignorado.
  */
-export async function lerPublicacaoNoAr(
-  api: ClienteVercel,
-  opcoes: { dominio: string; ramo: string; projectId: string },
-): Promise<PublicacaoNoAr> {
-  const alias = (await api(`/v4/aliases/${encodeURIComponent(opcoes.dominio)}`)) as {
-    deploymentId?: string | null;
-    deployment?: { id?: string } | null;
-  };
-  const deploymentId = alias.deploymentId ?? alias.deployment?.id ?? null;
-  if (!deploymentId) return { ok: false, motivo: 'alias_sem_deployment', detalhe: opcoes.dominio };
+export async function lerPublicacaoNoAr(api: ClienteVercel, ambiente: AmbientePublicado): Promise<PublicacaoNoAr> {
+  const doProjeto = (await api(`/v9/projects/${encodeURIComponent(ambiente.projectId)}/domains`)) as DominiosDoProjeto;
+  if (doProjeto.pagination?.next) {
+    return recusa('dominios_do_projeto_divergem', 'a lista de dominios do projeto veio incompleta (paginada)');
+  }
+  // Domínio que só redireciona não serve conteúdo; os demais têm que estar na lista fechada, e vice-versa.
+  const servem = (doProjeto.domains ?? []).filter((d) => d.name && !d.redirect).map((d) => d.name as string);
+  const conhecidos = [...ambiente.dominios, ...ambiente.outrosDominiosDoProjeto];
+  const foraDaLista = servem.filter((d) => !conhecidos.includes(d));
+  const faltando = conhecidos.filter((d) => !servem.includes(d));
+  if (foraDaLista.length > 0 || faltando.length > 0) {
+    return recusa(
+      'dominios_do_projeto_divergem',
+      `fora da lista: ${foraDaLista.join(', ') || '-'}; faltando no projeto: ${faltando.join(', ') || '-'}`,
+    );
+  }
+
+  let deploymentId: string | null = null;
+  for (const dominio of ambiente.dominios) {
+    const alias = (await api(`/v4/aliases/${encodeURIComponent(dominio)}`)) as Alias;
+    if (alias.redirect) return recusa('alias_redireciona', `${dominio} redireciona para ${alias.redirect}`);
+    if (alias.projectId !== ambiente.projectId) return recusa('projeto_diverge', `${dominio} e do projeto ${alias.projectId ?? '?'}`);
+    const id = alias.deploymentId ?? alias.deployment?.id ?? null;
+    if (!id) return recusa('alias_sem_deployment', dominio);
+    if (deploymentId && id !== deploymentId) return recusa('dominios_divergem', `${dominio} serve ${id}; outro dominio serve ${deploymentId}`);
+    deploymentId = id;
+  }
+  if (!deploymentId) return recusa('alias_sem_deployment', 'ambiente sem dominio');
 
   const ativo = (await api(`/v13/deployments/${encodeURIComponent(deploymentId)}`)) as Deployment;
   const commit = (ativo.meta?.githubCommitSha ?? '').toLowerCase();
   const ramo = ativo.meta?.githubCommitRef ?? '';
   const estado = ativo.readyState ?? ativo.state ?? '';
   const criadoEm = ativo.createdAt ?? ativo.created ?? 0;
-  if (!COMMIT_SHA.test(commit)) return { ok: false, motivo: 'deployment_sem_commit', detalhe: deploymentId };
-  if (ramo !== opcoes.ramo) return { ok: false, motivo: 'ramo_diverge', detalhe: `${deploymentId} veio de ${ramo || '?'}, nao de ${opcoes.ramo}` };
-  if (estado !== 'READY') return { ok: false, motivo: 'nao_pronta', detalhe: `${deploymentId} ${estado}` };
+  if (ativo.projectId !== ambiente.projectId) return recusa('projeto_diverge', `${deploymentId} e do projeto ${ativo.projectId ?? '?'}`);
+  if (!COMMIT_SHA.test(commit)) return recusa('deployment_sem_commit', deploymentId);
+  if (ramo !== ambiente.ramo) return recusa('ramo_diverge', `${deploymentId} veio de ${ramo || '?'}, nao de ${ambiente.ramo}`);
+  if (estado !== 'READY') return recusa('nao_pronta', `${deploymentId} ${estado}`);
+  if (ativo.readySubstate === 'ROLLING') return recusa('em_transicao', `${deploymentId} em rollout`);
+  const deProducao = ativo.target === 'production';
+  if (ambiente.producao && !(deProducao && ativo.readySubstate === 'PROMOTED')) {
+    return recusa('alvo_diverge', `${deploymentId} nao e o deployment de producao promovido (target=${ativo.target ?? 'previa'}, ${ativo.readySubstate ?? '?'})`);
+  }
+  if (!ambiente.producao && deProducao) {
+    return recusa('alvo_diverge', `${deploymentId} e o deployment de PRODUCAO: o dominio de teste nao esta na previa`);
+  }
 
   const lista = (await api(
-    `/v7/deployments?projectId=${encodeURIComponent(opcoes.projectId)}&branch=${encodeURIComponent(opcoes.ramo)}&limit=20`,
+    `/v7/deployments?projectId=${encodeURIComponent(ambiente.projectId)}&branch=${encodeURIComponent(ambiente.ramo)}&limit=20`,
   )) as { deployments?: Deployment[] };
   for (const d of lista.deployments ?? []) {
     const id = d.uid ?? d.id ?? '';
     const quando = d.createdAt ?? d.created ?? 0;
     const estadoDele = d.readyState ?? d.state ?? '';
     if (id === deploymentId || quando <= criadoEm) continue;
-    if (EM_ANDAMENTO.has(estadoDele)) return { ok: false, motivo: 'em_transicao', detalhe: `${id} ${estadoDele}` };
-    if (estadoDele === 'READY') return { ok: false, motivo: 'rollback', detalhe: `${id} pronto e mais novo que o que o dominio serve` };
+    if (EM_ANDAMENTO.has(estadoDele) || d.readySubstate === 'ROLLING') return recusa('em_transicao', `${id} ${d.readySubstate === 'ROLLING' ? 'em rollout' : estadoDele}`);
+    if (estadoDele === 'READY') return recusa('mais_novo_nao_servido', `${id} esta pronto e e mais novo que o que os dominios servem`);
   }
   return { ok: true, commit, deploymentId, criadoEm };
 }
@@ -3551,7 +3798,7 @@ export async function lerPublicacaoNoAr(
 - [ ] **Step 8: Rodar e ver passar**
 
 Run: `npx vitest run lib/agents/publicacaoVercel.test.ts`
-Expected: PASS (7 testes).
+Expected: PASS (11 testes).
 
 - [ ] **Step 9: Escrever o teste do módulo de migração que falha**
 
@@ -3560,9 +3807,12 @@ Expected: PASS (7 testes).
 import { describe, expect, it } from 'vitest';
 import { createFakeSupabaseAdmin, type FakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
 import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
+import type { PublicacaoNoAr } from './publicacaoVercel';
 import {
   criarAgentes,
   desligarConexao,
+  lerAgenteDaConexao,
+  ligarComConferencia,
   ligarConexao,
   planejarMigracao,
   sha256Hex,
@@ -3582,24 +3832,30 @@ function conexao(id: string, org: string, config: Record<string, unknown>, aiAge
   return { id, organization_id: org, name: `Numero ${id}`, provider: 'evolution', channel_type: 'whatsapp', config, ai_agent_id: aiAgentId };
 }
 
-type Evento = { sha: string; chave?: string; publicacao?: string | null };
+type Evento = { sha: string; chave?: string; origem?: string; publicacao?: string | null };
 
 /** O último evento de prova de cada número, como a função do banco devolveria. */
 function comEventos(admin: FakeSupabaseAdmin, porNumero: Record<string, Evento>) {
   admin.rpcResults.central_agentes_ultima_resposta_nativa = (args: Record<string, unknown>) => {
     const e = porNumero[String(args.p_connection_id)];
     return e
-      ? [{ out_sha256: e.sha, out_prompt_key: e.chave ?? AURORA, out_release_commit: e.publicacao === undefined ? PUBLICACAO : e.publicacao, out_delivered_at: ENTREGUE_EM }]
+      ? [{
+        out_sha256: e.sha,
+        out_prompt_key: e.chave ?? AURORA,
+        out_prompt_source: e.origem ?? 'default',
+        out_release_commit: e.publicacao === undefined ? PUBLICACAO : e.publicacao,
+        out_delivered_at: ENTREGUE_EM,
+      }]
       : [];
   };
   return admin;
 }
 
 describe('prova contra a produção', () => {
-  it('lê sha, chave, publicação e hora da entrega pela função do banco', async () => {
+  it('lê sha, chave, origem, publicação e hora da entrega pela função do banco', async () => {
     const admin = comEventos(createFakeSupabaseAdmin(), { c1: { sha: 'b'.repeat(64) } });
     expect(await ultimaRespostaNativa(admin as never, { id: 'c1' })).toEqual({
-      sha256: 'b'.repeat(64), promptKey: AURORA, releaseCommit: PUBLICACAO, deliveredAt: ENTREGUE_EM,
+      sha256: 'b'.repeat(64), promptKey: AURORA, promptSource: 'default', releaseCommit: PUBLICACAO, deliveredAt: ENTREGUE_EM,
     });
     expect(admin.rpcCalls).toEqual([{ name: 'central_agentes_ultima_resposta_nativa', args: { p_connection_id: 'c1' } }]);
   });
@@ -3625,6 +3881,7 @@ describe('migração do prompt de hoje para agentes', () => {
         conexao('c4', ORG, { aiEnabled: true, aiPromptKey: AURORA }),
         conexao('c5', ORG, { aiEnabled: true, aiPromptKey: AURORA }),
         conexao('c6', OUTRA, { aiEnabled: true, aiPromptKey: AURORA }),
+        conexao('c7', ORG, { aiEnabled: true, aiPromptKey: AURORA }),
       ],
     }), {
       c1: { sha: SHA_AURORA },
@@ -3632,6 +3889,8 @@ describe('migração do prompt de hoje para agentes', () => {
       c3: { sha: SHA_AURORA, chave: PADRAO },
       c4: { sha: SHA_AURORA, publicacao: 'b'.repeat(40) },
       c5: { sha: SHA_AURORA, publicacao: null },
+      // Mesmo sha, mas aquela resposta saiu de um override: não prova o texto padrão de hoje.
+      c7: { sha: SHA_AURORA, origem: 'override' },
     });
     const plano = await planejarMigracao(admin as never, { publicacao: PUBLICACAO });
     expect(plano.grupos).toHaveLength(2);
@@ -3643,6 +3902,7 @@ describe('migração do prompt de hoje para agentes', () => {
       { id: 'c3', name: 'Numero c3', situacao: 'CHAVE_DIVERGE', respostaEm: ENTREGUE_EM },
       { id: 'c4', name: 'Numero c4', situacao: 'PUBLICACAO_DIVERGE', respostaEm: ENTREGUE_EM },
       { id: 'c5', name: 'Numero c5', situacao: 'PUBLICACAO_DIVERGE', respostaEm: ENTREGUE_EM },
+      { id: 'c7', name: 'Numero c7', situacao: 'DIVERGE', respostaEm: ENTREGUE_EM },
     ]);
     const daOutra = plano.grupos.find((g) => g.organizationId === OUTRA)!;
     expect(daOutra.conexoes[0]).toMatchObject({ situacao: 'SEM_RESPOSTA_AINDA', respostaEm: null });
@@ -3737,6 +3997,17 @@ describe('migração do prompt de hoje para agentes', () => {
     const recusado = semear();
     recusado.rpcResults.central_agentes_ligar_conexao = 'publicacao_diverge';
     expect(await ligarConexao(recusado as never, 'c1', { publicacao: PUBLICACAO })).toEqual({ ok: false, motivo: 'publicacao_diverge' });
+
+    // A chamada falhou sem resposta do banco: o resultado diz qual agente estava sendo ligado, para quem
+    // chamou conferir a linha (a transação pode ter sido gravada antes de a resposta se perder).
+    const semResposta = semear();
+    semResposta.rpcErrors.central_agentes_ligar_conexao = 'fetch failed';
+    expect(await ligarConexao(semResposta as never, 'c1', { publicacao: PUBLICACAO }))
+      .toEqual({ ok: false, motivo: 'chamada_falhou', agentId: 'a1', detalhe: 'fetch failed' });
+    // Resposta sem o resultado da função também não prova nada.
+    const vazia = semear();
+    expect(await ligarConexao(vazia as never, 'c1', { publicacao: PUBLICACAO }))
+      .toMatchObject({ ok: false, motivo: 'chamada_falhou', agentId: 'a1' });
   });
 
   it('ligarConexao sem agente criado para aquele sha não chama a função', async () => {
@@ -3754,6 +4025,127 @@ describe('migração do prompt de hoje para agentes', () => {
     expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
     expect(await desligarConexao(admin as never, 'nao-existe')).toEqual({ ok: false, detalhe: 'conexao_inexistente' });
   });
+
+  it('desligarConexao condicionado só desliga se o número ainda está com AQUELE agente', async () => {
+    const admin = createFakeSupabaseAdmin({ channel_connections: [conexao('c1', ORG, { aiEnabled: true }, 'outro-agente')] });
+    expect(await desligarConexao(admin as never, 'c1', { seAgente: 'a1' })).toEqual({ ok: false, detalhe: 'nao_estava_com_esse_agente' });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBe('outro-agente');
+    expect(await lerAgenteDaConexao(admin as never, 'c1')).toEqual({ existe: true, agentId: 'outro-agente' });
+    expect(await lerAgenteDaConexao(admin as never, 'nao-existe')).toEqual({ existe: false, agentId: null });
+  });
+});
+
+describe('ligar com conferência da publicação antes e depois (3ª rodada do Codex, achado 3)', () => {
+  const NO_AR: PublicacaoNoAr = { ok: true, commit: PUBLICACAO, deploymentId: 'dpl_1', criadoEm: 1 };
+
+  /** Número pronto para ligar; a função do banco falsa liga de verdade a linha, como a real. */
+  function pronto() {
+    const admin = createFakeSupabaseAdmin({
+      channel_connections: [conexao('c1', ORG, { aiEnabled: true, aiPromptKey: AURORA })],
+      ai_agents: [{ id: 'a1', organization_id: ORG, published_version_id: 'v1', origin: { kind: 'migration', sha256: SHA_AURORA } }],
+    });
+    admin.rpcResults.central_agentes_ligar_conexao = (args: Record<string, unknown>) => {
+      admin.tables.channel_connections[0].ai_agent_id = args.p_agent_id;
+      return 'ligado';
+    };
+    return admin;
+  }
+
+  /** Leituras da publicação em sequência; uma função na fila é chamada (para lançar). */
+  function publicacoes(...fila: Array<PublicacaoNoAr | (() => never)>) {
+    let i = 0;
+    return async () => {
+      const proxima = fila[Math.min(i++, fila.length - 1)];
+      return typeof proxima === 'function' ? proxima() : proxima;
+    };
+  }
+
+  it('publicação igual antes e depois: fica ligado', async () => {
+    const admin = pronto();
+    expect(await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR, NO_AR), PUBLICACAO))
+      .toEqual({ estado: 'ligado', agentId: 'a1', publicacao: PUBLICACAO });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBe('a1');
+  });
+
+  it('publicação que não confere ANTES: nem chama o banco', async () => {
+    const admin = pronto();
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes({ ok: false, motivo: 'em_transicao', detalhe: 'dpl_2 BUILDING' }), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'nao_ligou' });
+    const outra = await ligarComConferencia(admin as never, 'c1', publicacoes({ ...NO_AR, commit: 'b'.repeat(40) }), PUBLICACAO);
+    expect(outra).toMatchObject({ estado: 'nao_ligou' });
+    expect(admin.rpcCalls).toEqual([]);
+  });
+
+  it('a leitura depois de ligar LANÇA (rede, 500): a ligação é desfeita e a linha conferida', async () => {
+    const admin = pronto();
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR, () => { throw new Error('Vercel /v4/aliases respondeu 500'); }), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'desfeito', agentId: 'a1' });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
+  });
+
+  it('a publicação mudou, ou ficou inconclusiva, depois de ligar: desfaz', async () => {
+    for (const depois of [{ ...NO_AR, commit: 'b'.repeat(40) }, { ok: false as const, motivo: 'mais_novo_nao_servido' as const, detalhe: 'dpl_2' }]) {
+      const admin = pronto();
+      const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR, depois), PUBLICACAO);
+      expect(r).toMatchObject({ estado: 'desfeito', agentId: 'a1' });
+      expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
+    }
+  });
+
+  it('não deu para desfazer: devolve INCERTO, nunca "desfeito"', async () => {
+    const admin = pronto();
+    const leitura = publicacoes(NO_AR, () => { throw new Error('rede'); });
+    const original = admin.rpcResults.central_agentes_ligar_conexao as (a: Record<string, unknown>) => unknown;
+    admin.rpcResults.central_agentes_ligar_conexao = (args: Record<string, unknown>) => {
+      const saida = original(args);
+      admin.failOn('channel_connections', 'update', 'boom');
+      return saida;
+    };
+    const r = await ligarComConferencia(admin as never, 'c1', leitura, PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'incerto', agentId: 'a1' });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBe('a1');
+  });
+
+  it('o desfazer não derruba uma ligação diferente feita por outra pessoa nesse meio-tempo', async () => {
+    const admin = pronto();
+    const leitura = publicacoes(NO_AR, () => {
+      // Entre a nossa ligação e a conferência, alguém ligou o número a OUTRO agente.
+      admin.tables.channel_connections[0].ai_agent_id = 'agente-de-outra-pessoa';
+      throw new Error('rede');
+    });
+    const r = await ligarComConferencia(admin as never, 'c1', leitura, PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'desfeito', agentId: 'a1' });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBe('agente-de-outra-pessoa');
+  });
+
+  it('a chamada de ligação falha DEPOIS de o banco gravar (resposta perdida): desfaz e confere a linha', async () => {
+    const admin = pronto();
+    admin.rpcResults.central_agentes_ligar_conexao = (args: Record<string, unknown>) => {
+      admin.tables.channel_connections[0].ai_agent_id = args.p_agent_id;
+      throw new Error('fetch failed');
+    };
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'desfeito', agentId: 'a1' });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
+  });
+
+  it('a chamada de ligação devolve erro SEM gravar (deadlock, por exemplo): não ligou, com a linha conferida', async () => {
+    const admin = pronto();
+    admin.rpcErrors.central_agentes_ligar_conexao = 'deadlock detected';
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'nao_ligou', motivo: expect.stringContaining('deadlock detected') });
+    expect(admin.tables.channel_connections[0].ai_agent_id).toBeNull();
+  });
+
+  it('a chamada de ligação falha e a linha não pode ser lida: INCERTO', async () => {
+    const admin = pronto();
+    admin.rpcResults.central_agentes_ligar_conexao = () => {
+      admin.failOn('channel_connections', 'select', 'sem rede');
+      throw new Error('fetch failed');
+    };
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'incerto', agentId: 'a1' });
+  });
 });
 ```
 
@@ -3769,6 +4161,7 @@ import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buscarPromptResolvidoEstrito } from '@/lib/ai/prompts/resolve';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
+import type { PublicacaoNoAr } from '@/lib/agents/publicacaoVercel';
 
 // Sem 'server-only': usado pelo script scripts/central-agentes/migrar-agentes.ts, fora do Next.
 // Toda leitura aqui é ESTRITA: erro de banco lança e aborta o script. Nunca cair no catálogo por erro.
@@ -3820,16 +4213,20 @@ export type ConexaoIgnorada = {
 export type RespostaDaProducao = {
   sha256: string;
   promptKey: string | null;
+  /** De onde veio o texto daquela resposta: 'default' (catálogo) ou 'override'. */
+  promptSource: string;
   /** Commit da publicação que respondeu (VERCEL_GIT_COMMIT_SHA); nulo fora da Vercel. */
   releaseCommit: string | null;
   deliveredAt: string;
 };
 
 /**
- * O evento de prova da ÚLTIMA resposta entregue deste número pelo caminho de hoje (ai_reply_events), escolhido
- * pela função do banco central_agentes_ultima_resposta_nativa, pela hora da entrega. É a prova independente:
- * o script calcula o prompt com o código da cópia onde roda, e as travas do script garantem que essa cópia
- * é o commit publicado E o que o domínio serve.
+ * O ÚLTIMO EVENTO de prova deste número pelo caminho de hoje (ai_reply_events), escolhido pela função do
+ * banco central_agentes_ultima_resposta_nativa, pela hora da entrega. Não é "a última resposta entregue":
+ * uma resposta cujo registro falhou não tem evento. A prova do texto não depende disso: o evento é a
+ * testemunha de que a publicação R, com a chave K e a origem O (padrão ou override), chega ao texto de sha S;
+ * o script confere que a cópia é R e que os domínios servem R, e a função de ligar confere de novo, na hora,
+ * a chave e o override.
  */
 export async function ultimaRespostaNativa(
   admin: SupabaseClient,
@@ -3837,19 +4234,29 @@ export async function ultimaRespostaNativa(
 ): Promise<RespostaDaProducao | null> {
   const { data, error } = await admin.rpc('central_agentes_ultima_resposta_nativa', { p_connection_id: conexao.id });
   if (error) throw new Error(`Falha ao ler a ultima resposta do numero ${conexao.id}: ${error.message}`);
-  const [linha] = (data ?? []) as Array<{ out_sha256: string; out_prompt_key: string | null; out_release_commit: string | null; out_delivered_at: string }>;
+  const [linha] = (data ?? []) as Array<{
+    out_sha256: string; out_prompt_key: string | null; out_prompt_source: string; out_release_commit: string | null; out_delivered_at: string;
+  }>;
   if (!linha) return null;
-  return { sha256: linha.out_sha256, promptKey: linha.out_prompt_key, releaseCommit: linha.out_release_commit, deliveredAt: linha.out_delivered_at };
+  return {
+    sha256: linha.out_sha256,
+    promptKey: linha.out_prompt_key,
+    promptSource: linha.out_prompt_source,
+    releaseCommit: linha.out_release_commit,
+    deliveredAt: linha.out_delivered_at,
+  };
 }
 
 function situacaoNaProducao(
-  calculado: { sha256: string; promptKey: string; publicacao: string },
+  calculado: { sha256: string; promptKey: string; promptSource: 'override' | 'default'; publicacao: string },
   producao: RespostaDaProducao | null,
 ): SituacaoNaProducao {
   if (!producao) return 'SEM_RESPOSTA_AINDA';
   if (producao.releaseCommit !== calculado.publicacao) return 'PUBLICACAO_DIVERGE';
   if (producao.promptKey !== calculado.promptKey) return 'CHAVE_DIVERGE';
-  return producao.sha256 === calculado.sha256 ? 'CONFERE' : 'DIVERGE';
+  // O evento tem que ser do MESMO caso: mesmo sha E mesma origem. Um evento de override com o mesmo sha
+  // não prova o texto padrão (3ª rodada do Codex, achado 5).
+  return producao.sha256 === calculado.sha256 && producao.promptSource === calculado.promptSource ? 'CONFERE' : 'DIVERGE';
 }
 
 /** Todas as conexões de WhatsApp, em páginas por id: o PostgREST corta leitura grande sem erro. */
@@ -3875,7 +4282,7 @@ async function lerConexoes(admin: SupabaseClient, organizationId?: string): Prom
 
 /**
  * Só leitura. Um grupo por (organização, sha256 do prompt efetivo de hoje), com a situação de cada número.
- * `publicacao` é o commit que o domínio serve, lido pelo script na Vercel: o evento tem que ter vindo dele.
+ * `publicacao` é o commit que os domínios servem, lido pelo script na Vercel: o evento tem que ter vindo dele.
  */
 export async function planejarMigracao(
   admin: SupabaseClient,
@@ -3912,7 +4319,7 @@ export async function planejarMigracao(
     const item: ConexaoDoGrupo = {
       id: conexao.id,
       name: conexao.name,
-      situacao: situacaoNaProducao({ sha256, promptKey, publicacao: filtro.publicacao }, producao),
+      situacao: situacaoNaProducao({ sha256, promptKey, promptSource: resolvido.source, publicacao: filtro.publicacao }, producao),
       respostaEm: producao?.deliveredAt ?? null,
     };
 
@@ -3995,12 +4402,17 @@ export type MotivoDoBanco =
 
 export type ResultadoLigar =
   | { ok: true; agentId: string }
-  | { ok: false; motivo: MotivoDoBanco | 'chave_invalida' | 'prompt_inexistente' | 'agente_nao_criado' };
+  | { ok: false; motivo: MotivoDoBanco | 'chave_invalida' | 'prompt_inexistente' | 'agente_nao_criado' }
+  /**
+   * A chamada da função falhou sem dizer o que o banco fez (rede, tempo esgotado, deadlock). A transação
+   * pode ter sido gravada antes de a resposta se perder: quem chamou tem que conferir a linha.
+   */
+  | { ok: false; motivo: 'chamada_falhou'; agentId: string; detalhe: string };
 
 /**
  * Calcula o prompt de hoje, acha o agente de migração com o mesmo sha e pede ao banco para ligar. A função
- * do banco confere tudo de novo numa transação só (chave bruta e efetiva, override, versão publicada e a
- * última resposta da produção, com a publicação que o script conferiu no domínio), com a tabela de prompts,
+ * do banco confere tudo de novo numa transação só (chave bruta e efetiva, override, versão publicada e o
+ * último evento de prova, com a publicação que o script conferiu nos domínios), com a tabela de prompts,
  * o número e o agente travados, e devolve o motivo quando recusa.
  */
 export async function ligarConexao(
@@ -4036,44 +4448,155 @@ export async function ligarConexao(
   const agentId = (candidato.data as { id: string } | null)?.id;
   if (!agentId) return { ok: false, motivo: 'agente_nao_criado' };
 
-  const { data, error } = await admin.rpc('central_agentes_ligar_conexao', {
-    p_connection_id: connectionId,
-    p_agent_id: agentId,
-    p_chave_bruta: typeof config.aiPromptKey === 'string' ? config.aiPromptKey : null,
-    p_prompt_key: promptKey,
-    p_prompt_source: resolvido.source,
-    p_sha256: sha256,
-    p_publicacao: opcoes.publicacao,
-  });
-  if (error) throw new Error(`Falha ao ligar o numero ${connectionId}: ${error.message}`);
-  if (data === 'ligado') return { ok: true, agentId };
-  return { ok: false, motivo: data as MotivoDoBanco };
+  // Daqui para baixo o banco pode ter gravado. Erro devolvido ou lançado pela chamada NÃO prova que a
+  // transação não aconteceu (a resposta pode ter se perdido depois do commit): devolve `chamada_falhou`
+  // com o agente, em vez de lançar, para quem chamou conferir a linha.
+  let resposta: { data: unknown; error: { message: string } | null };
+  try {
+    resposta = await admin.rpc('central_agentes_ligar_conexao', {
+      p_connection_id: connectionId,
+      p_agent_id: agentId,
+      p_chave_bruta: typeof config.aiPromptKey === 'string' ? config.aiPromptKey : null,
+      p_prompt_key: promptKey,
+      p_prompt_source: resolvido.source,
+      p_sha256: sha256,
+      p_publicacao: opcoes.publicacao,
+    });
+  } catch (erro) {
+    return { ok: false, motivo: 'chamada_falhou', agentId, detalhe: erro instanceof Error ? erro.message : String(erro) };
+  }
+  if (resposta.error) return { ok: false, motivo: 'chamada_falhou', agentId, detalhe: resposta.error.message };
+  if (typeof resposta.data !== 'string') {
+    return { ok: false, motivo: 'chamada_falhou', agentId, detalhe: 'a funcao nao devolveu o resultado' };
+  }
+  if (resposta.data === 'ligado') return { ok: true, agentId };
+  return { ok: false, motivo: resposta.data as MotivoDoBanco };
 }
 
-/** Volta o número ao caminho de hoje, confirmando a linha. O config da conexão nunca foi tocado. */
-export async function desligarConexao(admin: SupabaseClient, connectionId: string): Promise<{ ok: true } | { ok: false; detalhe: string }> {
-  const { data, error } = await admin
-    .from('channel_connections')
-    .update({ ai_agent_id: null })
-    .eq('id', connectionId)
-    .select('id');
+/**
+ * Volta o número ao caminho de hoje, confirmando a linha. O config da conexão nunca foi tocado.
+ * Com `seAgente`, só desliga se o número ainda está com AQUELE agente: é o desfazer de uma ligação
+ * recém-feita, que não pode derrubar uma ligação diferente feita por outra pessoa nesse meio-tempo.
+ */
+export async function desligarConexao(
+  admin: SupabaseClient,
+  connectionId: string,
+  opcoes: { seAgente?: string } = {},
+): Promise<{ ok: true } | { ok: false; detalhe: string }> {
+  let consulta = admin.from('channel_connections').update({ ai_agent_id: null }).eq('id', connectionId);
+  if (opcoes.seAgente) consulta = consulta.eq('ai_agent_id', opcoes.seAgente);
+  const { data, error } = await consulta.select('id');
   if (error) return { ok: false, detalhe: error.message };
-  if (!data || data.length === 0) return { ok: false, detalhe: 'conexao_inexistente' };
-  return { ok: true };
+  if (data && data.length > 0) return { ok: true };
+  return { ok: false, detalhe: opcoes.seAgente ? 'nao_estava_com_esse_agente' : 'conexao_inexistente' };
+}
+
+/** A qual agente o número está ligado agora (nulo = caminho de hoje). Erro de leitura lança. */
+export async function lerAgenteDaConexao(
+  admin: SupabaseClient,
+  connectionId: string,
+): Promise<{ existe: boolean; agentId: string | null }> {
+  const { data, error } = await admin.from('channel_connections').select('id, ai_agent_id').eq('id', connectionId).maybeSingle();
+  if (error) throw new Error(`Falha ao ler o numero ${connectionId}: ${error.message}`);
+  const linha = data as { ai_agent_id: string | null } | null;
+  return { existe: Boolean(linha), agentId: linha?.ai_agent_id ?? null };
+}
+
+export type ResultadoLigarConferido =
+  | { estado: 'ligado'; agentId: string; publicacao: string }
+  /** Nada ficou ligado por esta chamada: recusa, ou chamada que falhou com a linha conferida sem o agente. */
+  | { estado: 'nao_ligou'; motivo: string }
+  /** Ligou (ou pode ter ligado), não deu para confirmar, e a ligação foi desfeita, com a linha conferida. */
+  | { estado: 'desfeito'; agentId: string; motivo: string }
+  /** Ligou (ou pode ter ligado) e NÃO deu para confirmar o desfazer: o número pode estar ligado. */
+  | { estado: 'incerto'; agentId: string; motivo: string; detalhe: string };
+
+/**
+ * Desfaz a ligação daquele agente e confere a linha. `ligouComCerteza` é falso quando a chamada de ligar
+ * falhou sem resposta: aí o número pode nunca ter ficado com o agente.
+ *  - a linha continua com o agente, ou não pôde ser lida → `incerto`;
+ *  - a linha não está com o agente e havia ligação (certa, ou achada pelo desfazer) → `desfeito`;
+ *  - a linha não está com o agente e a chamada que falhou nunca chegou a gravar → `nao_ligou`.
+ * O desfazer é condicionado ao agente: uma ligação diferente, feita por outra pessoa nesse meio-tempo, fica.
+ */
+async function desfazerEConferir(
+  admin: SupabaseClient,
+  connectionId: string,
+  agentId: string,
+  motivo: string,
+  ligouComCerteza: boolean,
+): Promise<ResultadoLigarConferido> {
+  try {
+    const desfez = await desligarConexao(admin, connectionId, { seAgente: agentId });
+    const agora = await lerAgenteDaConexao(admin, connectionId);
+    if (agora.agentId === agentId) {
+      return { estado: 'incerto', agentId, motivo, detalhe: 'o numero continua ligado a esse agente' };
+    }
+    return ligouComCerteza || desfez.ok ? { estado: 'desfeito', agentId, motivo } : { estado: 'nao_ligou', motivo };
+  } catch (erro) {
+    return { estado: 'incerto', agentId, motivo, detalhe: erro instanceof Error ? erro.message : String(erro) };
+  }
+}
+
+/**
+ * Liga com a publicação conferida antes e depois (2ª rodada do Codex, achado 2; 3ª rodada, achado 3).
+ * Antes de chamar o banco, um erro de leitura lança: nada foi ligado. Da chamada em diante o número PODE
+ * estar ligado, então qualquer coisa que impeça confirmar desfaz a ligação, só daquele agente, e a linha é
+ * lida de novo para conferir:
+ *  - a chamada de ligar falhou sem resposta do banco (a transação pode ter sido gravada);
+ *  - a publicação mudou, ficou inconclusiva, ou a leitura dela lançou (rede, 500).
+ * Se o processo morrer entre a ligação e a conferência, o número fica ligado com uma prova que valia
+ * segundos antes; o `--prova` seguinte mostra o número como `ja_ligada` e o operador decide.
+ */
+export async function ligarComConferencia(
+  admin: SupabaseClient,
+  connectionId: string,
+  lerPublicacao: () => Promise<PublicacaoNoAr>,
+  commit: string,
+): Promise<ResultadoLigarConferido> {
+  const antes = await lerPublicacao();
+  if (!antes.ok) return { estado: 'nao_ligou', motivo: `publicacao ${antes.motivo} (${antes.detalhe})` };
+  if (antes.commit !== commit) {
+    return { estado: 'nao_ligou', motivo: `os dominios servem ${antes.commit.slice(0, 7)} e esta copia esta em ${commit.slice(0, 7)}` };
+  }
+
+  const ligada = await ligarConexao(admin, connectionId, { publicacao: antes.commit });
+  if (!ligada.ok) {
+    if (ligada.motivo !== 'chamada_falhou') return { estado: 'nao_ligou', motivo: ligada.motivo };
+    return desfazerEConferir(
+      admin,
+      connectionId,
+      ligada.agentId,
+      `a chamada de ligacao falhou sem resposta do banco (${ligada.detalhe})`,
+      false,
+    );
+  }
+
+  let motivo: string;
+  try {
+    const depois = await lerPublicacao();
+    if (depois.ok && depois.commit === antes.commit) return { estado: 'ligado', agentId: ligada.agentId, publicacao: antes.commit };
+    motivo = depois.ok
+      ? `a publicacao mudou para ${depois.commit.slice(0, 7)} durante a ligacao`
+      : `publicacao ${depois.motivo} depois de ligar (${depois.detalhe})`;
+  } catch (erro) {
+    motivo = `nao foi possivel ler a publicacao depois de ligar (${erro instanceof Error ? erro.message : String(erro)})`;
+  }
+  return desfazerEConferir(admin, connectionId, ligada.agentId, motivo, true);
 }
 ```
 
 - [ ] **Step 12: Rodar e ver passar**
 
 Run: `npx vitest run lib/agents/ test/helpers/fakeSupabaseAdmin.test.ts`
-Expected: PASS (agentRuntime, publicacaoVercel com 7 testes, migracaoAgentes com 12 testes, e o banco falso).
+Expected: PASS (agentRuntime, publicacaoVercel com 11 testes, migracaoAgentes com 22 testes, e o banco falso).
 
 - [ ] **Step 13: Commit**
 
 ```bash
 git add test/helpers/fakeSupabaseAdmin.ts test/helpers/fakeSupabaseAdmin.test.ts lib/agents/publicacaoVercel.ts lib/agents/publicacaoVercel.test.ts lib/agents/migracaoAgentes.ts lib/agents/migracaoAgentes.test.ts
 git diff --cached --stat
-git commit -m "feat(central-agentes): migracao com prova por evento, publicacao no ar e ligacao pelas funcoes do banco"
+git commit -m "feat(central-agentes): migracao com prova por evento, publicacao no ar por ambiente e ligacao que desfaz se nao confirmar"
 ```
 
 ---
@@ -4081,10 +4604,21 @@ git commit -m "feat(central-agentes): migracao com prova por evento, publicacao 
 ### Task 11: Script de linha de comando
 
 A prova compara o prompt calculado nesta cópia com o que a produção gravou. Isso só vale se a cópia for o código que está **no ar**, e são duas travas, porque uma não cobre a outra:
-- **git:** `--prova`, `--criar` e `--ligar` exigem `--ramo-publicado`, fazem `git fetch` e só seguem com `HEAD == origin/<ramo>` e sem mudança local nos arquivos que decidem o prompt (revisão do Codex, achado 10). Isso diz o que FOI publicado;
-- **Vercel:** exigem também `--dominio`, e o script lê pela API qual deployment o domínio serve e o commit dele (`lib/agents/publicacaoVercel.ts`). Só segue se esse commit for o HEAD e se não houver deployment mais novo do ramo construindo (transição) ou pronto sem ser o servido (rollback). Depois de um rollback, o ramo e o HEAD continuam no commit A e o domínio responde com B: só a Vercel mostra isso (2ª rodada do Codex, achado 2).
+- **git:** `--prova`, `--criar` e `--ligar` fazem `git fetch` do ramo do ambiente e só seguem com `HEAD == origin/<ramo>` e sem mudança local nos arquivos que decidem o prompt (revisão do Codex, achado 10). Isso diz o que FOI publicado;
+- **Vercel:** leem pela API qual deployment **cada domínio do ambiente** serve (`lib/agents/publicacaoVercel.ts`) e só seguem se todos servem o mesmo deployment, do projeto e do ramo certos, com o commit do HEAD, sem transição, rollout ou deployment mais novo não servido. Depois de um rollback, o ramo e o HEAD continuam no commit A e o domínio responde com B: só a Vercel mostra isso (2ª rodada do Codex, achado 2).
 
-`--ligar` confere a publicação **três vezes**: antes de ligar, dentro da função do banco (o evento tem que ter vindo desse commit) e de novo depois de ligar; se nesse meio-tempo a publicação mudou, desliga na hora e sai com erro.
+**O ambiente sai do banco conectado, numa lista fechada** (3ª rodada do Codex, achado 4). Antes o operador passava `--ramo-publicado` e `--dominio`, e nada amarrava o domínio informado ao banco em uso. Agora o script conhece dois bancos, cada um com o projeto da Vercel, o ramo e **todos** os domínios que o atendem; para qualquer outro banco (inclusive o local) `--prova`, `--criar` e `--ligar` são recusados, porque não há publicação para conferir. A lista é conferida contra a Vercel a cada leitura: se o projeto tiver um domínio que não está nela, ou perder um que está, o script recusa com `dominios_do_projeto_divergem` até a lista ser atualizada.
+
+| Banco | Ambiente | Ramo | Domínios (todos conferidos) |
+|---|---|---|---|
+| `eqidsihasmwwamkaqfka` | produção | `main` | `crm.basea2.com`, `crm.cennohub.com.br`, `basecrm.vercel.app` |
+| `zvwngsrflkicbbzfmrgy` | teste | `feat/aurora-implantacao` | `teste.crm.basea2.com` |
+
+(Conferido em 05/10 na API: os três domínios de produção servem o mesmo deployment de produção, e o de teste serve a prévia da branch de ensaio.)
+
+`--ligar` confere a publicação **três vezes**: antes de ligar, dentro da função do banco (o evento tem que ter vindo desse commit) e de novo depois de ligar. Depois de ligar, qualquer coisa que impeça confirmar (commit diferente, resposta inconclusiva, erro de rede) desfaz a ligação; se nem o desfazer puder ser confirmado, o script sai com código **3** e diz que o número pode estar ligado (3ª rodada, achado 3). A chamada de ligar que falha sem resposta do banco recebe o mesmo tratamento, porque a transação pode ter sido gravada antes de a resposta se perder. A lógica está em `ligarComConferencia` (Task 10), com teste; o script só traduz o resultado em mensagem e código de saída.
+
+**Nesta fatia, `--ligar` só roda no ambiente de teste.** Em produção ele é recusado por código (`LIGAR_EM_PRODUCAO_LIBERADO = false`). Falta uma conferência que a trava da publicação não faz: em que endereço o webhook de cada número está registrado na Evolution. Quem grava esse endereço é a origem de quem clica em conectar ou no healthcheck do número (`registerCrmWebhook`, com `requestOrigin`), então ele pode estar fora da lista fechada (uma prévia, ou o endereço automático que a Vercel dá a cada branch e a cada deployment) e ser servido por outro código. A fatia 2 acrescenta essa leitura (`GET /webhook/find` da Evolution) antes de liberar a ligação em produção. No ensaio, a resposta real pedida logo antes de ligar mostra qual publicação atendeu o número (`release_commit` do evento).
 
 **Files:**
 - Create: `scripts/central-agentes/migrar-agentes.ts`
@@ -4095,36 +4629,75 @@ A prova compara o prompt calculado nesta cópia com o que a produção gravou. I
 /**
  * Central de Agentes, fatia 1 — migração do prompt de hoje para agentes.
  *
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova --ramo-publicado <ramo> --dominio <host> [--org <uuid>] [--incluir <id,id>]
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --ramo-publicado <ramo> --dominio <host> --confirmar-banco <ref> [--incluir <id,id>]
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar <connectionId> --ramo-publicado <ramo> --dominio <host> --confirmar-banco <ref>
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova [--org <uuid>] [--incluir <id,id>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --confirmar-banco <ref> [--incluir <id,id>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar <connectionId> --confirmar-banco <ref>
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --desligar <connectionId> --confirmar-banco <ref>
  *
- * <ramo> é o que o ambiente publica: `main` em produção; a branch da prévia no teste. <host> é o domínio que
- * atende aquele banco: `crm.basea2.com` em produção; `teste.crm.basea2.com` no teste. A prova só vale com esta
- * cópia exatamente no commit publicado (HEAD == origin/<ramo>, depois de um fetch), sem mudança local nos
- * arquivos que decidem o prompt, E com o domínio servindo esse mesmo commit (lido na API da Vercel, recusando
- * transição e rollback).
+ * O ambiente (ramo publicado, projeto da Vercel e TODOS os domínios que atendem o banco) sai do banco
+ * conectado, numa lista fechada (AMBIENTES). A prova só vale com esta cópia exatamente no commit publicado
+ * (HEAD == origin/<ramo>, depois de um fetch), sem mudança local nos arquivos que decidem o prompt, E com
+ * todos os domínios do ambiente servindo esse mesmo commit (lido na API da Vercel, recusando transição,
+ * rollout e deployment mais novo não servido).
  *
  * Credenciais no ambiente (nunca impressas): NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_URL, SUPABASE_SECRET_KEY ou
- * SUPABASE_SERVICE_ROLE_KEY, VERCEL_TOKEN e VERCEL_TEAM_ID (VERCEL_PROJECT_ID opcional; o padrão é o projeto
- * do CRM). Toda escrita exige --confirmar-banco com a referência do projeto que o script imprime, para nunca
- * escrever no banco errado.
+ * SUPABASE_SERVICE_ROLE_KEY, VERCEL_TOKEN e VERCEL_TEAM_ID. Toda escrita exige --confirmar-banco com a
+ * referência do projeto que o script imprime, para nunca escrever no banco errado.
+ *
+ * Saída: 0 = feito; 1 = recusado ou desfeito (nada ficou ligado); 2 = uso ou trava; 3 = INCERTO (o número
+ * pode ter ficado ligado: rodar --desligar e conferir).
+ *
+ * Nesta fatia, --ligar só roda no ambiente de teste; em produção é recusado (LIGAR_EM_PRODUCAO_LIBERADO).
  */
 import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import {
   criarAgentes,
   desligarConexao,
-  ligarConexao,
+  ligarComConferencia,
   planejarMigracao,
   type ConexaoIgnorada,
   type GrupoPlanejado,
 } from '@/lib/agents/migracaoAgentes';
-import { criarClienteVercel, lerPublicacaoNoAr, type ClienteVercel } from '@/lib/agents/publicacaoVercel';
+import { criarClienteVercel, lerPublicacaoNoAr, type AmbientePublicado } from '@/lib/agents/publicacaoVercel';
 
 const ARQUIVOS_DO_PROMPT = ['lib/ai/prompts', 'lib/agents', 'lib/conversations/aiAgentConfig.ts'];
-const PROJETO_VERCEL_PADRAO = 'prj_Bxf5A1vWELuIIHh6P1HHMUC42ErV';
+const PROJETO_VERCEL = 'prj_Bxf5A1vWELuIIHh6P1HHMUC42ErV';
+const DOMINIOS_DE_PRODUCAO = ['crm.basea2.com', 'crm.cennohub.com.br', 'basecrm.vercel.app'];
+const DOMINIOS_DE_TESTE = ['teste.crm.basea2.com'];
+
+/**
+ * Os dois bancos que têm publicação para conferir. Lista FECHADA: banco → projeto → ramo → todos os domínios
+ * que atendem aquele banco. As duas listas juntas têm que ser os domínios do projeto na Vercel: se o projeto
+ * ganhar ou perder um domínio, toda leitura da publicação recusa (dominios_do_projeto_divergem) até a lista
+ * daqui ser atualizada.
+ */
+const AMBIENTES: Record<string, AmbientePublicado & { nome: string }> = {
+  eqidsihasmwwamkaqfka: {
+    nome: 'producao',
+    dominios: DOMINIOS_DE_PRODUCAO,
+    outrosDominiosDoProjeto: DOMINIOS_DE_TESTE,
+    ramo: 'main',
+    projectId: PROJETO_VERCEL,
+    producao: true,
+  },
+  zvwngsrflkicbbzfmrgy: {
+    nome: 'teste',
+    dominios: DOMINIOS_DE_TESTE,
+    outrosDominiosDoProjeto: DOMINIOS_DE_PRODUCAO,
+    ramo: 'feat/aurora-implantacao',
+    projectId: PROJETO_VERCEL,
+    producao: false,
+  },
+};
+
+/**
+ * Ligar número em PRODUÇÃO fica para a fatia 2. A trava da publicação só enxerga os domínios do projeto, e o
+ * webhook de cada número é registrado na Evolution com a origem de quem clicou em conectar ou no healthcheck
+ * (lib/channels/evolutionWebhookRegistration.ts): pode ser um endereço fora da lista, servido por outro
+ * código. Antes de virar `true`, o script tem que ler esse endereço na Evolution e exigir um domínio da lista.
+ */
+const LIGAR_EM_PRODUCAO_LIBERADO = false;
 
 function argumento(nome: string) {
   const i = process.argv.indexOf(nome);
@@ -4132,10 +4705,12 @@ function argumento(nome: string) {
 }
 const tem = (nome: string) => process.argv.includes(nome);
 
+/** `<ref>.supabase.co` → ref; local → 'local'. Qualquer outro host volta inteiro e não casa com ambiente nenhum. */
 function referenciaDoBanco(url: string) {
   const host = new URL(url).hostname;
   if (host === '127.0.0.1' || host === 'localhost') return 'local';
-  return host.split('.')[0];
+  const projeto = /^([a-z0-9]{20})\.supabase\.co$/.exec(host);
+  return projeto ? projeto[1] : host;
 }
 
 function git(args: string[]) {
@@ -4146,25 +4721,10 @@ function imprimirPlano(plano: { grupos: GrupoPlanejado[]; ignoradas: ConexaoIgno
   for (const g of plano.grupos) {
     console.log(`AGENTE  org=${g.organizationId} chave=${g.promptKey} origem=${g.promptSource} sha256=${g.sha256.slice(0, 12)} caracteres=${g.conteudo.length} nome=${g.nome} pronto=${g.pronto ? 'sim' : 'nao'}`);
     for (const c of g.conexoes) {
-      console.log(`        numero ${c.id} (${c.name}) producao=${c.situacao}${c.respostaEm ? ` entregue=${c.respostaEm}` : ''}`);
+      console.log(`        numero ${c.id} (${c.name}) producao=${c.situacao}${c.respostaEm ? ` evento_entregue=${c.respostaEm}` : ''}`);
     }
   }
   for (const i of plano.ignoradas) console.log(`IGNORADA ${i.id} (${i.name}) org=${i.organizationId} motivo=${i.motivo}`);
-}
-
-/** O commit que o domínio serve agora. Sai com 2 se não for o HEAD, ou se a publicação estiver em transição ou voltada. */
-async function publicacaoNoAr(api: ClienteVercel, opcoes: { dominio: string; ramo: string; projectId: string; commit: string }) {
-  const p = await lerPublicacaoNoAr(api, opcoes);
-  if (!p.ok) {
-    console.error(`Recusado: a publicacao em ${opcoes.dominio} nao esta parada no ramo ${opcoes.ramo} (${p.motivo}: ${p.detalhe}).`);
-    process.exit(2);
-  }
-  if (p.commit !== opcoes.commit) {
-    console.error(`Recusado: ${opcoes.dominio} serve ${p.commit.slice(0, 7)} (${p.deploymentId}) e esta copia esta em ${opcoes.commit.slice(0, 7)}.`);
-    process.exit(2);
-  }
-  console.log(`Publicacao: ${opcoes.dominio} serve ${p.commit.slice(0, 7)} (${p.deploymentId})`);
-  return p.commit;
 }
 
 async function main() {
@@ -4200,16 +4760,21 @@ async function main() {
     process.exit(2);
   }
 
-  const ramo = argumento('--ramo-publicado');
-  const dominio = argumento('--dominio');
-  if (!ramo || !dominio) {
-    console.error('Passe --ramo-publicado <ramo> e --dominio <host>: main + crm.basea2.com em producao; a branch da previa + teste.crm.basea2.com no teste.');
+  const ambiente = AMBIENTES[ref];
+  if (!ambiente) {
+    console.error(`Recusado: o banco ${ref} nao tem publicacao para conferir. --prova, --criar e --ligar so rodam contra ${Object.keys(AMBIENTES).join(' ou ')}.`);
     process.exit(2);
   }
-  git(['fetch', 'origin', ramo]);
-  const publicado = git(['rev-parse', `origin/${ramo}`]);
+  console.log(`Ambiente: ${ambiente.nome} | ramo ${ambiente.ramo} | dominios ${ambiente.dominios.join(', ')}`);
+  if (tem('--ligar') && ambiente.producao && !LIGAR_EM_PRODUCAO_LIBERADO) {
+    console.error('Recusado: ligar numero em producao entra na fatia 2 (falta conferir na Evolution o endereco do webhook de cada numero). Nesta fatia, --ligar so roda no ambiente de teste.');
+    process.exit(2);
+  }
+
+  git(['fetch', 'origin', ambiente.ramo]);
+  const publicado = git(['rev-parse', `origin/${ambiente.ramo}`]);
   if (publicado !== commit) {
-    console.error(`Recusado: esta copia esta em ${commit.slice(0, 7)} e ${ramo} publicado esta em ${publicado.slice(0, 7)}. A prova so vale com o codigo publicado.`);
+    console.error(`Recusado: esta copia esta em ${commit.slice(0, 7)} e ${ambiente.ramo} publicado esta em ${publicado.slice(0, 7)}. A prova so vale com o codigo publicado.`);
     process.exit(2);
   }
   if (promptAlterado) {
@@ -4223,8 +4788,38 @@ async function main() {
     process.exit(2);
   }
   const api = criarClienteVercel({ token, teamId });
-  const vercel = { dominio, ramo, projectId: process.env.VERCEL_PROJECT_ID || PROJETO_VERCEL_PADRAO, commit };
-  const publicacao = await publicacaoNoAr(api, vercel);
+  const lerPublicacao = () => lerPublicacaoNoAr(api, ambiente);
+
+  const ligar = argumento('--ligar');
+  if (ligar) {
+    // Confere a publicação antes, liga pela função do banco, confere de novo e desfaz se não confirmar.
+    const r = await ligarComConferencia(admin, ligar, lerPublicacao, commit);
+    if (r.estado === 'ligado') {
+      console.log(`LIGADO numero=${ligar} agente=${r.agentId} publicacao=${r.publicacao.slice(0, 7)}`);
+      return;
+    }
+    if (r.estado === 'nao_ligou') {
+      console.log(`NAO LIGOU numero=${ligar} motivo=${r.motivo}`);
+      process.exit(1);
+    }
+    if (r.estado === 'desfeito') {
+      console.error(`DESFEITO numero=${ligar}: ${r.motivo}. A ligacao ao agente ${r.agentId} foi desfeita e a linha conferida.`);
+      process.exit(1);
+    }
+    console.error(`ATENCAO numero=${ligar}: ${r.motivo}, e NAO foi possivel confirmar o desfazer (${r.detalhe}). O numero PODE ESTAR LIGADO ao agente ${r.agentId}. Rode --desligar ${ligar} --confirmar-banco ${ref} e confira antes de qualquer outra coisa.`);
+    process.exit(3);
+  }
+
+  const p = await lerPublicacao();
+  if (!p.ok) {
+    console.error(`Recusado: a publicacao do ambiente ${ambiente.nome} nao esta parada no ramo ${ambiente.ramo} (${p.motivo}: ${p.detalhe}).`);
+    process.exit(2);
+  }
+  if (p.commit !== commit) {
+    console.error(`Recusado: os dominios servem ${p.commit.slice(0, 7)} (${p.deploymentId}) e esta copia esta em ${commit.slice(0, 7)}.`);
+    process.exit(2);
+  }
+  console.log(`Publicacao: ${ambiente.dominios.join(', ')} servem ${p.commit.slice(0, 7)} (${p.deploymentId})`);
 
   const organizationId = argumento('--org');
   const incluir = (argumento('--incluir') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -4234,45 +4829,25 @@ async function main() {
       console.error('--criar exige --org <uuid>: um cliente por vez.');
       process.exit(2);
     }
-    const plano = await planejarMigracao(admin, { organizationId, incluir, publicacao });
+    const plano = await planejarMigracao(admin, { organizationId, incluir, publicacao: p.commit });
     imprimirPlano(plano);
     const r = await criarAgentes(admin, { organizationId, grupos: plano.grupos, catalogCommit: commit });
     for (const c of r.criados) console.log(`${c.criado ? 'CRIADO' : 'JA EXISTIA'} agente=${c.agentId} org=${c.organizationId}`);
-    for (const p of r.pulados) console.log(`PULADO sha256=${p.sha256.slice(0, 12)} numeros=${p.conexoes.join(',')}`);
+    for (const pulado of r.pulados) console.log(`PULADO sha256=${pulado.sha256.slice(0, 12)} numeros=${pulado.conexoes.join(',')}`);
     return;
   }
 
-  if (tem('--prova')) {
-    imprimirPlano(await planejarMigracao(admin, { organizationId, incluir, publicacao }));
-    return;
-  }
-
-  const ligar = argumento('--ligar');
-  if (ligar) {
-    const r = await ligarConexao(admin, ligar, { publicacao });
-    if (!r.ok) {
-      console.log(`NAO LIGOU numero=${ligar} motivo=${r.motivo}`);
-      process.exit(1);
-    }
-    // A publicação pode ter mudado entre a conferência e a ligação. Se mudou, o número não fica ligado com
-    // uma prova que já não vale: desliga na hora e sai com erro, para a pessoa olhar.
-    const depois = await lerPublicacaoNoAr(api, vercel);
-    if (!depois.ok || depois.commit !== publicacao) {
-      const d = await desligarConexao(admin, ligar);
-      console.error(`DESLIGADO numero=${ligar}: a publicacao mudou durante a ligacao (${depois.ok ? depois.commit.slice(0, 7) : `${depois.motivo}: ${depois.detalhe}`})${d.ok ? '' : ` e o desligamento falhou: ${d.detalhe}`}`);
-      process.exit(1);
-    }
-    console.log(`LIGADO numero=${ligar} agente=${r.agentId} publicacao=${publicacao.slice(0, 7)}`);
-  }
+  imprimirPlano(await planejarMigracao(admin, { organizationId, incluir, publicacao: p.commit }));
 }
 
 main().catch((erro) => {
+  // Só chega aqui erro ANTES de qualquer ligação (ligarComConferencia trata tudo o que acontece depois dela).
   console.error(erro instanceof Error ? erro.message : String(erro));
   process.exit(1);
 });
 ```
 
-- [ ] **Step 2: Conferir que compila e que as travas funcionam sem tocar banco nem Vercel**
+- [ ] **Step 2: Conferir que compila e que as travas funcionam sem tocar banco de cliente nem Vercel**
 
 Run: `npm run typecheck`
 Expected: sem erros (`tsconfig.json` inclui `**/*.ts`, então `scripts/` é conferido).
@@ -4280,18 +4855,24 @@ Expected: sem erros (`tsconfig.json` inclui `**/*.ts`, então `scripts/` é conf
 Run (sem credenciais no ambiente): `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova`
 Expected: "Faltam NEXT_PUBLIC_SUPABASE_URL..." e saída 2.
 
-Com as credenciais do Supabase local no ambiente (e sem as da Vercel):
-- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova` → "Passe --ramo-publicado <ramo> e --dominio <host>" e saída 2.
-- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova --ramo-publicado main --dominio crm.basea2.com` → "Recusado: esta copia esta em ..." e saída 2 (a branch local está à frente do `main`), antes de qualquer chamada à Vercel.
-- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova --ramo-publicado feat/central-agentes --dominio teste.crm.basea2.com` (com a branch já no GitHub e `HEAD == origin/feat/central-agentes`) → "Faltam VERCEL_TOKEN e VERCEL_TEAM_ID" e saída 2: a trava do git passou e a da Vercel segurou.
-- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --confirmar-banco local --ramo-publicado main --dominio crm.basea2.com` → recusado antes de ler o banco.
+Com as credenciais do Supabase **local** no ambiente:
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova` → "Recusado: o banco local nao tem publicacao para conferir" e saída 2, sem `git fetch` e sem chamada à Vercel.
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --confirmar-banco outro` → "Escrita recusada: passe --confirmar-banco local" e saída 2.
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --desligar 00000000-0000-4000-8000-000000000000 --confirmar-banco local` → "NAO DESLIGOU ... (conexao_inexistente)" e saída 1.
+
+A recusa de ligar em produção, **sem tocar a produção**: com `NEXT_PUBLIC_SUPABASE_URL=https://eqidsihasmwwamkaqfka.supabase.co`, `SUPABASE_SECRET_KEY=x` (uma chave que não vale) e **sem** `VERCEL_TOKEN` no ambiente:
+- `npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar 00000000-0000-4000-8000-000000000000 --confirmar-banco eqidsihasmwwamkaqfka` → "Ambiente: producao ..." e "Recusado: ligar numero em producao entra na fatia 2", saída 2.
+
+Nenhum pedido sai da máquina nesse comando: a recusa vem antes do `git fetch`, da Vercel e de qualquer leitura do banco. Se a mensagem não aparecer, o script para logo adiante em "Faltam VERCEL_TOKEN e VERCEL_TEAM_ID", também sem tocar o banco; aí o defeito é a ordem da recusa, e se corrige antes de seguir.
+
+As travas do git e da Vercel só são exercitadas contra o banco de teste, na Task 13 (o script recusa qualquer outro banco antes de chegar nelas); a lógica delas está coberta pelos testes de `publicacaoVercel` e de `ligarComConferencia` (Task 10).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add scripts/central-agentes/migrar-agentes.ts
 git diff --cached --stat
-git commit -m "feat(central-agentes): script de migracao com trava de banco, de organizacao, da versao publicada e da publicacao no ar"
+git commit -m "feat(central-agentes): script de migracao com ambiente pelo banco, trava da versao publicada e da publicacao no ar, e ligacao so no teste"
 ```
 
 ---
@@ -4320,46 +4901,70 @@ Expected: PASS (16 testes).
 
 ### Task 13: Publicação (cada passo com o OK do Junior)
 
-**Não seguir ao pé da letra** o rito `06-References/basecrm-rito-publicacao/LEIA-ME.md` (revisão do Codex, achado 7). Ele é da branch `feat/aurora-implantacao`:
-- o passo 3 dele empurra para `main` **e** para a branch da Aurora;
-- o `poll_deploys.py` só procura a prévia da branch da Aurora (linha 39) e espera também a produção.
+**O ensaio usa a branch que já é o ambiente de teste, `feat/aurora-implantacao`. Nenhuma branch nova vai para o GitHub** (3ª rodada do Codex, achado 1). Fatos lidos na API da Vercel e do Supabase em 05/10 (só leitura):
+- as cinco variáveis de banco genéricas do projeto valem para **Preview e Production ao mesmo tempo** (alvo `[preview, production]`, sem branch). Só `feat/aurora-implantacao` e `feat/funil-construtor` têm variáveis de Preview próprias;
+- o projeto não tem Ignored Build Step (`commandForIgnoringBuildStep` nulo) nem `vercel.json`, e a documentação da Vercel não lista `[vercel skip]` na mensagem do commit como jeito de pular build (os mecanismos documentados são o Ignored Build Step e `git.deploymentEnabled`). O plano anterior dependia disso para o primeiro push de uma branch nova;
+- as prévias são públicas (`ssoProtection` nulo).
 
-Desta entrega valem os comandos abaixo. Do rito, só se usam:
-- o `prova_login.py`;
-- os `sqlteste.py`/`sqlprod.py` para leitura;
-- o `poll_deploys.py` na produção, depois de a branch dele virar argumento com padrão `feat/aurora-implantacao` (assim o uso de hoje não muda).
+Logo, uma branch nova viraria uma prévia pública com as credenciais de produção. A branch de ensaio já tem as variáveis do banco de teste, está no mesmo commit do `main` (`335f32b`, então o push é fast-forward) e é a prévia que `teste.crm.basea2.com` serve. É também a branch que o rito (`06-References/basecrm-rito-publicacao/LEIA-ME.md`) e o `poll_deploys.py` já esperam, então os dois servem **como estão**. A diferença para o rito: aqui o push para a branch de ensaio vem **antes** (é o ensaio) e o push de produção é só `HEAD:main`.
 
-O evento de prova precisa do commit da publicação em tempo de execução (`VERCEL_GIT_COMMIT_SHA`). A Vercel só o expõe com **"Enable access to System Environment Variables"** marcado em Settings → Environment Variables do projeto. Sem isso o evento sai com `release_commit` nulo, a prova dá `PUBLICACAO_DIVERGE` em todo número e nada liga (falha fechada): ligar a opção e esperar outra resposta real.
+O evento de prova precisa do commit da publicação em tempo de execução (`VERCEL_GIT_COMMIT_SHA`). A Vercel só o expõe com "Enable access to System Environment Variables" marcado; em 05/10 a API do projeto devolveu `autoExposeSystemEnvs: true`. Se um dia vier desligado, o evento sai com `release_commit` nulo, a prova dá `PUBLICACAO_DIVERGE` em todo número e nada liga (falha fechada).
 
-- [ ] **Step 1: Banco de teste (`zvwngsrflkicbbzfmrgy`)**
+- [ ] **Step 0: Ler o ambiente antes de qualquer push ou escrita (só leitura)**
+
+  Run: `python 06-References/basecrm-rito-publicacao/ler_config_publicacao.py` (no cérebro; lê o cofre em processo e nunca imprime token nem valor de variável).
+
+  Só seguir se **tudo** abaixo for verdade; qualquer diferença para aqui e volta para o Junior:
+  1. `autoExposeSystemEnvs = True`; `rollingRelease = null` no projeto e `{"rollingRelease": null}` nas duas leituras de rollout;
+  2. existe o grupo de variáveis `alvo=[preview] branch='feat/aurora-implantacao'` com as cinco chaves de banco (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`);
+  3. os domínios do projeto que servem conteúdo são exatamente os quatro da lista fechada do script (`dominios que servem conteudo == lista fechada: True`), e a lista por ramo só traz deployments do ramo pedido (`todos do ramo pedido: True`);
+  4. `teste.crm.basea2.com` aponta para um deployment com `ref feat/aurora-implantacao` e `target None` (prévia), e os três domínios de produção (`crm.basea2.com`, `crm.cennohub.com.br`, `basecrm.vercel.app`) apontam para o mesmo deployment de produção, `PROMOTED`;
+  5. `git fetch origin`, depois `git merge-base --is-ancestor origin/feat/aurora-implantacao HEAD` e `git merge-base --is-ancestor origin/main HEAD` (os dois pushes serão fast-forward).
+
+- [ ] **Step 1: Banco de teste (`zvwngsrflkicbbzfmrgy`) e prévia na branch de ensaio**
   1. Aplicar a migration no banco de teste pelo MCP do Supabase (`apply_migration`) e corrigir a `version` em `supabase_migrations.schema_migrations` para `20260930000000`.
-  2. Conferir no projeto da Vercel que "Enable access to System Environment Variables" está marcado (só leitura; se não estiver, pedir o OK dele para marcar).
-  3. Primeiro push da branch, sem build: um commit vazio com `[vercel skip]` na mensagem, e `git push origin HEAD:feat/central-agentes` (OK dele). Sem variáveis próprias, a prévia de uma branch nova recebe as variáveis genéricas de Preview, que apontam para o banco de **produção** (aprendizado de 19/09).
-  4. Com a branch já no GitHub, criar na Vercel as variáveis de Preview restritas à branch `feat/central-agentes`, iguais às da `feat/aurora-implantacao` (URL e chaves do banco de teste). Lidas e gravadas em processo, nunca impressas.
-  5. Commit vazio sem `[vercel skip]` e push da branch: agora a Vercel constrói a prévia.
-  6. Esperar a prévia READY pela API da Vercel: `GET /v6/deployments?projectId=<projeto>&target=preview`, filtrando `meta.githubCommitRef = feat/central-agentes` e o sha, com o token lido do cofre em processo.
-  7. Provar pelo pedido real de login que a prévia usa `zvwngsrflkicbbzfmrgy` (o `prova_login.py`, apontado para a URL da prévia). Só então apontar `teste.crm.basea2.com` para ela (`POST /v2/deployments/{id}/aliases`).
-  8. Provocar uma mensagem de teste no número do ensaio e conferir, com o `sqlteste.py`:
+  2. `git push origin HEAD:feat/aurora-implantacao` (OK dele). **Nunca** `git push origin HEAD:feat/central-agentes` nem qualquer nome novo.
+  3. Esperar a prévia READY pela API da Vercel: `GET /v7/deployments?projectId=<projeto>&branch=feat/aurora-implantacao`, o item com o sha do HEAD, com o token lido do cofre em processo. Nesse momento `teste.crm.basea2.com` ainda aponta para a prévia antiga.
+  4. Provar pelo pedido real de login que a prévia **nova** usa `zvwngsrflkicbbzfmrgy`: o `prova_login.py` com a URL do deployment novo (ele ganha o domínio como argumento opcional; sem argumento, continua provando os três de hoje). Só então apontar `teste.crm.basea2.com` para ela (`POST /v2/deployments/{id}/aliases`).
+  5. Provocar uma mensagem de teste no número do ensaio e conferir, com o `sqlteste.py`:
      - a resposta gravou `prompt_sha256`, com `prompt_source` igual ao de antes e sem `agent_id`;
-     - `ai_reply_events` ganhou UMA linha para a resposta, com `agent_id` nulo, `prompt_key` igual à chave efetiva do número, `delivered_at` depois do `sent_at` da mensagem e `release_commit` **igual ao sha do deployment da prévia**. Se vier nulo, voltar ao item 2.
-  9. `--prova --org <organização do ensaio> --ramo-publicado feat/central-agentes --dominio teste.crm.basea2.com`, com as credenciais do banco de teste e da Vercel no ambiente, lidas do cofre em processo e nunca impressas. O número tem que sair `CONFERE`, e o script tem que imprimir `Publicacao: teste.crm.basea2.com serve <sha da prévia>`.
-  10. `--criar --org <organização do ensaio> --ramo-publicado feat/central-agentes --dominio teste.crm.basea2.com --confirmar-banco zvwngsrflkicbbzfmrgy`.
-  11. `--ligar <conexão do ensaio> --ramo-publicado feat/central-agentes --dominio teste.crm.basea2.com --confirmar-banco zvwngsrflkicbbzfmrgy`.
-  12. Provocar outra mensagem e conferir: `prompt_source = 'agent'`, `agent_version = 1`, o **mesmo** `prompt_sha256` da resposta do item 8, e um evento novo com `agent_id` preenchido e `prompt_key` nulo.
-  13. `--desligar <conexão do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy` e conferir que a próxima resposta volta sem `agent_id`, com o mesmo sha, e que o `--prova` volta a `CONFERE` para o número (o evento do agente não entra na prova).
-  14. Com o número desligado e um commit novo na branch (commit vazio + push), rodar `--ligar` **antes** de a prévia nova ficar READY: tem que recusar com `em_transicao`. Depois de READY e com o alias ainda na prévia antiga: tem que recusar com `rollback`. Reapontar o alias (item 7) e seguir.
+     - `ai_reply_events` ganhou UMA linha para a resposta, com `agent_id` nulo, `prompt_key` igual à chave efetiva do número, `delivered_at` depois do `sent_at` da mensagem e `release_commit` **igual ao sha do deployment da prévia**.
+  6. `--prova --org <organização do ensaio>`, com as credenciais do banco de teste e da Vercel no ambiente, lidas do cofre em processo e nunca impressas. O script tem que imprimir `Ambiente: teste | ramo feat/aurora-implantacao | dominios teste.crm.basea2.com` e `Publicacao: ... servem <sha da prévia>`, e o número tem que sair `CONFERE`.
+  7. `--criar --org <organização do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy`.
+  8. `--ligar <conexão do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy` → `LIGADO`.
+  9. Provocar outra mensagem e conferir: `prompt_source = 'agent'`, `agent_version = 1`, o **mesmo** `prompt_sha256` da resposta do item 5, e um evento novo com `agent_id` preenchido e `prompt_key` nulo.
+  10. `--desligar <conexão do ensaio> --confirmar-banco zvwngsrflkicbbzfmrgy` e conferir que a próxima resposta volta sem `agent_id`, com o mesmo sha, e que o `--prova` volta a `CONFERE` para o número (o evento do agente não entra na prova).
+  11. **Trava da publicação, ao vivo.** Com o número desligado, um commit vazio (`git commit --allow-empty -m "chore(central-agentes): ensaio da trava de publicacao"`) e `git push origin HEAD:feat/aurora-implantacao`:
+      - enquanto a prévia nova constrói, `--ligar` tem que responder `NAO LIGOU ... publicacao em_transicao`;
+      - com ela READY e o alias ainda na antiga, `NAO LIGOU ... publicacao mais_novo_nao_servido`;
+      - depois de reapontar o alias (itens 3 e 4 de novo), o `--prova` tem que dar `PUBLICACAO_DIVERGE` (o evento veio do commit anterior) e voltar a `CONFERE` só depois de uma resposta real nova.
+
+      O commit vazio fica no histórico e vai para o `main` na publicação; é a prova de que a trava enxerga uma troca de publicação de verdade.
+  12. A falha **na chamada de ligar** ou **depois** de ligar (erro de rede, resposta perdida) não dá para provocar no ensaio sem injetar erro. Ela é coberta pelos nove testes de `ligarComConferencia` (Task 10): desfaz, confere a linha, e devolve `incerto` (saída 3) quando não consegue confirmar.
 - [ ] **Step 2: Produção — migration ANTES do deploy**
   1. Leitura, com o OK dele: quais números têm `config.webhookUrl` (automação n8n), e se os fluxos deles mandam no metadata do `/ai-reply` alguma das seis chaves de rastro, que passam a ser descartadas (revisão do Codex, achado 9).
-  2. **G23, antes da escrita** (revisão do Codex, achado 20):
-     - registrar a data do último backup do projeto de produção e se o PITR está ligado (painel do Supabase ou `get_project` do MCP, só leitura);
-     - sem backup do dia, não aplicar;
-     - a volta (`volta-fatia-1.sql`) já foi provada no banco local (Task 2, Step 3).
+  2. **G23: backup nosso e restauração testada, antes da escrita** (revisão do Codex, achado 20; 3ª rodada, achado 8). O gate pede backup **e** restauração testada. Lido em 05/10 na API de gerenciamento: a organização do Supabase está no plano **Free** (`plan: free`), a lista de backups do projeto de produção vem vazia e `pitr_enabled` é falso. A documentação do Supabase confirma que projeto Free não tem backup automático e recomenda `supabase db dump`. Então não existe backup da plataforma para conferir; o backup é o que tirarmos:
+     1. **Dump** de produção com a CLI, numa pasta fora do Git e fora da pasta sincronizada (o arquivo de dados tem dado pessoal de lead). A URL é a do pooler em modo sessão, montada em processo com a senha do banco lida do cofre. Se a senha não estiver no cofre, **parar**: redefinir a senha derruba quem conecta direto no Postgres, e isso é decisão do Junior.
+        - `npx supabase db dump --db-url "<url>" -f roles.sql --role-only`
+        - `npx supabase db dump --db-url "<url>" -f schema.sql`
+        - `npx supabase db dump --db-url "<url>" -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"`
+     2. **Restauração em alvo isolado**: uma stack local temporária, vazia, só para isso (as portas são as mesmas da `crmia`, então ela para durante o ensaio):
+        - `npx supabase stop` no repositório; numa pasta temporária `ensaio-g23`: `npx supabase init`; antes do `start`, deixar `[db] major_version` do `supabase/config.toml` dela igual à versão do Postgres de produção (`select version()` pelo `sqlprod.py`, só leitura; o local do repositório usa 15); depois `npx supabase start`;
+        - copiar os três arquivos para o container do banco temporário (`docker cp`) e restaurar com o comando da documentação: `psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET session_replication_role = replica' --file data.sql --dbname <url local>`;
+        - comparar a contagem de linhas, produção (`sqlprod.py`, só leitura) × restaurado, em `organizations`, `profiles`, `contacts`, `deals`, `channel_connections`, `conversation_threads`, `conversation_messages` e `ai_prompt_templates`. Tem que bater.
+     3. **A migration na cópia restaurada**: aplicar `20260930000000_central_agentes_fundacao.sql` nela e, em seguida, o `volta-fatia-1.sql`. Os dois têm que terminar sem erro sobre o esquema e os dados reais (a volta no banco local, Task 2, só provou sobre o esquema das migrations).
+     4. Registrar no cérebro a evidência, sem dado pessoal: data, tamanho dos três arquivos, as contagens e o resultado dos dois scripts. Derrubar a stack temporária (`npx supabase stop --no-backup` na pasta dela) e religar a `crmia`.
+     5. O dump fica guardado até a fatia estar validada em produção; depois o Junior decide se apaga ou mantém como primeiro backup externo.
+
+     Enquanto isso não estiver feito e registrado, o G23 é **PENDENTE** e a migration não vai para produção. Se a restauração falhar na primeira tentativa, o defeito é do procedimento e se corrige nele; não se pula a etapa.
   3. Aplicar a migration no banco de produção (`eqidsihasmwwamkaqfka`) e corrigir a `version`, como no teste.
   4. Conferir que a coluna e a tabela existem (`select ai_agent_id from public.channel_connections limit 1` e `select count(*) from public.ai_reply_events`, sem erro).
-  5. Só então: `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD` e `git push origin HEAD:main`. Não empurrar para nenhuma outra branch.
-  6. Esperar produção READY e **devolver `teste.crm.basea2.com` para a prévia**, porque toda publicação de produção leva esse domínio junto. O `poll_deploys.py` com a branch como argumento faz as duas coisas. Provar os dois bancos pelo `prova_login.py`.
+  5. Só então: `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD` e `git push origin HEAD:main`. A branch de ensaio já está neste commit; nenhuma outra branch é empurrada.
+  6. Esperar produção READY e **devolver `teste.crm.basea2.com` para a prévia**, porque toda publicação de produção leva esse domínio junto: `python poll_deploys.py <sha-curto>`, como está (a prévia desse sha na branch de ensaio já existe). Provar os dois bancos pelo `prova_login.py`.
 - [ ] **Step 3: Produção adormecida**
   - a próxima resposta real da Aurora sai como antes (`prompt_source = 'default'`, sem `agent_id`), agora com `prompt_sha256` e com um evento em `ai_reply_events` cujo `release_commit` é o sha do deploy de produção (conferir com o `sqlprod.py`, só leitura);
-  - depois de uma resposta real de cada uma, `--prova --ramo-publicado main --dominio crm.basea2.com`, só leitura, com o relatório guardado no cérebro. Aurora e Julia têm que sair `CONFERE`;
+  - depois de uma resposta real de cada uma, `--prova` com as credenciais de produção, só leitura, com o relatório guardado no cérebro. O script tem que imprimir `Ambiente: producao | ramo main | dominios crm.basea2.com, crm.cennohub.com.br, basecrm.vercel.app`, e Aurora e Julia têm que sair `CONFERE`;
   - operação (revisão do Codex, ponto 2): num número com agente, uma falha do agente (`agent_unavailable`) cai na automação n8n do cliente, se houver, como qualquer falha da IA nativa.
-- [ ] **Step 4:** Ligar Aurora e Julia em produção **não** faz parte desta fatia. Fica para a entrega da fatia 2, junto do editor, do 409 no PATCH de `aiPromptKey`, da trava do catálogo e do aviso na Central de I.A. Enquanto a fatia 2 não entra, **não publicar override pela Central de I.A nem mexer no catálogo das duas chaves no mesmo horário em que um `--ligar` roda**: a função trava a tabela de prompts durante a ligação (milissegundos), mas o congelamento operacional evita a surpresa de um `override_mudou` no meio da entrega.
+- [ ] **Step 4:** Ligar Aurora e Julia em produção **não** faz parte desta fatia, e o script recusa por código (`LIGAR_EM_PRODUCAO_LIBERADO = false`, Task 11). Fica para a entrega da fatia 2, junto do editor, do 409 no PATCH de `aiPromptKey`, da trava do catálogo, do aviso na Central de I.A e da leitura, na Evolution, do endereço em que o webhook de cada número está registrado (tem que ser um domínio da lista fechada; quem grava esse endereço é a origem de quem clica em conectar ou no healthcheck). O `--prova` de produção do Step 3 é só leitura e não autoriza ligação. Enquanto a fatia 2 não entra, **não publicar override pela Central de I.A nem mexer no catálogo das duas chaves no mesmo horário em que um `--ligar` roda**: a função trava a tabela de prompts durante a ligação (milissegundos), mas o congelamento operacional evita a surpresa de um `override_mudou` no meio da entrega. Pelo mesmo motivo, não rodar conectar nem healthcheck de um número real por um endereço fora da lista fechada (uma prévia, ou o endereço automático da Vercel): isso muda o endereço do webhook dele na Evolution.
+
+**Se precisar voltar depois do deploy de produção:** primeiro o código (promover o deployment de produção anterior na Vercel). O código antigo não lê a coluna nem as tabelas novas, então o banco pode ficar como está. O `volta-fatia-1.sql` só roda depois disso, com o OK dele, e apaga os eventos de prova junto.
