@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { generateText, NoObjectGeneratedError, Output } from 'ai';
 import { z } from 'zod';
+import { carregarVersaoPublicada, type VersaoPublicadaDoAgente } from '@/lib/agents/agentRuntime';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { getModel, type AIProvider } from '@/lib/ai/config';
 import { criarFetchContador, type AIReplyTiming } from '@/lib/ai/medicaoResposta';
@@ -377,7 +378,11 @@ export async function generateConversationAutoReply(params: {
   contactName: string | null;
   contactPhone: string;
   recentMessages: RecentMessage[];
-  promptKey?: string;
+  /**
+   * Chave do prompt da conexão. Ausente = chave padrão, como sempre. `null` = a conexão tem uma chave
+   * inválida: sem agente, a resposta falha com `missing_prompt` em vez de cair no prompt padrão.
+   */
+  promptKey?: string | null;
   /** Encerramento depois do handoff (ver closingReply.ts): muda a situacao no prompt e proibe novo handoff. */
   closing?: { handoff: ConversationHandoff; repliesUsed: number } | null;
   /** Metadata da conversa (lastHandoff): a IA reconhece lead que volta com reuniao ja confirmada. */
@@ -405,6 +410,18 @@ export async function generateConversationAutoReply(params: {
     return { ok: false as const, reason: generationGate.reason };
   }
   const generationConnectionConfig = generationGate.connection.config;
+  // Central de Agentes (fatia 1): número com agente usa a versão publicada. Só o prompt (e o modelo, se a
+  // versão tiver um) muda de fonte; variáveis, histórico, render e esquema de saída seguem iguais.
+  const agentId = generationGate.connection.ai_agent_id ?? null;
+  let agentVersion: VersaoPublicadaDoAgente | null = null;
+  if (agentId) {
+    const agente = await carregarVersaoPublicada(admin as never, { organizationId, agentId });
+    if (!agente.ok) {
+      console.warn('[Conversation AI] Linked agent unavailable', { organizationId, connectionId, agentId, reason: agente.motivo });
+      return { ok: false as const, reason: 'agent_unavailable' as const };
+    }
+    agentVersion = agente.versao;
+  }
 
   const { data: orgSettings, error: orgError } = await admin
     .from('organization_settings')
@@ -440,18 +457,24 @@ export async function generateConversationAutoReply(params: {
   const model = getModel(
     provider,
     apiKey,
-    orgSettings?.ai_model || AI_DEFAULT_MODELS[provider] || AI_DEFAULT_MODELS.google,
+    agentVersion?.model || orgSettings?.ai_model || AI_DEFAULT_MODELS[provider] || AI_DEFAULT_MODELS.google,
     { fetch: fetchContador.fetch },
   );
 
-  const resolvedPrompt = await getResolvedPrompt(
-    admin as any,
-    organizationId,
-    promptKey
-  );
+  // Com agente, o prompt é o da versão publicada. Sem agente e sem chave válida (`null`), falha como o
+  // webhook falhava antes de chamar o gerador, em vez de cair no prompt padrão (corrida de desligar o
+  // agente durante o debounce).
+  const resolvedPrompt = agentVersion
+    ? { content: agentVersion.prompt, source: 'agent' as const }
+    : promptKey
+      ? await getResolvedPrompt(admin as any, organizationId, promptKey)
+      : null;
   if (!resolvedPrompt) {
     return { ok: false as const, reason: 'missing_prompt' };
   }
+  // Impressão digital do texto usado, antes de trocar as variáveis. Prova, na resposta real, qual prompt
+  // respondeu, e é o que o script de migração compara antes de ligar um número a um agente.
+  const promptSha256 = createHash('sha256').update(resolvedPrompt.content, 'utf8').digest('hex');
 
   const currentDateTime = new Date().toISOString();
   const inicioAgenda = Date.now();
@@ -617,6 +640,8 @@ export async function generateConversationAutoReply(params: {
   return {
     ok: true as const,
     source: resolvedPrompt.source,
+    promptSha256,
+    agent: agentVersion ? { id: agentVersion.agentId, version: agentVersion.version } : null,
     // Pos-processamento (politica de agenda, etiquetas) entra no total: e rapido, mas e tempo do lead.
     timing: { ...modelTiming, total_ms: Date.now() - inicio } satisfies AIReplyTiming,
     object: {
