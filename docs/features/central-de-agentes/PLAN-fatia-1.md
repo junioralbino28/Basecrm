@@ -26,7 +26,7 @@
 
 **Tech Stack:** Next.js (rotas em `app/`), Supabase Postgres 15 (migrations em `supabase/migrations`), supabase-js, AI SDK (`ai`), Vitest (+ Supabase local via `npm run test:local`), TypeScript. O script roda com `npx --yes tsx@4.23.1` (versão já no cache do npx desta máquina; sem `--yes`, o npx para esperando confirmação).
 
-**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial interna e as quatro rodadas do Codex integradas). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md`, `devolutiva-codex-2-fatia-1.md`, `devolutiva-codex-3-fatia-1.md` e `devolutiva-codex-4-fatia-1.md`.
+**SPEC:** `docs/features/central-de-agentes/SPEC.md` (aprovada em 29/09/2026, com a revisão adversarial interna e as cinco rodadas do Codex integradas). Levantamentos com arquivo:linha em `docs/features/central-de-agentes/levantamento/`, incluindo `revisao-adversarial-fatia-1.md` e `devolutiva-codex-2-fatia-1.md` a `devolutiva-codex-5-fatia-1.md`. Os scripts do rito de publicação (Task 13) vivem no cérebro, em `06-References/basecrm-rito-publicacao/`, e o PLAN traz cópias byte a byte deles.
 
 **Regras do projeto que valem aqui:**
 - Nunca rodar teste, migration ou script contra o banco de produção sem o OK do Junior.
@@ -2496,7 +2496,7 @@ git commit -m "test(central-agentes): prova byte a byte do prompt enviado e do s
 
 ### Task 8: O webhook com agente (guarda, chave nula, falha, metadata) e o evento de prova
 
-O evento de prova (`ai_reply_events`) nasce aqui (2ª rodada do Codex, achados 1, 3 e 5). O webhook manda `replyEvent` no payload; `executeConversationAIReply` só grava o evento **depois** de a última parte ser aceita pela Evolution, com a hora da entrega lida ali, e nunca derruba a resposta por causa disso. A rota do n8n e a cutucada não mandam `replyEvent` e não gravam evento. O commit da publicação vem de `VERCEL_GIT_COMMIT_SHA` e o id do deployment de `VERCEL_DEPLOYMENT_ID` (as duas disponíveis em tempo de execução quando "Enable access to System Environment Variables" está ligado no projeto da Vercel; Task 13 confere). O id do deployment entrou na 4ª rodada do Codex (achado 12): um redeploy do mesmo commit é outra publicação, e pode ter outras variáveis de ambiente.
+O evento de prova (`ai_reply_events`) nasce aqui (2ª rodada do Codex, achados 1, 3 e 5). O webhook manda `replyEvent` no payload; `executeConversationAIReply` só grava o evento **depois** de a última parte ser aceita pela Evolution, com a hora da entrega lida ali, e nunca derruba a resposta por causa disso: o registrador trata `{ error }` **e** captura exceção do insert (rejeição do cliente, rede), porque o chamador no webhook está dentro do `try` que, ao lançar, grava falha de entrega para uma resposta que já saiu (5ª rodada do Codex, achado 3; `webhook/route.ts:259-334` em `335f32b`). A rota do n8n e a cutucada não mandam `replyEvent` e não gravam evento. O commit da publicação vem de `VERCEL_GIT_COMMIT_SHA` e o id do deployment de `VERCEL_DEPLOYMENT_ID` (as duas disponíveis em tempo de execução quando "Enable access to System Environment Variables" está ligado no projeto da Vercel; Task 13 confere). O id do deployment entrou na 4ª rodada do Codex (achado 12): um redeploy do mesmo commit é outra publicação, e pode ter outras variáveis de ambiente.
 
 **Files:**
 - Create: `lib/conversations/aiReplyEvents.ts`
@@ -2601,6 +2601,22 @@ describe('registrar o evento de resposta', () => {
     const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await expect(registrarEventoDeResposta(admin as never, dados)).resolves.toBeUndefined();
     expect(aviso).toHaveBeenCalledWith('[Conversation AI] Failed to record reply event', expect.objectContaining({ error: 'boom' }));
+  });
+
+  it('insert que LANÇA (rejeição do cliente, rede) também só avisa: nada sobe para o chamador', async () => {
+    // O cliente real pode rejeitar em vez de devolver { error } (5ª rodada do Codex, achado 3). Um stub mínimo basta:
+    // o banco falso só sabe devolver { error }.
+    const admin = { from: () => ({ insert: () => Promise.reject(new Error('fetch failed')) }) };
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(registrarEventoDeResposta(admin as never, dados)).resolves.toBeUndefined();
+    expect(aviso).toHaveBeenCalledWith('[Conversation AI] Failed to record reply event', expect.objectContaining({ error: 'fetch failed' }));
+  });
+
+  it('insert que lança de forma SÍNCRONA também só avisa', async () => {
+    const admin = { from: () => ({ insert: () => { throw new Error('cliente quebrado'); } }) };
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(registrarEventoDeResposta(admin as never, dados)).resolves.toBeUndefined();
+    expect(aviso).toHaveBeenCalledWith('[Conversation AI] Failed to record reply event', expect.objectContaining({ error: 'cliente quebrado' }));
   });
 });
 ```
@@ -2787,25 +2803,34 @@ export type EventoDeResposta = {
  * mensagem manual ou do n8n não escreve aqui, com o metadata que tiver. Nunca lança: a resposta já saiu.
  */
 export async function registrarEventoDeResposta(admin: AdminClient, evento: EventoDeResposta): Promise<void> {
-  const { error } = await admin.from('ai_reply_events').insert({
-    organization_id: evento.organizationId,
-    channel_connection_id: evento.channelConnectionId,
-    thread_id: evento.threadId,
-    prompt_sha256: evento.promptSha256,
-    prompt_key: evento.promptKey,
-    prompt_source: evento.promptSource,
-    agent_id: evento.agentId,
-    agent_version: evento.agentVersion,
-    release_commit: lerCommitDaPublicacao(),
-    release_deployment: lerDeploymentDaPublicacao(),
-    delivered_at: evento.deliveredAt,
-  });
-  if (error) {
+  const contexto = {
+    organizationId: evento.organizationId,
+    connectionId: evento.channelConnectionId,
+    threadId: evento.threadId,
+  };
+  try {
+    const { error } = await admin.from('ai_reply_events').insert({
+      organization_id: evento.organizationId,
+      channel_connection_id: evento.channelConnectionId,
+      thread_id: evento.threadId,
+      prompt_sha256: evento.promptSha256,
+      prompt_key: evento.promptKey,
+      prompt_source: evento.promptSource,
+      agent_id: evento.agentId,
+      agent_version: evento.agentVersion,
+      release_commit: lerCommitDaPublicacao(),
+      release_deployment: lerDeploymentDaPublicacao(),
+      delivered_at: evento.deliveredAt,
+    });
+    if (error) {
+      console.warn('[Conversation AI] Failed to record reply event', { ...contexto, error: error.message });
+    }
+  } catch (erro) {
+    // Rejeição ou exceção do cliente (rede, cliente quebrado): só avisa. O chamador no webhook trataria um lançamento
+    // aqui como falha de ENTREGA de uma resposta que já saiu (5ª rodada do Codex, achado 3).
     console.warn('[Conversation AI] Failed to record reply event', {
-      organizationId: evento.organizationId,
-      connectionId: evento.channelConnectionId,
-      threadId: evento.threadId,
-      error: error.message,
+      ...contexto,
+      error: erro instanceof Error ? erro.message : String(erro),
     });
   }
 }
@@ -4256,6 +4281,27 @@ describe('ligar com conferência da publicação antes e depois (3ª rodada do C
     const r = await ligarComConferencia(admin as never, 'c1', leitura, PUBLICACAO);
     expect(r).toMatchObject({ estado: 'incerto', agentId: 'a1' });
   });
+
+  it('publicação confirmada, mas o número foi APAGADO durante a conferência: conexao_inexistente, não "desfeito"', async () => {
+    // 5ª rodada do Codex, achado 6: linha ausente não é "linha sem agente".
+    const admin = pronto();
+    const leitura = publicacoes(NO_AR, () => {
+      admin.tables.channel_connections.length = 0;
+      return NO_AR;
+    });
+    const r = await ligarComConferencia(admin as never, 'c1', leitura, PUBLICACAO);
+    expect(r).toEqual({ estado: 'conexao_inexistente', agentId: 'a1', motivo: 'o numero foi apagado durante a conferencia' });
+  });
+
+  it('a chamada de ligação falha e o número já não existe: conexao_inexistente, não "não ligou"', async () => {
+    const admin = pronto();
+    admin.rpcResults.central_agentes_ligar_conexao = () => {
+      admin.tables.channel_connections.length = 0;
+      throw new Error('fetch failed');
+    };
+    const r = await ligarComConferencia(admin as never, 'c1', publicacoes(NO_AR), PUBLICACAO);
+    expect(r).toMatchObject({ estado: 'conexao_inexistente', agentId: 'a1', motivo: expect.stringContaining('o numero nao existe mais') });
+  });
 });
 ```
 
@@ -4639,6 +4685,9 @@ export type ResultadoLigarConferido =
    * achado 10). Não é "desfeito" nem "não ligou": o número responde com `agenteAtual`.
    */
   | { estado: 'ligado_a_outro'; agentId: string; agenteAtual: string; motivo: string }
+  /** O número não existe mais: foi apagado durante a operação (5ª rodada do Codex, achado 6). Não é "linha sem
+   * agente": não há linha. */
+  | { estado: 'conexao_inexistente'; agentId: string; motivo: string }
   /** A linha continua com este agente depois de um desfazer, ou não pôde ser lida: o número pode estar ligado. */
   | { estado: 'incerto'; agentId: string; motivo: string; detalhe: string };
 
@@ -4646,13 +4695,15 @@ type LinhaConferida =
   | { tipo: 'este' }
   | { tipo: 'outro'; agenteAtual: string }
   | { tipo: 'nenhum' }
+  | { tipo: 'inexistente' }
   | { tipo: 'ilegivel'; detalhe: string };
 
 /** O que a linha do número mostra agora, comparado ao agente que esta chamada tentou ligar. Nunca lança. */
 async function conferirLinha(admin: SupabaseClient, connectionId: string, agentId: string): Promise<LinhaConferida> {
   try {
     const agora = await lerAgenteDaConexao(admin, connectionId);
-    if (!agora.existe || !agora.agentId) return { tipo: 'nenhum' };
+    if (!agora.existe) return { tipo: 'inexistente' };
+    if (!agora.agentId) return { tipo: 'nenhum' };
     return agora.agentId === agentId ? { tipo: 'este' } : { tipo: 'outro', agenteAtual: agora.agentId };
   } catch (erro) {
     return { tipo: 'ilegivel', detalhe: erro instanceof Error ? erro.message : String(erro) };
@@ -4666,7 +4717,8 @@ async function conferirLinha(admin: SupabaseClient, connectionId: string, agentI
  *  - a linha continua com este agente, ou não pôde ser lida → `incerto`;
  *  - a linha está com OUTRO agente → `ligado_a_outro`, com o agente atual (o desfazer é condicionado ao
  *    agente, então a ligação de outra pessoa fica);
- *  - a linha está sem agente (ou o número não existe mais) → `desfeito` se havia ligação, `nao_ligou` se não.
+ *  - o número não existe mais → `conexao_inexistente` (5ª rodada, achado 6: não é "linha sem agente");
+ *  - a linha está sem agente → `desfeito` se havia ligação, `nao_ligou` se não.
  */
 async function desfazerEConferir(
   admin: SupabaseClient,
@@ -4685,6 +4737,7 @@ async function desfazerEConferir(
   if (linha.tipo === 'ilegivel') return { estado: 'incerto', agentId, motivo, detalhe: linha.detalhe };
   if (linha.tipo === 'este') return { estado: 'incerto', agentId, motivo, detalhe: 'o numero continua ligado a esse agente' };
   if (linha.tipo === 'outro') return { estado: 'ligado_a_outro', agentId, agenteAtual: linha.agenteAtual, motivo };
+  if (linha.tipo === 'inexistente') return { estado: 'conexao_inexistente', agentId, motivo: `${motivo}; o numero nao existe mais` };
   return ligouComCerteza || desfez ? { estado: 'desfeito', agentId, motivo } : { estado: 'nao_ligou', motivo };
 }
 
@@ -4737,6 +4790,9 @@ export async function ligarComConferencia(
       if (linha.tipo === 'nenhum') {
         return { estado: 'desfeito', agentId: ligada.agentId, motivo: 'outra pessoa desligou o numero durante a conferencia' };
       }
+      if (linha.tipo === 'inexistente') {
+        return { estado: 'conexao_inexistente', agentId: ligada.agentId, motivo: 'o numero foi apagado durante a conferencia' };
+      }
       return { estado: 'incerto', agentId: ligada.agentId, motivo: 'ligado com a publicacao confirmada, mas a linha nao pode ser relida', detalhe: linha.detalhe };
     }
     motivo = depois.ok
@@ -4752,7 +4808,7 @@ export async function ligarComConferencia(
 - [ ] **Step 12: Rodar e ver passar**
 
 Run: `npx vitest run lib/agents/ test/helpers/fakeSupabaseAdmin.test.ts`
-Expected: PASS (agentRuntime, publicacaoVercel com 11 testes, migracaoAgentes com 25 testes, e o banco falso).
+Expected: PASS (agentRuntime, publicacaoVercel com 11 testes, migracaoAgentes com 27 testes, e o banco falso).
 
 - [ ] **Step 13: Commit**
 
@@ -4807,7 +4863,7 @@ A prova compara o prompt calculado nesta cópia com o que a produção gravou. I
  * SUPABASE_SERVICE_ROLE_KEY, VERCEL_TOKEN e VERCEL_TEAM_ID. Toda escrita exige --confirmar-banco com a
  * referência do projeto que o script imprime, para nunca escrever no banco errado.
  *
- * Saída: 0 = feito; 1 = recusado ou desfeito (nada ficou ligado, linha conferida); 2 = uso ou trava;
+ * Saída: 0 = feito; 1 = recusado, desfeito (nada ficou ligado, linha conferida) ou numero que nao existe mais; 2 = uso ou trava;
  * 3 = INCERTO (o número pode ter ficado ligado ao agente desta chamada: rodar --desligar com --se-agente e
  * conferir); 4 = LIGADO A OUTRO AGENTE (alguém ligou o número durante a operação: não desligar sem falar com
  * quem ligou).
@@ -4973,6 +5029,11 @@ async function main() {
       console.error(`DESFEITO numero=${ligar}: ${r.motivo}. O numero nao esta ligado a agente nenhum (linha conferida).`);
       process.exit(1);
     }
+    if (r.estado === 'conexao_inexistente') {
+      // 5ª rodada do Codex, achado 6: nao e "linha sem agente"; nao ha linha.
+      console.error(`NAO LIGOU numero=${ligar}: ${r.motivo}. O numero NAO EXISTE MAIS neste banco (apagado durante a operacao); nada ficou ligado e nao ha o que desligar.`);
+      process.exit(1);
+    }
     if (r.estado === 'ligado_a_outro') {
       console.error(`ATENCAO numero=${ligar}: ${r.motivo}. O numero esta LIGADO A OUTRO AGENTE (${r.agenteAtual}), nao ao ${r.agentId}. Alguem ligou o numero durante a operacao: nao rode --desligar sem falar com quem ligou.`);
       process.exit(4);
@@ -5083,21 +5144,25 @@ O evento de prova precisa do commit e do id do deployment em tempo de execução
 
 - [ ] **Step 0: Ferramentas do rito e leitura do ambiente, antes de qualquer push ou escrita**
 
-  Os scripts do rito ficam no cérebro, em `06-References/basecrm-rito-publicacao/`, e todos saem com código diferente de 0 quando algo não confere. `ler_config_publicacao.py` e `ler_env_ensaio.py` já existem e só leem (o cofre é lido em processo; nunca imprimem token nem valor de variável). Os outros dois mudam ou nascem aqui, ANTES do push.
+  Os scripts do rito ficam no cérebro, em `06-References/basecrm-rito-publicacao/`, e todos saem com código diferente de 0 quando algo não confere. Desde a v6 (06/10) todos já existem lá, e os blocos de código abaixo (`prova_login.py`, o manifesto e `aplicar_migration.py`) são cópias **byte a byte** dos arquivos (conferir com `diff` antes de usar; divergência = parar e olhar qual dos dois mudou): `ler_config_publicacao.py` e `ler_env_ensaio.py` só leem; `prova_login.py` faz um login inválido e lê a resposta; `aplicar_migration.py` é a única escrita, e só roda nos Steps 1.1 e 2.3; `sqlprod.py`/`sqlteste.py` mandam `read_only: true` e o Postgres recusa escrita por eles (provado em 06/10 no banco de teste: `cannot execute CREATE TABLE in a read-only transaction`). O cofre é lido em processo; nenhum deles imprime token nem valor de variável.
 
-  1. **`prova_login.py` passa a aceitar um endereço e o banco esperado, e a falhar quando não confere** (4ª rodada do Codex, achado 11). Hoje ele só percorre três domínios fixos e imprime o ref, ou "NENHUM PEDIDO", sem falhar. Substituir pelo código abaixo e conferir os dois modos (só leitura: é um login com credencial inválida, nada é gravado):
+  1. **`prova_login.py` v3: um endereço, o banco esperado, e a RESPOSTA do serviço de autenticação** (4ª rodada do Codex, achado 11; 5ª rodada, achado 4). Além do destino do pedido de `/auth/v1/token`, o script lê a resposta: `CONFERE` exige o pedido para `<ref esperado>.supabase.co` **e** `400 invalid_credentials` (a chave que o deployment carrega vale naquele banco e a autenticação está de pé); `401 Invalid API key` é "destino certo, chave que não vale ali" e falha; sem pedido nenhum, falha. Medido em 05/10 no banco de teste: chave válida + credencial inválida → 400 `invalid_credentials` (formato novo do GoTrue, que o supabase-js recebe: `{code: "invalid_credentials", message: "Invalid login credentials"}`; o formato antigo, sem o cabeçalho de versão, traz `error_code`); chave inválida → 401 `Invalid API key`. Rodado em 06/10 contra o domínio de teste: `CONFERE`, saída 0. Só leitura: é um login com credencial inválida, nada é gravado. Os dois modos:
      - `python prova_login.py` → os três domínios de sempre, cada um no banco esperado, saída 0;
      - `python prova_login.py --url https://teste.crm.basea2.com --ref zvwngsrflkicbbzfmrgy` → saída 0.
 
 ```python
 # -*- coding: utf-8 -*-
-"""Prova qual banco um endereço usa pelo PEDIDO de /auth/v1/token (login inválido; nada é gravado).
+"""Prova qual banco um endereço usa, e que a chave dele vale lá, pelo PEDIDO e pela RESPOSTA de /auth/v1/token
+(login com credencial inválida; nada é gravado).
 
   python prova_login.py                                   # os três domínios de sempre, cada um no banco esperado
   python prova_login.py --url https://<endereço> --ref <ref esperado>   # um endereço (ex.: a URL de um deployment novo)
 
-Saída: 0 só se TODOS os endereços fizeram o pedido de login e ao banco esperado; 1 se algum divergiu ou não
-fez pedido nenhum; 2 em uso errado."""
+CONFERE exige três coisas de cada endereço: o pedido saiu para `<ref esperado>.supabase.co`; a resposta foi 400 com
+`error_code = invalid_credentials` (a chave que o deployment carrega vale nesse banco e a autenticação está de pé); e
+não foi 401 "Invalid API key" (destino certo, chave que NÃO vale ali; 5ª rodada do Codex, achado 4). Medido em 05/10
+no banco de teste: chave válida + credencial inválida → 400 invalid_credentials; chave inválida → 401 Invalid API key.
+Saída: 0 só se TODOS conferem; 1 se algum divergiu, respondeu outra coisa ou não fez pedido nenhum; 2 em uso errado."""
 import sys
 from playwright.sync_api import sync_playwright
 
@@ -5109,15 +5174,45 @@ ESPERADO = {
 
 
 def prova(page, base):
-    hosts = []
-    page.on("request", lambda r: hosts.append(r.url) if "/auth/v1/token" in r.url else None)
+    """(ref do host do pedido, status da resposta, error_code ou message) do primeiro pedido de login, ou None."""
+    respostas = []
+    page.on("response", lambda r: respostas.append(r) if "/auth/v1/token" in r.url else None)
     page.goto(f"{base}/login", wait_until="networkidle")
-    page.wait_for_timeout(1500)
+    page.wait_for_timeout(1500)  # hidratação: antes dela o clique passa sem pedido nenhum
     page.fill('input[type="email"]', "prova@invalida.dev")
     page.fill('input[type="password"]', "senha-invalida-123")
     page.click('button[type="submit"]')
     page.wait_for_timeout(4000)
-    return hosts[0].split("//")[1].split(".")[0] if hosts else None
+    if not respostas:
+        return None
+    r = respostas[0]
+    host = r.url.split("//")[1].split("/")[0]
+    ref = host.split(".")[0] if host.endswith(".supabase.co") else host
+    corpo = {}
+    try:
+        corpo = r.json()
+    except Exception:
+        pass
+    if not isinstance(corpo, dict):
+        corpo = {}
+    # Formato novo do GoTrue (cabecalho X-Supabase-Api-Version, que o supabase-js manda): {code: "invalid_credentials",
+    # message: "..."}; formato antigo: {code: 400, error_code: "invalid_credentials", msg: "..."}.
+    codigo = corpo.get("error_code") or (corpo.get("code") if isinstance(corpo.get("code"), str) else "") or ""
+    mensagem = corpo.get("message") or corpo.get("msg") or ""
+    return ref, r.status, (codigo or mensagem)
+
+
+def veredito(obs, esperado):
+    if obs is None:
+        return False, "NENHUM PEDIDO"
+    ref, status, codigo = obs
+    if ref != esperado:
+        return False, f"DIVERGE: pedido foi para {ref}"
+    if status == 401:
+        return False, f"CHAVE NAO VALE NESSE BANCO: HTTP 401 {codigo}"
+    if status == 400 and codigo in ("invalid_credentials", "Invalid login credentials"):
+        return True, "CONFERE: banco certo, chave valida, autenticacao de pe"
+    return False, f"RESPOSTA INESPERADA: HTTP {status} {codigo}"
 
 
 def alvos():
@@ -5137,11 +5232,15 @@ def main():
         browser = p.chromium.launch()
         for base, esperado in pedidos.items():
             page = browser.new_page()
-            ref = prova(page, base)
+            try:
+                obs = prova(page, base)
+            except Exception as erro:
+                obs = None
+                print(base, "-> erro ao abrir ou enviar o login:", str(erro)[:120])
             page.close()
-            certo = ref == esperado
+            certo, texto = veredito(obs, esperado)
             tudo_certo = tudo_certo and certo
-            print(base, "->", ref or "NENHUM PEDIDO", "| esperado", esperado, "|", "OK" if certo else "DIVERGE")
+            print(base, "->", (obs[0] if obs else "NENHUM PEDIDO"), "| esperado", esperado, "|", texto)
         browser.close()
     sys.exit(0 if tudo_certo else 1)
 
@@ -5149,19 +5248,57 @@ def main():
 main()
 ```
 
-  2. **`aplicar_migration.py`**: o único caminho de escrita de migration nesta entrega (Steps 1.1 e 2.3; G23). Aplica o arquivo **lido do disco**, só se o sha256 for o conferido, pelo endpoint oficial de migration da API de gerenciamento (`POST /v1/projects/{ref}/database/migrations`, o mesmo que o MCP do Supabase usa; conferido na especificação pública da API em 05/10, que também documenta o cabeçalho `Idempotency-Key`), com o sha256 como chave de idempotência, e alinha a versão registrada à do arquivo. Assim o texto da migration nunca é redigitado numa chamada de ferramenta, e a versão não precisa de correção à mão. Criar com o código abaixo; ele não roda no Step 0.
+  2. **`aplicar_migration.py` e o manifesto `migracoes-aprovadas.json`**: o único caminho de escrita de migration nesta entrega (Steps 1.1 e 2.3; G23). Na v5 o operador passava ref, arquivo e sha256 na linha de comando, e o script aceitava qualquer ref de 20 letras com qualquer sha igual ao do arquivo (5ª rodada do Codex, achado 2). Agora o operador escolhe só o **ambiente** (`teste` ou `producao`), e tudo o mais vem do manifesto versionado no cérebro, ao lado do script: o nome do arquivo, o sha256 aprovado (o do arquivo **commitado**), o ref de cada ambiente, os ensaios feitos (banco de teste e cópia restaurada, cada um com sha256 e data) e a liberação da produção (o OK do Junior, citado: por, em, texto). O script recusa qualquer arquivo, ref ou sha fora do manifesto, CRLF, versão ou nome já registrados, e `--confirmar-banco` tem que repetir o ref que o manifesto dá para o ambiente. Em produção exige os dois ensaios registrados com o mesmo sha256 e a liberação preenchida, e **recusa por código o token do cofre**: o token vem de `SUPABASE_ACCESS_TOKEN` no ambiente do operador ou é digitado sem eco (`getpass`), e deve ser um token com escopo só do projeto de produção (ver Step 2.3). Aplica pelo endpoint oficial de migration da API de gerenciamento (`POST /v1/projects/{ref}/database/migrations`, com `Idempotency-Key` = sha256; a especificação pública documenta o cabeçalho e o `GET .../migrations/{version}` devolve `idempotency_key` e `statements`) e alinha a versão registrada à do nome do arquivo. **Recuperação** (5ª rodada, achado 5): se o POST aplicar e o alinhamento falhar, ou se a resposta do POST se perder (rede, timeout), a saída é 3 e nada é repetido às cegas; `--retomar` lê o histórico, abre a entrada com o nome do arquivo e só alinha a versão se a `idempotency_key` registrada for o sha256 aprovado; se for outra, para e manda olhar; se não houver entrada, diz que nada foi aplicado e manda rodar sem `--retomar`. Em 06/10 os caminhos de recusa foram exercitados com um manifesto de ensaio e um arquivo de mentira (uso errado 2; fora do manifesto, ref errado, CRLF, sha diferente e produção sem ensaio 1; `--retomar` no banco de teste leu o histórico e respondeu "nada a retomar"), sem nenhuma escrita. Toda alteração do manifesto vai commitada no cérebro com a data: é o registro verificável de quem aprovou o quê. O manifesto, como está no cérebro (os campos nulos são preenchidos nos Steps 1.1, 2.2.3 e 2.3):
+
+```json
+{
+  "_leia-me": "Manifesto lido pelo aplicar_migration.py (mesma pasta). Uma entrada por arquivo de migration, pelo nome. `sha256` e o do arquivo COMMITADO (git show HEAD:supabase/migrations/<arquivo> | sha256sum). `projetos` fixa o ref de cada ambiente; o script recusa qualquer outro. `ensaios.teste` e `ensaios.copia_restaurada` sao preenchidos depois de cada ensaio passar (sha256 + data/hora BRT); `producao_liberada` recebe o OK do Junior citado (por, em, texto). Em producao o script exige os dois ensaios com o mesmo sha256 e a liberacao preenchida. Toda alteracao deste arquivo vai commitada no cerebro, com a data: e o registro verificavel de quem aprovou o que.",
+  "20260930000000_central_agentes_fundacao.sql": {
+    "sha256": null,
+    "projetos": {
+      "teste": "zvwngsrflkicbbzfmrgy",
+      "producao": "eqidsihasmwwamkaqfka"
+    },
+    "ensaios": {
+      "teste": null,
+      "copia_restaurada": null
+    },
+    "producao_liberada": null
+  }
+}
+```
+
+     O script:
 
 ```python
 # -*- coding: utf-8 -*-
-"""Aplica UMA migration num projeto Supabase, e só se o arquivo for exatamente o que já foi conferido.
+"""Aplica UMA migration aprovada num projeto Supabase: só a que está no manifesto ao lado deste script.
 
-  python aplicar_migration.py <ref> <arquivo.sql> <sha256-esperado> --confirmar-banco <ref>
+  python aplicar_migration.py <teste|producao> <arquivo.sql> --confirmar-banco <ref>
+  python aplicar_migration.py <teste|producao> <arquivo.sql> --confirmar-banco <ref> --retomar
 
-Recusa (saída 1) se o sha256 do arquivo não for o esperado, se ele tiver CRLF, se o nome não seguir
-<14 dígitos>_<nome>.sql, ou se a versão ou o nome já estiverem registrados no projeto. Aplica pelo endpoint
-oficial de migration da API de gerenciamento, com o sha256 como Idempotency-Key, e alinha a versão registrada à
-do arquivo. Lê o token do cofre em processo e nunca o imprime.
-Saída: 0 aplicada e registrada; 1 recusada ou falhou; 2 uso errado."""
+O manifesto `migracoes-aprovadas.json` (versionado no cérebro) fixa, por arquivo: o sha256 aprovado, o ref de cada
+ambiente, os ensaios feitos (banco de teste e cópia restaurada) e a liberação da produção (o OK do Junior, citado).
+O operador não escolhe ref nem sha: escolhe o ambiente, e o script confere tudo contra o manifesto (5ª rodada do
+Codex, achado 2).
+
+Recusa (saída 1) se: o arquivo não está no manifesto; o sha256 lido do disco difere do aprovado; o arquivo tem CRLF;
+o nome não segue <14 dígitos>_<nome>.sql; `--confirmar-banco` não é o ref do ambiente no manifesto; a versão ou o
+nome já estão registrados no projeto; e, em produção, se os ensaios do teste e da cópia restaurada não estão
+registrados com este mesmo sha256, ou se a liberação não está preenchida.
+
+Token: em `teste`, SUPABASE_ACCESS_TOKEN do ambiente ou, na falta, SUPABASE_MGMT_TOKEN do cofre. Em `producao`,
+NUNCA o cofre (que o agente lê): SUPABASE_ACCESS_TOKEN do ambiente do operador ou, na falta, o token digitado sem
+eco (getpass), um token com escopo só do projeto de produção. Nunca imprime token.
+
+Aplica por POST /v1/projects/{ref}/database/migrations com Idempotency-Key = sha256 e alinha a versão registrada à do
+nome do arquivo. Se o POST aplicar e o alinhamento falhar, ou se a resposta do POST se perder: saída 3 e nada é
+repetido às cegas; `--retomar` inspeciona só leitura (GET .../database/migrations/{version}: a idempotency_key
+registrada tem que ser o sha256 aprovado) e só então alinha a versão (5ª rodada, achado 5).
+
+Saída: 0 aplicada e registrada; 1 recusada ou falhou; 2 uso errado; 3 aplicada sem alinhar ou resposta perdida
+(rodar com --retomar)."""
+import getpass
 import hashlib
 import io
 import json
@@ -5171,7 +5308,10 @@ import sys
 import urllib.error
 import urllib.request
 
+AQUI = os.path.dirname(os.path.abspath(__file__))
+MANIFESTO = os.path.join(AQUI, "migracoes-aprovadas.json")
 COFRE = os.path.join(os.path.expanduser("~"), "WorkSync", ".secrets")
+AMBIENTES = ("teste", "producao")
 
 
 def segredo(nome):
@@ -5183,6 +5323,7 @@ def segredo(nome):
 
 
 def api(token, metodo, caminho, corpo=None, extra=None):
+    """(status, corpo). status None = resposta PERDIDA (rede, timeout): o pedido pode ter sido executado."""
     cabecalhos = {"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "basecrm-migration"}
     cabecalhos.update(extra or {})
     req = urllib.request.Request(
@@ -5197,62 +5338,137 @@ def api(token, metodo, caminho, corpo=None, extra=None):
             return r.status, (json.loads(texto) if texto.strip() else None)
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "ignore")[:400]
+    except Exception as e:
+        return None, str(e)[:200]
+
+
+def recusar(msg):
+    print("RECUSADO:", msg)
+    sys.exit(1)
 
 
 def registradas(token, ref):
     status, lista = api(token, "GET", f"/v1/projects/{ref}/database/migrations")
     if status != 200 or not isinstance(lista, list):
-        print("RECUSADO: nao consegui ler as migrations registradas:", status, lista)
-        sys.exit(1)
-    return lista
+        return None, f"{status} {lista}"
+    return lista, "ok"
+
+
+def alinhar(token, ref, versao, rotulo):
+    """UPDATE da versão registrada para a do nome do arquivo; depois relê o histórico. (ok, mensagem)."""
+    sql = (f"update supabase_migrations.schema_migrations set version = '{versao}' "
+           f"where name = '{rotulo}' and version <> '{versao}'")
+    status, resposta = api(token, "POST", f"/v1/projects/{ref}/database/query", {"query": sql})
+    if status not in (200, 201):
+        return False, f"update respondeu {status} {resposta}"
+    lista, msg = registradas(token, ref)
+    if lista is None:
+        return False, f"nao consegui reler o historico ({msg})"
+    certa = any(m.get("version") == versao and m.get("name") == rotulo for m in lista)
+    return certa, "registrada" if certa else "a versao continua diferente da do arquivo"
+
+
+def token_para(ambiente):
+    do_ambiente = os.environ.get("SUPABASE_ACCESS_TOKEN", "").strip()
+    if ambiente == "producao":
+        if do_ambiente:
+            return do_ambiente
+        digitado = getpass.getpass("Token com escopo SO do projeto de producao (nao aparece ao digitar): ").strip()
+        if not digitado:
+            recusar("em producao o token vem do operador (SUPABASE_ACCESS_TOKEN ou digitado); o token do cofre nao e aceito")
+        return digitado
+    token = do_ambiente or segredo("SUPABASE_MGMT_TOKEN")
+    if not token:
+        recusar("sem token: SUPABASE_ACCESS_TOKEN no ambiente ou SUPABASE_MGMT_TOKEN no cofre")
+    return token
 
 
 def main():
     a = sys.argv[1:]
-    if len(a) != 5 or a[3] != "--confirmar-banco" or a[4] != a[0] or not re.fullmatch(r"[a-z]{20}", a[0]):
+    retomar = "--retomar" in a
+    a = [x for x in a if x != "--retomar"]
+    if len(a) != 4 or a[0] not in AMBIENTES or a[2] != "--confirmar-banco":
         print(__doc__)
         sys.exit(2)
-    ref, arquivo, esperado = a[0], a[1], a[2].lower()
+    ambiente, arquivo, ref_confirmado = a[0], a[1], a[3]
     nome = os.path.basename(arquivo)
     partes = re.fullmatch(r"(\d{14})_([a-z0-9_]+)\.sql", nome)
     if not partes:
-        print("RECUSADO: o nome do arquivo tem que ser <14 digitos>_<nome>.sql")
-        sys.exit(1)
+        recusar("o nome do arquivo tem que ser <14 digitos>_<nome>.sql")
     versao, rotulo = partes.group(1), partes.group(2)
-    bruto = io.open(arquivo, "rb").read()
+
+    with io.open(MANIFESTO, encoding="utf-8") as f:
+        manifesto = json.load(f)
+    entrada = manifesto.get(nome)
+    if not isinstance(entrada, dict):
+        recusar(f"{nome} nao esta no manifesto {os.path.basename(MANIFESTO)}")
+    ref = (entrada.get("projetos") or {}).get(ambiente)
+    if not isinstance(ref, str) or not re.fullmatch(r"[a-z]{20}", ref):
+        recusar(f"o manifesto nao tem o ref do ambiente '{ambiente}' para {nome}")
+    if ref_confirmado != ref:
+        recusar(f"--confirmar-banco {ref_confirmado} nao e o ref do ambiente '{ambiente}' no manifesto ({ref})")
+    esperado = str(entrada.get("sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", esperado):
+        recusar("o manifesto nao tem o sha256 aprovado deste arquivo")
+
+    with io.open(arquivo, "rb") as f:
+        bruto = f.read()
     if b"\r" in bruto:
-        print("RECUSADO: o arquivo tem CRLF (o checkout trocou o fim de linha); nao e o arquivo do repositorio")
-        sys.exit(1)
+        recusar("o arquivo tem CRLF (o checkout trocou o fim de linha); nao e o arquivo do repositorio")
     sha = hashlib.sha256(bruto).hexdigest()
     if sha != esperado:
-        print(f"RECUSADO: o sha256 do arquivo e {sha}, e o conferido era {esperado}")
-        sys.exit(1)
-    token = segredo("SUPABASE_MGMT_TOKEN")
-    if not token:
-        print("RECUSADO: SUPABASE_MGMT_TOKEN nao esta no cofre")
-        sys.exit(1)
+        recusar(f"o sha256 do arquivo e {sha}, e o aprovado no manifesto e {esperado}")
 
-    if any(m.get("version") == versao or m.get("name") == rotulo for m in registradas(token, ref)):
-        print(f"RECUSADO: {versao} ({rotulo}) ja esta registrada em {ref}")
-        sys.exit(1)
+    if ambiente == "producao":
+        ensaios = entrada.get("ensaios") or {}
+        for etapa in ("teste", "copia_restaurada"):
+            e = ensaios.get(etapa) or {}
+            if e.get("sha256") != sha or not e.get("em"):
+                recusar(f"o ensaio '{etapa}' nao esta registrado no manifesto com este sha256 e a data")
+        lib = entrada.get("producao_liberada") or {}
+        if not (lib.get("por") and lib.get("em") and lib.get("texto")):
+            recusar("a liberacao da producao (por, em, texto do OK) nao esta no manifesto")
+    token = token_para(ambiente)
+
+    historico, msg = registradas(token, ref)
+    if historico is None:
+        recusar(f"nao consegui ler as migrations registradas em {ref}: {msg}")
+    mesma = [m for m in historico if m.get("version") == versao or m.get("name") == rotulo]
+
+    if retomar:
+        if not mesma:
+            print(f"NADA A RETOMAR: {rotulo} nao esta registrada em {ref}; rode de novo sem --retomar")
+            sys.exit(1)
+        registro = mesma[0]
+        status, detalhe = api(token, "GET", f"/v1/projects/{ref}/database/migrations/{registro.get('version')}")
+        if status != 200 or not isinstance(detalhe, dict):
+            recusar(f"nao consegui ler a migration registrada: {status} {detalhe}")
+        if detalhe.get("idempotency_key") != sha:
+            recusar(f"a migration registrada como '{rotulo}' NAO e este arquivo (idempotency_key diferente do sha256 aprovado): parar e olhar")
+        if registro.get("version") == versao:
+            print(f"JA ALINHADA {nome} em {ref} | sha256 {sha[:12]}")
+            sys.exit(0)
+        ok, msg = alinhar(token, ref, versao, rotulo)
+        print(("ALINHADA" if ok else "NAO ALINHOU") + f" {nome} em {ref} | {msg}")
+        sys.exit(0 if ok else 1)
+
+    if mesma:
+        recusar(f"{versao} ({rotulo}) ja esta registrada em {ref}; se foi esta execucao que aplicou, use --retomar")
 
     status, resposta = api(token, "POST", f"/v1/projects/{ref}/database/migrations",
                            {"query": bruto.decode("utf-8"), "name": rotulo}, {"Idempotency-Key": sha})
+    if status is None:
+        print(f"RESPOSTA PERDIDA ao aplicar ({resposta}). NAO repita o POST: rode com --retomar, que inspeciona antes de agir.")
+        sys.exit(3)
     if status != 200:
         print("FALHOU ao aplicar:", status, resposta)
         sys.exit(1)
-
-    # O endpoint registra a versão com a hora da aplicação; um `db push` futuro reaplicaria o arquivo
-    # "faltante". Alinhar à versão do nome do arquivo (versao e rotulo já validados por regex acima).
-    alinhar = (f"update supabase_migrations.schema_migrations set version = '{versao}' "
-               f"where name = '{rotulo}' and version <> '{versao}'")
-    status, resposta = api(token, "POST", f"/v1/projects/{ref}/database/query", {"query": alinhar})
-    if status not in (200, 201):
-        print("APLICADA, mas a versao NAO foi alinhada:", status, resposta)
-        sys.exit(1)
-    certa = any(m.get("version") == versao and m.get("name") == rotulo for m in registradas(token, ref))
-    print(f"APLICADA {nome} em {ref} | sha256 {sha[:12]} | registrada como {versao}: {certa}")
-    sys.exit(0 if certa else 1)
+    ok, msg = alinhar(token, ref, versao, rotulo)
+    if not ok:
+        print(f"APLICADA {nome} em {ref}, mas a versao NAO foi alinhada ({msg}). Rode com --retomar; nao repita a aplicacao.")
+        sys.exit(3)
+    print(f"APLICADA {nome} em {ref} | sha256 {sha[:12]} | registrada como {versao}")
+    sys.exit(0)
 
 
 main()
@@ -5263,18 +5479,21 @@ main()
      2. existe o grupo de variáveis `alvo=[preview] branch='feat/aurora-implantacao'` com as cinco chaves de banco (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`);
      3. os domínios do projeto que servem conteúdo são exatamente os quatro da lista fechada do script (`dominios que servem conteudo == lista fechada: True`), e a lista por ramo só traz deployments do ramo pedido (`todos do ramo pedido: True`);
      4. `teste.crm.basea2.com` aponta para um deployment com `ref feat/aurora-implantacao` e `target None` (prévia), e os três domínios de produção (`crm.basea2.com`, `crm.cennohub.com.br`, `basecrm.vercel.app`) apontam para o mesmo deployment de produção, `PROMOTED`.
-  4. **Provar o banco da PRÓXIMA prévia, antes do push** (4ª rodada do Codex, achado 1). `python ler_env_ensaio.py` tem que sair 0, mostrando:
-     - nenhuma das variáveis de Preview de `feat/aurora-implantacao` criada ou alterada depois do deployment que `teste.crm.basea2.com` serve (em 05/10: as nove são de 19/09 23h42, nunca alteradas; o deployment é de 29/09 01h27);
+  4. **Provar o banco da PRÓXIMA prévia, antes do push** (4ª rodada do Codex, achado 1; 5ª rodada, achado 4). `python ler_env_ensaio.py` (v6, no cérebro) tem que sair 0, mostrando:
+     - nenhuma das variáveis de Preview de `feat/aurora-implantacao` criada ou alterada depois do deployment que `teste.crm.basea2.com` serve (em 06/10: as nove são de 19/09 23h42, nunca alteradas; o deployment é de 29/09 01h27);
      - as cinco variáveis de banco genéricas de Preview todas sobrescritas pela branch;
-     - `NEXT_PUBLIC_SUPABASE_URL` da branch → `zvwngsrflkicbbzfmrgy`, e o `ref` dentro da chave anon também (lido assim em 05/10).
+     - `NEXT_PUBLIC_SUPABASE_URL` da branch → `zvwngsrflkicbbzfmrgy`;
+     - as **duas** chaves públicas da branch valendo no banco de teste: `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (a que `lib/supabase/client.ts:7-10` e `server.ts:13-15` usam primeiro) e `NEXT_PUBLIC_SUPABASE_ANON_KEY` (a reserva), cada uma com `GET https://zvwngsrflkicbbzfmrgy.supabase.co/auth/v1/settings` respondendo 200, uma chave inválida de controle recebendo 401 na mesma URL, e o `ref` da anon conferido dentro do JWT. Chave ausente, ilegível, de outro banco ou recusada é falha, não aviso (em 06/10: controle 401, as duas 200, JWT ref `zvwngsrflkicbbzfmrgy`).
 
-     E `python prova_login.py --url https://teste.crm.basea2.com --ref zvwngsrflkicbbzfmrgy` tem que sair 0.
+     E `python prova_login.py --url https://teste.crm.basea2.com --ref zvwngsrflkicbbzfmrgy` tem que sair 0 (`CONFERE`: banco certo, chave válida, autenticação de pé).
+
+     **Aviso que o script imprime e não falha (lido em 05/10 e 06/10):** as cinco variáveis legíveis da branch (`NEXT_PUBLIC_SUPABASE_URL`, as duas chaves públicas, `AUTOMATION_LIVE_SENDS_ENABLED` e `INSTALLER_ENABLED`) terminam em `\r\n`; as genéricas e as de produção estão limpas; as quatro `sensitive` da branch não podem ser lidas e são do mesmo lote de 19/09. Para a prova deste passo isso não muda nada: o fetch do navegador e do Node tira espaço e quebra de linha das pontas de URL e de cabeçalho, e o login real do domínio de teste prova que URL e chave funcionam assim. Mas comparação por igualdade no código não normaliza: `AUTOMATION_LIVE_SENDS_ENABLED` e os segredos do worker passam por `.trim()` (`lib/automations/executor.ts:50`, `lib/automations/internalAuth.ts:7`) e estão bem; `INSTALLER_ENABLED === 'false'` não casa com `"false\r\n"`, então na prévia o kill-switch do instalador não dispara nas rotas que só o conferem (`app/api/installer/supabase/*`, `vercel/lookup`, `meta`) e o painel mostra o instalador como habilitado (`app/(protected)/page.tsx:17`); as rotas que passam por `assertInstallerAllowed` continuam fechadas, porque em `NODE_ENV=production` exigem `=== 'true'`. Isso é da prévia (produção está limpa) e está registrado na SPEC (achados fora do escopo, item 11); a correção é recriar as nove variáveis da branch sem a quebra de linha, decisão do Junior, **fora** deste rito. Se ele fizer isso, este passo volta a falhar por "variável alterada depois do deployment" até a prévia seguinte ser provada pelo login; é o comportamento esperado.
 
      Por que isso prova a próxima prévia: a Vercel resolve as variáveis na criação de cada deployment, e as da branch prevalecem sobre as genéricas. Se nenhuma mudou desde o deployment que o login acabou de provar, a próxima prévia nasce com os mesmos valores. O destino de todo acesso ao banco, no navegador e no servidor, é `NEXT_PUBLIC_SUPABASE_URL` (`lib/supabase/server.ts`, `lib/supabase/staticAdminClient.ts`, `lib/supabase/client.ts`, `lib/supabase/middleware.ts`). As duas chaves secretas são do tipo "sensível" e a API não as devolve, mas elas só autenticam: uma chave de outro projeto recebe 401 na URL de teste e não escreve em banco nenhum. Se o `ler_env_ensaio.py` não sair 0, o push não acontece e a decisão volta para o Junior (corrigir as variáveis da branch, ou ligar a proteção de prévia da Vercel antes).
   5. `git fetch origin`, depois `git merge-base --is-ancestor origin/feat/aurora-implantacao HEAD` e `git merge-base --is-ancestor origin/main HEAD` (os dois pushes serão fast-forward).
 
 - [ ] **Step 1: Banco de teste (`zvwngsrflkicbbzfmrgy`) e prévia na branch de ensaio**
-  1. Aplicar a migration no banco de teste com o `aplicar_migration.py` (Step 0): `python aplicar_migration.py zvwngsrflkicbbzfmrgy <worktree>/supabase/migrations/20260930000000_central_agentes_fundacao.sql <sha256> --confirmar-banco zvwngsrflkicbbzfmrgy`. O sha256 é o do arquivo commitado (`git show HEAD:supabase/migrations/20260930000000_central_agentes_fundacao.sql | sha256sum`); anotar, porque é o mesmo dos Steps 2.2 e 2.3. Tem que sair `APLICADA ... registrada como 20260930000000: True`. É também o ensaio do próprio script antes de ele escrever em produção.
+  1. **Manifesto e migration no banco de teste.** Primeiro o sha256 do arquivo commitado (`git show HEAD:supabase/migrations/20260930000000_central_agentes_fundacao.sql | sha256sum`) entra no campo `sha256` de `migracoes-aprovadas.json` no cérebro, com commit ("aprovado para o teste em <data hora>"). Depois: `python aplicar_migration.py teste <worktree>/supabase/migrations/20260930000000_central_agentes_fundacao.sql --confirmar-banco zvwngsrflkicbbzfmrgy`. Tem que sair `APLICADA ... registrada como 20260930000000`, saída 0 (saída 3 = aplicou e não alinhou, ou resposta perdida: `--retomar`, nunca repetir). Com a saída 0, o manifesto ganha `ensaios.teste = {"sha256": "<o mesmo>", "em": "<data hora BRT>"}` e vai commitado. É também o ensaio do próprio script, e do acesso do token ao endpoint de migration (5ª rodada do Codex, ponto 2.3), antes de qualquer escrita em produção.
   2. `git push origin HEAD:feat/aurora-implantacao` (OK dele). **Nunca** `git push origin HEAD:feat/central-agentes` nem qualquer nome novo.
   3. Esperar a prévia READY pela API da Vercel: `GET /v7/deployments?projectId=<projeto>&branch=feat/aurora-implantacao`, o item com o sha do HEAD, com o token lido do cofre em processo. Nesse momento `teste.crm.basea2.com` ainda aponta para a prévia antiga.
   4. Provar pelo pedido real de login que a prévia **nova** usa `zvwngsrflkicbbzfmrgy`: `python prova_login.py --url https://<url do deployment novo> --ref zvwngsrflkicbbzfmrgy` tem que sair 0 (o `url` vem do mesmo item da lista do passo 3). Só então apontar `teste.crm.basea2.com` para ela (`POST /v2/deployments/{id}/aliases`). Saída diferente de 0: o alias não muda, e a prévia nova é apagada (`DELETE /v13/deployments/{id}`) antes de qualquer outra coisa.
@@ -5292,31 +5511,33 @@ main()
       - depois de reapontar o alias (itens 3 e 4 de novo), o `--prova` tem que dar `PUBLICACAO_DIVERGE` (o evento veio do commit anterior) e voltar a `CONFERE` só depois de uma resposta real nova.
 
       O commit vazio fica no histórico e vai para o `main` na publicação; é a prova de que a trava enxerga uma troca de publicação de verdade.
-  12. A falha **na chamada de ligar** ou **depois** de ligar (erro de rede, resposta perdida), e alguém ligando o número a outro agente no meio, não dão para provocar no ensaio sem injetar erro. Estão nos doze testes de `ligarComConferencia` (Task 10): desfaz, confere a linha, devolve `incerto` (saída 3) quando não consegue confirmar e `ligado_a_outro` (saída 4) quando a linha mostra outro agente.
+  12. A falha **na chamada de ligar** ou **depois** de ligar (erro de rede, resposta perdida), e alguém ligando o número a outro agente no meio, não dão para provocar no ensaio sem injetar erro. Estão nos catorze testes de `ligarComConferencia` (Task 10): desfaz, confere a linha, devolve `incerto` (saída 3) quando não consegue confirmar e `ligado_a_outro` (saída 4) quando a linha mostra outro agente.
 - [ ] **Step 2: Produção — migration ANTES do deploy**
   1. Leitura, com o OK dele: quais números têm `config.webhookUrl` (automação n8n), e se os fluxos deles mandam no metadata do `/ai-reply` alguma das seis chaves de rastro, que passam a ser descartadas (revisão do Codex, achado 9).
   2. **G23: backup nosso e restauração testada, antes da escrita** (revisão do Codex, achado 20; 3ª rodada, achado 8). O gate pede backup **e** restauração testada. Lido em 05/10 na API de gerenciamento: a organização do Supabase está no plano **Free** (`plan: free`), a lista de backups do projeto de produção vem vazia e `pitr_enabled` é falso. A documentação do Supabase confirma que projeto Free não tem backup automático e recomenda `supabase db dump`. Então não existe backup da plataforma para conferir; o backup é o que tirarmos:
-     1. **Dump** de produção com a CLI. Os arquivos têm dado pessoal (leads e contatos dos clientes, e os e-mails e hashes de senha do `auth`), então a pasta é preparada ANTES do dump (4ª rodada do Codex, achado 13):
-        - local: `C:\Users\PC Gamer\BaseCRM-dumps\<data>\`, fora do Git, fora do WorkSync (que o Syncthing copia para o notebook) e fora do OneDrive;
-        - criptografia em repouso pelo EFS do Windows, presa à conta do Junior: `cipher /e "C:\Users\PC Gamer\BaseCRM-dumps"` (todo arquivo criado dentro nasce cifrado; o Windows 11 Pro tem EFS);
-        - acesso só da conta dele: `icacls "C:\Users\PC Gamer\BaseCRM-dumps" /inheritance:r /grant:r "${env:USERNAME}:(OI)(CI)F"` (PowerShell);
-        - depois do dump, `cipher "C:\Users\PC Gamer\BaseCRM-dumps\<data>"` tem que listar os três arquivos com `E` (cifrado). Algum com `U`: apagar os três e parar;
+     1. **Dump** de produção com a CLI, gravado **dentro da pasta cifrada, por caminho absoluto** (5ª rodada do Codex, achado 1: na v5 os `-f roles.sql` eram relativos e gravariam no diretório de onde o comando roda, por exemplo o repositório). Os arquivos têm dado pessoal (leads e contatos dos clientes, e os e-mails e hashes de senha do `auth`), então a pasta é preparada e **conferida antes** do dump, e os arquivos **conferidos depois** (4ª rodada, achado 13; 5ª rodada, achado 1). Tudo em PowerShell, com `$Raiz = "C:\Users\PC Gamer\BaseCRM-dumps"` e `$D = "$Raiz\<data>"`:
+        - local fora do Git, fora do WorkSync (que o Syncthing copia para o notebook) e fora do OneDrive;
+        - preparar: `New-Item -ItemType Directory -Force $Raiz | Out-Null; cipher /e $Raiz; icacls $Raiz /inheritance:r /grant:r "${env:USERDOMAIN}\${env:USERNAME}:(OI)(CI)F"; New-Item -ItemType Directory -Force $D | Out-Null` (EFS do Windows 11 Pro, preso à conta do Junior: todo arquivo criado dentro nasce cifrado);
+        - **conferir ANTES do dump** (`/inheritance:r /grant:r` tira as permissões herdadas e redefine as da conta dele, mas não remove permissão explícita de outra conta que já existisse na pasta; por isso a conferência é da ACL efetiva, e não do comando): `$acl = Get-Acl $Raiz; $acl.AreAccessRulesProtected` tem que ser `True`; `($acl.Access | ForEach-Object { $_.IdentityReference.Value }) -join ', '` tem que listar **só** `<DOMÍNIO>\<usuário dele>`; e `(Get-Item $D).Attributes -band [IO.FileAttributes]::Encrypted` tem que devolver `Encrypted`. Qualquer outra identidade na lista, ou a pasta sem `Encrypted`: parar, apagar a pasta e descobrir quem a criou antes;
+        - a URL é a do pooler em modo sessão, montada em processo com a senha do banco lida do cofre. Se a senha não estiver no cofre, **parar**: redefinir a senha derruba quem conecta direto no Postgres, e isso é decisão do Junior;
+        - dump, por caminho absoluto: `npx supabase db dump --db-url "<url>" -f "$D\roles.sql" --role-only`; `npx supabase db dump --db-url "<url>" -f "$D\schema.sql"`; `npx supabase db dump --db-url "<url>" -f "$D\data.sql" --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"`;
+        - **conferir DEPOIS do dump:** `Get-ChildItem $D` lista exatamente `roles.sql`, `schema.sql` e `data.sql`; `cipher $D` mostra `E` nos três; `foreach ($f in 'roles.sql','schema.sql','data.sql') { (Get-Acl "$D\$f").Access | Where-Object { $_.IdentityReference.Value -ne "$env:USERDOMAIN\$env:USERNAME" } }` não devolve nada; e, no diretório de onde o comando rodou e no repositório, `git status --porcelain` não lista nenhum `.sql` novo. Algum `U`, alguma identidade a mais, ou um `.sql` fora da pasta: apagar os arquivos (`Remove-Item`) e parar;
         - nenhum agente lê o conteúdo dos arquivos: só tamanho, sha256 e as contagens da restauração.
-
-        A URL é a do pooler em modo sessão, montada em processo com a senha do banco lida do cofre. Se a senha não estiver no cofre, **parar**: redefinir a senha derruba quem conecta direto no Postgres, e isso é decisão do Junior.
-        - `npx supabase db dump --db-url "<url>" -f roles.sql --role-only`
-        - `npx supabase db dump --db-url "<url>" -f schema.sql`
-        - `npx supabase db dump --db-url "<url>" -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"`
      2. **Restauração em alvo isolado**: uma stack local temporária, vazia, só para isso (as portas são as mesmas da `crmia`, então ela para durante o ensaio):
         - `npx supabase stop` no repositório; numa pasta temporária `ensaio-g23`: `npx supabase init`; antes do `start`, deixar `[db] major_version` do `supabase/config.toml` dela igual à versão do Postgres de produção (`select version()` pelo `sqlprod.py`, só leitura; o local do repositório usa 15); depois `npx supabase start`;
         - copiar os três arquivos para o container do banco temporário (`docker cp`) e restaurar com o comando da documentação: `psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET session_replication_role = replica' --file data.sql --dbname <url local>`;
         - comparar a contagem de linhas, produção (`sqlprod.py`, só leitura) × restaurado, em `organizations`, `profiles`, `contacts`, `deals`, `channel_connections`, `conversation_threads`, `conversation_messages` e `ai_prompt_templates`. Tem que bater.
-     3. **A migration na cópia restaurada**: aplicar `20260930000000_central_agentes_fundacao.sql` nela (o mesmo arquivo do Step 1.1: conferir o sha256 antes) e, em seguida, o `volta-fatia-1.sql`. Os dois têm que terminar sem erro sobre o esquema e os dados reais (a volta no banco local, Task 2, só provou sobre o esquema das migrations).
+     3. **A migration na cópia restaurada**: aplicar `20260930000000_central_agentes_fundacao.sql` nela (o mesmo arquivo do Step 1.1: conferir o sha256 contra o manifesto antes) e, em seguida, o `volta-fatia-1.sql`. Os dois têm que terminar sem erro sobre o esquema e os dados reais (a volta no banco local, Task 2, só provou sobre o esquema das migrations). Com isso feito, o manifesto ganha `ensaios.copia_restaurada = {"sha256": "<o mesmo>", "em": "<data hora BRT>"}`, commitado no cérebro: sem esse campo o script recusa produção.
      4. Registrar no cérebro a evidência, sem dado pessoal: data, tamanho e sha256 dos três arquivos, as contagens, o sha256 da migration e o resultado dos dois scripts. Derrubar a stack temporária (`npx supabase stop --no-backup` na pasta dela: apaga os volumes, com a cópia restaurada que estava dentro do container) e religar a `crmia`.
      5. **Retenção:** os três arquivos são apagados em até 7 dias depois do Step 3 (produção adormecida conferida), e a exclusão é registrada no cérebro (data, arquivos, como). Ficar com eles por mais tempo, como primeiro backup externo, só com decisão do Junior registrada no cérebro, com o novo prazo; aí eles passam a seguir a política de backup que ele escolher (SPEC, achados fora do escopo, item 8).
 
      Enquanto isso não estiver feito e registrado, o G23 é **PENDENTE** e a migration não vai para produção. Se a restauração falhar na primeira tentativa, o defeito é do procedimento e se corrige nele; não se pula a etapa.
-  3. **A escrita em produção, com o controle do G23 registrado** (4ª rodada do Codex, achado 8). Com o OK explícito do Junior para ESTA escrita: `python aplicar_migration.py eqidsihasmwwamkaqfka <arquivo> <sha256 dos Steps 1.1 e 2.2.3> --confirmar-banco eqidsihasmwwamkaqfka`. O script recusa qualquer arquivo cujo sha256 não seja o que já rodou no banco de teste e na cópia restaurada, não aceita SQL livre e registra a versão `20260930000000`. Registrar no cérebro, junto da evidência do item 2: o OK dele (citado, com data e hora), o sha256, a saída do script e a conferência do item 4. Nenhuma outra escrita em produção acontece neste passo, e o MCP do Supabase não é usado para ela. Dito sem rodeio: o item "agente sem poder destrutivo direto" do G23 fica cumprido **por processo** nesta escrita (OK, dry-run no teste e na cópia, backup restaurado, arquivo conferido, volta pronta), não por permissão: o token de gerenciamento e o MCP do Supabase desta máquina escrevem em qualquer projeto (SPEC, achados fora do escopo, item 10).
+  3. **A escrita em produção, com o G23 registrado como ele está** (4ª rodada do Codex, achado 8; 5ª rodada, achado 2). Antes de qualquer coisa, o OK explícito do Junior para ESTA escrita entra no manifesto, citado (`producao_liberada = {"por": "Junior", "em": "<data hora BRT>", "texto": "<a frase dele>"}`), commitado no cérebro junto dos dois ensaios. Então a escrita: `python aplicar_migration.py producao <worktree>/supabase/migrations/20260930000000_central_agentes_fundacao.sql --confirmar-banco eqidsihasmwwamkaqfka`, **rodada pelo Junior, no terminal dele**, com um token com escopo só do projeto de produção (ver abaixo) digitado quando o script pedir (sem eco) ou em `SUPABASE_ACCESS_TOKEN`; ele cola a saída, que vai para o cérebro com o manifesto. O script recusa por código o token do cofre em produção, qualquer ref, arquivo ou sha fora do manifesto, versão já registrada, e não aceita SQL livre; saída 3 = aplicou e não alinhou ou resposta perdida: `--retomar`, nunca repetir. Nenhuma outra escrita em produção acontece neste passo, e o MCP do Supabase não é usado para ela.
+
+     **Como o G23 fica registrado, sem rodeio** (5ª rodada do Codex, achado 2 e ponto 1.7):
+     - backup nosso e restauração testada: cumpridos pelo item 2, com a evidência no cérebro;
+     - "agente sem poder destrutivo direto em produção": **hoje não é verdade por permissão.** O token do cofre (`SUPABASE_MGMT_TOKEN`) e o do MCP do Supabase desta máquina alcançam os 12 projetos da conta, e o do cofre já rodou SQL em produção pelo endpoint de escrita (`sqlprod.py` até 05/10; desde 06/10 ele manda `read_only: true`, o que fecha a porta do script, não a do token). Enquanto isso valer, o G23 fica registrado como **EXCEÇÃO RESIDUAL** (controle por processo: manifesto versionado, operador rodando a escrita, token separado), **não como PASS**. Vira PASS quando o Junior trocar os tokens por tokens com escopo, que a Supabase documenta ("A scoped PAT can only reach the organizations, projects, and permissions you choose when creating it"; prefixo `sbp_fc`; a tabela oficial de permissões diz que `Apply a migration` exige **Migrations: Read-write**, que `Run a query` roda com **Database: Read** quando o corpo leva `read_only: true`, e que `Get project API keys` com os segredos exige **API Key Secrets: Read**). O pedido é feito de uma vez só, com a lista completa (SPEC, achados fora do escopo, item 10): um token de leitura para o agente e o MCP, um de escrita só no projeto de teste, e um de escrita só no projeto de produção que só ele guarda. A prova de que virou PASS é um `POST /v1/projects/eqidsihasmwwamkaqfka/database/query` com `{"query": "select 1", "read_only": false}` feito com o token do agente e recusado pela API com 403 (e o mesmo pedido com `read_only: true` respondendo 200), registrada no cérebro.
+
   4. Conferir que a coluna e a tabela existem (`select ai_agent_id from public.channel_connections limit 1` e `select count(*) from public.ai_reply_events`, sem erro).
   5. Só então: `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD` e `git push origin HEAD:main`. A branch de ensaio já está neste commit; nenhuma outra branch é empurrada.
   6. Esperar produção READY e **devolver `teste.crm.basea2.com` para a prévia**, porque toda publicação de produção leva esse domínio junto: `python poll_deploys.py <sha-curto>`, como está (a prévia desse sha na branch de ensaio já existe). `python prova_login.py` (sem argumentos) tem que sair 0.
