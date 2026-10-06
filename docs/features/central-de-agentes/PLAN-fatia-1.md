@@ -2710,9 +2710,11 @@ describe('evento de prova da resposta nativa', () => {
       prompt_sha256: SHA, prompt_key: 'task_conversations_whatsapp_auto_reply', prompt_source: 'default',
       agent_id: null, agent_version: null, release_commit: COMMIT, release_deployment: DEPLOYMENT,
     });
-    // Duas partes enviadas, UM evento, e a hora é a do fim da entrega (depois do último envio), não o
-    // sent_at das mensagens, que é fixado antes de qualquer envio.
-    expect(fake.rowsOf('conversation_messages').filter((m) => m.direction === 'outbound')).toHaveLength(2);
+    // Várias partes enviadas (quantas, decide o divisor de partes do gerador), UM evento, e a hora é a do fim
+    // da entrega (depois do último envio), não o sent_at das mensagens, que é fixado antes de qualquer envio.
+    const enviadas = fake.rowsOf('conversation_messages').filter((m) => m.direction === 'outbound');
+    expect(enviadas.length).toBeGreaterThan(1);
+    expect(enviadoEm).toHaveLength(enviadas.length);
     const entregueEm = Date.parse(String(eventos[0].delivered_at));
     expect(entregueEm).toBeGreaterThanOrEqual(enviadoEm.at(-1)!);
     expect(entregueEm).toBeGreaterThanOrEqual(antes);
