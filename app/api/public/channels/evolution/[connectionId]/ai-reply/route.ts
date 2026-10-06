@@ -5,6 +5,7 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { executeConversationAIReply } from '@/lib/conversations/aiReply';
 import { ConversationHandoffTypeSchema } from '@/lib/conversations/handoff';
 import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
+import { stripNativeTraceMetadata } from '@/lib/conversations/conversationDeliveryMetadata';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -101,7 +102,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ connectionId: 
         requestedScheduleText: parsed.data.requestedScheduleText,
         notificationEventId: parsed.data.notificationEventId,
         authorName: parsed.data.authorName,
-        metadata: parsed.data.metadata,
+        metadata: stripNativeTraceMetadata(parsed.data.metadata),
         automationSource: 'n8n',
       },
     });

@@ -7,6 +7,7 @@ import { getConversationAssigneeDisplayName, loadConversationThreadInboxItem } f
 import { sendEvolutionTextMessage } from '@/lib/channels/evolution';
 import { resolveEvolutionCredentials } from '@/lib/channels/evolutionCredentials';
 import { dispatchConversationMedia, type ConversationAttachmentKind } from '@/lib/conversations/conversationMedia';
+import { stripNativeTraceMetadata } from '@/lib/conversations/conversationDeliveryMetadata';
 import {
   dispatchManualConversationOutbound,
   type OutboundDeliveryOutcome,
@@ -300,7 +301,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
     attachmentMediaUrl = signed.data.signedUrl;
   }
 
-  let deliveryMetadata: Record<string, unknown> = parsed.data.metadata ?? {};
+  // O navegador não grava rastro de resposta nativa (prompt, agente, tempo): Central de Agentes, fatia 1.
+  let deliveryMetadata: Record<string, unknown> = stripNativeTraceMetadata(parsed.data.metadata) ?? {};
   let deliveryWarning: string | null = null;
   let outboundDeliveryStatus: string | null = null;
   let persistedOutboundMessageId: string | null = null;
