@@ -15,6 +15,8 @@ export type FakeSupabaseAdmin = ReturnType<typeof createFakeSupabaseAdmin>;
 export type FakeSupabaseAdminOptions = {
   /** Devolve só as colunas pedidas no `.select()` (nomes simples separados por vírgula), como o PostgREST. */
   projetarSelect?: boolean;
+  /** Corta toda leitura neste número de linhas, como o `max_rows` do PostgREST (1.000 no local). */
+  maxLinhas?: number;
 };
 
 export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes: FakeSupabaseAdminOptions = {}) {
@@ -23,7 +25,7 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes
 
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const rpcErrors: Record<string, string> = {};
-  /** `data` que cada RPC devolve (por nome); sem entrada, devolve null como antes. */
+  /** `data` que cada RPC devolve (por nome): valor fixo, ou função dos argumentos; sem entrada, devolve null como antes. */
   const rpcResults: Record<string, unknown> = {};
   /** Falhas combinadas por (tabela, operacao) — para testar o que o codigo faz quando o banco recusa. */
   const forcedErrors: Record<string, string> = {};
@@ -115,6 +117,7 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes
         });
       }
       if (limitCount !== null) selected = selected.slice(0, limitCount);
+      if (opcoes.maxLinhas !== undefined) selected = selected.slice(0, opcoes.maxLinhas);
       // Como o banco de verdade, a leitura devolve CÓPIA: quem leu fica com a foto daquele instante,
       // e uma escrita posterior de outro processo não muda o que ele tem em mãos.
       const copias = selected.map((row) => structuredClone(row));
@@ -241,7 +244,10 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes
   function rpc(name: string, args: Record<string, unknown>) {
     rpcCalls.push({ name, args });
     const message = rpcErrors[name];
-    return Promise.resolve(message ? { data: null, error: { message } } : { data: rpcResults[name] ?? null, error: null });
+    if (message) return Promise.resolve({ data: null, error: { message } });
+    const result = rpcResults[name];
+    const data = typeof result === 'function' ? (result as (a: Record<string, unknown>) => unknown)(args) : result ?? null;
+    return Promise.resolve({ data, error: null });
   }
 
   /** Faz a proxima (e as seguintes) chamadas daquela tabela/operacao devolverem erro. */

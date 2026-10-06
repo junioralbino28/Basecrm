@@ -40,3 +40,17 @@ describe('banco falso: .not com a semântica de NULL do SQL', () => {
     expect(() => semear().from('tags').select('id').not('category_id', 'in', '(c1)')).toThrow('não suportado');
   });
 });
+
+describe('banco falso: limite de linhas e RPC por argumento', () => {
+  it('maxLinhas corta a leitura como o limite de linhas do PostgREST', async () => {
+    const linhas = { t: Array.from({ length: 5 }, (_, i) => ({ id: String(i) })) };
+    const { data } = await createFakeSupabaseAdmin(linhas, { maxLinhas: 3 }).from('t').select('id');
+    expect(data).toHaveLength(3);
+  });
+
+  it('rpcResults aceita uma função dos argumentos', async () => {
+    const admin = createFakeSupabaseAdmin();
+    admin.rpcResults.eco = (args: Record<string, unknown>) => [{ recebido: args.x }];
+    expect((await admin.rpc('eco', { x: 7 })).data).toEqual([{ recebido: 7 }]);
+  });
+});
