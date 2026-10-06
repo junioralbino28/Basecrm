@@ -224,7 +224,9 @@ export async function processDeferredAIReply(params: {
   const queueMs = Number.isFinite(gravadaEm) && gravadaEm > 0 ? inicioGeracao - gravadaEm : null;
 
   try {
-    const nativeReply = promptKey ? await generateConversationAutoReply({
+    // Central de Agentes: número com agente responde pelo agente mesmo com a chave da conexão inválida.
+    // A chave vai como está (`null` quando inválida): `undefined` faria o gerador cair no prompt padrão.
+    const nativeReply = (promptKey || freshConnection.ai_agent_id) ? await generateConversationAutoReply({
       admin,
       organizationId,
       connectionId,
@@ -290,11 +292,25 @@ export async function processDeferredAIReply(params: {
             trigger_message_id: insertedMessageId,
             native_ai: true,
             prompt_source: nativeReply.source,
+            // Impressão digital do prompt usado: prova qual texto respondeu, com ou sem agente.
+            prompt_sha256: nativeReply.promptSha256,
+            // Central de Agentes: qual versão respondeu. Só aparece em número com agente, para não criar chave
+            // nula nas respostas de hoje (chave JSON nula parece presente em `metadata ? 'x'`).
+            ...(nativeReply.agent ? { agent_id: nativeReply.agent.id, agent_version: nativeReply.agent.version } : {}),
             ai_debounce_ms: aiDebounceMs,
             ai_pending_token: aiPendingToken,
             closing_reply: closingReply,
             // Tempo de cada etapa desta resposta (lib/ai/medicaoResposta.ts), para qualquer IA de cliente.
             ai_timing: { ...nativeReply.timing, queue_ms: queueMs },
+          },
+          // Evento de prova (ai_reply_events), gravado por executeConversationAIReply depois da entrega. Sem
+          // agente, a chave é a que o gerador usou (a efetiva da conexão); com agente, nula.
+          replyEvent: {
+            promptSha256: nativeReply.promptSha256,
+            promptKey: nativeReply.agent ? null : promptKey,
+            promptSource: nativeReply.source,
+            agentId: nativeReply.agent?.id ?? null,
+            agentVersion: nativeReply.agent?.version ?? null,
           },
           automationSource: 'native_crm',
           closingReply,
@@ -302,7 +318,9 @@ export async function processDeferredAIReply(params: {
       });
       nativeReplySucceeded = true;
     } else {
-      nativeFailureStage = nativeReply.reason === 'missing_api_key' || nativeReply.reason === 'missing_prompt'
+      nativeFailureStage = nativeReply.reason === 'missing_api_key'
+        || nativeReply.reason === 'missing_prompt'
+        || nativeReply.reason === 'agent_unavailable'
         ? 'configuration'
         : 'generation';
       nativeFailureError = `skipped: ${nativeReply.reason}`;

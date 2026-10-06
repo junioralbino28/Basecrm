@@ -33,6 +33,7 @@ import {
   resolveClosingReplyEligibility,
 } from '@/lib/conversations/closingReply';
 import { repairStructuredOutputText } from '@/lib/conversations/aiOutputRepair';
+import { registrarEventoDeResposta, type EventoDeResposta } from '@/lib/conversations/aiReplyEvents';
 import { buildContactProfileUpdate, mesmaEmpresa, normalizeLeadCompany, normalizeLeadEmail, normalizeLeadName, normalizeLeadSegment } from '@/lib/conversations/leadProfile';
 import {
   buildConversationThreadMetadataUpdate,
@@ -160,6 +161,11 @@ export type ConversationAIReplyPayload = {
   automationSource?: string;
   /** Resposta de encerramento depois do handoff: a conversa fica na fila humana e nada de novo e aberto. */
   closingReply?: boolean;
+  /**
+   * Central de Agentes: dados do evento de prova. Só o webhook (caminho nativo) manda; a rota do n8n e a
+   * cutucada não mandam e não gravam evento. O evento só é gravado depois da entrega.
+   */
+  replyEvent?: Pick<EventoDeResposta, 'promptSha256' | 'promptKey' | 'promptSource' | 'agentId' | 'agentVersion'>;
   /** E-mail e segmento informados pelo lead; vao para o contato (sem sobrescrever e-mail ja cadastrado). */
   leadEmail?: string | null;
   leadSegment?: string | null;
@@ -922,6 +928,9 @@ export async function executeConversationAIReply(params: {
     ai_requested_schedule_text: handoff?.requestedScheduleText ?? null,
     ai_reply_parts: replyParts.length,
   });
+  // Hora em que a ÚLTIMA parte foi aceita pela Evolution. O sent_at das mensagens é fixado antes do envio
+  // (`now`), e envios simultâneos podem terminar em ordem inversa: a prova da migração ordena por isto.
+  let deliveredAt: string | null = null;
   let deliveryWarning: string | null = null;
 
   try {
@@ -938,6 +947,7 @@ export async function executeConversationAIReply(params: {
       });
       sendResults.push(sendResult);
     }
+    deliveredAt = new Date().toISOString();
 
     deliveryMetadata = {
       ...deliveryMetadata,
@@ -983,6 +993,18 @@ export async function executeConversationAIReply(params: {
     .select('id');
 
   if (insertedMessages.error) throw new Error(insertedMessages.error.message);
+
+  // Evento de prova da Central de Agentes: só com a entrega feita e só quando quem chama é o caminho nativo.
+  // Falha aqui só avisa (dentro da função), nunca derruba nem marca a resposta.
+  if (payload.replyEvent && deliveredAt) {
+    await registrarEventoDeResposta(admin, {
+      organizationId: activeConnection.organization_id,
+      channelConnectionId: activeConnection.id,
+      threadId: payload.threadId,
+      deliveredAt,
+      ...payload.replyEvent,
+    });
+  }
 
   // E-mail e segmento que o lead informou vao para o contato. Nunca sobrescreve e-mail existente;
   // falha aqui nao derruba a resposta (ja enviada), so avisa.
