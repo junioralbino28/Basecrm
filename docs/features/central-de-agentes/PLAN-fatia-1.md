@@ -5104,7 +5104,9 @@ As travas do git e da Vercel só são exercitadas contra o banco de teste, na Ta
 - [ ] **Step 3: Commit**
 
 ```bash
-git add scripts/central-agentes/migrar-agentes.ts
+# A pasta scripts/ esta no .gitignore (linha 86, "dev/debug scripts"); os cinco scripts ja rastreados foram
+# adicionados com -f, e este segue o mesmo caminho: a prova depende de ele estar no commit publicado.
+git add -f scripts/central-agentes/migrar-agentes.ts
 git diff --cached --stat
 git commit -m "feat(central-agentes): script de migracao com ambiente pelo banco, trava da versao publicada e da publicacao no ar, e ligacao so no teste"
 ```
