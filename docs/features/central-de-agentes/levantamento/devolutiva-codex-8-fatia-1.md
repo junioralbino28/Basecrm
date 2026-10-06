@@ -1,6 +1,6 @@
 # 8ª devolutiva do Codex sobre a fatia 1 (06/10/2026) — parecer da v8
 
-> Cópia literal do parecer que o Junior colou em 06/10, ~17h05 (o "15:58" no fim é a hora da colagem no relógio dele), sobre o PLAN e a SPEC v8 (worktree `104a312`; cérebro `5919c4e`) e os scripts do rito v3.2 / dump v2. As referências "arquivo:linha" apontam para as cópias no cérebro naquele momento; os links vieram com caminho absoluto da máquina do Junior e foram mantidos como colados. A resposta ponto a ponto está em `resposta-codex-8-devolutiva.md`.
+> Cópia literal do parecer que o Junior colou em 06/10, ~15h58 (o "15:58" no fim é a hora da colagem no relógio dele), sobre o PLAN e a SPEC v8 (worktree `104a312`; cérebro `5919c4e`) e os scripts do rito v3.2 / dump v2. As referências "arquivo:linha" apontam para as cópias no cérebro naquele momento; os links vieram com caminho absoluto da máquina do Junior e foram mantidos como colados. A resposta ponto a ponto está em `resposta-codex-8-devolutiva.md`.
 
 Parecer da v8 — fatia 1
 Há dois bloqueios antes de usar o rito em produção: o prazo de --retomar pode vencer antes de se completarem dez minutos desde o POST, e dump_producao.ps1 aceita um -Ref capaz de alterar o host efetivo da conexão. Os verificadores offline terminaram com 81/81 cenários e 16/16 mutações detectadas; esses resultados não cobrem os dois caminhos apontados.
