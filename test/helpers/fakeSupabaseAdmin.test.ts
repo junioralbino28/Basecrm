@@ -15,3 +15,28 @@ describe('banco falso: projeção do select (opcional)', () => {
     expect(data).toEqual([{ id: '1', a: 'x', b: 'y' }]);
   });
 });
+
+describe('banco falso: .not com a semântica de NULL do SQL', () => {
+  const semear = () => createFakeSupabaseAdmin({
+    tags: [
+      { id: 't1', category_id: 'c1' },
+      { id: 't2', category_id: null },
+      { id: 't3' },
+      { id: 't4', category_id: 'c2' },
+    ],
+  });
+
+  it("not('col', 'is', null) fica só com quem tem valor", async () => {
+    const { data } = await semear().from('tags').select('id').not('category_id', 'is', null);
+    expect(data.map((row) => row.id)).toEqual(['t1', 't4']);
+  });
+
+  it("not('col', 'eq', x) deixa de fora o igual e também o nulo, como no SQL", async () => {
+    const { data } = await semear().from('tags').select('id').not('category_id', 'eq', 'c1');
+    expect(data.map((row) => row.id)).toEqual(['t4']);
+  });
+
+  it('operador que o banco falso não conhece falha alto, em vez de filtrar errado', () => {
+    expect(() => semear().from('tags').select('id').not('category_id', 'in', '(c1)')).toThrow('não suportado');
+  });
+});

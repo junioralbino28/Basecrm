@@ -1,7 +1,7 @@
 /**
  * Cliente admin do Supabase falso, com tabelas em memória, para testar rotas inteiras (SPEC-midia-recebida v2, Passo 0).
  *
- * Imita só o que as rotas de conversa usam: select / eq / neq / lt / lte / gt / gte / in / is / order / limit / maybeSingle / single /
+ * Imita só o que as rotas de conversa usam: select / eq / neq / lt / lte / gt / gte / in / is / not / order / limit / maybeSingle / single /
  * insert (uma linha ou várias) / update / upsert / delete e rpc. Como o supabase-js, `update` ignora chave `undefined`. Tem a mesma trava de
  * unicidade do banco em `conversation_messages (channel_connection_id, provider_message_id)`, porque a rota
  * depende do erro 23505 para tratar reentrega de webhook.
@@ -199,6 +199,21 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes
       is: (column: string, value: unknown) => {
         filters.push((row) => (row[column] ?? null) === value);
         return builder;
+      },
+      not: (column: string, operator: string, value: unknown) => {
+        // Como no SQL: NOT (col IS NULL) é "tem valor"; NOT (col = x) também deixa de fora a linha nula.
+        if (operator === 'is') {
+          filters.push((row) => (readColumn(row, column) ?? null) !== value);
+          return builder;
+        }
+        if (operator === 'eq') {
+          filters.push((row) => {
+            const current = readColumn(row, column);
+            return current !== null && current !== undefined && current !== value;
+          });
+          return builder;
+        }
+        throw new Error(`fakeSupabaseAdmin: .not com operador '${operator}' não suportado`);
       },
       order: (column: string, options?: { ascending?: boolean }) => {
         orders.push({ column, ascending: options?.ascending !== false });
