@@ -9,6 +9,8 @@ export type FreshConversationAIConnection = {
   organization_id: string;
   name: string;
   config: Record<string, unknown> | null;
+  /** Central de Agentes (fatia 1): número com agente usa o prompt da versão publicada. Nulo = caminho de hoje. */
+  ai_agent_id?: string | null;
 };
 
 export async function loadFreshConversationAIGate(input: {
@@ -18,7 +20,7 @@ export async function loadFreshConversationAIGate(input: {
 }) {
   const connectionResult = await input.admin
     .from('channel_connections')
-    .select('id, organization_id, name, config')
+    .select('id, organization_id, name, config, ai_agent_id')
     .eq('id', input.connectionId)
     .eq('organization_id', input.organizationId)
     .maybeSingle();

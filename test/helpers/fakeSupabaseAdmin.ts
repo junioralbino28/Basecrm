@@ -11,7 +11,13 @@ type Result = { data: Row[]; error: { message: string; code?: string } | null };
 
 export type FakeSupabaseAdmin = ReturnType<typeof createFakeSupabaseAdmin>;
 
-export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
+/** Opções do banco falso. Tudo desligado por padrão: os testes antigos continuam vendo o que viam. */
+export type FakeSupabaseAdminOptions = {
+  /** Devolve só as colunas pedidas no `.select()` (nomes simples separados por vírgula), como o PostgREST. */
+  projetarSelect?: boolean;
+};
+
+export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}, opcoes: FakeSupabaseAdminOptions = {}) {
   const tables: Record<string, Row[]> = {};
   for (const [name, rows] of Object.entries(seed)) tables[name] = rows.map((row) => ({ ...row }));
 
@@ -43,6 +49,7 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
     let payload: Row | null = null;
     let limitCount: number | null = null;
     let conflictColumn = 'id';
+    let projecao: string[] | null = null;
 
     function run(): Promise<Result> {
       const forced = forcedErrors[`${table}:${operation}`];
@@ -110,11 +117,21 @@ export function createFakeSupabaseAdmin(seed: Record<string, Row[]> = {}) {
       if (limitCount !== null) selected = selected.slice(0, limitCount);
       // Como o banco de verdade, a leitura devolve CÓPIA: quem leu fica com a foto daquele instante,
       // e uma escrita posterior de outro processo não muda o que ele tem em mãos.
-      return Promise.resolve({ data: selected.map((row) => structuredClone(row)), error: null });
+      const copias = selected.map((row) => structuredClone(row));
+      const colunas = projecao;
+      return Promise.resolve({
+        data: colunas ? copias.map((row) => Object.fromEntries(colunas.map((column) => [column, row[column]]))) : copias,
+        error: null,
+      });
     }
 
     const builder = {
-      select: () => builder,
+      select: (columns?: string) => {
+        if (opcoes.projetarSelect && columns && columns.trim() !== '*') {
+          projecao = columns.split(',').map((column) => column.trim()).filter(Boolean);
+        }
+        return builder;
+      },
       insert: (value: Row | Row[]) => {
         operation = 'insert';
         payload = value as Row;
