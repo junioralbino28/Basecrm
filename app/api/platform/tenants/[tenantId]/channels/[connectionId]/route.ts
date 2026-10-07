@@ -81,9 +81,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
 
   const admin = createStaticAdminClient();
+  // As colunas que o PATCH pode gravar vêm lidas aqui também: são o "antes" que o desfazer devolve se a vinculação
+  // à agência falhar depois da gravação (revisão do Codex, rodada 3).
   const current = await admin
       .from('channel_connections')
-    .select('id, config, metadata, ai_agent_id')
+    .select('id, name, status, config, metadata, last_healthcheck_at, updated_at, ai_agent_id')
     .eq('id', connectionId)
     .eq('organization_id', tenantId)
     .maybeSingle();
@@ -229,12 +231,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
         agencyOrganizationId: auth.profile.organization_id,
       });
     } catch (bindingError) {
+      // Revisão do Codex, rodada 3: a gravação já aconteceu e a vinculação falhou. Sem desfazer, a resposta seria 500
+      // com a conexão alterada. Devolve as colunas gravadas ao valor lido antes (inclusive o updated_at), só se a
+      // linha ainda é a que esta rota gravou: quem gravou depois não perde nada. A resposta diz o que ficou.
+      const motivo =
+        bindingError instanceof Error ? bindingError.message : 'Falha ao vincular cliente a agencia para credencial global.';
+      const anterior = current.data as Record<string, unknown>;
+      const desfazer: Record<string, unknown> = {};
+      for (const coluna of Object.keys(updates)) desfazer[coluna] = anterior[coluna] ?? null;
+      const desfeito = await admin
+        .from('channel_connections')
+        .update(desfazer)
+        .eq('id', connectionId)
+        .eq('organization_id', tenantId)
+        .eq('updated_at', String((data as { updated_at?: unknown }).updated_at ?? ''))
+        .select('id')
+        .maybeSingle();
+      if (!desfeito.error && desfeito.data) {
+        return json({ error: `${motivo} Nada foi alterado na conexão.`, code: 'VINCULACAO_FALHOU' }, 500);
+      }
       return json(
         {
-          error:
-            bindingError instanceof Error
-              ? bindingError.message
-              : 'Falha ao vincular cliente a agencia para credencial global.',
+          error: `${motivo} A conexão FOI alterada e não deu para desfazer: confira a conexão antes de tentar de novo.`,
+          code: 'VINCULACAO_FALHOU_SEM_DESFAZER',
         },
         500
       );

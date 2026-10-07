@@ -8,13 +8,18 @@ const requireTenantAccessMock = vi.fn();
 const bindingMock = vi.fn();
 const updateMock = vi.fn();
 const condicaoMock = vi.fn();
+/** Toda condição `.eq(coluna, valor)` das gravações (a gravação e o desfazer). */
+const eqDaGravacaoMock = vi.fn();
 const baseConfig = { apiUrl: 'https://evolution.example.com', instanceName: 'comercial-a1b2', webhookSecret: 'S', apiKey: 'K', sendMode: 'number_text' };
-const SEM_AGENTE = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: null };
-const LIGADO = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: AGENTE };
+const ANTES = { name: 'Comercial', status: 'connected', last_healthcheck_at: null, updated_at: '2026-10-01T12:00:00.000+00:00' };
+const SEM_AGENTE = { id: CONNECTION, ...ANTES, config: baseConfig, metadata: {}, ai_agent_id: null };
+const LIGADO = { id: CONNECTION, ...ANTES, config: baseConfig, metadata: {}, ai_agent_id: AGENTE };
 /** Cada leitura de channel_connections consome o próximo item: a primeira é a da rota, a segunda é a releitura. */
 let leituras: Array<Record<string, unknown> | null> = [];
 /** O que a gravação devolve: a linha gravada, ou nenhuma (a condição não casou). */
 let gravacaoCasa = true;
+/** Quando não vazia, cada gravação consome o próximo item no lugar de `gravacaoCasa` (a gravação e depois o desfazer). */
+let respostasDaGravacao: boolean[] = [];
 
 vi.mock('node:dns/promises', () => {
   const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
@@ -46,12 +51,17 @@ vi.mock('@/lib/supabase/server', () => ({
         select: () => leitura,
         update: (updates: Record<string, unknown>) => {
           updateMock(updates);
+          const casa = respostasDaGravacao.length > 0 ? respostasDaGravacao.shift() : gravacaoCasa;
           const linha = {
             id: CONNECTION, provider: 'evolution', channel_type: 'whatsapp', name: 'Comercial', status: 'connected', config: updates.config, metadata: {},
+            updated_at: updates.updated_at,
           };
-          const resposta = () => Promise.resolve({ data: gravacaoCasa ? linha : null, error: null });
+          const resposta = () => Promise.resolve({ data: casa ? linha : null, error: null });
           const encadeamento = {
-            eq: () => encadeamento,
+            eq: (coluna: string, valor: unknown) => {
+              eqDaGravacaoMock(coluna, valor);
+              return encadeamento;
+            },
             is: (coluna: string, valor: unknown) => {
               condicaoMock(coluna, valor);
               return encadeamento;
@@ -81,6 +91,7 @@ function patch(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   gravacaoCasa = true;
+  respostasDaGravacao = [];
   // Admin da agência entrando no cliente: é o caminho que passa pela vinculação do cliente à agência.
   requireTenantAccessMock.mockResolvedValue({ profile: { role: 'agency_admin', organization_id: 'org-agencia' }, canManageChannelConfig: true });
 });
@@ -131,5 +142,45 @@ describe('PATCH da conexão — número ligado a um agente', () => {
     gravacaoCasa = false;
     expect((await patch({ config: { aiPromptKey: AURORA } })).status).toBe(404);
     expect(bindingMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH da conexão — vinculação à agência falha depois da gravação (revisão do Codex, rodada 3)', () => {
+  it('a gravação passou e a vinculação falhou: a conexão volta ao que era e a resposta é 500', async () => {
+    leituras = [SEM_AGENTE];
+    bindingMock.mockRejectedValueOnce(new Error('Falha simulada na vinculação.'));
+    const r = await patch({ config: { aiEnabled: false } });
+    expect(r.status).toBe(500);
+    const corpo = await r.json();
+    expect(corpo).toMatchObject({ code: 'VINCULACAO_FALHOU' });
+    expect(corpo.error).toContain('Nada foi alterado na conexão.');
+
+    expect(updateMock).toHaveBeenCalledTimes(2);
+    const [gravou, desfez] = updateMock.mock.calls.map(([updates]) => updates as Record<string, unknown>);
+    expect(gravou.config).toMatchObject({ aiEnabled: false });
+    // O desfazer devolve exatamente as colunas gravadas ao valor lido antes, inclusive o updated_at...
+    expect(desfez).toEqual({ config: SEM_AGENTE.config, updated_at: SEM_AGENTE.updated_at });
+    // ...e só pega a linha se ela ainda é a que esta rota gravou (ninguém gravou depois).
+    expect(eqDaGravacaoMock).toHaveBeenCalledWith('updated_at', gravou.updated_at);
+  });
+
+  it('a vinculação falhou e o desfazer não pegou a linha (alguém gravou depois): 500 dizendo que a conexão foi alterada', async () => {
+    leituras = [SEM_AGENTE];
+    respostasDaGravacao = [true, false];
+    bindingMock.mockRejectedValueOnce(new Error('Falha simulada na vinculação.'));
+    const r = await patch({ config: { aiEnabled: false } });
+    expect(r.status).toBe(500);
+    const corpo = await r.json();
+    expect(corpo).toMatchObject({ code: 'VINCULACAO_FALHOU_SEM_DESFAZER' });
+    expect(corpo.error).toContain('FOI alterada');
+    expect(updateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('vinculação que dá certo: uma gravação só, sem desfazer', async () => {
+    leituras = [SEM_AGENTE];
+    const r = await patch({ config: { aiEnabled: false } });
+    expect(r.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledOnce();
+    expect(eqDaGravacaoMock).not.toHaveBeenCalledWith('updated_at', expect.anything());
   });
 });
