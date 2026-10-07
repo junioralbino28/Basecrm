@@ -70,6 +70,7 @@ import { BottomNav, MoreMenuSheet } from '@/components/navigation';
 import { usePlatformTenantWorkspaceNav } from '@/components/navigation/usePlatformTenantWorkspaceNav';
 import { useTenantScopedHrefBuilder } from '@/components/navigation/useTenantScopedHref';
 import { TenantClinicSwitcher } from '@/components/navigation/TenantClinicSwitcher';
+import { abreDetalheDoItem } from '@/components/navigation/rotaAtiva';
 import { getRoleLabel, isAgencyAdminRole } from '@/lib/auth/scope';
 import { useHasPermission } from '@/lib/auth/useHasPermission';
 import { isTenantWorkspacePath } from '@/lib/tenancy/workspaceRoutes';
@@ -107,6 +108,7 @@ interface LayoutProps {
 
 const isSidebarRouteActive = (pathname: string, to: string): boolean =>
   pathname === to ||
+  abreDetalheDoItem(pathname, to) ||
   (to.endsWith('/boards') && pathname.endsWith('/pipeline')) ||
   (to.endsWith('/pipeline') && pathname.endsWith('/boards'));
 

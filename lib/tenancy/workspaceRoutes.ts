@@ -26,6 +26,7 @@ const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/tarefas',
   '/atendimentos',
   '/automations',
+  '/agents',
   '/whatsapp',
   '/channels',
   '/domains',
@@ -36,6 +37,12 @@ const TENANT_SCOPED_BASE_ROUTES = new Set([
   '/settings',
   '/pipeline',
 ]);
+
+/**
+ * Listas que têm tela de detalhe sob o cliente ('/agents' -> '/agents/<agentId>'). Uma lista só, usada pelo menu
+ * (item aceso no detalhe: components/navigation/rotaAtiva.ts) e pela troca de cliente (getTenantWorkspaceRelativeHref).
+ */
+export const LISTAS_COM_DETALHE: readonly string[] = ['/agents'];
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

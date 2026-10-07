@@ -75,6 +75,9 @@ export function usePlatformTenantWorkspaceNav(): {
   const canAccessWhatsapp = Boolean(tenantQuery.data?.access?.canAccessWhatsApp) || (Boolean(tenantId) && isAgencyAdmin);
   const canAccessConversations = Boolean(tenantQuery.data?.access?.canAccessConversations) || (Boolean(tenantId) && isAgencyAdmin);
   const canAccessAutomations = Boolean(tenantQuery.data?.access?.canAccessAutomations) || (Boolean(tenantId) && isAgencyAdmin);
+  // Central de Agentes: só a agência (agency_admin e o legado admin). O mesmo menu aparece para usuário de cliente,
+  // então este item NUNCA pode sair das permissões que a API devolve.
+  const canAccessAgents = Boolean(tenantId) && isAgencyAdmin;
 
   return {
     items: getTenantWorkspaceNav({
@@ -83,6 +86,7 @@ export function usePlatformTenantWorkspaceNav(): {
       canAccessWhatsapp,
       canAccessConversations,
       canAccessAutomations,
+      canAccessAgents,
     }),
     tenantId,
     hasConnectedWhatsapp,

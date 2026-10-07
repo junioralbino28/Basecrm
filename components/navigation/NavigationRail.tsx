@@ -7,6 +7,7 @@ import { getPrimaryNav, getSecondaryNav } from './navConfig';
 import { usePlatformTenantWorkspaceNav } from './usePlatformTenantWorkspaceNav';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import { useTenantScopedHrefBuilder } from './useTenantScopedHref';
+import { abreDetalheDoItem } from './rotaAtiva';
 
 export interface NavigationRailProps {
   onOpenMore?: () => void;
@@ -25,6 +26,7 @@ export function NavigationRail({ onOpenMore: _onOpenMore }: NavigationRailProps)
 
   const isHrefActive = (href: string) =>
     pathname === href ||
+    abreDetalheDoItem(pathname, href) ||
     (href === '/boards' && pathname === '/pipeline') ||
     (href === '/pipeline' && pathname === '/boards');
 

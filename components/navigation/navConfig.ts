@@ -13,6 +13,7 @@ import {
   MessageCircle,
   MessagesSquare,
   Workflow,
+  Bot,
 } from 'lucide-react';
 
 export type PrimaryNavId = 'boards' | 'contacts' | 'activities' | 'more';
@@ -42,7 +43,8 @@ export type SecondaryNavId =
   | 'tenant_whatsapp_connect'
   | 'tenant_whatsapp'
   | 'tenant_conversations'
-  | 'tenant_automations';
+  | 'tenant_automations'
+  | 'tenant_agents';
 
 export interface SecondaryNavItem {
   id: SecondaryNavId;
@@ -96,6 +98,8 @@ export function getTenantWorkspaceNav(options: {
   canAccessWhatsapp?: boolean;
   canAccessConversations?: boolean;
   canAccessAutomations?: boolean;
+  /** Central de Agentes: só agency_admin e o legado admin. Vem do papel, nunca das permissões da API. */
+  canAccessAgents?: boolean;
 }): SecondaryNavItem[] {
   const {
     tenantId,
@@ -103,13 +107,17 @@ export function getTenantWorkspaceNav(options: {
     canAccessWhatsapp = false,
     canAccessConversations = false,
     canAccessAutomations = false,
+    canAccessAgents = false,
   } = options;
   if (!tenantId) return [];
-  if (!canAccessWhatsapp && !canAccessConversations && !canAccessAutomations) return [];
+  if (!canAccessWhatsapp && !canAccessConversations && !canAccessAutomations && !canAccessAgents) return [];
 
   return [
     ...(canAccessAutomations
       ? [{ id: 'tenant_automations', label: 'Automações', href: `/platform/tenants/${tenantId}/automations`, icon: Workflow } satisfies SecondaryNavItem]
+      : []),
+    ...(canAccessAgents
+      ? [{ id: 'tenant_agents', label: 'Agentes', href: `/platform/tenants/${tenantId}/agents`, icon: Bot } satisfies SecondaryNavItem]
       : []),
     ...(canAccessConversations
       ? [{ id: 'tenant_conversations', label: 'Conversas', href: `/platform/tenants/${tenantId}/conversations`, icon: MessagesSquare } satisfies SecondaryNavItem]
