@@ -2,9 +2,10 @@
  * Central de Agentes, fatia 1 — migração do prompt de hoje para agentes.
  *
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --prova [--org <uuid>] [--incluir <id,id>]
- *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --confirmar-banco <ref> [--incluir <id,id>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --criar --org <uuid> --confirmar-banco <ref> [--incluir <id,id>] [--somente <connectionId>] (em producao, --somente e obrigatorio)
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --ligar <connectionId> --confirmar-banco <ref>
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --desligar <connectionId> --confirmar-banco <ref> [--se-agente <agentId>]
+ *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --webhook <connectionId>
  *
  * O ambiente (ramo publicado, projeto da Vercel e TODOS os domínios que atendem o banco) sai do banco
  * conectado, numa lista fechada (AMBIENTES). A prova só vale com esta cópia exatamente no commit publicado
@@ -21,7 +22,9 @@
  * conferir); 4 = LIGADO A OUTRO AGENTE (alguém ligou o número durante a operação: não desligar sem falar com
  * quem ligou).
  *
- * Nesta fatia, --ligar só roda no ambiente de teste; em produção é recusado (LIGAR_EM_PRODUCAO_LIBERADO).
+ * Fatia 2: --ligar também lê na Evolution, antes e depois de ligar, o endereço do webhook do número e exige um domínio
+ * do ambiente (lib/agents/webhookDoNumero.ts); com isso ligar em produção ficou liberado. --webhook <id> faz só essa
+ * leitura, sem escrever nada.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
@@ -33,7 +36,9 @@ import {
   type ConexaoIgnorada,
   type GrupoPlanejado,
 } from '@/lib/agents/migracaoAgentes';
-import { criarClienteVercel, lerPublicacaoNoAr, type AmbientePublicado } from '@/lib/agents/publicacaoVercel';
+import { criarClienteVercel, lerPublicacaoNoAr, type AmbientePublicado, type PublicacaoNoAr } from '@/lib/agents/publicacaoVercel';
+import { conferirWebhookDoNumero } from '@/lib/agents/webhookDoNumero';
+import { ehUuid, escolherModo } from '@/lib/agents/modoDaMigracao';
 
 const ARQUIVOS_DO_PROMPT = ['lib/ai/prompts', 'lib/agents', 'lib/conversations/aiAgentConfig.ts'];
 const PROJETO_VERCEL = 'prj_Bxf5A1vWELuIIHh6P1HHMUC42ErV';
@@ -66,12 +71,12 @@ const AMBIENTES: Record<string, AmbientePublicado & { nome: string }> = {
 };
 
 /**
- * Ligar número em PRODUÇÃO fica para a fatia 2. A trava da publicação só enxerga os domínios do projeto, e o
- * webhook de cada número é registrado na Evolution com a origem de quem clicou em conectar ou no healthcheck
- * (lib/channels/evolutionWebhookRegistration.ts): pode ser um endereço fora da lista, servido por outro
- * código. Antes de virar `true`, o script tem que ler esse endereço na Evolution e exigir um domínio da lista.
+ * Fatia 2: ligar em produção liberado, porque --ligar passou a ler na Evolution o endereço do webhook de cada número
+ * (conferirWebhookDoNumero) e a exigir um domínio da lista fechada do ambiente, antes de ligar e de novo depois, junto
+ * com a publicação. Webhook desligado ou fora da lista recusa (a Julia, enquanto o webhook dela estiver desligado por
+ * decisão do Junior de 15/09).
  */
-const LIGAR_EM_PRODUCAO_LIBERADO = false;
+const LIGAR_EM_PRODUCAO_LIBERADO = true;
 
 function argumento(nome: string) {
   const i = process.argv.indexOf(nome);
@@ -123,6 +128,13 @@ async function main() {
   console.log(`Banco: ${ref}`);
   console.log(`Commit: ${commit}${promptAlterado ? ' (arquivos do prompt com mudanca local)' : ''}`);
 
+  // Um modo por chamada, e o número dos modos que recebem um tem que ser uuid (lib/agents/modoDaMigracao.ts).
+  const escolhido = escolherModo(process.argv.slice(2));
+  if ('erro' in escolhido) {
+    console.error(escolhido.erro);
+    return sair(2);
+  }
+
   const escreve = tem('--criar') || tem('--ligar') || tem('--desligar');
   if (escreve && argumento('--confirmar-banco') !== ref) {
     console.error(`Escrita recusada: passe --confirmar-banco ${ref} para confirmar o banco.`);
@@ -140,11 +152,6 @@ async function main() {
     return sair(r.ok ? 0 : 1);
   }
 
-  if (!(tem('--prova') || tem('--criar') || tem('--ligar'))) {
-    console.error('Use --prova, --criar, --ligar <id> ou --desligar <id>.');
-    return sair(2);
-  }
-
   const ambiente = AMBIENTES[ref];
   if (!ambiente) {
     console.error(`Recusado: o banco ${ref} nao tem publicacao para conferir. --prova, --criar e --ligar so rodam contra ${Object.keys(AMBIENTES).join(' ou ')}.`);
@@ -154,6 +161,14 @@ async function main() {
   if (tem('--ligar') && ambiente.producao && !LIGAR_EM_PRODUCAO_LIBERADO) {
     console.error('Recusado: ligar numero em producao entra na fatia 2 (falta conferir na Evolution o endereco do webhook de cada numero). Nesta fatia, --ligar so roda no ambiente de teste.');
     return sair(2);
+  }
+
+  const webhook = argumento('--webhook');
+  if (webhook) {
+    // Só leitura: o mesmo critério que o --ligar usa, para conferir antes de pedir o OK.
+    const w = await conferirWebhookDoNumero({ admin, connectionId: webhook, dominios: ambiente.dominios });
+    console.log(w.ok ? `WEBHOOK numero=${webhook} confere host=${w.host}` : `WEBHOOK numero=${webhook} recusado motivo=${w.motivo} (${w.detalhe})`);
+    return sair(w.ok ? 0 : 1);
   }
 
   git(['fetch', 'origin', ambiente.ramo]);
@@ -177,8 +192,16 @@ async function main() {
 
   const ligar = argumento('--ligar');
   if (ligar) {
-    // Confere a publicação antes, liga pela função do banco, confere de novo e desfaz se não confirmar.
-    const r = await ligarComConferencia(admin, ligar, lerPublicacao, commit);
+    // Fatia 2: a publicação E o webhook do número, conferidos antes de ligar e de novo depois. ligarComConferencia
+    // chama este leitor nas duas pontas e desfaz a ligação se a segunda leitura não confirmar.
+    const lerPublicacaoEWebhook = async (): Promise<PublicacaoNoAr> => {
+      const p = await lerPublicacao();
+      if (!p.ok) return p;
+      const w = await conferirWebhookDoNumero({ admin, connectionId: ligar, dominios: ambiente.dominios });
+      if (!w.ok) return { ok: false, motivo: 'webhook_do_numero', detalhe: `${w.motivo}: ${w.detalhe}` };
+      return p;
+    };
+    const r = await ligarComConferencia(admin, ligar, lerPublicacaoEWebhook, commit);
     if (r.estado === 'ligado') {
       console.log(`LIGADO numero=${ligar} agente=${r.agentId} publicacao=${r.publicacao.commit.slice(0, 7)} (${r.publicacao.deploymentId}); linha conferida`);
       return;
@@ -223,9 +246,29 @@ async function main() {
       console.error('--criar exige --org <uuid>: um cliente por vez.');
       return sair(2);
     }
+    // Revisão do Codex, 07/10: --org sozinho cria agente para TODOS os grupos prontos do cliente, e o OK de produção é
+    // por número. --somente <connectionId> restringe ao grupo desse número; em produção é obrigatório.
+    const somente = argumento('--somente');
+    if (ambiente.producao && !somente) {
+      console.error('Recusado: em producao, --criar exige --somente <connectionId> (so o grupo do numero aprovado).');
+      return sair(2);
+    }
+    if (somente && !ehUuid(somente)) {
+      console.error('--somente exige o id (uuid) do numero.');
+      return sair(2);
+    }
     const plano = await planejarMigracao(admin, { organizationId, incluir, publicacao: { commit: p.commit, deploymentId: p.deploymentId } });
-    imprimirPlano(plano);
-    const r = await criarAgentes(admin, { organizationId, grupos: plano.grupos, catalogCommit: commit });
+    const grupos = somente ? plano.grupos.filter((g) => g.conexoes.some((c) => c.id === somente)) : plano.grupos;
+    if (somente && grupos.length !== 1) {
+      console.error(`Recusado: o numero ${somente} nao esta em nenhum grupo deste cliente (confira no --prova).`);
+      return sair(2);
+    }
+    if (somente && !grupos[0].pronto) {
+      console.error(`Recusado: o grupo do numero ${somente} nao esta pronto (algum numero dele sem CONFERE).`);
+      return sair(2);
+    }
+    imprimirPlano({ grupos, ignoradas: plano.ignoradas });
+    const r = await criarAgentes(admin, { organizationId, grupos, catalogCommit: commit });
     for (const c of r.criados) console.log(`${c.criado ? 'CRIADO' : 'JA EXISTIA'} agente=${c.agentId} org=${c.organizationId}`);
     for (const pulado of r.pulados) console.log(`PULADO sha256=${pulado.sha256.slice(0, 12)} numeros=${pulado.conexoes.join(',')}`);
     return;

@@ -29,7 +29,9 @@ export type MotivoDaPublicacao =
   | 'alvo_diverge'
   | 'nao_pronta'
   | 'em_transicao'
-  | 'mais_novo_nao_servido';
+  | 'mais_novo_nao_servido'
+  // Fatia 2: o webhook do número, lido na Evolution junto com a publicação antes e depois de ligar.
+  | 'webhook_do_numero';
 
 export type PublicacaoNoAr =
   | { ok: true; commit: string; deploymentId: string; criadoEm: number }
