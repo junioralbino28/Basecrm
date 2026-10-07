@@ -242,6 +242,8 @@ Ordem (revista em 29/09, ao escrever o PLAN):
 
     Quando a versão publicada já não tinha, a tela mostra uma informação, sem pedir confirmação. Por exemplo: "este agente não faz encerramento depois do repasse".
 
+    **A confirmação dos avisos é garantia da rota de publicar e da tela, não da função do banco:** um `agency_admin` que chame `publish_ai_agent_version` direto, com o próprio JWT, publica sem ela. Os erros (variável fora das 12, tamanho) continuam barrados no banco. Desvio declarado na fatia 2 e aceito pelo Codex na rodada 3 (ponto 5 da rodada 2).
+
   Medido em 29/09 no catálogo:
   - **Aurora:** 18.848 caracteres, as 12 variáveis, com `replyText` e sem pendência. Não dispara nada.
   - **Julia:** 2.569 caracteres, 4 variáveis (`organizationName`, `contactName`, `contactPhone`, `recentMessagesText`), com `replyText` e **sem `{{conversationStageContext}}`**. Hoje ela não encerra depois do repasse; o editor mostra isso como informação.

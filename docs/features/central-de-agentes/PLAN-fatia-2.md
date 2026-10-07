@@ -7565,7 +7565,7 @@ V="$(cygpath -m "$TEMP")/ensaio-dump-vazio"
 rm -rf "$V" && cp -r "$L" "$V" && : > "$V/historico_data.sql"
 bash g23-restauracao/ciclo_g23.sh "$V" "$MIG" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
 printf 'select 1/0;\n' > "$TEMP/erro.sql"
-bash g23-restauracao/ciclo_g23.sh "$L" "$(cygpath -m "$TEMP")/erro.sql" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$TEMP/erro.sql" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
+bash g23-restauracao/ciclo_g23.sh "$L" "$(cygpath -m "$TEMP")/erro.sql" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$(cygpath -m "$TEMP")/erro.sql" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
 rm -rf "$V" "$TEMP/erro.sql"
 ```
 
@@ -7790,8 +7790,8 @@ Expected: prévia `READY`; os dois `prova_login.py` saem 0 (pedido de autentica�
    Expected: o número de teste em `CONFERE` (evento novo com o commit e o deployment da prévia do Step A5), ou como `ja_ligada` se ainda estiver com o agente.
 3. `python rodar_migrar.py --webhook <id do número de teste>`.
    Expected: `WEBHOOK numero=... confere host=teste.crm.basea2.com`.
-4. Se o número não estiver ligado: `python rodar_migrar.py --ligar <id do número de teste> --confirmar-banco zvwngsrflkicbbzfmrgy`.
-   Expected: `LIGADO numero=... agente=... publicacao=<sha> (<dpl>); linha conferida`.
+4. Se o número não estiver ligado: `python rodar_migrar.py --criar --org <org do número> --somente <id do número de teste> --confirmar-banco zvwngsrflkicbbzfmrgy` e depois `python rodar_migrar.py --ligar <id do número de teste> --confirmar-banco zvwngsrflkicbbzfmrgy`, o mesmo caminho do B7. O `--ligar` só acha agente de migração com o `origin.sha256` do prompt que o número usa hoje: um agente antigo, de outro texto, não serve (ensaio de 07/10: o agente de teste da fatia 1 tinha o texto da Aurora de antes do `6a29238`; revisão do Codex, rodada 3, achado 4).
+   Expected: `CRIADO agente=...` (ou `JA EXISTIA`, se o agente com esse sha já existir) e depois `LIGADO numero=... agente=... publicacao=<sha> (<dpl>); linha conferida`.
 
 - [ ] **Step A7: As telas, no navegador, com um usuário descartável no banco de teste**
 
