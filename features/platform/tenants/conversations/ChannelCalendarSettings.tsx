@@ -131,7 +131,6 @@ function GoogleCalendarConnect({ tenantId, connectionId, disabled }: { tenantId:
     if (!status?.connected || status.canListCalendars !== true) return;
     if (calendars !== null || loadingCalendars) return;
     void loadCalendars();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, status, calendars, loadingCalendars]);
 
   async function toggleExpanded() {
