@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status:** v1, 07/10/2026 (sessão `a723714c`). Escrito depois da fatia 1 em produção (`main` = `6a29238`). Ainda sem revisão do Codex. Produção só com o OK do Junior, dado para esta fatia (o OK da fatia 1 não vale aqui).
+> **Status:** v2, 07/10/2026 (sessão `a723714c`). Escrito depois da fatia 1 em produção (`main` = `6a29238`). A v2 traz a rodada 1 do Codex aplicada; ela foi parcial, porque o Codex bateu no limite de uso no meio. Os achados e as decisões estão na seção 6 da autorrevisão, no fim do arquivo. Falta o parecer consolidado dele. Produção só com o OK do Junior, dado para esta fatia (o OK da fatia 1 não vale aqui).
 
-**Goal:** a agência abre a Central de Agentes de um cliente, entra num agente, lê o prompt formatado, edita, vê a verificação ao vivo, publica uma versão nova (que a próxima resposta real já usa), compara versões e restaura uma anterior com um clique; e Aurora (e depois a Julia) passam a ser ligadas em produção.
+**Goal:** a agência abre a Central de Agentes de um cliente, entra num agente, lê o prompt formatado, edita, vê a verificação ao vivo, publica uma versão nova (as respostas que começarem depois da publicação já a usam), compara versões e restaura uma anterior com um clique; e Aurora (e depois a Julia) passam a ser ligadas em produção.
 
 **Architecture:** três funções SQL novas (`save_ai_agent_draft`, `publish_ai_agent_version`, `restore_ai_agent_version`), `security definer` com `search_path=''`, chamadas pelas rotas **com o JWT do usuário**: o papel é conferido por dentro e o autor vem de `auth.uid()`. Cada uma trava a linha do agente e só escreve se a revisão do rascunho (e a versão publicada) forem as que a tela mostrou; diferença vira 409. A verificação ao vivo é uma função pura em `lib/agents/`, usada pela tela enquanto se edita e recalculada pela rota de publicar sobre o rascunho **gravado**. As telas ficam em `/platform/tenants/[tenantId]/agents` e `/agents/[agentId]`, no mesmo padrão das telas do cliente que já existem. A ligação em produção continua pelo script da fatia 1, que passa a ler na Evolution o endereço do webhook de cada número antes de ligar.
 
@@ -58,8 +58,8 @@ Consequência: a **Aurora** pode ser ligada em produção depois do deploy desta
 
 | Arquivo | Ação | Responsabilidade |
 |---|---|---|
-| `supabase/migrations/20261007120000_central_agentes_editor.sql` | criar (Task 1) | As três funções de escrita (`save_ai_agent_draft`, `publish_ai_agent_version`, `restore_ai_agent_version`), `security definer`, só `authenticated` |
-| `docs/features/central-de-agentes/volta-fatia-2.sql` | criar (Task 1) | Volta da migration (derruba as três funções e a linha do histórico) |
+| `supabase/migrations/20261007120000_central_agentes_editor.sql` | criar (Task 1) | As três funções de escrita (`save_ai_agent_draft`, `publish_ai_agent_version`, `restore_ai_agent_version`), `security definer`, só `authenticated`, e a auxiliar `central_agentes_variavel_desconhecida` (sem `execute` para ninguém) |
+| `docs/features/central-de-agentes/volta-fatia-2.sql` | criar (Task 1) | Volta da migration (derruba as quatro funções e a linha do histórico) |
 | `test/centralAgentesEditorMigration.test.ts` | criar (Task 1) | Teste estático do cabeçalho, das travas, dos grants e da volta |
 | `test/centralAgentesEditor.local.test.ts` | criar (Tasks 2 e 4) | Comportamento com chamada de verdade, matriz G2, corrida observada, camada de servidor |
 | `lib/agents/verificarPrompt.ts` | criar (Task 3) | Verificação ao vivo (função pura; tela e servidor) |
@@ -78,11 +78,12 @@ Consequência: a **Aurora** pode ser ligada em produção depois do deploy desta
 | `features/agents/AgentEditorPage.tsx`, `LeituraDoPrompt.tsx`, `PainelDaVerificacao.tsx`, `DialogoPublicar.tsx` | criar (Task 8) | O editor |
 | `app/(protected)/platform/tenants/[tenantId]/agents/[agentId]/page.tsx` | criar (Task 8) | Rota de tela do editor |
 | `lib/agents/numerosDaChave.ts`, `app/api/settings/ai-prompts/[key]/route.ts`, `features/settings/components/AIFeaturesSection.tsx` | criar e modificar (Task 9) | Aviso na Central de I.A, contado no servidor |
-| `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts` | modificar (Task 10) | 409 para `aiPromptKey` em número ligado |
+| `lib/agents/migracaoAgentes.ts` | modificar (Task 9) | Só exportar `lerConexoes` (leitura paginada da fatia 1), reusada na contagem |
+| `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts` (+ `route.patch.test.ts`) | modificar (Task 10) | 409 para `aiPromptKey` em número ligado, antes de qualquer gravação e com a gravação condicionada |
 | `lib/ai/prompts/migrated-prompts.lock.json`, `lib/ai/prompts/catalog.ts` (comentários) | criar e modificar (Task 11) | Trava das chaves migradas |
-| `lib/agents/webhookDoNumero.ts`, `lib/agents/publicacaoVercel.ts`, `scripts/central-agentes/migrar-agentes.ts` | criar e modificar (Task 12) | Leitura do webhook na Evolution, `--webhook`, produção liberada |
-| Cérebro: `dump_producao.ps1`, `prova_dump_local.ps1`, `conferir_pos_dump.ps1`, `g23-restauracao/*` | modificar e criar (Task 14) | Backup com os quatro requisitos |
-| Cérebro: `poll_deploys.py`, `rodar_migrar_prod.py`, `ligacoes-aprovadas.json`, `migracoes-aprovadas.json` | modificar e criar (Task 15) | Ensaio só na prévia; escrita em produção só com OK registrado |
+| `lib/agents/webhookDoNumero.ts`, `lib/agents/modoDaMigracao.ts`, `lib/agents/publicacaoVercel.ts`, `scripts/central-agentes/migrar-agentes.ts` | criar e modificar (Task 12) | Leitura do webhook na Evolution, `--webhook`, modo único com id obrigatório, `--somente` no `--criar`, produção liberada |
+| Cérebro: `dump_producao.ps1`, `prova_dump_local.ps1`, `conferir_pos_dump.ps1`, `sqlprod.py`, `sqlteste.py`, `rota_b_senha.ps1`, `g23-restauracao/*` | modificar e criar (Task 14) | Backup com os quatro requisitos; contagem que para no erro; senha sempre na pasta do dump |
+| Cérebro: `poll_deploys.py`, `alias_teste.py`, `rodar_migrar_prod.py`, `ligacoes-aprovadas.json`, `migracoes-aprovadas.json` | modificar e criar (Task 15) | Ensaio só na prévia; alias que falha com erro e é relido; escrita em produção só com OK registrado e commitado |
 
 ---
 
@@ -131,7 +132,8 @@ Decisões que o código abaixo fixa (SPEC, "Decisões de desenho", linhas Rascun
 - cada uma trava a linha do agente **da organização informada** (`for update`) e confere a `draft_revision` que a tela leu; publicar e restaurar conferem também a versão publicada esperada. Diferença levanta erro com nome, e a rota devolve 409;
 - o rascunho desta fatia guarda só `{"prompt": ...}`; a versão nova copia `settings` e `model` da publicada (hoje `{}` e nulo). A fatia 4 abre os ajustes com a lista fechada de chaves;
 - restaurar publica o conteúdo da versão escolhida como versão nova (`source = 'restore'`, `restored_from`) e **passa esse texto para o rascunho** (revisão + 1): senão a tela mostraria "Rascunho com mudanças" com o texto que acabou de sair, e um Publicar desfaria a restauração. Por isso restaurar também confere a revisão: o rascunho descartado é o que a tela mostrou. Restaurar um conteúdo igual ao publicado (prompt, settings e model) é recusado com `sem_mudancas`, para o histórico não ganhar versões repetidas.
-- Os erros têm nome estável na **mensagem**, e a rota traduz pela mensagem: `sem_permissao` (42501), `agente_inexistente` e `versao_inexistente` (P0002), `rascunho_mudou`, `versao_publicada_mudou`, `rascunho_vazio`, `sem_mudancas`, `versao_ja_publicada` (P0001), `prompt_invalido` e `nota_invalida` (22023).
+- publicar e restaurar recusam texto com marcador `{{...}}` fora das 12 variáveis (`variavel_desconhecida`, P0001, com o nome no `detail`). A regra mora numa função auxiliar, `central_agentes_variavel_desconhecida(text)`, sem `execute` para ninguém, e vale também para quem chamar a função direto, sem passar pela rota. Revisão do Codex, 07/10: com a verificação só na rota, um `agency_admin` publicaria pelo próprio JWT o que a tela bloqueia. Os **avisos** continuam só na rota, porque são confirmáveis por definição e a versão guarda o autor. A lista das 12 no SQL é travada igual à da tela pelo teste da Task 3.
+- Os erros têm nome estável na **mensagem**, e a rota traduz pela mensagem: `sem_permissao` (42501), `agente_inexistente` e `versao_inexistente` (P0002), `rascunho_mudou`, `versao_publicada_mudou`, `rascunho_vazio`, `sem_mudancas`, `versao_ja_publicada`, `variavel_desconhecida` (P0001), `prompt_invalido` e `nota_invalida` (22023).
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -237,6 +239,30 @@ describe('migration do editor da Central de Agentes (fatia 2)', () => {
     }
   });
 
+  it('a regra das 12 variáveis vale no banco: função auxiliar sem execute para ninguém, chamada antes de gravar', () => {
+    const auxiliar = semComentarios.match(
+      /create or replace function public\.central_agentes_variavel_desconhecida\(p_prompt text\)([\s\S]*?)as \$\$([\s\S]*?)\$\$;/,
+    );
+    expect(auxiliar, 'função auxiliar').not.toBeNull();
+    const [, cab, corpoAuxiliar] = auxiliar!;
+    expect(cab).toMatch(/language sql/);
+    expect(cab).toMatch(/immutable/);
+    expect(cab).toMatch(/security invoker/);
+    expect(cab).toMatch(/set search_path = ''/);
+    expect(corpoAuxiliar).toContain("regexp_matches(coalesce(p_prompt, ''), '\\{\\{([^{}]*)\\}\\}', 'g')");
+    expect(semComentarios).toContain(
+      'revoke all on function public.central_agentes_variavel_desconhecida(text) from public, anon, authenticated, service_role;',
+    );
+    expect(semComentarios).not.toMatch(/grant execute on function public\.central_agentes_variavel_desconhecida/);
+    for (const nome of ['publish_ai_agent_version', 'restore_ai_agent_version'] as const) {
+      const b = corpo(nome);
+      const chamada = b.indexOf('public.central_agentes_variavel_desconhecida(v_prompt)');
+      expect(chamada, nome).toBeGreaterThan(-1);
+      expect(chamada, nome).toBeLessThan(b.indexOf('insert into public.ai_agent_versions'));
+      expect(b, nome).toContain("raise exception 'variavel_desconhecida' using errcode = 'P0001', detail = v_desconhecida");
+    }
+  });
+
   it('não é destrutiva: nenhuma tabela, coluna ou dado muda', () => {
     expect(semComentarios).not.toMatch(/\bdrop\s+(table|column|function|trigger|policy|index|schema)\b/i);
     expect(semComentarios).not.toMatch(/\balter\s+table\b/i);
@@ -245,7 +271,7 @@ describe('migration do editor da Central de Agentes (fatia 2)', () => {
     expect(semComentarios).not.toMatch(/\bcreate\s+(table|policy|trigger)\b/i);
   });
 
-  it('a volta derruba só as três funções e o registro da versão, numa transação', () => {
+  it('a volta derruba só as quatro funções e o registro da versão, numa transação', () => {
     const volta = existsSync(VOLTA) ? readFileSync(VOLTA, 'utf8').replace(/--.*$/gm, '') : '';
     const comandos = volta.split(';').map((c) => c.trim()).filter(Boolean);
     expect(comandos).toEqual([
@@ -253,6 +279,7 @@ describe('migration do editor da Central de Agentes (fatia 2)', () => {
       'drop function if exists public.restore_ai_agent_version(uuid, uuid, integer, integer, integer, text)',
       'drop function if exists public.publish_ai_agent_version(uuid, uuid, integer, integer, text)',
       'drop function if exists public.save_ai_agent_draft(uuid, uuid, integer, text)',
+      'drop function if exists public.central_agentes_variavel_desconhecida(text)',
       "delete from supabase_migrations.schema_migrations where version = '20261007120000'",
       'commit',
     ]);
@@ -282,12 +309,41 @@ Criar `supabase/migrations/20261007120000_central_agentes_editor.sql` (LF, sem C
 -- mostrou; senão levanta um erro com nome, que a rota devolve como 409.
 -- Erros (nome na mensagem; a rota traduz pela mensagem):
 --   sem_permissao (42501) · agente_inexistente, versao_inexistente (P0002)
---   rascunho_mudou, versao_publicada_mudou, rascunho_vazio, sem_mudancas, versao_ja_publicada (P0001)
+--   rascunho_mudou, versao_publicada_mudou, rascunho_vazio, sem_mudancas, versao_ja_publicada,
+--   variavel_desconhecida (P0001; o nome da variável vai no detail)
 --   prompt_invalido, nota_invalida (22023)
 -- Só ADITIVA: nenhuma tabela, coluna ou dado muda. A versão nova copia settings e model da publicada (a fatia
 -- 2 só edita o prompt; as fatias 4 e 5 abrem os outros campos com lista fechada).
 -- VOLTA: docs/features/central-de-agentes/volta-fatia-2.sql.
 -- =============================================================================
+
+-- As 12 variáveis que o runtime troca (lib/conversations/aiReply.ts, objeto passado a renderPromptTemplate): a
+-- mesma lista de lib/agents/verificarPrompt.ts (VARIAVEIS_DO_PROMPT), e o teste dela trava as duas iguais.
+-- Devolve o primeiro marcador {{...}} cujo nome, sem os espaços das pontas, não é uma delas; null quando todos
+-- são. Publicar e restaurar chamam esta função antes de gravar: a regra que a tela mostra como erro vale também
+-- para quem chamar a função direto, sem passar pela rota. Sem execute para ninguém: só as duas a usam.
+create or replace function public.central_agentes_variavel_desconhecida(p_prompt text)
+returns text
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select marcador.nome
+  from (
+    select regexp_replace(r.m[1], '^\s+|\s+$', '', 'g') as nome, r.ordem
+    from regexp_matches(coalesce(p_prompt, ''), '\{\{([^{}]*)\}\}', 'g') with ordinality as r(m, ordem)
+  ) marcador
+  where marcador.nome <> all (array[
+    'organizationName', 'contactName', 'contactPhone', 'currentDateTime', 'currentDateTimeLocal', 'timezone',
+    'meetingHostName', 'meetingChannelText', 'conversationStageContext', 'recentMessagesText', 'calendarContext',
+    'availableTagsContext'
+  ])
+  order by marcador.ordem
+  limit 1
+$$;
+
+revoke all on function public.central_agentes_variavel_desconhecida(text) from public, anon, authenticated, service_role;
 
 -- Salva o rascunho (nesta fatia, só o prompt) e devolve a revisão nova.
 create or replace function public.save_ai_agent_draft(
@@ -364,6 +420,7 @@ declare
   v_prompt text;
   v_nota text;
   v_nova_id uuid;
+  v_desconhecida text;
 begin
   if not public.is_agency_admin_role() then
     raise exception 'sem_permissao' using errcode = '42501';
@@ -400,6 +457,10 @@ begin
   v_prompt := case when jsonb_typeof(v_rascunho -> 'prompt') = 'string' then v_rascunho ->> 'prompt' end;
   if v_prompt is null or char_length(v_prompt) < 1 or char_length(v_prompt) > 50000 then
     raise exception 'rascunho_vazio' using errcode = 'P0001';
+  end if;
+  v_desconhecida := public.central_agentes_variavel_desconhecida(v_prompt);
+  if v_desconhecida is not null then
+    raise exception 'variavel_desconhecida' using errcode = 'P0001', detail = v_desconhecida;
   end if;
   if v_prompt_atual is not null and v_prompt = v_prompt_atual then
     raise exception 'sem_mudancas' using errcode = 'P0001';
@@ -455,6 +516,7 @@ declare
   v_modelo text;
   v_nota text;
   v_nova_id uuid;
+  v_desconhecida text;
 begin
   if not public.is_agency_admin_role() then
     raise exception 'sem_permissao' using errcode = '42501';
@@ -499,6 +561,11 @@ begin
     and v.version = p_version;
   if not found then
     raise exception 'versao_inexistente' using errcode = 'P0002';
+  end if;
+  -- Uma versão antiga pode usar uma variável que saiu do runtime: publicá-la de novo deixaria o marcador cru.
+  v_desconhecida := public.central_agentes_variavel_desconhecida(v_prompt);
+  if v_desconhecida is not null then
+    raise exception 'variavel_desconhecida' using errcode = 'P0001', detail = v_desconhecida;
   end if;
   -- Restaurar um conteúdo igual ao publicado só criaria uma versão repetida no histórico.
   if v_prompt = v_prompt_atual and v_settings = v_settings_atual and v_modelo is not distinct from v_modelo_atual then
@@ -546,6 +613,7 @@ begin;
 drop function if exists public.restore_ai_agent_version(uuid, uuid, integer, integer, integer, text);
 drop function if exists public.publish_ai_agent_version(uuid, uuid, integer, integer, text);
 drop function if exists public.save_ai_agent_draft(uuid, uuid, integer, text);
+drop function if exists public.central_agentes_variavel_desconhecida(text);
 delete from supabase_migrations.schema_migrations where version = '20261007120000';
 commit;
 ```
@@ -553,7 +621,7 @@ commit;
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `npx vitest run test/centralAgentesEditorMigration.test.ts`
-Expected: PASS (10 testes).
+Expected: PASS (11 testes).
 
 - [ ] **Step 6: Aplicar no banco local**
 
@@ -563,7 +631,7 @@ docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres
 docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261007120000', 'central_agentes_editor') on conflict do nothing"
 docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "notify pgrst, 'reload schema'"
 ```
-Expected: `CREATE FUNCTION`, `REVOKE` e `GRANT` três vezes, sem erro; o `insert` de 1 linha; o `NOTIFY`.
+Expected: `CREATE FUNCTION` e `REVOKE` quatro vezes e `GRANT` três (a auxiliar não ganha), sem erro; o `insert` de 1 linha; o `NOTIFY`.
 
 - [ ] **Step 7: Commit**
 
@@ -583,10 +651,11 @@ O `git diff --cached --stat` tem que listar só esses três arquivos, com o núm
 
 O que este teste prova, com chamada de verdade no Supabase local (`npm run test:local`), e que o teste estático da Task 1 não alcança:
 - salvar sobe a revisão, grava o autor de `auth.uid()` e recusa revisão velha (a "outra aba");
-- publicar cria N+1, move o ponteiro e copia `settings`/`model` da publicada; recusa versão esperada velha, revisão velha, rascunho igual ao publicado e rascunho vazio;
+- publicar cria N+1, move o ponteiro e copia `settings`/`model` da publicada. A cópia é provada com uma publicada de valores **diferentes do padrão** (a v1 da migração tem `{}` e nulo, os mesmos de uma inserção que omitisse os campos). Recusa versão esperada velha, revisão velha, rascunho igual ao publicado e rascunho vazio;
 - restaurar cria versão nova com `source = 'restore'` e `restored_from`, traz o texto para o rascunho e recusa a própria publicada, conteúdo repetido e versão que não existe;
+- variável fora das 12 é recusada pela própria função, ao publicar e ao restaurar, mesmo numa chamada direta pelo JWT de quem é da agência (`variavel_desconhecida`, com o nome no `details`);
 - agente de outra organização é `agente_inexistente` (G4);
-- matriz G2 das três funções: só `agency_admin` e o legado `admin` passam do papel; `agency_staff`, os dois clientes, o anônimo **e a chave de serviço** recebem 42501; nada muda no banco;
+- matriz G2: o privilégio **efetivo**, lido no catálogo (`has_function_privilege`), é `execute` só de `authenticated` nas três funções e de ninguém na auxiliar. Na chamada, o anônimo e a chave de serviço caem no "permission denied for function" do Postgres. `agency_staff` e os dois clientes chegam à função e recebem `sem_permissao`. Só `agency_admin` e o legado `admin` passam do papel. Os dois 42501 têm o mesmo código: sem separar a mensagem e sem o catálogo, o teste não provaria o `revoke` (revisão do Codex, 07/10). Nada muda no banco;
 - corrida: com uma publicação aberta em outra sessão, a segunda chega ao banco, **espera a trava da linha** (vista em `pg_blocking_pids` e `pg_locks`, como nas corridas da fatia 1) e recebe `versao_publicada_mudou`.
 
 - [ ] **Step 1: Escrever o teste**
@@ -785,24 +854,36 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     expect((await estado(agente)).agente.draft).toEqual({ prompt: `${BASE}\nrascunho 1` });
   });
 
-  it('publicar cria N+1, move o ponteiro, copia ajustes e modelo e grava nota e autor', async () => {
+  it('publicar cria N+1, move o ponteiro, copia ajustes e modelo da publicada e grava nota e autor', async () => {
     const { agente } = await novoAgente(orgA, 'publicar');
-    expect((await salvar(agencia, orgA, agente, 0, `${BASE}\nv2`)).error).toBeNull();
+    // A v1 da migração tem {} e nulo, os mesmos valores de uma inserção que omitisse os dois campos. Para provar a
+    // CÓPIA, a publicada passa a ser uma v2 com valores diferentes do padrão, gravada direto no Postgres local.
+    const pg = await sessaoPg();
+    try {
+      const v2 = await pg.query(
+        "insert into public.ai_agent_versions (agent_id, organization_id, version, prompt, settings, model, source) values ($1, $2, 2, $3, $4::jsonb, 'modelo-de-teste', 'publish') returning id",
+        [agente, orgA, `${BASE}\nv2 direta`, JSON.stringify({ origemDoTeste: true })],
+      );
+      await pg.query('update public.ai_agents set published_version_id = $1 where id = $2', [v2.rows[0].id, agente]);
+    } finally {
+      await pg.end();
+    }
+    expect((await salvar(agencia, orgA, agente, 0, `${BASE}\nv3`)).error).toBeNull();
 
-    const publicada = await publicar(agencia, orgA, agente, 1, 1, '  abertura nova  ');
+    const publicada = await publicar(agencia, orgA, agente, 2, 1, '  abertura nova  ');
     expect(publicada.error).toBeNull();
     const linha = (publicada.data as LinhaPublicada[])[0];
-    expect(linha.out_version).toBe(2);
+    expect(linha.out_version).toBe(3);
 
     const { agente: depois, versoes } = await estado(agente);
     expect(depois.published_version_id).toBe(linha.out_version_id);
     expect(depois.draft_revision).toBe(1);
-    expect(versoes.map((v) => v.version)).toEqual([1, 2]);
-    expect(versoes[1]).toMatchObject({
+    expect(versoes.map((v) => v.version)).toEqual([1, 2, 3]);
+    expect(versoes[2]).toMatchObject({
       id: linha.out_version_id,
-      prompt: `${BASE}\nv2`,
-      settings: {},
-      model: null,
+      prompt: `${BASE}\nv3`,
+      settings: { origemDoTeste: true },
+      model: 'modelo-de-teste',
       source: 'publish',
       restored_from: null,
       note: 'abertura nova',
@@ -873,6 +954,37 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     expect((await estado(agente)).versoes.map((v) => v.version)).toEqual([1, 2, 3]);
   });
 
+  it('variável fora das 12 é recusada pela própria função, ao publicar e ao restaurar, mesmo chamando direto', async () => {
+    const { agente } = await novoAgente(orgA, 'variavel');
+    // Chamada direta pelo JWT de quem é da agência, sem passar pela rota que roda a verificação ao vivo.
+    expect((await salvar(agencia, orgA, agente, 0, `${BASE}\n{{ nomeDoLead }}`)).error).toBeNull();
+    const publicada = await publicar(agencia, orgA, agente, 1, 1);
+    expect(publicada.error?.code).toBe('P0001');
+    expect(publicada.error?.message).toBe('variavel_desconhecida');
+    expect(publicada.error?.details).toBe('nomeDoLead');
+
+    // Espaços nas pontas não contam, como no runtime e na tela.
+    expect((await salvar(agencia, orgA, agente, 1, `${BASE}\n{{ contactName }}`)).error).toBeNull();
+    expect((await publicar(agencia, orgA, agente, 1, 2)).error).toBeNull();
+
+    // Uma versão antiga com uma variável que saiu do runtime: restaurar também recusa.
+    const pg = await sessaoPg();
+    try {
+      await pg.query(
+        "insert into public.ai_agent_versions (agent_id, organization_id, version, prompt, source) values ($1, $2, 99, $3, 'publish')",
+        [agente, orgA, `${BASE}\n{{variavelQueSaiu}}`],
+      );
+    } finally {
+      await pg.end();
+    }
+    const restaurada = await restaurar(agencia, orgA, agente, 99, 2, 2);
+    expect(restaurada.error?.message).toBe('variavel_desconhecida');
+    expect(restaurada.error?.details).toBe('variavelQueSaiu');
+
+    const { agente: depois } = await estado(agente);
+    expect(depois.draft_revision).toBe(2);
+  });
+
   it('o agente tem que ser da organização informada (G4)', async () => {
     const { agente: deB } = await novoAgente(orgB, 'outra organizacao');
     const chamadas = [
@@ -901,7 +1013,32 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     expect(nota.error?.message).toBe('nota_invalida');
   });
 
-  it('matriz de acesso (G2): só agency_admin e o legado admin passam do papel; nem a chave de serviço chama', async () => {
+  it('matriz de acesso (G2): execute só de authenticated, lido no catálogo; dentro, só agency_admin e o legado admin passam do papel', async () => {
+    // O 42501 do Postgres (sem execute) e o da função (sem_permissao) têm o mesmo código: a chamada sozinha não prova
+    // o revoke. O catálogo mostra o privilégio efetivo, com herança de papel (revisão do Codex, 07/10).
+    const pg = await sessaoPg();
+    try {
+      const privilegio = (funcao: string) =>
+        pg.query(
+          "select has_function_privilege('anon', $1, 'execute') as anon, has_function_privilege('authenticated', $1, 'execute') as autenticado, has_function_privilege('service_role', $1, 'execute') as servico",
+          [funcao],
+        );
+      for (const funcao of [
+        'public.save_ai_agent_draft(uuid, uuid, integer, text)',
+        'public.publish_ai_agent_version(uuid, uuid, integer, integer, text)',
+        'public.restore_ai_agent_version(uuid, uuid, integer, integer, integer, text)',
+      ]) {
+        expect((await privilegio(funcao)).rows[0], funcao).toEqual({ anon: false, autenticado: true, servico: false });
+      }
+      expect((await privilegio('public.central_agentes_variavel_desconhecida(text)')).rows[0]).toEqual({
+        anon: false,
+        autenticado: false,
+        servico: false,
+      });
+    } finally {
+      await pg.end();
+    }
+
     const { agente } = await novoAgente(orgA, 'matriz');
     const antes = await estado(agente);
     const identidades: Record<string, SupabaseClient> = {
@@ -915,6 +1052,8 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     };
     // Quem passa do papel para na versão/revisão esperada (999), sem escrever nada.
     const passaDoPapel = new Set(['agencia', 'legado']);
+    // Sem execute: o Postgres recusa antes de entrar na função.
+    const semExecute = new Set(['anonimo', 'servico']);
     for (const [nome, cliente] of Object.entries(identidades)) {
       const chamadas = [
         await salvar(cliente, orgA, agente, 999, 'x'),
@@ -922,7 +1061,15 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
         await restaurar(cliente, orgA, agente, 1, 999, 999),
       ];
       for (const chamada of chamadas) {
-        expect(chamada.error?.code, nome).toBe(passaDoPapel.has(nome) ? 'P0001' : '42501');
+        if (passaDoPapel.has(nome)) {
+          expect(chamada.error?.code, nome).toBe('P0001');
+        } else if (semExecute.has(nome)) {
+          expect(chamada.error?.code, nome).toBe('42501');
+          expect(chamada.error?.message, nome).toMatch(/permission denied for function/);
+        } else {
+          expect(chamada.error?.code, nome).toBe('42501');
+          expect(chamada.error?.message, nome).toBe('sem_permissao');
+        }
       }
     }
     expect(await estado(agente)).toEqual(antes);
@@ -962,16 +1109,16 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
 - [ ] **Step 2: Rodar contra o Supabase local**
 
 Run: `npm run test:local -- test/centralAgentesEditor.local.test.ts`
-Expected: PASS (8 testes). Se algum der `skipped`, o runner não achou o Supabase local: rodar `npx supabase start` e repetir. Se der `function public.save_ai_agent_draft(...) does not exist`, a Task 1, Step 6, não foi aplicada no banco local.
+Expected: PASS (9 testes). Se algum der `skipped`, o runner não achou o Supabase local: rodar `npx supabase start` e repetir. Se der `function public.save_ai_agent_draft(...) does not exist`, a Task 1, Step 6, não foi aplicada no banco local. Se a matriz falhar em `servico` com `sem_permissao` em vez de "permission denied", a chave de serviço herda `execute` por algum papel: parar e investigar o `revoke`, nunca afrouxar o teste.
 
 - [ ] **Step 3: Provar a volta no banco local (aplicar, voltar, aplicar)**
 
 Run, um comando por vez, lendo cada saída:
 ```bash
 docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres < docs/features/central-de-agentes/volta-fatia-2.sql
-docker exec -i supabase_db_crmia psql -U postgres -d postgres -At -c "select count(*) from pg_proc where proname in ('save_ai_agent_draft','publish_ai_agent_version','restore_ai_agent_version'); select count(*) from supabase_migrations.schema_migrations where version = '20261007120000'"
+docker exec -i supabase_db_crmia psql -U postgres -d postgres -At -c "select count(*) from pg_proc where proname in ('save_ai_agent_draft','publish_ai_agent_version','restore_ai_agent_version','central_agentes_variavel_desconhecida'); select count(*) from supabase_migrations.schema_migrations where version = '20261007120000'"
 ```
-Expected: `BEGIN`, três `DROP FUNCTION`, `DELETE 1`, `COMMIT`; depois `0` e `0`.
+Expected: `BEGIN`, quatro `DROP FUNCTION`, `DELETE 1`, `COMMIT`; depois `0` e `0`.
 
 Reaplicar e conferir:
 ```bash
@@ -980,7 +1127,7 @@ docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "insert into su
 docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "notify pgrst, 'reload schema'"
 npm run test:local -- test/centralAgentesEditor.local.test.ts
 ```
-Expected: as funções voltam, o `insert` grava 1 linha e o teste passa de novo (8 testes). Anotar no registro da fatia: "volta provada no banco local em <data e hora>".
+Expected: as funções voltam, o `insert` grava 1 linha e o teste passa de novo (9 testes). Anotar no registro da fatia: "volta provada no banco local em <data e hora>".
 
 - [ ] **Step 4: Commit**
 
@@ -1024,7 +1171,7 @@ import { VARIAVEIS_DO_PROMPT, avisosNaoConfirmados, verificarPrompt } from './ve
 const catalogo = getPromptCatalogMap() as Record<string, { defaultTemplate: string }>;
 const AURORA = catalogo.task_conversations_whatsapp_cenno_aurora.defaultTemplate;
 const JULIA = catalogo.task_conversations_whatsapp_auto_reply.defaultTemplate;
-const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}\nRETORNE replyText';
+const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}\n- replyText: resposta curta';
 
 const codigos = (itens: Array<{ codigo: string }>) => itens.map((i) => i.codigo);
 
@@ -1073,13 +1220,15 @@ describe('verificarPrompt', () => {
 
   it('pendência, agenda sem número e tamanho pedem confirmação; link de markdown e colchete minúsculo não', () => {
     const pendencia = verificarPrompt({
-      rascunho: `${PUBLICADO}\nAtenda a [Nome da empresa] e veja [o site](https://exemplo.com) [ok].`,
+      rascunho: `${PUBLICADO}\nAtenda a [Nome da empresa] e veja [o site](https://exemplo.com) [ok], [Guia](https://exemplo.com/guia) e [Manual][ref].`,
       publicado: PUBLICADO,
       numerosLigadosComAgenda: 0,
     });
     expect(codigos(pendencia.avisos)).toEqual(['pendencia']);
     expect(pendencia.avisos[0].mensagem).toContain('[Nome da empresa]');
     expect(pendencia.avisos[0].mensagem).not.toContain('[o site]');
+    expect(pendencia.avisos[0].mensagem).not.toContain('[Guia]');
+    expect(pendencia.avisos[0].mensagem).not.toContain('[Manual]');
 
     const comAgenda = `${PUBLICADO}\n{{calendarContext}}`;
     expect(codigos(verificarPrompt({ rascunho: comAgenda, publicado: comAgenda, numerosLigadosComAgenda: 0 }).avisos)).toEqual(['agenda_sem_numero']);
@@ -1101,8 +1250,27 @@ describe('verificarPrompt', () => {
     expect(codigos(nuncaTeve.informacoes)).toEqual(['sem_encerramento', 'sem_replyText']);
   });
 
+  it('replyText conta só como linha de campo: tirar o campo e deixar uma menção solta ainda avisa', () => {
+    const base = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}';
+    const soMencao = verificarPrompt({ rascunho: `${base}\nNunca escreva replyText no meio da frase.`, publicado: PUBLICADO, numerosLigadosComAgenda: 0 });
+    expect(codigos(soMencao.avisos)).toEqual(['perdeu:replyText']);
+
+    // O campo em JSON, numa linha própria, também é a instrução.
+    const emJson = verificarPrompt({ rascunho: `${base}\n  "replyText": "texto para o lead"`, publicado: PUBLICADO, numerosLigadosComAgenda: 0 });
+    expect(emJson.avisos).toEqual([]);
+  });
+
+  it('a lista das 12 no banco (função auxiliar da migration da Task 1) é a mesma da tela', () => {
+    const sql = readFileSync(resolve(process.cwd(), 'supabase/migrations/20261007120000_central_agentes_editor.sql'), 'utf8');
+    const funcao = /create or replace function public\.central_agentes_variavel_desconhecida[\s\S]*?array\[([\s\S]*?)\]/.exec(sql);
+    expect(funcao, 'a função auxiliar tem que estar na migration (caso positivo do leitor)').not.toBeNull();
+    const doBanco = [...funcao![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect(doBanco).toHaveLength(12);
+    expect([...doBanco].sort()).toEqual([...VARIAVEIS_DO_PROMPT].sort());
+  });
+
   it('agente que nunca publicou: sem aviso de regressão', () => {
-    const r = verificarPrompt({ rascunho: 'Voce e a Aurora. replyText', publicado: null, numerosLigadosComAgenda: 0 });
+    const r = verificarPrompt({ rascunho: 'Voce e a Aurora.\n- replyText: resposta curta', publicado: null, numerosLigadosComAgenda: 0 });
     expect(r.avisos).toEqual([]);
     expect(codigos(r.informacoes)).toEqual(['sem_encerramento']);
   });
@@ -1251,10 +1419,17 @@ export type EntradaDaVerificacao = {
 const CONHECIDAS = new Set<string>(VARIAVEIS_DO_PROMPT);
 /** Tudo entre {{ e }}. O runtime só troca `[\w.]+` e deixa o resto literal; qualquer marcador fora das 12 é erro. */
 const MARCADOR = /\{\{([^{}]*)\}\}/g;
-/** "[Texto com maiúscula]" que não é link de markdown: cara de pendência ("[Nome da empresa]"). */
-const PENDENCIA = /\[([A-ZÀ-Ý][^[\]\n]{1,80})\](?!\()/g;
-/** Igual à medição de 07/10 (sem fronteira de palavra): "replyText:" e "replyText," contam. */
-const REPLY_TEXT = /replyText/;
+/**
+ * "[Texto com maiúscula]" que não é link de markdown: cara de pendência ("[Nome da empresa]"). Link em linha
+ * ("[Guia](url)") e link de referência ("[Guia][ref]") não contam.
+ */
+const PENDENCIA = /\[([A-ZÀ-Ý][^[\]\n]{1,80})\](?![([])/g;
+/**
+ * A instrução de saída é a LINHA DE CAMPO, no começo da linha: "- replyText: ..." (como nos dois prompts do catálogo
+ * em 07/10) ou "replyText:" / "\"replyText\":". Uma menção solta ("nunca escreva replyText") não conta: senão
+ * tirar o campo e deixar a menção apagaria o aviso perdeu:replyText (revisão do Codex, 07/10).
+ */
+const REPLY_TEXT = /^[ \t]*(?:-[ \t]*)?"?replyText"?[ \t]*:/m;
 
 export function usaVariavel(texto: string, nome: VariavelDoPrompt): boolean {
   return new RegExp(`\\{\\{\\s*${nome}\\s*\\}\\}`).test(texto);
@@ -1340,7 +1515,7 @@ export function verificarPrompt(entrada: EntradaDaVerificacao): ResultadoDaVerif
     informacoes.push({
       codigo: 'sem_replyText',
       nivel: 'info',
-      mensagem: 'O prompt não fala de replyText; a resposta segue só o formato que o sistema pede.',
+      mensagem: 'O prompt não tem a linha de campo replyText; a resposta segue só o formato que o sistema pede.',
     });
   }
 
@@ -1430,7 +1605,7 @@ export function pedacosDaLinha(linha: string): PedacoDaLinha[] {
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `npx vitest run lib/agents/verificarPrompt.test.ts lib/agents/leituraDoPrompt.test.ts`
-Expected: PASS (8 + 4 testes). Se o teste das 12 variáveis falhar com "a chamada mudou de forma", alguém mexeu na chamada de `renderPromptTemplate` em `aiReply.ts`: ajuste o leitor do teste e confira a lista, nunca a lista sozinha.
+Expected: PASS (10 + 4 testes). Se o teste das 12 variáveis falhar com "a chamada mudou de forma", alguém mexeu na chamada de `renderPromptTemplate` em `aiReply.ts`: ajuste o leitor do teste e confira a lista, nunca a lista sozinha.
 
 - [ ] **Step 6: Commit**
 
@@ -1482,6 +1657,9 @@ export type VersaoCompleta = VersaoResumo & {
   modelo: string | null;
 };
 
+/** Uma página do histórico, da mais nova para a mais antiga; `temMais` diz se há versões mais antigas. */
+export type PaginaDeVersoes = { versoes: VersaoResumo[]; temMais: boolean };
+
 export type NumeroDoAgente = { id: string; nome: string; temAgenda: boolean };
 
 export type AgenteNaLista = {
@@ -1510,16 +1688,16 @@ Criar `lib/agents/editorAgentes.test.ts`:
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { lerAgente, publicarComVerificacao, restaurarVersao, salvarRascunho, traduzirErroDoBanco } from './editorAgentes';
+import { lerAgente, listarVersoes, publicarComVerificacao, restaurarVersao, salvarRascunho, traduzirErroDoBanco } from './editorAgentes';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const AGENTE = '22222222-2222-4222-8222-222222222222';
 const V1 = '33333333-3333-4333-8333-333333333333';
-const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}\nRETORNE replyText';
+const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}\n- replyText: resposta curta';
 
 type Linha = Record<string, unknown>;
 
-/** Banco em memória com o pedaço da API do supabase-js que a camada usa: select, eq, in, order, limit, maybeSingle, await. */
+/** Banco em memória com o pedaço da API do supabase-js que a camada usa: select, eq, lt, in, order, limit, maybeSingle, await. */
 function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
   return {
     rpc,
@@ -1531,12 +1709,23 @@ function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
           linhas = linhas.filter((l) => l[coluna] === valor);
           return consulta;
         },
+        lt: (coluna: string, valor: number) => {
+          linhas = linhas.filter((l) => (l[coluna] as number) < valor);
+          return consulta;
+        },
         in: (coluna: string, valores: unknown[]) => {
           linhas = linhas.filter((l) => valores.includes(l[coluna]));
           return consulta;
         },
-        order: () => consulta,
-        limit: () => consulta,
+        order: (coluna: string, opcoes?: { ascending?: boolean }) => {
+          const sinal = opcoes?.ascending === false ? -1 : 1;
+          linhas.sort((a, b) => ((a[coluna] as number) - (b[coluna] as number)) * sinal);
+          return consulta;
+        },
+        limit: (n: number) => {
+          linhas = linhas.slice(0, n);
+          return consulta;
+        },
         maybeSingle: () => Promise.resolve({ data: linhas[0] ?? null, error: null }),
         then: (ok: (r: unknown) => unknown, falhou?: (e: unknown) => unknown) =>
           Promise.resolve({ data: linhas, error: null }).then(ok, falhou),
@@ -1581,6 +1770,7 @@ describe('traduzirErroDoBanco', () => {
     ['rascunho_vazio', 422, 'RASCUNHO_VAZIO'],
     ['sem_mudancas', 422, 'SEM_MUDANCAS'],
     ['versao_ja_publicada', 422, 'VERSAO_JA_PUBLICADA'],
+    ['variavel_desconhecida', 422, 'VARIAVEL_DESCONHECIDA'],
     ['prompt_invalido', 400, 'PROMPT_INVALIDO'],
     ['nota_invalida', 400, 'NOTA_INVALIDA'],
     ['sem_permissao', 403, 'SEM_PERMISSAO'],
@@ -1599,6 +1789,29 @@ describe('traduzirErroDoBanco', () => {
     expect(r).toMatchObject({ status: 500, codigo: 'ERRO_INTERNO' });
     expect(r.erro).not.toContain('relation');
     expect(log).toHaveBeenCalledWith('[central-agentes]', 'ler agente', { code: 'XX000', message: 'relation "x" does not exist' });
+  });
+});
+
+describe('listarVersoes', () => {
+  it('pagina da mais nova para a mais antiga: a primeira página diz que há mais, e antesDe traz o resto', async () => {
+    const versoes = Array.from({ length: 55 }, (_, i) => ({
+      id: `v${i + 1}`, agent_id: AGENTE, organization_id: TENANT, version: i + 1, prompt: PUBLICADO, settings: {}, model: null,
+      source: i === 0 ? 'migration' : 'publish', restored_from: null, note: null, published_at: '2026-10-07T04:51:00Z', published_by: null,
+    }));
+    const clientes = {
+      usuario: fakeCliente({ ai_agents: [{ id: AGENTE, organization_id: TENANT }], ai_agent_versions: versoes }),
+      admin: fakeCliente({ profiles: [] }),
+    };
+
+    const primeira = await listarVersoes(clientes, TENANT, AGENTE);
+    if (!primeira.ok) throw new Error(primeira.erro);
+    expect(primeira.dados.versoes.map((v) => v.versao)).toEqual(Array.from({ length: 50 }, (_, i) => 55 - i));
+    expect(primeira.dados.temMais).toBe(true);
+
+    const segunda = await listarVersoes(clientes, TENANT, AGENTE, { antesDe: 6 });
+    if (!segunda.ok) throw new Error(segunda.erro);
+    expect(segunda.dados.versoes.map((v) => v.versao)).toEqual([5, 4, 3, 2, 1]);
+    expect(segunda.dados.temMais).toBe(false);
   });
 });
 
@@ -1631,7 +1844,7 @@ describe('publicarComVerificacao', () => {
   });
 
   it('aviso só passa confirmado; confirmado, publica exatamente a versão e a revisão verificadas', async () => {
-    const semNome = 'Voce e a Aurora.\n{{conversationStageContext}}\nRETORNE replyText';
+    const semNome = 'Voce e a Aurora.\n{{conversationStageContext}}\n- replyText: resposta curta';
     const { clientes, rpc } = cenario(semNome);
 
     const semConfirmar = await publicarComVerificacao(clientes, pedido());
@@ -1710,6 +1923,7 @@ import type {
   AgenteNoEditor,
   NumeroDoAgente,
   OrigemDaVersao,
+  PaginaDeVersoes,
   VersaoCompleta,
   VersaoResumo,
 } from './tiposDoEditor';
@@ -1744,16 +1958,21 @@ const ERROS_DO_BANCO: Record<string, { status: number; codigo: string; erro: str
   rascunho_mudou: {
     status: 409,
     codigo: 'RASCUNHO_MUDOU',
-    erro: 'O rascunho foi alterado em outra aba ou por outra pessoa. Recarregue para ver o texto atual antes de continuar.',
+    erro: 'O rascunho foi alterado em outra aba ou por outra pessoa enquanto você editava.',
   },
   versao_publicada_mudou: {
     status: 409,
     codigo: 'VERSAO_PUBLICADA_MUDOU',
-    erro: 'Outra versão foi publicada enquanto você editava. Recarregue para ver a versão atual.',
+    erro: 'Outra versão foi publicada enquanto você editava. A tela foi atualizada com a versão atual.',
   },
   rascunho_vazio: { status: 422, codigo: 'RASCUNHO_VAZIO', erro: 'Não há rascunho para publicar.' },
   sem_mudancas: { status: 422, codigo: 'SEM_MUDANCAS', erro: 'Não há mudança em relação à versão publicada.' },
   versao_ja_publicada: { status: 422, codigo: 'VERSAO_JA_PUBLICADA', erro: 'Essa já é a versão publicada.' },
+  variavel_desconhecida: {
+    status: 422,
+    codigo: 'VARIAVEL_DESCONHECIDA',
+    erro: 'O texto usa uma variável {{...}} que o sistema não conhece. Corrija antes de publicar.',
+  },
   prompt_invalido: { status: 400, codigo: 'PROMPT_INVALIDO', erro: 'O prompt precisa ter de 1 a 50 mil caracteres.' },
   nota_invalida: { status: 400, codigo: 'NOTA_INVALIDA', erro: 'A nota pode ter no máximo 200 caracteres.' },
 };
@@ -1975,21 +2194,39 @@ async function agenteExiste(c: Clientes, tenantId: string, agentId: string): Pro
   return lido.data ? null : traduzirErroDoBanco({ message: 'agente_inexistente' }, 'conferir agente');
 }
 
-export async function listarVersoes(c: Clientes, tenantId: string, agentId: string): Promise<Resultado<VersaoResumo[]>> {
+export const VERSOES_POR_PAGINA = 50;
+
+/**
+ * Uma página do histórico, da mais nova para a mais antiga. `antesDe` traz as versões de número menor que ele (a
+ * página seguinte); sem ele, a primeira. A tela pede mais enquanto `temMais` for verdadeiro: qualquer versão do
+ * agente continua comparável e restaurável, por mais longo que o histórico fique (SPEC: "quaisquer duas").
+ */
+export async function listarVersoes(
+  c: Clientes,
+  tenantId: string,
+  agentId: string,
+  pagina: { antesDe?: number; limite?: number } = {},
+): Promise<Resultado<PaginaDeVersoes>> {
   try {
     const naoExiste = await agenteExiste(c, tenantId, agentId);
     if (naoExiste) return naoExiste;
-    const lidas = await c.usuario
+    const limite = Math.min(Math.max(pagina.limite ?? VERSOES_POR_PAGINA, 1), 100);
+    let consulta = c.usuario
       .from('ai_agent_versions')
       .select(CAMPOS_DA_VERSAO)
       .eq('organization_id', tenantId)
-      .eq('agent_id', agentId)
-      .order('version', { ascending: false })
-      .limit(200);
+      .eq('agent_id', agentId);
+    if (pagina.antesDe !== undefined) consulta = consulta.lt('version', pagina.antesDe);
+    // Um a mais que o limite: é assim que se sabe se existe a página seguinte.
+    const lidas = await consulta.order('version', { ascending: false }).limit(limite + 1);
     if (lidas.error) return traduzirErroDoBanco(lidas.error, 'listar versoes');
-    const versoes = (lidas.data ?? []) as LinhaDaVersao[];
+    const linhas = (lidas.data ?? []) as LinhaDaVersao[];
+    const versoes = linhas.slice(0, limite);
     const nomes = await nomesDasPessoas(c.admin, versoes.map((v) => v.published_by));
-    return { ok: true, dados: versoes.map((v) => resumoDaVersao(v, nomes)) };
+    return {
+      ok: true,
+      dados: { versoes: versoes.map((v) => resumoDaVersao(v, nomes)), temMais: linhas.length > limite },
+    };
   } catch (erro) {
     return comoFalha(erro, 'listar versoes');
   }
@@ -2097,7 +2334,7 @@ export async function restaurarVersao(
 - [ ] **Step 5: Rodar o teste de unidade e ver passar**
 
 Run: `npx vitest run lib/agents/editorAgentes.test.ts`
-Expected: PASS (21 testes: 12 de tradução, 2 de leitura, 5 de publicar, 2 de salvar e restaurar).
+Expected: PASS (23 testes: 13 de tradução, 1 de histórico, 2 de leitura, 5 de publicar, 2 de salvar e restaurar).
 
 - [ ] **Step 6: Acrescentar ao teste local as provas com banco de verdade**
 
@@ -2195,7 +2432,7 @@ const AGENDA_LIGADA = {
 - [ ] **Step 7: Rodar o teste local inteiro**
 
 Run: `npm run test:local -- test/centralAgentesEditor.local.test.ts`
-Expected: PASS (10 testes).
+Expected: PASS (11 testes: os 9 da Task 2 e os 2 da camada de servidor).
 
 - [ ] **Step 8: Commit**
 
@@ -2228,7 +2465,7 @@ git commit -m "feat(central-agentes): camada de servidor do editor (le pela RLS,
 | `PUT [agentId]/draft` | `{ prompt, revisao }` | `{ revisao }`; 409 `RASCUNHO_MUDOU` |
 | `POST [agentId]/publish` | `{ versaoEsperada, revisao, nota?, confirmarAvisos? }` | `{ versao, versaoId }`; 409; 422 com `verificacao` |
 | `POST [agentId]/restore` | `{ versao, versaoEsperada, revisao, nota? }` | `{ versao, versaoId, revisao }`; 409; 422 |
-| `GET [agentId]/versions` | — | `{ versoes }` |
+| `GET [agentId]/versions` | consulta `?antesDe=N` opcional (estrita) | `{ versoes, temMais }`, 50 por página, da mais nova para a mais antiga |
 | `GET [agentId]/versions/[version]` | — | `{ versao }` |
 
 Regras que valem para as sete: ids do endereço conferidos como UUID (400 antes de qualquer leitura); `requireTenantAccess(tenantId, { adminOnly: true })` (agency_admin e o legado admin; `agency_staff` e o cliente recebem 403); as que escrevem conferem a origem (`isAllowedOrigin`, padrão do repositório); erro sai como `{ error, code }`. Os esquemas ficam em `lib/` e não no `route.ts`: o Next valida os nomes exportados por um arquivo de rota.
@@ -2391,6 +2628,14 @@ describe('rotas da Central de Agentes', () => {
     const r = await publicar(pedir('POST', { versaoEsperada: 1, revisao: 1 }), doAgente());
     expect(r.status).toBe(422);
     expect(await r.json()).toEqual({ error: 'Confirme.', code: 'AVISOS_NAO_CONFIRMADOS', verificacao });
+
+    // O 409 ao PUBLICAR (outra versão saiu no meio) passa com código e mensagem, como o do salvar.
+    mocks.publicarComVerificacao.mockResolvedValueOnce({
+      ok: false, status: 409, codigo: 'VERSAO_PUBLICADA_MUDOU', erro: 'Outra versão foi publicada enquanto você editava.',
+    });
+    const conflito = await publicar(pedir('POST', { versaoEsperada: 1, revisao: 1 }), doAgente());
+    expect(conflito.status).toBe(409);
+    expect(await conflito.json()).toEqual({ error: 'Outra versão foi publicada enquanto você editava.', code: 'VERSAO_PUBLICADA_MUDOU' });
   });
 
   it('restaurar repassa versão, versão esperada e revisão', async () => {
@@ -2403,7 +2648,15 @@ describe('rotas da Central de Agentes', () => {
   it('leituras devolvem o que a camada leu, no formato da tela; número de versão inválido é 400', async () => {
     expect(await (await listar(pedir('GET'), doCliente())).json()).toEqual({ lido: true });
     expect(await (await ler(pedir('GET'), doAgente())).json()).toEqual({ agente: { lido: true } });
-    expect(await (await versoes(pedir('GET'), doAgente())).json()).toEqual({ versoes: { lido: true } });
+    expect(await (await versoes(pedir('GET'), doAgente())).json()).toEqual({ lido: true });
+    expect(mocks.listarVersoes).toHaveBeenLastCalledWith(CLIENTES, TENANT, AGENTE, { antesDe: undefined });
+    const paginaSeguinte = new Request('http://localhost/api/platform/tenants/x/agents/y/versions?antesDe=6');
+    expect((await versoes(paginaSeguinte, doAgente())).status).toBe(200);
+    expect(mocks.listarVersoes).toHaveBeenLastCalledWith(CLIENTES, TENANT, AGENTE, { antesDe: 6 });
+    for (const consulta of ['antesDe=abc', 'antesDe=0', 'limite=500']) {
+      const r = await versoes(new Request(`http://localhost/api/platform/tenants/x/agents/y/versions?${consulta}`), doAgente());
+      expect(r.status, consulta).toBe(400);
+    }
     expect(await (await versao(pedir('GET'), daVersao('2'))).json()).toEqual({ versao: { lido: true } });
     expect(mocks.lerVersao).toHaveBeenCalledWith(CLIENTES, TENANT, AGENTE, 2);
 
@@ -2479,6 +2732,9 @@ export function json(body: unknown, status = 200) {
 
 const Uuid = z.string().uuid();
 export const NumeroDaVersao = z.coerce.number().int().min(1).max(1_000_000);
+
+/** Consulta do histórico (G5/G19): só `antesDe`, para pedir a página seguinte; outro parâmetro é 400. */
+export const ConsultaDoHistorico = z.object({ antesDe: NumeroDaVersao.optional() }).strict();
 
 /** Corpos aceitos (G5/G19): campo fora da lista é 400, nunca ignorado. O autor nunca vem do corpo. */
 export const RascunhoSchema = z.object({
@@ -2651,14 +2907,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
 
 ```ts
 import { listarVersoes } from '@/lib/agents/editorAgentes';
-import { abrirRotaDoAgente, json, responderFalha } from '@/lib/agents/rotaDoEditor';
+import { ConsultaDoHistorico, abrirRotaDoAgente, json, responderFalha } from '@/lib/agents/rotaDoEditor';
 
-/** Histórico do agente, da mais nova para a mais antiga (sem o texto; a comparação lê cada versão). */
+/**
+ * Histórico do agente, uma página por vez, da mais nova para a mais antiga (sem o texto; a comparação lê cada
+ * versão). `?antesDe=N` traz a página seguinte. Devolve `{ versoes, temMais }`.
+ */
 export async function GET(req: Request, ctx: { params: Promise<{ tenantId: string; agentId: string }> }) {
   const aberta = await abrirRotaDoAgente(req, await ctx.params, { escreve: false });
   if (!aberta.ok) return aberta.resposta;
-  const r = await listarVersoes(aberta.clientes, aberta.tenantId, aberta.agentId);
-  return r.ok ? json({ versoes: r.dados }) : responderFalha(r);
+  const consulta = ConsultaDoHistorico.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!consulta.success) return json({ error: 'Pedido inválido.' }, 400);
+  const r = await listarVersoes(aberta.clientes, aberta.tenantId, aberta.agentId, { antesDe: consulta.data.antesDe });
+  return r.ok ? json(r.dados) : responderFalha(r);
 }
 ```
 
@@ -3071,7 +3332,7 @@ Expected: FAIL com `Failed to resolve import "./TenantAgentsPage"`.
 Criar `features/agents/agentesApi.ts`:
 
 ```ts
-import type { AgenteNaLista, AgenteNoEditor, VersaoCompleta, VersaoResumo } from '@/lib/agents/tiposDoEditor';
+import type { AgenteNaLista, AgenteNoEditor, PaginaDeVersoes, VersaoCompleta } from '@/lib/agents/tiposDoEditor';
 import type { ResultadoDaVerificacao } from '@/lib/agents/verificarPrompt';
 
 /** Erro de uma rota da Central, com o código e, no 422 de publicar, a verificação feita pelo servidor. */
@@ -3113,8 +3374,9 @@ export const agentesApi = {
     agentId: string,
     corpo: { versaoEsperada: number; revisao: number; nota?: string; confirmarAvisos: string[] },
   ) => pedir<{ versao: number; versaoId: string }>(`${base(tenantId)}/${agentId}/publish`, { method: 'POST', body: JSON.stringify(corpo) }),
-  listarVersoes: (tenantId: string, agentId: string) =>
-    pedir<{ versoes: VersaoResumo[] }>(`${base(tenantId)}/${agentId}/versions`),
+  /** Uma página do histórico; `antesDe` (o menor número já carregado) traz a seguinte. */
+  listarVersoes: (tenantId: string, agentId: string, antesDe?: number) =>
+    pedir<PaginaDeVersoes>(`${base(tenantId)}/${agentId}/versions${antesDe ? `?antesDe=${antesDe}` : ''}`),
   lerVersao: (tenantId: string, agentId: string, versao: number) =>
     pedir<{ versao: VersaoCompleta }>(`${base(tenantId)}/${agentId}/versions/${versao}`),
   restaurar: (
@@ -3278,7 +3540,9 @@ O `--stat` tem que listar só os arquivos desta Task; `components/Layout.tsx` co
 - Create: `lib/agents/compararVersoes.ts` · Test: `lib/agents/compararVersoes.test.ts`
 - Create: `features/agents/HistoricoDeVersoes.tsx` · Test: `features/agents/HistoricoDeVersoes.test.tsx`
 
-SPEC: "lista de versões com autor, data e nota. Compara quaisquer duas (texto linha a linha e ajustes campo a campo). 'Restaurar' pede confirmação e publica como versão nova." A comparação é feita na tela, com as duas versões lidas inteiras pela rota da Task 5. O texto é comparado por subsequência comum mais longa (LCS) linha a linha; acima de 4 milhões de células (linhas de A × linhas de B, uns 16 MB) a tela avisa em vez de travar o navegador. A Aurora tem 134 linhas.
+SPEC: "lista de versões com autor, data e nota. Compara quaisquer duas (texto linha a linha e ajustes campo a campo). 'Restaurar' pede confirmação e publica como versão nova." A comparação é feita na tela, com as duas versões lidas inteiras pela rota da Task 5. O texto é comparado por subsequência comum mais longa (LCS) linha a linha. Acima de 4 milhões de células (linhas de A × linhas de B, uns 16 MB) a tela não destaca as linhas, para não travar o navegador, e mostra as duas versões inteiras lado a lado: a comparação de quaisquer duas continua disponível. A Aurora tem 134 linhas.
+
+O histórico vem em páginas de 50, da versão mais nova para a mais antiga. "Carregar versões anteriores" traz a página seguinte até a primeira versão, e qualquer uma pode ser marcada para comparar ou restaurada. Revisão do Codex, 07/10: com a lista cortada em 200, as versões mais antigas deixavam de ser alcançáveis. Enquanto uma restauração não responde, os botões de restaurar ficam bloqueados.
 
 O componente é montado pelo editor na aba "Versões" (Task 8).
 
@@ -3447,10 +3711,14 @@ function responder(corpo: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } }));
 }
 
-function fetchFalso(restaurar: () => Promise<Response>) {
+function fetchFalso(
+  restaurar: () => Promise<Response>,
+  extra: Record<string, () => Promise<Response>> = {},
+) {
   return vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const chave = `${init?.method ?? 'GET'} ${String(url)}`;
-    if (chave === `GET ${BASE}/versions`) return responder({ versoes: VERSOES });
+    if (extra[chave]) return extra[chave]();
+    if (chave === `GET ${BASE}/versions`) return responder({ versoes: VERSOES, temMais: false });
     if (chave === `GET ${BASE}/versions/1`) return responder({ versao: COMPLETA[1] });
     if (chave === `GET ${BASE}/versions/2`) return responder({ versao: COMPLETA[2] });
     if (chave === `POST ${BASE}/restore`) return restaurar();
@@ -3491,6 +3759,39 @@ describe('HistoricoDeVersoes', () => {
     expect(screen.getByText('Ajustes e modelo iguais nas duas versões.')).toBeInTheDocument();
   });
 
+  it('histórico longo: "Carregar versões anteriores" traz a página seguinte, e a versão antiga fica comparável e restaurável', async () => {
+    const fetchMock = fetchFalso(() => responder({}), {
+      [`GET ${BASE}/versions`]: () => responder({ versoes: [VERSOES[0]], temMais: true }),
+      [`GET ${BASE}/versions?antesDe=2`]: () => responder({ versoes: [VERSOES[1]], temMais: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    montar();
+    await screen.findByText(/Versão 2 publicada/);
+    expect(screen.queryByRole('button', { name: 'Restaurar a versão 1' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar versões anteriores' }));
+    expect(await screen.findByRole('button', { name: 'Restaurar a versão 1' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Comparar a versão 1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Carregar versões anteriores' })).toBeNull();
+  });
+
+  it('texto grande demais para destacar: as duas versões aparecem lado a lado, inteiras', async () => {
+    const linhas = (marca: string) => Array.from({ length: 2100 }, (_, i) => `${marca} ${i}`).join('\n');
+    vi.stubGlobal('fetch', fetchFalso(() => responder({}), {
+      [`GET ${BASE}/versions/1`]: () => responder({ versao: { ...COMPLETA[1], prompt: linhas('velha') } }),
+      [`GET ${BASE}/versions/2`]: () => responder({ versao: { ...COMPLETA[2], prompt: linhas('nova') } }),
+    }));
+    montar();
+    await screen.findByText(/Versão 2 publicada/);
+    fireEvent.click(screen.getByLabelText('Comparar a versão 1'));
+    fireEvent.click(screen.getByLabelText('Comparar a versão 2'));
+    fireEvent.click(screen.getByRole('button', { name: 'Comparar a versão 1 com a 2' }));
+
+    expect(await screen.findByText(/grande demais para destacar linha a linha/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Texto da versão 1').textContent).toContain('velha 2099');
+    expect(screen.getByLabelText('Texto da versão 2').textContent).toContain('nova 2099');
+  });
+
   it('restaurar pede confirmação e manda a versão escolhida, a publicada e a revisão que a tela mostrou', async () => {
     const fetchMock = fetchFalso(() => responder({ versao: 3, versaoId: 'v3', revisao: 4 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -3503,7 +3804,31 @@ describe('HistoricoDeVersoes', () => {
     await waitFor(() => expect(onMudou).toHaveBeenCalled());
     const chamada = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/restore'));
     expect(JSON.parse(String(chamada?.[1]?.body))).toEqual({ versao: 1, versaoEsperada: 2, revisao: 3 });
-    expect(toast).toHaveBeenCalledWith('Versão 1 restaurada como versão 3. A próxima resposta real já sai com ela.', 'success');
+    expect(toast).toHaveBeenCalledWith(
+      'Versão 1 restaurada como versão 3. As respostas que começarem a partir de agora já saem com ela.',
+      'success',
+    );
+  });
+
+  it('enquanto a restauração não responde, nenhuma outra pode ser pedida (um POST só)', async () => {
+    let soltar: (r: Response) => void = () => undefined;
+    const pendente = new Promise<Response>((ok) => {
+      soltar = ok;
+    });
+    const fetchMock = fetchFalso(() => pendente);
+    vi.stubGlobal('fetch', fetchMock);
+    const onMudou = montar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Restaurar a versão 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restaurar' }));
+
+    const botao = await screen.findByRole('button', { name: 'Restaurar a versão 1' });
+    await waitFor(() => expect(botao).toBeDisabled());
+    fireEvent.click(botao);
+    expect(screen.queryByText('Restaurar a versão 1?')).toBeNull();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/restore'))).toHaveLength(1);
+
+    soltar(new Response(JSON.stringify({ versao: 3, versaoId: 'v3', revisao: 4 }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    await waitFor(() => expect(onMudou).toHaveBeenCalled());
   });
 
   it('restaurar quando outra versão foi publicada no meio (409): avisa e recarrega', async () => {
@@ -3548,20 +3873,42 @@ export function HistoricoDeVersoes(props: {
   const { tenantId, agentId, versaoPublicada, revisao, onMudou } = props;
   const { addToast } = useToast();
   const [versoes, setVersoes] = React.useState<VersaoResumo[] | null>(null);
+  const [temMais, setTemMais] = React.useState(false);
+  const [carregandoMais, setCarregandoMais] = React.useState(false);
   const [erro, setErro] = React.useState<string | null>(null);
   const [selecionadas, setSelecionadas] = React.useState<number[]>([]);
   const [comparacao, setComparacao] = React.useState<{ antes: VersaoCompleta; depois: VersaoCompleta } | null>(null);
   const [comparando, setComparando] = React.useState(false);
   const [restaurar, setRestaurar] = React.useState<number | null>(null);
+  // O ConfirmModal fecha logo depois do onConfirm: sem esta trava, a mesma restauração podia ser pedida de novo
+  // antes de a primeira responder (revisão do Codex, 07/10).
+  const [restaurando, setRestaurando] = React.useState(false);
 
   const carregar = React.useCallback(async () => {
     setErro(null);
     try {
-      setVersoes((await agentesApi.listarVersoes(tenantId, agentId)).versoes);
+      const pagina = await agentesApi.listarVersoes(tenantId, agentId);
+      setVersoes(pagina.versoes);
+      setTemMais(pagina.temMais);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao carregar o histórico.');
     }
   }, [tenantId, agentId]);
+
+  // Página seguinte: as versões de número menor que a última carregada. Qualquer versão continua alcançável.
+  const carregarMais = async () => {
+    if (!versoes?.length) return;
+    setCarregandoMais(true);
+    try {
+      const pagina = await agentesApi.listarVersoes(tenantId, agentId, versoes[versoes.length - 1].versao);
+      setVersoes((atual) => [...(atual ?? []), ...pagina.versoes]);
+      setTemMais(pagina.temMais);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Falha ao carregar as versões anteriores.', 'error');
+    } finally {
+      setCarregandoMais(false);
+    }
+  };
 
   // Recarrega quando a versão publicada muda (publicar ou restaurar no editor).
   React.useEffect(() => {
@@ -3589,12 +3936,19 @@ export function HistoricoDeVersoes(props: {
   };
 
   const confirmarRestauracao = async (versao: number) => {
+    setRestaurando(true);
     try {
       const r = await agentesApi.restaurar(tenantId, agentId, { versao, versaoEsperada: versaoPublicada, revisao });
-      addToast(`Versão ${versao} restaurada como versão ${r.versao}. A próxima resposta real já sai com ela.`, 'success');
+      // O runtime lê a versão antes de gerar: uma resposta que já estava em curso ainda sai com a anterior.
+      addToast(
+        `Versão ${versao} restaurada como versão ${r.versao}. As respostas que começarem a partir de agora já saem com ela.`,
+        'success',
+      );
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Falha ao restaurar.', 'error');
       if (!(e instanceof ErroDaApi && e.status === 409)) return;
+    } finally {
+      setRestaurando(false);
     }
     setComparacao(null);
     setSelecionadas([]);
@@ -3642,7 +3996,12 @@ export function HistoricoDeVersoes(props: {
                     Publicada
                   </span>
                 ) : (
-                  <button type="button" onClick={() => setRestaurar(v.versao)} className={BOTAO_SECUNDARIO}>
+                  <button
+                    type="button"
+                    onClick={() => setRestaurar(v.versao)}
+                    disabled={restaurando}
+                    className={BOTAO_SECUNDARIO}
+                  >
                     <RotateCcw size={14} aria-hidden="true" />
                     {`Restaurar a versão ${v.versao}`}
                   </button>
@@ -3651,6 +4010,12 @@ export function HistoricoDeVersoes(props: {
             ))}
           </ul>
         )}
+        {versoes && temMais ? (
+          <button type="button" onClick={() => void carregarMais()} disabled={carregandoMais} className={`${BOTAO_SECUNDARIO} mt-3`}>
+            {carregandoMais ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : null}
+            Carregar versões anteriores
+          </button>
+        ) : null}
       </div>
 
       {comparacao ? <Comparacao antes={comparacao.antes} depois={comparacao.depois} /> : null}
@@ -3662,7 +4027,7 @@ export function HistoricoDeVersoes(props: {
           if (restaurar !== null) void confirmarRestauracao(restaurar);
         }}
         title={`Restaurar a versão ${restaurar ?? ''}?`}
-        message={`O conteúdo dela vira a versão ${versaoPublicada + 1}, publicada agora, e o rascunho passa a ter esse texto. A próxima resposta real já sai com ela.`}
+        message={`O conteúdo dela vira a versão ${versaoPublicada + 1}, publicada agora, e o rascunho passa a ter esse texto. As respostas que começarem depois disso já saem com ela.`}
         confirmText="Restaurar"
         variant="primary"
       />
@@ -3679,7 +4044,22 @@ function Comparacao({ antes, depois }: { antes: VersaoCompleta; depois: VersaoCo
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Texto, linha a linha</h3>
         {linhas === null ? (
-          <p className="text-sm text-slate-600 dark:text-slate-300">O texto é grande demais para comparar linha a linha nesta tela.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              O texto é grande demais para destacar linha a linha nesta tela. As duas versões aparecem lado a lado, inteiras.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {[antes, depois].map((v) => (
+                <pre
+                  key={v.versao}
+                  aria-label={`Texto da versão ${v.versao}`}
+                  className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 p-3 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:text-slate-300"
+                >
+                  {v.prompt}
+                </pre>
+              ))}
+            </div>
+          </div>
         ) : linhas.every((l) => l.tipo === 'igual') ? (
           <p className="text-sm text-slate-600 dark:text-slate-300">O texto é igual nas duas versões.</p>
         ) : (
@@ -3737,7 +4117,7 @@ function Comparacao({ antes, depois }: { antes: VersaoCompleta; depois: VersaoCo
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `npx vitest run lib/agents/compararVersoes.test.ts features/agents/HistoricoDeVersoes.test.tsx`
-Expected: PASS (6 + 4 testes).
+Expected: PASS (6 + 7 testes).
 
 - [ ] **Step 6: Commit**
 
@@ -3765,7 +4145,11 @@ O desenho segue o mockup aprovado em 29/09 (`06-References/central-de-agentes-20
 - barra da versão: "Versão N publicada em [data] por [pessoa]", "Rascunho com mudanças" e o resumo da verificação;
 - leitura formatada por seções (títulos em maiúscula), com as variáveis como etiquetas; "Editar" troca para o campo de texto, com as 12 variáveis em etiquetas clicáveis para inserir;
 - a verificação roda a cada tecla; "Publicar" fica bloqueado com erro, com edição não salva ou sem mudança; aviso abre a confirmação no diálogo;
-- a seção Prompt tem duas abas, "Instruções" e "Versões" (o histórico da Task 7); durante a edição a outra aba fica bloqueada, para nada se perder.
+- a seção Prompt tem duas abas, "Instruções" e "Versões" (o histórico da Task 7); durante a edição a outra aba fica bloqueada, para nada se perder;
+- **o texto de quem edita nunca some sem uma escolha** (revisão do Codex, 07/10):
+  - se outra aba ou pessoa salvou antes (409), o texto continua no campo, a tela recarrega a revisão e o texto atuais e oferece "Salvar o meu por cima" ou "Descartar o meu e ver o atual";
+  - cada mudança não salva vai para uma cópia local (`localStorage`, por cliente e agente). Quem sai por um link interno, onde o `beforeunload` não age, e volta ao agente recebe o aviso para recuperar o texto;
+  - o editor é montado com `key` de cliente e agente, para nenhum estado do anterior chegar ao endereço novo.
 
 Ao trocar de cliente estando no editor, o seletor do cabeçalho remontaria `/agents/<id do agente>` no outro cliente, que não existe ali, e cairia em 404 (o mesmo defeito de 24/09). `getTenantWorkspaceRelativeHref` passa a devolver a lista (`/agents`) para as rotas de detalhe, e o teste que lê o disco ganha a checagem das páginas com segmento dinâmico.
 
@@ -3861,7 +4245,7 @@ import { AgentEditorPage } from './AgentEditorPage';
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const AGENTE_ID = '22222222-2222-4222-8222-222222222222';
 const URL_AGENTE = `/api/platform/tenants/${TENANT}/agents/${AGENTE_ID}`;
-const PUBLICADO = 'Voce e a Aurora.\nREGRAS:\n- fale com {{contactName}}\n{{conversationStageContext}}\nRETORNE replyText';
+const PUBLICADO = 'Voce e a Aurora.\nREGRAS:\n- fale com {{contactName}}\n{{conversationStageContext}}\n- replyText: resposta curta';
 
 function agente(extra: Partial<AgenteNoEditor> = {}): AgenteNoEditor {
   return {
@@ -3901,7 +4285,11 @@ beforeEach(() => {
   estado.role = 'agency_admin';
   toast.mockClear();
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 describe('AgentEditorPage', () => {
   it('quem não é da agência vê acesso restrito e nada é pedido', () => {
@@ -3949,29 +4337,71 @@ describe('AgentEditorPage', () => {
     expect(corpoDe(fetchMock, '/draft')).toEqual({ prompt: `${PUBLICADO}\n{{nomeDoLead}}`, revisao: 0 });
   });
 
-  it('salvar com a revisão velha (outra aba salvou antes): avisa, sai da edição e recarrega', async () => {
+  it('salvar com a revisão velha (outra aba salvou antes): avisa, mantém o texto e deixa a escolha explícita', async () => {
+    const MENSAGEM = 'O rascunho foi alterado em outra aba ou por outra pessoa enquanto você editava.';
+    const daOutraAba = agente({
+      rascunho: { prompt: `${PUBLICADO}\ntexto da outra aba`, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
+    });
     let leituras = 0;
-    vi.stubGlobal('fetch', fetchFalso({
+    let gravacoes = 0;
+    const fetchMock = fetchFalso({
       [`GET ${URL_AGENTE}`]: () => {
         leituras += 1;
-        return responder({ agente: agente() });
+        return responder({ agente: leituras === 1 ? agente() : daOutraAba });
       },
-      [`PUT ${URL_AGENTE}/draft`]: () => responder({ error: 'O rascunho foi alterado em outra aba.', code: 'RASCUNHO_MUDOU' }, 409),
-    }));
+      [`PUT ${URL_AGENTE}/draft`]: () => {
+        gravacoes += 1;
+        return gravacoes === 1 ? responder({ error: MENSAGEM, code: 'RASCUNHO_MUDOU' }, 409) : responder({ revisao: 2 });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
     render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
     await screen.findByText(/Versão 1 publicada/);
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\nmais` } });
+    const meu = `${PUBLICADO}\nmeu texto`;
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: meu } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
 
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('O rascunho foi alterado em outra aba.', 'error'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(MENSAGEM, 'error'));
     await waitFor(() => expect(leituras).toBe(2));
-    expect(screen.queryByLabelText('Prompt do agente')).toBeNull();
+    // O texto de quem editava continua no campo; o salvar comum fica travado até a escolha (revisão do Codex, 07/10).
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(meu);
+    expect(screen.getByText(/O seu texto continua aqui, sem salvar\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar o meu por cima' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+    const corpos = fetchMock.mock.calls
+      .filter(([url]) => String(url).endsWith('/draft'))
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(corpos).toEqual([{ prompt: meu, revisao: 0 }, { prompt: meu, revisao: 1 }]);
+  });
+
+  it('texto não salvo sobrevive a sair pela navegação interna: a cópia local oferece recuperar', async () => {
+    const CHAVE = `central-agentes:texto-nao-salvo:${TENANT}:${AGENTE_ID}`;
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const primeira = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\nnão salvei` } });
+    expect(JSON.parse(localStorage.getItem(CHAVE) ?? '{}').texto).toBe(`${PUBLICADO}\nnão salvei`);
+
+    // Saiu por um link interno (o editor desmonta sem passar pelo beforeunload) e voltou depois.
+    primeira.unmount();
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(`${PUBLICADO}\nnão salvei`);
+
+    // Descartar a edição apaga a cópia.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(localStorage.getItem(CHAVE)).toBeNull();
   });
 
   it('publicar com aviso exige a confirmação e manda a versão, a revisão e os avisos confirmados', async () => {
-    const semNome = 'Voce e a Aurora.\nREGRAS:\n- fale\n{{conversationStageContext}}\nRETORNE replyText';
+    const semNome = 'Voce e a Aurora.\nREGRAS:\n- fale\n{{conversationStageContext}}\n- replyText: resposta curta';
     const comRascunho = agente({
       rascunho: { prompt: semNome, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
     });
@@ -3989,19 +4419,21 @@ describe('AgentEditorPage', () => {
     const botao = await screen.findByRole('button', { name: 'Publicar versão 2' });
     expect(botao).toBeDisabled();
     expect(screen.getAllByText(/O rascunho tirou \{\{contactName\}\}/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/A próxima resposta real do número Comercial já sai com esta versão/)).toBeInTheDocument();
+    expect(screen.getByText(/As respostas do número Comercial que começarem depois da publicação já saem com esta versão/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Li os avisos e quero publicar assim.'));
     fireEvent.change(screen.getByLabelText('Nota da versão (opcional)'), { target: { value: 'tirei o nome' } });
     expect(botao).toBeEnabled();
     fireEvent.click(botao);
 
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Versão 2 publicada. A próxima resposta real já sai com ela.', 'success'));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith('Versão 2 publicada. As respostas que começarem a partir de agora já saem com ela.', 'success'),
+    );
     expect(corpoDe(fetchMock, '/publish')).toEqual({ versaoEsperada: 1, revisao: 1, nota: 'tirei o nome', confirmarAvisos: ['perdeu:contactName'] });
   });
 
   it('publicar quando outra pessoa publicou antes (409): avisa, fecha o diálogo e recarrega (SPEC, fatia 2)', async () => {
-    const MENSAGEM = 'Outra versão foi publicada enquanto você editava. Recarregue para ver a versão atual.';
+    const MENSAGEM = 'Outra versão foi publicada enquanto você editava. A tela foi atualizada com a versão atual.';
     const comRascunho = agente({
       rascunho: { prompt: `${PUBLICADO}\nmais uma regra`, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
     });
@@ -4028,7 +4460,7 @@ describe('AgentEditorPage', () => {
   it('a aba Versões abre o histórico do agente; durante a edição ela fica bloqueada', async () => {
     const fetchMock = fetchFalso({
       [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
-      [`GET ${URL_AGENTE}/versions`]: () => responder({ versoes: [] }),
+      [`GET ${URL_AGENTE}/versions`]: () => responder({ versoes: [], temMais: false }),
     });
     vi.stubGlobal('fetch', fetchMock);
     render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
@@ -4272,7 +4704,7 @@ export function DialogoPublicar(props: {
       <p className="text-sm text-slate-700 dark:text-slate-200">
         {agente.numeros.length === 0
           ? 'Nenhum número está ligado a este agente ainda: a versão fica pronta para quando ligar.'
-          : `A próxima resposta real ${agente.numeros.length === 1 ? 'do número' : 'dos números'} ${numeros} já sai com esta versão.`}
+          : `As respostas ${agente.numeros.length === 1 ? 'do número' : 'dos números'} ${numeros} que começarem depois da publicação já saem com esta versão. Uma resposta que já estava sendo gerada ainda sai com a anterior.`}
       </p>
       <PainelDaVerificacao verificacao={atual} />
       {precisaConfirmar ? (
@@ -4361,6 +4793,42 @@ const BOTAO_SECUNDARIO =
 const BOTAO_PRINCIPAL =
   'inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-on-brand transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-50';
 
+/**
+ * Cópia local do texto não salvo, por cliente e agente. O `beforeunload` só protege o fechar da aba: navegar por um
+ * link interno (a trilha, o menu, o seletor de cliente) desmonta o editor sem aviso (revisão do Codex, 07/10). Com a
+ * cópia, quem volta ao agente recupera o texto. Armazenamento indisponível (janela anônima, bloqueio) só desliga a
+ * recuperação; a tela funciona igual.
+ */
+type CopiaLocal = { texto: string; em: string };
+const chaveDaCopia = (tenantId: string, agentId: string) => `central-agentes:texto-nao-salvo:${tenantId}:${agentId}`;
+
+function lerCopia(chave: string): CopiaLocal | null {
+  try {
+    const bruto = window.localStorage.getItem(chave);
+    if (!bruto) return null;
+    const lida = JSON.parse(bruto) as Partial<CopiaLocal>;
+    return typeof lida.texto === 'string' && typeof lida.em === 'string' ? { texto: lida.texto, em: lida.em } : null;
+  } catch {
+    return null;
+  }
+}
+
+function gravarCopia(chave: string, texto: string) {
+  try {
+    window.localStorage.setItem(chave, JSON.stringify({ texto, em: new Date().toISOString() }));
+  } catch {
+    // Sem armazenamento, sem recuperação: o aviso do navegador ao fechar a aba continua valendo.
+  }
+}
+
+function apagarCopia(chave: string) {
+  try {
+    window.localStorage.removeItem(chave);
+  } catch {
+    // Idem.
+  }
+}
+
 /** Editor de um agente (Central de Agentes, fatia 2). Só agency_admin e o legado admin; a API recusa os outros. */
 export function AgentEditorPage({ tenantId, agentId }: { tenantId: string; agentId: string }) {
   const { profile, loading } = useAuth();
@@ -4380,7 +4848,11 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [salvando, setSalvando] = React.useState(false);
   const [publicando, setPublicando] = React.useState(false);
   const [aba, setAba] = React.useState<'instrucoes' | 'versoes'>('instrucoes');
+  // Outra aba ou pessoa salvou antes: a mensagem fica na tela e o texto de quem editava continua no campo.
+  const [conflito, setConflito] = React.useState<string | null>(null);
+  const [copia, setCopia] = React.useState<CopiaLocal | null>(null);
   const campo = React.useRef<HTMLTextAreaElement>(null);
+  const chave = chaveDaCopia(tenantId, agentId);
 
   const carregar = React.useCallback(async () => {
     setCarregando(true);
@@ -4418,6 +4890,20 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     return () => window.removeEventListener('beforeunload', segurar);
   }, [sujo]);
 
+  // Cada mudança não salva vai para a cópia local (navegação interna não passa pelo beforeunload).
+  React.useEffect(() => {
+    if (sujo) gravarCopia(chave, edicao.texto);
+  }, [sujo, edicao.texto, chave]);
+
+  // Na primeira leitura do agente: uma cópia diferente do texto salvo vira o aviso de recuperação; igual, é lixo.
+  React.useEffect(() => {
+    if (!agente) return;
+    const lida = lerCopia(chave);
+    if (!lida) return;
+    if (lida.texto !== (agente.rascunho.prompt ?? agente.publicada?.prompt ?? '')) setCopia(lida);
+    else apagarCopia(chave);
+  }, [agente?.id, chave]);
+
   const motivoSemPublicar = edicao.ativa
     ? 'Salve ou cancele a edição antes de publicar.'
     : !rascunhoComMudancas
@@ -4432,12 +4918,16 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     try {
       await agentesApi.salvarRascunho(tenantId, agentId, { prompt: edicao.texto, revisao: agente.rascunho.revisao });
       addToast('Rascunho salvo.', 'success');
+      apagarCopia(chave);
+      setConflito(null);
       setEdicao({ ativa: false, texto: '' });
       await carregar();
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Falha ao salvar o rascunho.', 'error');
       if (e instanceof ErroDaApi && e.status === 409) {
-        setEdicao({ ativa: false, texto: '' });
+        // O texto de quem editava NÃO some (revisão do Codex, 07/10): recarrega para ter a revisão e o texto atuais
+        // e deixa a escolha explícita, salvar o meu por cima ou descartar o meu.
+        setConflito(e.message);
         await carregar();
       }
     } finally {
@@ -4445,8 +4935,14 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     }
   };
 
+  const descartarOMeu = () => {
+    apagarCopia(chave);
+    setConflito(null);
+    setEdicao({ ativa: false, texto: '' });
+  };
+
   const cancelar = () => {
-    if (!sujo || window.confirm('Descartar as mudanças não salvas?')) setEdicao({ ativa: false, texto: '' });
+    if (!sujo || window.confirm('Descartar as mudanças não salvas?')) descartarOMeu();
   };
 
   const inserirVariavel = (nome: string) => {
@@ -4539,6 +5035,38 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
         <span className="text-xs text-slate-500 dark:text-slate-400">{resumoDaVerificacao(verificacao)}</span>
       </section>
 
+      {copia && !edicao.ativa ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+        >
+          <span>{`Você tem um texto não salvo deste agente, de ${formatarDataHora(copia.em)}.`}</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAba('instrucoes');
+                setEdicao({ ativa: true, texto: copia.texto });
+                setCopia(null);
+              }}
+              className={BOTAO_SECUNDARIO}
+            >
+              Recuperar o texto
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                apagarCopia(chave);
+                setCopia(null);
+              }}
+              className={BOTAO_SECUNDARIO}
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Seções do agente" className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
           {SECOES.map((secao) => (
@@ -4600,6 +5128,22 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
                   {`${edicao.texto.length.toLocaleString('pt-BR')} caracteres`}
                 </span>
               </div>
+              {conflito ? (
+                <div
+                  role="alert"
+                  className="mb-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+                >
+                  <p>{`${conflito} O seu texto continua aqui, sem salvar.`}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void salvar()} disabled={salvando} className={BOTAO_SECUNDARIO}>
+                      Salvar o meu por cima
+                    </button>
+                    <button type="button" onClick={descartarOMeu} disabled={salvando} className={BOTAO_SECUNDARIO}>
+                      Descartar o meu e ver o atual
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div role="group" aria-label="Inserir variável" className="mb-3 flex flex-wrap gap-1.5">
                 {VARIAVEIS_DO_PROMPT.map((nome) => (
                   <button
@@ -4629,7 +5173,7 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
                 <button
                   type="button"
                   onClick={() => void salvar()}
-                  disabled={salvando || !sujo || edicao.texto.length === 0 || edicao.texto.length > 50_000}
+                  disabled={salvando || !sujo || conflito !== null || edicao.texto.length === 0 || edicao.texto.length > 50_000}
                   className={BOTAO_PRINCIPAL}
                 >
                   {salvando ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
@@ -4663,7 +5207,7 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
           onFechar={() => setPublicando(false)}
           onPublicado={(versao) => {
             setPublicando(false);
-            addToast(`Versão ${versao} publicada. A próxima resposta real já sai com ela.`, 'success');
+            addToast(`Versão ${versao} publicada. As respostas que começarem a partir de agora já saem com ela.`, 'success');
             void carregar();
           }}
           onConflito={(mensagem) => {
@@ -4691,7 +5235,9 @@ export default async function PlatformTenantAgentEditorRoute({
   params: Promise<{ tenantId: string; agentId: string }>;
 }) {
   const { tenantId, agentId } = await params;
-  return <AgentEditorPage tenantId={tenantId} agentId={agentId} />;
+  // A chave remonta o editor ao trocar de cliente ou de agente: nenhum estado (texto, revisão, resposta atrasada) do
+  // agente anterior sobrevive para ser enviado ao endereço novo (revisão do Codex, 07/10).
+  return <AgentEditorPage key={`${tenantId}:${agentId}`} tenantId={tenantId} agentId={agentId} />;
 }
 ```
 
@@ -4717,10 +5263,13 @@ git commit -m "feat(central-agentes): editor do agente (leitura por secoes, veri
 
 **Files:**
 - Create: `lib/agents/numerosDaChave.ts` · Test: `lib/agents/numerosDaChave.test.ts`
+- Modify: `lib/agents/migracaoAgentes.ts` (só exportar `lerConexoes` e o tipo `ConexaoLida`, o leitor paginado da fatia 1)
 - Modify: `app/api/settings/ai-prompts/[key]/route.ts` (GET) · Test: `app/api/settings/ai-prompts/[key]/route.agentes.test.ts`
 - Modify: `features/settings/components/AIFeaturesSection.tsx` · Test: `features/settings/components/AIFeaturesSection.agentes.test.tsx`
 
 SPEC ("Rotas antigas depois de ligar"): a Central de I.A mostra, no editor do WhatsApp, quantos números daquela chave têm agente. Se todos têm, troca o editor por um aviso com link para a Central de Agentes; se só alguns têm, avisa que a edição vale apenas para os números sem agente. A contagem é do **servidor**, para a organização que a rota já usa (a do cookie do cliente atual, `requireAdminTenantContext`), com a mesma regra de chave efetiva do runtime (`resolveConversationAIAgentConfig`), e só para a agência (é quem edita prompt). `channel_connections` não tem policy para `authenticated`: a leitura é com a chave de serviço, filtrada pela organização. Se a contagem falhar, a rota devolve 500 e o editor fecha: editar sem saber se os números já usam agente seria às cegas.
+
+A leitura das conexões é **paginada** (revisão do Codex, 07/10): o PostgREST corta a resposta no limite de linhas sem erro, e uma contagem parcial diria "nenhum número com agente" para quem tem. A fatia 1 já resolveu isso em `lerConexoes` (`lib/agents/migracaoAgentes.ts`, páginas de 500 por `id`); esta Task só passa a exportá-lo e o reusa.
 
 - [ ] **Step 1: Teste da contagem (falha)**
 
@@ -4738,6 +5287,9 @@ const PADRAO = 'task_conversations_whatsapp_auto_reply';
 const AURORA = 'task_conversations_whatsapp_cenno_aurora';
 
 type Linha = Record<string, unknown>;
+const comparar = (a: unknown, b: unknown) => (String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0);
+
+/** select, eq, gt, in, order, limit e await: o pedaço do supabase-js que a contagem e o leitor paginado usam. */
 function fakeAdmin(tabelas: Record<string, Linha[]>) {
   return {
     from(tabela: string) {
@@ -4748,8 +5300,20 @@ function fakeAdmin(tabelas: Record<string, Linha[]>) {
           linhas = linhas.filter((l) => l[coluna] === valor);
           return consulta;
         },
+        gt: (coluna: string, valor: unknown) => {
+          linhas = linhas.filter((l) => comparar(l[coluna], valor) > 0);
+          return consulta;
+        },
         in: (coluna: string, valores: unknown[]) => {
           linhas = linhas.filter((l) => valores.includes(l[coluna]));
+          return consulta;
+        },
+        order: (coluna: string) => {
+          linhas.sort((a, b) => comparar(a[coluna], b[coluna]));
+          return consulta;
+        },
+        limit: (n: number) => {
+          linhas = linhas.slice(0, n);
           return consulta;
         },
         then: (ok: (r: unknown) => unknown, falhou?: (e: unknown) => unknown) =>
@@ -4762,12 +5326,12 @@ function fakeAdmin(tabelas: Record<string, Linha[]>) {
 
 const admin = fakeAdmin({
   channel_connections: [
-    { id: 'c1', organization_id: ORG, provider: 'evolution', config: {}, ai_agent_id: 'a1' },
-    { id: 'c2', organization_id: ORG, provider: 'evolution', config: { aiPromptKey: PADRAO }, ai_agent_id: null },
-    { id: 'c3', organization_id: ORG, provider: 'evolution', config: { aiPromptKey: AURORA }, ai_agent_id: 'a2' },
-    { id: 'c4', organization_id: ORG, provider: 'evolution', config: { aiPromptKey: 'task_nao_existe' }, ai_agent_id: null },
-    { id: 'c5', organization_id: OUTRA, provider: 'evolution', config: {}, ai_agent_id: 'a9' },
-    { id: 'c6', organization_id: ORG, provider: 'outro', config: {}, ai_agent_id: null },
+    { id: 'c1', organization_id: ORG, provider: 'evolution', channel_type: 'whatsapp', name: 'N1', config: {}, ai_agent_id: 'a1' },
+    { id: 'c2', organization_id: ORG, provider: 'evolution', channel_type: 'whatsapp', name: 'N2', config: { aiPromptKey: PADRAO }, ai_agent_id: null },
+    { id: 'c3', organization_id: ORG, provider: 'evolution', channel_type: 'whatsapp', name: 'N3', config: { aiPromptKey: AURORA }, ai_agent_id: 'a2' },
+    { id: 'c4', organization_id: ORG, provider: 'evolution', channel_type: 'whatsapp', name: 'N4', config: { aiPromptKey: 'task_nao_existe' }, ai_agent_id: null },
+    { id: 'c5', organization_id: OUTRA, provider: 'evolution', channel_type: 'whatsapp', name: 'N5', config: {}, ai_agent_id: 'a9' },
+    { id: 'c6', organization_id: ORG, provider: 'outro', channel_type: 'whatsapp', name: 'N6', config: {}, ai_agent_id: null },
   ],
   ai_agents: [
     { id: 'a1', organization_id: ORG, name: 'Julia' },
@@ -4798,6 +5362,20 @@ describe('resumirNumerosDaChave', () => {
   it('chave que não é de conversa (assistente do CRM) não tem números: null', async () => {
     expect(await resumirNumerosDaChave(admin, ORG, 'agent_crm_base_instructions')).toBeNull();
   });
+
+  it('com mais de mil números, a leitura vem em páginas e nenhum fica de fora da conta', async () => {
+    const muitas = Array.from({ length: 1203 }, (_, i) => ({
+      id: `n${String(i).padStart(5, '0')}`, organization_id: ORG, provider: 'evolution', channel_type: 'whatsapp',
+      name: `N${i}`, config: {}, ai_agent_id: i % 2 === 0 ? 'a1' : null,
+    }));
+    const grande = fakeAdmin({ channel_connections: muitas, ai_agents: [{ id: 'a1', organization_id: ORG, name: 'Julia' }] });
+    expect(await resumirNumerosDaChave(grande, ORG, PADRAO)).toEqual({
+      organizationId: ORG,
+      numerosDaChave: 1203,
+      numerosComAgente: 602,
+      agentes: [{ id: 'a1', nome: 'Julia' }],
+    });
+  });
 });
 ```
 
@@ -4809,6 +5387,7 @@ Expected: FAIL com `Failed to resolve import "./numerosDaChave"`.
 ```ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isConversationAIPromptKey, resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
+import { lerConexoes } from './migracaoAgentes';
 
 export type ResumoDaChave = {
   organizationId: string;
@@ -4829,13 +5408,9 @@ export async function resumirNumerosDaChave(
   promptKey: string,
 ): Promise<ResumoDaChave | null> {
   if (!isConversationAIPromptKey(promptKey)) return null;
-  const conexoes = await admin
-    .from('channel_connections')
-    .select('id, config, ai_agent_id')
-    .eq('organization_id', organizationId)
-    .eq('provider', 'evolution');
-  if (conexoes.error) throw new Error(`channel_connections: ${conexoes.error.message}`);
-  const daChave = (conexoes.data ?? []).filter(
+  // Em páginas por id: uma leitura só seria cortada no limite do PostgREST, sem erro, e a conta sairia menor.
+  const conexoes = await lerConexoes(admin, organizationId);
+  const daChave = conexoes.filter(
     (c) => resolveConversationAIAgentConfig(c.config as Record<string, unknown> | null).promptKey === promptKey,
   );
   const ids = [...new Set(daChave.map((c) => c.ai_agent_id as string | null).filter((id): id is string => Boolean(id)))];
@@ -4854,8 +5429,11 @@ export async function resumirNumerosDaChave(
 }
 ```
 
-Run: `npx vitest run lib/agents/numerosDaChave.test.ts`
-Expected: PASS (3 testes).
+Antes de rodar, em `lib/agents/migracaoAgentes.ts`, trocar `type ConexaoLida = {` por `export type ConexaoLida = {` e
+`async function lerConexoes(` por `export async function lerConexoes(`. Nada mais muda nesse arquivo.
+
+Run: `npx vitest run lib/agents/numerosDaChave.test.ts lib/agents/migracaoAgentes.test.ts`
+Expected: PASS (4 testes da contagem, e os da migração da fatia 1 como estavam).
 
 - [ ] **Step 3: Teste da rota (falha)**
 
@@ -5204,7 +5782,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add lib/agents/numerosDaChave.ts lib/agents/numerosDaChave.test.ts "app/api/settings/ai-prompts/[key]" features/settings/components/AIFeaturesSection.tsx features/settings/components/AIFeaturesSection.agentes.test.tsx
+git add lib/agents/numerosDaChave.ts lib/agents/numerosDaChave.test.ts lib/agents/migracaoAgentes.ts "app/api/settings/ai-prompts/[key]" features/settings/components/AIFeaturesSection.tsx features/settings/components/AIFeaturesSection.agentes.test.tsx
 git diff --cached --stat
 git commit -m "feat(central-agentes): Central de I.A avisa quando os numeros da chave ja respondem por um agente (contagem no servidor)"
 ```
@@ -5214,12 +5792,17 @@ git commit -m "feat(central-agentes): Central de I.A avisa quando os numeros da 
 ### Task 10: PATCH da conexão recusa `aiPromptKey` num número ligado (409)
 
 **Files:**
-- Modify: `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts:93-101`
+- Modify: `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts` (ordem da leitura, recusa e gravação condicionada)
+- Modify: `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.patch.test.ts` (o banco falso ganha `.is()` e `.maybeSingle()` na gravação)
 - Test: `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts`
 
 Num número ligado, o texto vem da versão publicada do agente e a chave não tem efeito. Nenhuma tela manda `aiPromptKey` hoje (só a rota aceita); a recusa vale para qualquer pedido com o campo, igual ou diferente do gravado. Os outros campos continuam editáveis: pausar a IA de um número ligado tem que funcionar.
 
-- [ ] **Step 1: Teste que falha**
+Duas garantias, da revisão do Codex de 07/10:
+- **Nada é gravado antes da recusa.** Hoje a rota vincula o cliente à agência (`ensureTenantAgencyBinding`, que grava `organization_editions`) **antes** de ler a conexão (`route.ts`, linhas 68-91 contra 93-101, em `6a29238`). A leitura da conexão passa para antes dessa vinculação, e a recusa vem logo depois dela.
+- **A recusa vale também para uma ligação feita entre a leitura e a gravação.** Quando o pedido traz `aiPromptKey`, a gravação só pega a linha com `ai_agent_id is null`. Se não pegar nenhuma, a rota relê: número ligado vira 409, número sumido vira 404. Nunca 200 com a chave gravada num número ligado.
+
+- [ ] **Step 1: Testes que falham**
 
 Criar `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts`:
 
@@ -5229,10 +5812,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const CONNECTION = '22222222-2222-4222-8222-222222222222';
 const AGENTE = '33333333-3333-4333-8333-333333333333';
+const AURORA = 'task_conversations_whatsapp_cenno_aurora';
 const requireTenantAccessMock = vi.fn();
+const bindingMock = vi.fn();
 const updateMock = vi.fn();
+const condicaoMock = vi.fn();
 const baseConfig = { apiUrl: 'https://evolution.example.com', instanceName: 'comercial-a1b2', webhookSecret: 'S', apiKey: 'K', sendMode: 'number_text' };
-let linha: Record<string, unknown> = {};
+const SEM_AGENTE = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: null };
+const LIGADO = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: AGENTE };
+/** Cada leitura de channel_connections consome o próximo item: a primeira é a da rota, a segunda é a releitura. */
+let leituras: Array<Record<string, unknown> | null> = [];
+/** O que a gravação devolve: a linha gravada, ou nenhuma (a condição não casou). */
+let gravacaoCasa = true;
 
 vi.mock('node:dns/promises', () => {
   const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
@@ -5242,8 +5833,11 @@ vi.mock('@/lib/platform/tenantAccess', () => ({
   requireTenantAccess: (...args: unknown[]) => requireTenantAccessMock(...args),
 }));
 vi.mock('@/lib/security/sameOrigin', () => ({ isAllowedOrigin: () => true }));
-vi.mock('@/lib/auth/scope', () => ({ isAgencyAdminRole: () => false }));
-vi.mock('@/lib/channels/evolutionCredentials', () => ({ ensureTenantAgencyBinding: vi.fn(), resolveEvolutionCredentials: vi.fn() }));
+vi.mock('@/lib/auth/scope', () => ({ isAgencyAdminRole: (role: unknown) => role === 'agency_admin' }));
+vi.mock('@/lib/channels/evolutionCredentials', () => ({
+  ensureTenantAgencyBinding: (...args: unknown[]) => bindingMock(...args),
+  resolveEvolutionCredentials: vi.fn(),
+}));
 vi.mock('@/lib/channels/evolution', () => ({ logoutEvolutionInstance: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({
   createStaticAdminClient: () => ({
@@ -5252,22 +5846,28 @@ vi.mock('@/lib/supabase/server', () => ({
         const consulta = { select: () => consulta, eq: () => consulta, maybeSingle: () => Promise.resolve({ data: { name: 'Aurora' }, error: null }) };
         return consulta;
       }
+      const leitura = {
+        select: () => leitura,
+        eq: () => leitura,
+        maybeSingle: () => Promise.resolve({ data: leituras.shift() ?? null, error: null }),
+      };
       return {
-        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: linha, error: null }) }) }) }),
+        select: () => leitura,
         update: (updates: Record<string, unknown>) => {
           updateMock(updates);
-          return {
-            eq: () => ({
-              eq: () => ({
-                select: () => ({
-                  single: () => Promise.resolve({
-                    data: { id: CONNECTION, provider: 'evolution', channel_type: 'whatsapp', name: 'Comercial', status: 'connected', config: updates.config, metadata: {} },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
+          const linha = {
+            id: CONNECTION, provider: 'evolution', channel_type: 'whatsapp', name: 'Comercial', status: 'connected', config: updates.config, metadata: {},
           };
+          const resposta = () => Promise.resolve({ data: gravacaoCasa ? linha : null, error: null });
+          const encadeamento = {
+            eq: () => encadeamento,
+            is: (coluna: string, valor: unknown) => {
+              condicaoMock(coluna, valor);
+              return encadeamento;
+            },
+            select: () => ({ single: resposta, maybeSingle: resposta }),
+          };
+          return encadeamento;
         },
       };
     },
@@ -5289,79 +5889,170 @@ function patch(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requireTenantAccessMock.mockResolvedValue({ profile: { role: 'agency_admin', organization_id: TENANT }, canManageChannelConfig: true });
+  gravacaoCasa = true;
+  // Admin da agência entrando no cliente: é o caminho que passa pela vinculação do cliente à agência.
+  requireTenantAccessMock.mockResolvedValue({ profile: { role: 'agency_admin', organization_id: 'org-agencia' }, canManageChannelConfig: true });
 });
 
 describe('PATCH da conexão — número ligado a um agente', () => {
-  it('aiPromptKey num número ligado: 409 com o nome do agente, e nada é gravado', async () => {
-    linha = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: AGENTE };
-    const r = await patch({ config: { aiPromptKey: 'task_conversations_whatsapp_cenno_aurora' } });
+  it('aiPromptKey num número ligado: 409 com o nome do agente, sem gravar nada, nem a vinculação à agência', async () => {
+    leituras = [LIGADO];
+    const r = await patch({ config: { aiPromptKey: AURORA } });
     expect(r.status).toBe(409);
     const corpo = await r.json();
     expect(corpo).toMatchObject({ code: 'NUMERO_COM_AGENTE', agentId: AGENTE });
     expect(corpo.error).toContain('Aurora');
     expect(updateMock).not.toHaveBeenCalled();
+    expect(bindingMock).not.toHaveBeenCalled();
   });
 
-  it('número ligado: os outros campos continuam editáveis (pausar a IA no número)', async () => {
-    linha = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: AGENTE };
+  it('número ligado: os outros campos continuam editáveis (pausar a IA no número), sem a condição da chave', async () => {
+    leituras = [LIGADO];
     const r = await patch({ config: { aiEnabled: false } });
     expect(r.status).toBe(200);
     expect(updateMock).toHaveBeenCalledOnce();
+    expect(condicaoMock).not.toHaveBeenCalled();
   });
 
-  it('número sem agente: aiPromptKey continua aceita, como hoje', async () => {
-    linha = { id: CONNECTION, config: baseConfig, metadata: {}, ai_agent_id: null };
-    const r = await patch({ config: { aiPromptKey: 'task_conversations_whatsapp_cenno_aurora' } });
+  it('número sem agente: aiPromptKey continua aceita, gravada só se ele seguir sem agente', async () => {
+    leituras = [SEM_AGENTE];
+    const r = await patch({ config: { aiPromptKey: AURORA } });
     expect(r.status).toBe(200);
-    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({ config: { aiPromptKey: 'task_conversations_whatsapp_cenno_aurora' } });
+    expect(updateMock.mock.calls[0]?.[0]).toMatchObject({ config: { aiPromptKey: AURORA } });
+    expect(condicaoMock).toHaveBeenCalledWith('ai_agent_id', null);
+  });
+
+  it('ligação feita entre a leitura e a gravação: a gravação não pega a linha e a resposta é 409, nunca 200', async () => {
+    leituras = [SEM_AGENTE, LIGADO];
+    gravacaoCasa = false;
+    const r = await patch({ config: { aiPromptKey: AURORA } });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toMatchObject({ code: 'NUMERO_COM_AGENTE', agentId: AGENTE });
+  });
+
+  it('número que sumiu entre a leitura e a gravação: 404', async () => {
+    leituras = [SEM_AGENTE, null];
+    gravacaoCasa = false;
+    expect((await patch({ config: { aiPromptKey: AURORA } })).status).toBe(404);
   });
 });
 ```
 
 Run: `npx vitest run "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts"`
-Expected: FAIL no primeiro teste (status 200 e o update chamado).
+Expected: FAIL. O primeiro teste dá 200 e a vinculação foi chamada, o terceiro não vê a condição e os dois últimos dão 200.
 
-- [ ] **Step 2: Implementar a recusa**
+- [ ] **Step 2: Ajustar o banco falso de `route.patch.test.ts`**
 
-Em `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts`:
-- na leitura `current`, trocar `.select('id, config, metadata')` por `.select('id, config, metadata, ai_agent_id')`;
-- logo depois de `if (!current.data) return json({ error: 'Channel not found' }, 404);`, acrescentar:
+O teste "configura a identidade e o prompt da Aurora" desse arquivo manda `aiPromptKey` num número sem agente. Com a gravação condicionada, o encadeamento passa por `.is()` e termina em `.maybeSingle()`. Trocar o bloco `update: (updates: Record<string, unknown>) => { ... },` do mock (linhas 47-69 em `6a29238`) por:
 
 ```ts
-  // Central de Agentes, fatia 2: num número ligado a um agente, o texto vem da versão publicada do agente e a chave de
-  // prompt não tem efeito. Mudança sem efeito é pior que mudança recusada (SPEC, "Rotas antigas depois de ligar").
-  if (parsed.data.config?.aiPromptKey !== undefined && current.data.ai_agent_id) {
-    const agente = await admin
-      .from('ai_agents')
-      .select('name')
-      .eq('id', current.data.ai_agent_id)
-      .eq('organization_id', tenantId)
-      .maybeSingle();
-    if (agente.error) return json({ error: agente.error.message }, 500);
-    const quem = agente.data?.name ? `pelo agente ${agente.data.name}` : 'por um agente';
-    return json(
-      {
-        error: `Este número responde ${quem}: a chave de prompt não tem efeito aqui. Edite o prompt na Central de Agentes.`,
-        code: 'NUMERO_COM_AGENTE',
-        agentId: current.data.ai_agent_id,
+      update: (updates: Record<string, unknown>) => {
+        updateMock(updates);
+        const resposta = () =>
+          Promise.resolve({
+            data: {
+              id: CONNECTION,
+              provider: 'evolution',
+              channel_type: 'whatsapp',
+              name: 'Comercial',
+              status: 'connected',
+              config: updates.config,
+              metadata: { phoneNumber: '5511999' },
+            },
+            error: null,
+          });
+        // Com aiPromptKey no pedido a rota condiciona a gravação a `ai_agent_id is null` (Central de Agentes, fatia 2).
+        const encadeamento = {
+          eq: () => encadeamento,
+          is: () => encadeamento,
+          select: () => ({ single: resposta, maybeSingle: resposta }),
+        };
+        return encadeamento;
       },
-      409,
-    );
+```
+
+Nenhuma asserção desse arquivo muda.
+
+- [ ] **Step 3: Implementar a ordem nova, a recusa e a gravação condicionada**
+
+Em `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts`:
+
+1. Logo depois da função `json` (linha 17), acrescentar:
+
+```ts
+/** 409 para a chave de prompt num número ligado a um agente, com o nome dele (Central de Agentes, fatia 2). */
+async function recusarNumeroComAgente(admin: ReturnType<typeof createStaticAdminClient>, tenantId: string, agentId: string) {
+  const agente = await admin.from('ai_agents').select('name').eq('id', agentId).eq('organization_id', tenantId).maybeSingle();
+  if (agente.error) return json({ error: agente.error.message }, 500);
+  const quem = agente.data?.name ? `pelo agente ${agente.data.name}` : 'por um agente';
+  return json(
+    {
+      error: `Este número responde ${quem}: a chave de prompt não tem efeito aqui. Edite o prompt na Central de Agentes.`,
+      code: 'NUMERO_COM_AGENTE',
+      agentId,
+    },
+    409,
+  );
+}
+```
+
+2. No `PATCH`, **recortar** o bloco da leitura `const current = await admin ... if (!current.data) return json({ error: 'Channel not found' }, 404);` (hoje logo depois da vinculação) e colá-lo logo depois de `const admin = createStaticAdminClient();`, trocando `.select('id, config, metadata')` por `.select('id, config, metadata, ai_agent_id')`. Logo depois do `404`, ainda antes do bloco `if (isAgencyAdminRole(...))` da vinculação, acrescentar:
+
+```ts
+  // Central de Agentes, fatia 2: num número ligado a um agente, o texto vem da versão publicada e a chave de prompt
+  // não tem efeito. Mudança sem efeito é pior que mudança recusada (SPEC, "Rotas antigas depois de ligar"). A recusa
+  // vem antes de qualquer gravação, inclusive a vinculação do cliente à agência logo abaixo.
+  const pedeChaveDePrompt = parsed.data.config?.aiPromptKey !== undefined;
+  if (pedeChaveDePrompt && current.data.ai_agent_id) {
+    return recusarNumeroComAgente(admin, tenantId, current.data.ai_agent_id);
   }
 ```
 
-- [ ] **Step 3: Rodar e ver passar, junto com os testes da rota que já existiam**
+3. Trocar a gravação final, de `const { data, error } = await admin` até `if (error) return json({ error: error.message }, 500);`, por:
+
+```ts
+  const colunas = 'id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at';
+  const gravacao = admin
+    .from('channel_connections')
+    .update(updates)
+    .eq('id', connectionId)
+    .eq('organization_id', tenantId);
+  // Com a chave de prompt no pedido, a gravação só pega o número que continua sem agente: uma ligação feita entre a
+  // leitura acima e esta gravação faz a linha não casar, e a resposta vira 409 em vez de 200 (revisão do Codex, 07/10).
+  const { data, error } = pedeChaveDePrompt
+    ? await gravacao.is('ai_agent_id', null).select(colunas).maybeSingle()
+    : await gravacao.select(colunas).single();
+
+  if (error) return json({ error: error.message }, 500);
+  if (!data) {
+    const relida = await admin
+      .from('channel_connections')
+      .select('ai_agent_id')
+      .eq('id', connectionId)
+      .eq('organization_id', tenantId)
+      .maybeSingle();
+    if (relida.error) return json({ error: relida.error.message }, 500);
+    if (relida.data?.ai_agent_id) return recusarNumeroComAgente(admin, tenantId, relida.data.ai_agent_id);
+    return json({ error: 'Channel not found' }, 404);
+  }
+```
+
+O resto do `PATCH` (o `return json({ ok: true, channel: ... })`) fica como está.
+
+- [ ] **Step 4: Rodar e ver passar, junto com os testes da rota que já existiam**
 
 Run: `npx vitest run "app/api/platform/tenants/[tenantId]/channels/[connectionId]"`
-Expected: PASS (os 3 novos e todos os de `route.patch.test.ts` e `route.test.ts`).
+Expected: PASS (os 5 novos e todos os de `route.patch.test.ts` e `route.test.ts`, sem mudar asserção nenhuma).
 
-- [ ] **Step 4: Commit**
+Run, em outro comando: `npx tsc --noEmit`
+Expected: sem erro.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts" "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts"
+git add "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts" "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts" "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.patch.test.ts"
 git diff --cached --stat
-git commit -m "feat(central-agentes): PATCH da conexao recusa aiPromptKey em numero ligado a agente (409 com o nome do agente)"
+git commit -m "feat(central-agentes): PATCH da conexao recusa aiPromptKey em numero ligado (409 antes de qualquer gravacao, gravacao condicionada a seguir sem agente)"
 ```
 
 ---
@@ -5514,7 +6205,8 @@ Desfazer com `git checkout -- lib/ai/prompts/catalog.ts` (volta ao commit do Ste
 ### Task 12: Script de ligação lê o webhook do número na Evolution e libera a produção
 
 **Files:**
-- Create: `lib/agents/webhookDoNumero.ts` · Test: `lib/agents/webhookDoNumero.test.ts`
+- Create: `lib/agents/webhookDoNumero.ts` · Test: `lib/agents/webhookDoNumero.test.ts` e `lib/agents/webhookDoNumero.real.test.ts`
+- Create: `lib/agents/modoDaMigracao.ts` · Test: `lib/agents/modoDaMigracao.test.ts`
 - Modify: `lib/agents/publicacaoVercel.ts:21-32` (motivo novo `webhook_do_numero`)
 - Modify: `scripts/central-agentes/migrar-agentes.ts` (modo `--webhook`, leitura do webhook no `--ligar`, `LIGAR_EM_PRODUCAO_LIBERADO = true`)
 - Test: `test/centralAgentesScriptWebhook.test.ts`
@@ -5603,6 +6295,104 @@ describe('conferirWebhookDoNumero', () => {
 });
 ```
 
+Criar `lib/agents/webhookDoNumero.real.test.ts`. O teste acima injeta o webhook já interpretado; este passa a resposta
+**crua** da Evolution pelo leitor de verdade (`findEvolutionWebhook`, `lib/channels/evolution.ts`, que não tinha teste),
+nos dois formatos que ele aceita. Só a rede e o DNS são falsos (revisão do Codex, 07/10):
+
+```ts
+// @vitest-environment node
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
+const credenciais = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/channels/evolutionCredentials', () => ({ resolveEvolutionCredentials: credenciais }));
+
+import { conferirWebhookDoNumero } from './webhookDoNumero';
+
+const CONEXAO = '20532687-e868-48c4-977b-f6f7cac72131';
+const PRODUCAO = ['crm.basea2.com', 'crm.cennohub.com.br', 'basecrm.vercel.app'];
+const CERTO = `https://crm.basea2.com/api/public/channels/evolution/${CONEXAO}/webhook`;
+const NUMERO = { id: CONEXAO, organization_id: 'org', provider: 'evolution', config: { instanceName: 'whatsapp-ia-bba4d621' } };
+
+function admin() {
+  const consulta = { select: () => consulta, eq: () => consulta, maybeSingle: () => Promise.resolve({ data: NUMERO, error: null }) };
+  return { from: () => consulta } as unknown as SupabaseClient;
+}
+const respostaDaEvolution = (corpo: unknown) =>
+  vi.fn(async () => new Response(JSON.stringify(corpo), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('conferirWebhookDoNumero com o leitor real da Evolution', () => {
+  it.each([
+    ['formato plano', { enabled: true, url: `${CERTO}?token=SEGREDO`, events: ['MESSAGES_UPSERT'], headers: { Authorization: 'SEGREDO' } }],
+    ['formato aninhado em webhook', { webhook: { enabled: true, url: CERTO, events: ['MESSAGES_UPSERT'] } }],
+  ])('%s: confere, pedindo GET /webhook/find/<instância>', async (_nome, corpo) => {
+    credenciais.mockResolvedValue({ apiUrl: 'https://evo.exemplo.com', apiKey: 'CHAVE' });
+    const fetchMock = respostaDaEvolution(corpo);
+    vi.stubGlobal('fetch', fetchMock);
+    const r = await conferirWebhookDoNumero({ admin: admin(), connectionId: CONEXAO, dominios: PRODUCAO });
+    expect(r).toEqual({ ok: true, host: 'crm.basea2.com' });
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://evo.exemplo.com/webhook/find/whatsapp-ia-bba4d621');
+    expect(JSON.stringify(r)).not.toContain('SEGREDO');
+  });
+
+  it('webhook desligado na resposta crua: recusa como desligado', async () => {
+    credenciais.mockResolvedValue({ apiUrl: 'https://evo.exemplo.com', apiKey: 'CHAVE' });
+    vi.stubGlobal('fetch', respostaDaEvolution({ enabled: false, url: CERTO }));
+    expect(await conferirWebhookDoNumero({ admin: admin(), connectionId: CONEXAO, dominios: PRODUCAO })).toMatchObject({
+      ok: false,
+      motivo: 'webhook_desligado',
+    });
+  });
+});
+```
+
+Criar `lib/agents/modoDaMigracao.test.ts`. Revisão do Codex, 07/10: `--webhook` sem id passava pela escolha do modo, pulava
+o `if (webhook)` e terminava com a prova geral e saída 0. A escolha do modo vira uma função pura, testada pelo comportamento:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { ehUuid, escolherModo } from './modoDaMigracao';
+
+const ID = '20532687-e868-48c4-977b-f6f7cac72131';
+
+describe('escolherModo (migrar-agentes)', () => {
+  it.each([
+    ['--webhook sem id', ['--webhook'], '--webhook exige o id (uuid) do numero.'],
+    ['--webhook seguido de outra opção', ['--webhook', '--confirmar-banco', 'abc'], '--webhook exige o id (uuid) do numero.'],
+    ['--ligar com id inválido', ['--ligar', '123'], '--ligar exige o id (uuid) do numero.'],
+    ['--desligar sem id', ['--desligar'], '--desligar exige o id (uuid) do numero.'],
+  ])('%s: recusa', (_nome, args, erro) => {
+    expect(escolherModo(args)).toEqual({ erro });
+  });
+
+  it('dois modos juntos, ou nenhum: recusa', () => {
+    expect(escolherModo(['--prova', '--webhook', ID])).toMatchObject({ erro: expect.stringContaining('exatamente um modo') });
+    expect(escolherModo(['--criar', '--ligar', ID])).toMatchObject({ erro: expect.stringContaining('exatamente um modo') });
+    expect(escolherModo([])).toMatchObject({ erro: expect.stringContaining('veio: nenhum') });
+  });
+
+  it('modos válidos', () => {
+    expect(escolherModo(['--prova', '--org', ID])).toEqual({ modo: 'prova' });
+    expect(escolherModo(['--criar', '--org', ID, '--somente', ID])).toEqual({ modo: 'criar' });
+    expect(escolherModo(['--webhook', ID])).toEqual({ modo: 'webhook', numero: ID });
+    expect(escolherModo(['--ligar', ID, '--confirmar-banco', 'x'])).toEqual({ modo: 'ligar', numero: ID });
+  });
+
+  it('ehUuid', () => {
+    expect(ehUuid(ID)).toBe(true);
+    expect(ehUuid('--confirmar-banco')).toBe(false);
+    expect(ehUuid(undefined)).toBe(false);
+  });
+});
+```
+
 Criar `test/centralAgentesScriptWebhook.test.ts`:
 
 ```ts
@@ -5629,11 +6419,17 @@ describe('migrar-agentes: ligar em produção só com o webhook conferido', () =
     expect(fonte).toMatch(/const webhook = argumento\('--webhook'\);/);
     expect(fonte).toMatch(/conferirWebhookDoNumero\(\{ admin, connectionId: webhook, dominios: ambiente\.dominios \}\)/);
   });
+
+  it('o modo sai de escolherModo (testada à parte) e --criar em produção exige --somente', () => {
+    expect(fonte).toMatch(/const escolhido = escolherModo\(process\.argv\.slice\(2\)\);/);
+    expect(fonte).toMatch(/if \(ambiente\.producao && !somente\)/);
+    expect(fonte).toMatch(/if \(somente && grupos\.length !== 1\)/);
+  });
 });
 ```
 
-Run: `npx vitest run lib/agents/webhookDoNumero.test.ts test/centralAgentesScriptWebhook.test.ts`
-Expected: FAIL (módulo `./webhookDoNumero` inexistente; o script ainda tem `false`).
+Run: `npx vitest run lib/agents/webhookDoNumero.test.ts lib/agents/webhookDoNumero.real.test.ts lib/agents/modoDaMigracao.test.ts test/centralAgentesScriptWebhook.test.ts`
+Expected: FAIL (módulos `./webhookDoNumero` e `./modoDaMigracao` inexistentes; o script ainda tem `false`).
 
 - [ ] **Step 2: Implementar `lib/agents/webhookDoNumero.ts`**
 
@@ -5720,8 +6516,41 @@ export async function conferirWebhookDoNumero(params: {
 }
 ```
 
-Run: `npx vitest run lib/agents/webhookDoNumero.test.ts`
-Expected: PASS (10 testes).
+Criar `lib/agents/modoDaMigracao.ts`:
+
+```ts
+/** Escolha do modo do scripts/central-agentes/migrar-agentes.ts: um por chamada, e os que recebem número exigem o id. */
+export type ModoDaMigracao =
+  | { modo: 'prova' }
+  | { modo: 'criar' }
+  | { modo: 'ligar' | 'desligar' | 'webhook'; numero: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const ehUuid = (valor: string | null | undefined): valor is string => Boolean(valor && UUID.test(valor));
+
+/**
+ * Revisão do Codex, 07/10: `--webhook` sem id passava pela escolha antiga, pulava o `if (webhook)` e terminava com a
+ * prova geral e saída 0. Aqui, nenhum modo, dois modos ou número que não é uuid voltam como erro, antes de qualquer rede.
+ */
+export function escolherModo(args: readonly string[]): ModoDaMigracao | { erro: string } {
+  const modos = ['--prova', '--criar', '--ligar', '--desligar', '--webhook'].filter((m) => args.includes(m));
+  if (modos.length !== 1) {
+    return {
+      erro: `Use exatamente um modo: --prova, --criar, --ligar <id>, --desligar <id> ou --webhook <id> (veio: ${modos.join(' ') || 'nenhum'}).`,
+    };
+  }
+  const [modo] = modos;
+  if (modo === '--prova') return { modo: 'prova' };
+  if (modo === '--criar') return { modo: 'criar' };
+  const numero = args[args.indexOf(modo) + 1];
+  if (!ehUuid(numero)) return { erro: `${modo} exige o id (uuid) do numero.` };
+  return { modo: modo.slice(2) as 'ligar' | 'desligar' | 'webhook', numero };
+}
+```
+
+Run: `npx vitest run lib/agents/webhookDoNumero.test.ts lib/agents/webhookDoNumero.real.test.ts lib/agents/modoDaMigracao.test.ts`
+Expected: PASS (10 + 3 + 7 testes).
 
 - [ ] **Step 3: O motivo novo na publicação**
 
@@ -5751,11 +6580,14 @@ e acrescentar, depois da linha de uso do `--desligar`:
  *   npx --yes tsx@4.23.1 scripts/central-agentes/migrar-agentes.ts --webhook <connectionId>
 ```
 
+e, na linha de uso do `--criar`, trocar ` [--incluir <id,id>]` (o fim dela) por ` [--incluir <id,id>] [--somente <connectionId>] (em producao, --somente e obrigatorio)`.
+
 2. Trocar o import de `publicacaoVercel` por:
 
 ```ts
 import { criarClienteVercel, lerPublicacaoNoAr, type AmbientePublicado, type PublicacaoNoAr } from '@/lib/agents/publicacaoVercel';
 import { conferirWebhookDoNumero } from '@/lib/agents/webhookDoNumero';
+import { ehUuid, escolherModo } from '@/lib/agents/modoDaMigracao';
 ```
 
 3. Trocar o comentário e a constante `LIGAR_EM_PRODUCAO_LIBERADO` por:
@@ -5770,20 +6602,22 @@ import { conferirWebhookDoNumero } from '@/lib/agents/webhookDoNumero';
 const LIGAR_EM_PRODUCAO_LIBERADO = true;
 ```
 
-4. Trocar:
+4. Logo depois da linha que imprime o commit (``console.log(`Commit: ${commit}...`);``), antes do `const escreve = ...`, acrescentar:
 
 ```ts
-  if (!(tem('--prova') || tem('--criar') || tem('--ligar'))) {
-    console.error('Use --prova, --criar, --ligar <id> ou --desligar <id>.');
+  // Um modo por chamada, e o número dos modos que recebem um tem que ser uuid (lib/agents/modoDaMigracao.ts).
+  const escolhido = escolherModo(process.argv.slice(2));
+  if ('erro' in escolhido) {
+    console.error(escolhido.erro);
     return sair(2);
   }
 ```
 
-por:
+e **apagar** o bloco antigo, que fica redundante:
 
 ```ts
-  if (!(tem('--prova') || tem('--criar') || tem('--ligar') || tem('--webhook'))) {
-    console.error('Use --prova, --criar, --ligar <id>, --webhook <id> ou --desligar <id>.');
+  if (!(tem('--prova') || tem('--criar') || tem('--ligar'))) {
+    console.error('Use --prova, --criar, --ligar <id> ou --desligar <id>.');
     return sair(2);
   }
 ```
@@ -5815,6 +6649,35 @@ por:
     const r = await ligarComConferencia(admin, ligar, lerPublicacaoEWebhook, commit);
 ```
 
+7. No bloco `if (tem('--criar')) {`, trocar desde a linha `const plano = await planejarMigracao(...)` até a linha
+`const r = await criarAgentes(admin, { organizationId, grupos: plano.grupos, catalogCommit: commit });` por:
+
+```ts
+    // Revisão do Codex, 07/10: --org sozinho cria agente para TODOS os grupos prontos do cliente, e o OK de produção é
+    // por número. --somente <connectionId> restringe ao grupo desse número; em produção é obrigatório.
+    const somente = argumento('--somente');
+    if (ambiente.producao && !somente) {
+      console.error('Recusado: em producao, --criar exige --somente <connectionId> (so o grupo do numero aprovado).');
+      return sair(2);
+    }
+    if (somente && !ehUuid(somente)) {
+      console.error('--somente exige o id (uuid) do numero.');
+      return sair(2);
+    }
+    const plano = await planejarMigracao(admin, { organizationId, incluir, publicacao: { commit: p.commit, deploymentId: p.deploymentId } });
+    const grupos = somente ? plano.grupos.filter((g) => g.conexoes.some((c) => c.id === somente)) : plano.grupos;
+    if (somente && grupos.length !== 1) {
+      console.error(`Recusado: o numero ${somente} nao esta em nenhum grupo deste cliente (confira no --prova).`);
+      return sair(2);
+    }
+    if (somente && !grupos[0].pronto) {
+      console.error(`Recusado: o grupo do numero ${somente} nao esta pronto (algum numero dele sem CONFERE).`);
+      return sair(2);
+    }
+    imprimirPlano({ grupos, ignoradas: plano.ignoradas });
+    const r = await criarAgentes(admin, { organizationId, grupos, catalogCommit: commit });
+```
+
 - [ ] **Step 5: Rodar e ver passar, junto com os testes da fatia 1 da migração**
 
 Run: `npx vitest run lib/agents test/centralAgentesScriptWebhook.test.ts`
@@ -5826,7 +6689,7 @@ Expected: sem erro.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/agents/webhookDoNumero.ts lib/agents/webhookDoNumero.test.ts lib/agents/publicacaoVercel.ts scripts/central-agentes/migrar-agentes.ts test/centralAgentesScriptWebhook.test.ts
+git add lib/agents/webhookDoNumero.ts lib/agents/webhookDoNumero.test.ts lib/agents/webhookDoNumero.real.test.ts lib/agents/modoDaMigracao.ts lib/agents/modoDaMigracao.test.ts lib/agents/publicacaoVercel.ts scripts/central-agentes/migrar-agentes.ts test/centralAgentesScriptWebhook.test.ts
 git diff --cached --stat
 git commit -m "feat(central-agentes): --ligar le o webhook do numero na Evolution (antes e depois) e libera producao; modo --webhook so leitura"
 ```
@@ -5888,10 +6751,12 @@ Registrar no cérebro, em `06-References/central-de-agentes-2026-09-29/` (arquiv
 - Modify: `dump_producao.ps1` (v4.2 → v4.3)
 - Modify: `prova_dump_local.ps1` (v2.1 → v2.2)
 - Modify: `conferir_pos_dump.ps1` (cinco arquivos, pasta por parâmetro)
+- Modify: `sqlprod.py` e `sqlteste.py` (erro HTTP sai 1, com a mensagem no stderr)
+- Modify: `rota_b_senha.ps1` (`-Data` obrigatório, sem a data de 07/10 como padrão)
 - Create: `g23-restauracao/contagens_todas.sql`
 - Create: `g23-restauracao/comparar_contagens.py`
 - Create: `g23-restauracao/restaurar_v2.sh` (o `restaurar.sh` de 07/10 fica como registro)
-- Modify: `LEIA-ME.md` (itens 10, 12 e 13)
+- Modify: `LEIA-ME.md` (itens 6, 10, 11, 12 e 13)
 
 Os quatro requisitos entraram na política de backup na 12ª devolutiva (SPEC, achados fora do escopo, item 8), e esta é a primeira vez que um dump os cumpre:
 1. **Pooler lido do endpoint na hora.** A v4.2 tem o host certo como constante (lido em 07/10); a v4.3 lê `GET /v1/projects/{ref}/config/database/pooler` antes de abrir a senha e recusa se o host for outro. A constante continua mudando só por commit.
@@ -6019,6 +6884,48 @@ $ok = ($itens.Count -eq $esperados.Count) -and -not (Compare-Object $esperados @
 
 (o laço de conferência de cifra e ACL e o `cipher /c` do `roles.sql` ficam como estão).
 
+- [ ] **Step 5a: `sqlprod.py` e `sqlteste.py`: erro HTTP sai 1**
+
+Revisão do Codex, 07/10: hoje o `except` imprime `HTTP <código> <corpo>` na saída padrão e o script termina com 0. Redirecionada para `antes.json`, uma contagem recusada vira um texto de erro, e nada para. Medido em 07/10 no banco de teste: SQL inválido devolve `HTTP 400 {"message":"Failed to run sql query: ERROR:  42P01: ..."}` na saída padrão, com saída 0. Nos dois arquivos, trocar o bloco `except` por:
+
+```python
+except urllib.error.HTTPError as e:
+    print("HTTP", e.code, e.read().decode()[:600], file=sys.stderr)
+    sys.exit(1)
+```
+
+Os dois só diferem na docstring e no `REF`, então a prova é no banco de teste. Na pasta do rito, um por vez:
+
+```bash
+diff sqlprod.py sqlteste.py
+printf 'select coluna_que_nao_existe from tabela_que_nao_existe;\n' > "$TEMP/sql-invalido.sql"
+python sqlteste.py "$TEMP/sql-invalido.sql" > "$TEMP/sql-invalido.out"; echo "saida=$?"
+wc -c < "$TEMP/sql-invalido.out"
+rm "$TEMP/sql-invalido.sql" "$TEMP/sql-invalido.out"
+```
+Expected: o `diff` mostra só a linha 2 (docstring) e a 7 (`REF`); `saida=1`, com `HTTP 400 ...` no terminal (stderr) e `0` bytes no arquivo redirecionado.
+
+- [ ] **Step 5b: `rota_b_senha.ps1`: `-Data` obrigatório**
+
+Revisão do Codex, 07/10: o script tem `[string]$Data = '2026-10-07'` como padrão, e tanto o LEIA-ME (item 11) quanto a v1 deste plano o chamavam sem `-Data`. Num dia diferente, a senha iria para a pasta de 07/10 (que já tem o dump da fatia 1, e o script recusaria por pasta não vazia) e o dump procuraria na pasta nova. Trocar o bloco `param(...)` por:
+
+```powershell
+param(
+    [Parameter(Mandatory = $true)][ValidateSet('criar', 'rotacionar')][string]$Modo,
+    [Parameter(Mandatory = $true)][ValidatePattern('^\d{4}-\d{2}-\d{2}(-[a-z0-9]+)?$')][string]$Data
+)
+```
+
+e, nas duas linhas de uso do cabeçalho, acrescentar `-Data <data>` depois de `-Modo criar` e de `-Modo rotacionar`. O padrão é o mesmo do `-Data` do `dump_producao.ps1` (aceita sufixo, como `2026-10-08-b`).
+
+Conferir sem rede, na pasta do rito, um por vez (nenhum chega a ler o cofre: a falta de parâmetro para no PowerShell, e a pasta inexistente para antes do token):
+
+```powershell
+powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo criar
+powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo criar -Data 2099-01-01
+```
+Expected: o primeiro recusa com "um ou mais parâmetros obrigatórios estão ausentes: Data"; o segundo com `pasta do dia nao existe`. Os dois saem 1. (Medido em 07/10 numa cópia do bloco novo: os dois casos, mais `-Modo rotacionar -Data 2026-10-08-b` aceito e `-Data 07-10-2026` recusado pela validação.)
+
 - [ ] **Step 6: Contagem de todas as tabelas — `g23-restauracao/contagens_todas.sql`**
 
 ```sql
@@ -6044,20 +6951,32 @@ Uso: python comparar_contagens.py antes.json depois.json copia.txt
   copia.txt: saida do psql na copia (`tabela|linhas`, uma por linha)
 Regra: tabela que nao mudou na janela do dump tem que bater exatamente; tabela que mudou tem que ficar entre as duas
 contagens. Tabela da producao ausente na copia reprova, salvo as excluidas de proposito do data.sql. Tabela so da copia
-(da propria stack local) aparece como informacao. Imprime so nomes e numeros. Saida 0 = confere; 1 = nao confere."""
+(da propria stack local) aparece como informacao. Imprime so nomes e numeros. Saida 0 = confere; 1 = nao confere.
+Revisao do Codex (07/10): entrada que nao seja uma contagem completa PARA o comparador (saida 1): arquivo vazio, linha que
+nao e `tabela|numero` (o "HTTP 400 ..." de um sqlprod.py antigo, por exemplo) ou contagem sem as tabelas-sentinela."""
 import io, json, sys
 
 EXCLUIDAS_DE_PROPOSITO = {"storage.buckets_vectors", "storage.vector_indexes"}  # os -x do data.sql (dump_producao.ps1)
+# Existem na producao (desde a fatia 1) e em toda copia restaurada dela; sem as duas, a entrada nao e uma contagem real.
+SENTINELAS = {"public.ai_agents", "supabase_migrations.schema_migrations"}
 
 def ler(caminho):
     texto = io.open(caminho, encoding="utf-8").read().strip()
-    if texto.startswith("["):
-        return {linha["tabela"]: int(linha["linhas"]) for linha in json.loads(texto)}
     contagens = {}
-    for linha in texto.splitlines():
-        if "|" in linha:
+    if texto.startswith("["):
+        for linha in json.loads(texto):
+            contagens[linha["tabela"]] = int(linha["linhas"])
+    else:
+        for linha in texto.splitlines():
+            if not linha.strip():
+                continue
+            if "|" not in linha:
+                sys.exit(f"{caminho}: linha que nao e contagem: {linha[:80]!r}; parar")
             tabela, numero = linha.rsplit("|", 1)
             contagens[tabela.strip()] = int(numero)
+    faltam = SENTINELAS - set(contagens)
+    if faltam:
+        sys.exit(f"{caminho}: {len(contagens)} contagem(ns) lida(s), sem {', '.join(sorted(faltam))}; nao e uma contagem completa; parar")
     return contagens
 
 antes, depois, copia = (ler(c) for c in sys.argv[1:4])
@@ -6089,6 +7008,23 @@ print(f"tabelas da producao: {len(set(antes) | set(depois))} | na copia: {len(co
 sys.exit(1 if falhas else 0)
 ```
 
+Conferir sem rede, na pasta do rito (Git Bash), com quatro entradas: uma contagem que confere, contagens vazias, um erro HTTP no lugar da contagem e uma tabela faltando na cópia:
+
+```bash
+T="$(cygpath -m "$TEMP")/comparador-prova"; mkdir -p "$T"
+printf '[{"tabela":"public.ai_agents","linhas":2},{"tabela":"supabase_migrations.schema_migrations","linhas":90},{"tabela":"public.tabela_x","linhas":5}]\n' > "$T/ok.json"
+printf 'public.ai_agents|2\nsupabase_migrations.schema_migrations|90\npublic.tabela_x|5\n' > "$T/copia_ok.txt"
+printf 'public.ai_agents|2\nsupabase_migrations.schema_migrations|90\n' > "$T/copia_falta.txt"
+printf 'HTTP 400 {"message":"Failed to run sql query"}\n' > "$T/http.json"
+: > "$T/vazio.json"
+python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_ok.txt"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/vazio.json" "$T/vazio.json" "$T/copia_ok.txt"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/http.json" "$T/ok.json" "$T/copia_ok.txt"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_falta.txt"; echo "saida=$?"
+rm -r "$T"
+```
+Expected, nesta ordem: `falhas: 0` e `saida=0`; `0 contagem(ns) lida(s), sem public.ai_agents, supabase_migrations.schema_migrations` e `saida=1`; `linha que nao e contagem: 'HTTP 400 ...'` e `saida=1`; `FALTA NA COPIA: public.tabela_x` e `saida=1`. (Medido em 07/10 com este código. A v1 deste plano, sem as sentinelas, dava `falhas: 0` e `saida=0` no segundo caso: aprovava um backup sem nenhuma contagem da produção.)
+
 - [ ] **Step 8: A restauração v2 — `g23-restauracao/restaurar_v2.sh`**
 
 ```bash
@@ -6107,6 +7043,14 @@ AQUI="$(cd "$(dirname "$0")" && pwd)"
 LOGS="$(cygpath -u "${TEMP}")/ensaio-g23/logs"; mkdir -p "$LOGS"
 ADMIN_URL='postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres'
 p() { docker exec "$C" psql -U postgres -d postgres -At -c "$1"; }
+# Contagem de todas as tabelas. Sem ON_ERROR_STOP o psql sai 0 num erro de script, com o arquivo vazio, e "contagens
+# iguais" compararia dois vazios; as duas tabelas-sentinela do comparador tem que estar no arquivo (revisao do Codex, 07/10).
+contar() {
+  docker exec -i "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -At -F '|' < "$AQUI/contagens_todas.sql" > "$1" \
+    || { echo "contagem FALHOU: $1"; return 1; }
+  grep -q '^public\.ai_agents|' "$1" && grep -q '^supabase_migrations\.schema_migrations|' "$1" \
+    || { echo "contagem sem as tabelas-sentinela: $1"; return 1; }
+}
 
 echo "== $(date '+%H:%M:%S') container"; docker ps --filter "name=$C" --format '{{.Names}} | {{.Status}} | {{.Image}}'
 [ "$(sha256sum "$MIG" | cut -c1-64)" = "$SHA" ] || { echo "sha256 da migration diferente do informado; parar"; exit 1; }
@@ -6125,7 +7069,7 @@ echo "restauracao EXIT=$rc | linhas com ERROR no log: $(grep -c -E 'ERROR' "$LOG
 [ "$rc" = 0 ] || { grep -E 'ERROR|FATAL' "$LOGS/restauracao.log" | head -5 | cut -c1-200; exit 1; }
 
 echo "== contagem de todas as tabelas dos esquemas despejados na copia (requisito 4)"
-docker exec -i "$C" psql -U postgres -d postgres -At -F '|' < "$AQUI/contagens_todas.sql" > "$LOGS/copia.txt" || exit 1
+contar "$LOGS/copia.txt" || exit 1
 echo "tabelas contadas: $(wc -l < "$LOGS/copia.txt")"
 echo "== historico de migrations veio do dump (requisito 3): $(p "select count(*) from supabase_migrations.schema_migrations") linha(s)"
 
@@ -6141,7 +7085,7 @@ echo "== $(date '+%H:%M:%S') volta da fatia na copia, direto do arquivo"
 docker exec -i "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$VOLTA" > "$LOGS/volta.log" 2>&1 \
   || { grep -E 'ERROR' "$LOGS/volta.log" | head -5 | cut -c1-200; exit 1; }
 echo "linhas da versao no historico depois da volta: $(p "select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO'") (tem que ser 0)"
-docker exec -i "$C" psql -U postgres -d postgres -At -F '|' < "$AQUI/contagens_todas.sql" > "$LOGS/copia_depois_da_volta.txt" || exit 1
+contar "$LOGS/copia_depois_da_volta.txt" || exit 1
 if cmp -s "$LOGS/copia.txt" "$LOGS/copia_depois_da_volta.txt"; then
   echo "contagens iguais antes e depois de migration + volta"
 else
@@ -6170,7 +7114,7 @@ npx --yes supabase@2.120.0 db dump --db-url $url -f "$P\historico_data.sql" --us
 2. A contagem da `crmia` no mesmo momento, duas vezes (faz o papel de "antes" e "depois"; aqui ninguém escreve):
 
 ```bash
-docker exec -i supabase_db_crmia psql -U postgres -d postgres -At -F '|' < g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-dump-local/antes.txt"
+docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres -At -F '|' < g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-dump-local/antes.txt"
 cp "$TEMP/ensaio-dump-local/antes.txt" "$TEMP/ensaio-dump-local/depois.txt"
 ```
 
@@ -6191,16 +7135,16 @@ Expected: `restauracao EXIT=0` com 0 linhas de `ERROR`; histórico com ao menos 
 
 - [ ] **Step 10: LEIA-ME e commit no cérebro**
 
-No `LEIA-ME.md` do rito: o item 10 ganha a v4.3 (os dois requisitos do dump), o item 12 a versão com parâmetro e cinco arquivos, e o item 13 o `restaurar_v2.sh`, o `contagens_todas.sql` e o `comparar_contagens.py`, com a decisão do `roles.sql` (restaurar como `supabase_admin`).
+No `LEIA-ME.md` do rito: o item 6 ganha "erro HTTP sai 1, com a mensagem no stderr"; o item 10, a v4.3 (os dois requisitos do dump); o item 11, o `-Data` obrigatório (`-Modo criar|rotacionar -Data <data>`) e a regra do Step B2 da Task 15 (qualquer falha depois do `criar` rotaciona primeiro; nova tentativa em pasta nova); o item 12, a versão com parâmetro e cinco arquivos; e o item 13, o `restaurar_v2.sh`, o `contagens_todas.sql` e o `comparar_contagens.py`, com a decisão do `roles.sql` (restaurar como `supabase_admin`) e as tabelas-sentinela.
 
 ```bash
-git -C "/c/Users/PC Gamer/brains/cenoura-brain" add 06-References/basecrm-rito-publicacao/dump_producao.ps1 06-References/basecrm-rito-publicacao/prova_dump_local.ps1 06-References/basecrm-rito-publicacao/conferir_pos_dump.ps1 06-References/basecrm-rito-publicacao/g23-restauracao/contagens_todas.sql 06-References/basecrm-rito-publicacao/g23-restauracao/comparar_contagens.py 06-References/basecrm-rito-publicacao/g23-restauracao/restaurar_v2.sh 06-References/basecrm-rito-publicacao/LEIA-ME.md
+git -C "/c/Users/PC Gamer/brains/cenoura-brain" add 06-References/basecrm-rito-publicacao/dump_producao.ps1 06-References/basecrm-rito-publicacao/prova_dump_local.ps1 06-References/basecrm-rito-publicacao/conferir_pos_dump.ps1 06-References/basecrm-rito-publicacao/sqlprod.py 06-References/basecrm-rito-publicacao/sqlteste.py 06-References/basecrm-rito-publicacao/rota_b_senha.ps1 06-References/basecrm-rito-publicacao/g23-restauracao/contagens_todas.sql 06-References/basecrm-rito-publicacao/g23-restauracao/comparar_contagens.py 06-References/basecrm-rito-publicacao/g23-restauracao/restaurar_v2.sh 06-References/basecrm-rito-publicacao/LEIA-ME.md
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" diff --cached --stat
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" commit -m "rito BaseCRM: dump v4.3 e restauracao v2 com os quatro requisitos da politica de backup (pooler lido, roles como supabase_admin, historico de migrations, todas as tabelas)"
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" push
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" status -sb
 ```
-Expected: o `--stat` lista só esses sete caminhos; `status -sb` sem `[ahead N]`.
+Expected: o `--stat` lista só esses dez caminhos; `status -sb` sem `[ahead N]`.
 
 ---
 
@@ -6208,6 +7152,7 @@ Expected: o `--stat` lista só esses sete caminhos; `status -sb` sem `[ahead N]`
 
 **Files (no cérebro, `06-References/basecrm-rito-publicacao/`):**
 - Modify: `poll_deploys.py` (`--so-previa` e `--sem-alias`)
+- Modify: `alias_teste.py` (v2: resposta fora de 2xx sai 1; `mover` relê o alias e exige o deployment pedido)
 - Modify: `rodar_migrar_prod.py` (v2: `--webhook`, e escrita só para o que estiver em `ligacoes-aprovadas.json`)
 - Create: `ligacoes-aprovadas.json`
 - Modify: `migracoes-aprovadas.json` (entrada da migration desta fatia)
@@ -6264,6 +7209,73 @@ print("alias -> previa", prev["meta"].get("githubCommitSha", "")[:7], "| ok:", b
 ```
 
 Commit no cérebro só deste arquivo, por caminho explícito.
+
+- [ ] **Step A0b: `alias_teste.py` v2 — erro é erro, e mover confere para onde o alias ficou**
+
+Revisão do Codex, 07/10: hoje `mover` e `apagar` imprimem o HTTP 4xx/5xx e terminam com código 0, então o passo seguinte
+roda como se tivesse dado certo, e o login no alias antigo ainda confirmaria o banco de teste. No cérebro, trocar o
+`alias_teste.py` inteiro por:
+
+```python
+# -*- coding: utf-8 -*-
+"""Alias teste.crm.basea2.com na Vercel. Token em processo, nunca impresso.
+  python alias_teste.py ver                 # so leitura: para onde o alias aponta
+  python alias_teste.py mover <dpl_id>      # POST /v2/deployments/{id}/aliases e RELE o alias: sai 0 so se ele aponta para <dpl_id>
+  python alias_teste.py apagar <dpl_id>     # DELETE /v13/deployments/{id} (so se a prova da previa nova falhar)
+  python alias_teste.py deployment <dpl_id> # so leitura: estado/url/meta de um deployment
+v2 (fatia 2, revisao do Codex de 07/10): resposta fora de 2xx sai com codigo 1 (antes saia 0 com o erro impresso), e o
+mover so termina 0 depois de reler o alias e ver o deploymentId pedido."""
+import io, json, os, re, sys, urllib.request, urllib.error
+COFRE = os.path.join(os.path.expanduser("~"), "WorkSync", ".secrets")
+def segredo(nome):
+    for ln in io.open(COFRE, encoding="utf-8", errors="ignore"):
+        m = re.match(r"^" + nome + r"=(.+)$", ln.strip())
+        if m: return m.group(1).strip().strip('"')
+VT, TEAM = segredo("VERCEL_TOKEN"), segredo("VERCEL_TEAM_ID")
+ALIAS = "teste.crm.basea2.com"
+def api(metodo, caminho, corpo=None):
+    sep = "&" if "?" in caminho else "?"
+    req = urllib.request.Request("https://api.vercel.com" + caminho + sep + "teamId=" + TEAM, method=metodo,
+                                 headers={"Authorization": "Bearer " + VT, "Content-Type": "application/json"},
+                                 data=json.dumps(corpo).encode() if corpo is not None else None)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status, json.loads(r.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()[:400]
+def exigir_2xx(st, d):
+    if not (200 <= st < 300):
+        print(st, (json.dumps(d, default=str) if isinstance(d, dict) else str(d))[:300])
+        sys.exit(1)
+cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+if cmd == "ver":
+    st, d = api("GET", f"/v4/aliases/{ALIAS}")
+    exigir_2xx(st, d)
+    dep = d.get("deployment") or {}
+    print(st, "| alias ->", d.get("deploymentId"), "| url:", dep.get("url"), "| updatedAt:", d.get("updatedAt"))
+elif cmd == "mover":
+    alvo = sys.argv[2]
+    st, d = api("POST", f"/v2/deployments/{alvo}/aliases", {"alias": ALIAS})
+    exigir_2xx(st, d)
+    st2, d2 = api("GET", f"/v4/aliases/{ALIAS}")
+    exigir_2xx(st2, d2)
+    if d2.get("deploymentId") != alvo:
+        print("ALIAS NAO CONFERE: aponta para", d2.get("deploymentId"), "e nao para", alvo)
+        sys.exit(1)
+    print(st, "| alias ->", alvo, "| relido e conferido")
+elif cmd == "apagar":
+    st, d = api("DELETE", f"/v13/deployments/{sys.argv[2]}")
+    exigir_2xx(st, d)
+    print(st, "| apagado", sys.argv[2])
+elif cmd == "deployment":
+    st, d = api("GET", f"/v13/deployments/{sys.argv[2]}")
+    exigir_2xx(st, d)
+    print(st, "|", d.get("readyState") or d.get("state"), "|", d.get("url"), "| sha", (d.get("meta") or {}).get("githubCommitSha", "")[:7], "| ramo", (d.get("meta") or {}).get("githubCommitRef"), "| target", d.get("target"))
+else:
+    sys.exit("uso: ver | mover <dpl_id> | apagar <dpl_id> | deployment <dpl_id>")
+```
+
+Conferir, só leitura: `python alias_teste.py deployment dpl_naoexiste000000000000000000` tem que sair **1** (a Vercel responde 404), e `python alias_teste.py ver` sai 0. Commit no cérebro só deste arquivo, por caminho explícito.
 
 - [ ] **Step A1: Leitura do ambiente de ensaio (só leitura)**
 
@@ -6329,7 +7341,7 @@ python prova_login.py --url https://<url impressa pelo comando anterior> --ref z
 python alias_teste.py mover <id dpl_ impresso pelo poll_deploys>
 python prova_login.py --url https://teste.crm.basea2.com --ref zvwngsrflkicbbzfmrgy
 ```
-Expected: prévia `READY`; os dois `prova_login.py` saem 0 (pedido de autenticação para `zvwngsrflkicbbzfmrgy.supabase.co` e resposta 400 `invalid_credentials`). Se o primeiro falhar, **não mover o alias** e apagar a prévia (`alias_teste.py apagar <dpl>`).
+Expected: prévia `READY`; os dois `prova_login.py` saem 0 (pedido de autenticação para `zvwngsrflkicbbzfmrgy.supabase.co` e resposta 400 `invalid_credentials`); o `mover` sai 0 só com o alias relido no deployment pedido. Se o primeiro `prova_login.py` falhar, **não mover o alias** e apagar a prévia (`alias_teste.py apagar <dpl>`, que sai 1 se a Vercel recusar).
 
 - [ ] **Step A6: Uma resposta real nova, prova e o webhook do número de teste**
 
@@ -6370,7 +7382,7 @@ Mensagem ao Junior, com o resultado da Parte A e esta lista (ele aprova, recusa 
 2. **Restauração do dump** na stack isolada, com a migration desta fatia e a volta dela aplicadas na cópia.
 3. **A migration desta fatia em produção** (só cria as três funções; nenhuma tabela, coluna ou dado muda), pelo `aplicar_migration.py`.
 4. **Publicar o código** (`main`): a Central de Agentes aparece só para a agência; o aviso na Central de I.A e o 409 do PATCH passam a valer.
-5. **Criar o agente da Aurora e ligar o número dela** (`20532687-e868-48c4-977b-f6f7cac72131`), depois de uma resposta real nova que confira; desligar se a conferência depois de ligar falhar.
+5. **Criar o agente da Aurora e ligar o número dela** (`20532687-e868-48c4-977b-f6f7cac72131`), depois de uma resposta real nova que confira. Só o grupo desse número vira agente (`--somente`). Se a conferência depois de ligar falhar, o próprio script desfaz; se terminar **incerta** (saída 3), desligar o número pelo `--desligar --se-agente` do agente criado. Qualquer outro desligamento pede um OK novo.
 6. **A Julia fica como está:** o webhook dela está desligado por decisão dele (15/09) e o `--ligar` recusa enquanto estiver. Religar é decisão dele, e só depois disso ela entra.
 7. **Retenção dos dumps:** a proposta de 07/10 (o de 07/10 sai no máximo em 21/10/2026, ou antes, quando houver dump mais novo e o `CONFERE` da Aurora) vale também para este; sem decisão dele, nada é apagado.
 
@@ -6382,14 +7394,16 @@ Criar no rito `ligacoes-aprovadas.json`:
 
 ```json
 {
-  "_leia-me": "Lido por rodar_migrar_prod.py (v2). Escrita em produção pelo migrar-agentes.ts (--criar, --ligar, --desligar) só roda para o que estiver aqui, commitado no cérebro, com o OK do Junior citado. Uma entrada por número; --criar exige a organização de alguma entrada; --desligar exige --se-agente.",
+  "_leia-me": "Lido por rodar_migrar_prod.py (v2). Escrita em produção pelo migrar-agentes.ts (--criar, --ligar, --desligar) só roda para o que estiver aqui, commitado no cérebro e sem mudança local, com o OK do Junior citado (por, em, texto; campo vazio ou entre <> recusa). --criar exige --somente com o número de uma entrada e a org dela. --desligar exige --se-agente igual a 'agente' e só roda quando o último --ligar do número terminou incerto (saída 3), ou com 'desligar_liberado' preenchido (um OK novo: por, em, texto).",
   "numeros": {
     "20532687-e868-48c4-977b-f6f7cac72131": {
       "nome": "Aurora, Cenno Hub (instância whatsapp-ia-bba4d621)",
       "org": "<organization_id da Cenno Hub: a linha AGENTE org=... da Aurora no --prova do Step B6>",
+      "agente": "<id do agente: a linha CRIADO agente=... do --criar do Step B7>",
       "por": "Junior",
       "em": "<data e hora BRT do OK do Step B0>",
-      "texto": "<o OK do Step B0, literal>"
+      "texto": "<o OK do Step B0, literal>",
+      "desligar_liberado": null
     }
   }
 }
@@ -6403,15 +7417,20 @@ Trocar o `rodar_migrar_prod.py` inteiro por:
 secreta pela API de gerenciamento, reveal=true) e passadas SO ao processo filho. Nunca imprime valor.
   python rodar_migrar_prod.py --prova [--org <uuid>]          (so leitura)
   python rodar_migrar_prod.py --webhook <connectionId>        (so leitura)
-  python rodar_migrar_prod.py --criar --org <uuid> --confirmar-banco eqidsihasmwwamkaqfka
+  python rodar_migrar_prod.py --criar --org <uuid> --somente <connectionId> --confirmar-banco eqidsihasmwwamkaqfka
   python rodar_migrar_prod.py --ligar <connectionId> --confirmar-banco eqidsihasmwwamkaqfka
   python rodar_migrar_prod.py --desligar <connectionId> --se-agente <agentId> --confirmar-banco eqidsihasmwwamkaqfka
-v2 (fatia 2): a escrita so roda para o que estiver em ligacoes-aprovadas.json (mesma pasta, commitado no cerebro), com o
-OK do Junior citado: --criar exige a organizacao de uma entrada; --ligar e --desligar exigem o numero listado; --desligar
-exige --se-agente, para nunca derrubar a ligacao de outra pessoa."""
-import io, json, os, re, subprocess, sys, urllib.request
+v2 (fatia 2, com a revisao do Codex de 07/10): a escrita so roda para o que estiver em ligacoes-aprovadas.json (mesma
+pasta), COMMITADO no cerebro e sem mudanca local, com o OK do Junior citado por inteiro (org, por, em, texto preenchidos;
+campo entre <> recusa). --criar exige --somente com um numero da lista e a organizacao dele. --ligar e --desligar exigem o
+numero listado. --desligar exige --se-agente igual ao 'agente' da entrada e so roda no caso que o OK cobre: o ultimo
+--ligar deste numero, por este wrapper, terminou incerto (saida 3). Fora disso, so com 'desligar_liberado' preenchido."""
+import io, json, os, re, subprocess, sys, tempfile, urllib.request
 args = sys.argv[1:]
 AQUI = os.path.dirname(os.path.abspath(__file__))
+MANIFESTO = "ligacoes-aprovadas.json"
+# A saida do ultimo --ligar em producao, para o --desligar saber se o caso e o incerto (saida 3) que o OK cobre.
+REGISTRO = os.path.join(tempfile.gettempdir(), "basecrm-rito", "ultimo-ligar-producao.json")
 
 def valor(nome):
     if nome not in args:
@@ -6419,20 +7438,43 @@ def valor(nome):
     i = args.index(nome)
     return args[i + 1] if i + 1 < len(args) else None
 
+def preenchido(v):
+    return isinstance(v, str) and v.strip() != "" and not v.strip().startswith("<")
+
+def recusar(msg):
+    sys.exit("recusado: " + msg)
+
 escrita = any(a in args for a in ("--criar", "--ligar", "--desligar"))
 if not escrita and not ("--prova" in args or "--webhook" in args):
     sys.exit("uso: --prova, --webhook <id>, ou uma escrita liberada em ligacoes-aprovadas.json")
 if escrita:
-    aprovadas = json.load(io.open(os.path.join(AQUI, "ligacoes-aprovadas.json"), encoding="utf-8")).get("numeros", {})
-    if "--criar" in args and valor("--org") not in {n.get("org") for n in aprovadas.values()}:
-        sys.exit("recusado: --criar so para a organizacao de uma entrada de ligacoes-aprovadas.json")
-    for modo in ("--ligar", "--desligar"):
-        if modo in args and valor(modo) not in aprovadas:
-            sys.exit(f"recusado: {modo} so para um numero listado em ligacoes-aprovadas.json")
-    if "--desligar" in args and not valor("--se-agente"):
-        sys.exit("recusado: --desligar em producao so com --se-agente <id>")
-    numero = valor("--ligar") or valor("--desligar")
-    item = aprovadas.get(numero) if numero else next((n for n in aprovadas.values() if n.get("org") == valor("--org")), {})
+    # O OK que vale e o que esta commitado no cerebro, nao o de uma copia local editada.
+    rastreado = subprocess.run(["git", "-C", AQUI, "ls-files", "--error-unmatch", MANIFESTO], capture_output=True)
+    limpo = subprocess.run(["git", "-C", AQUI, "diff", "--quiet", "HEAD", "--", MANIFESTO])
+    if rastreado.returncode != 0 or limpo.returncode != 0:
+        recusar(MANIFESTO + " tem que estar commitado no cerebro, sem mudanca local")
+    aprovadas = json.load(io.open(os.path.join(AQUI, MANIFESTO), encoding="utf-8")).get("numeros", {})
+    numero = valor("--ligar") or valor("--desligar") or valor("--somente")
+    item = aprovadas.get(numero) if numero else None
+    if not item:
+        recusar("o numero (--ligar, --desligar ou --somente) tem que estar em " + MANIFESTO)
+    for campo in ("org", "por", "em", "texto"):
+        if not preenchido(item.get(campo)):
+            recusar(f"a entrada do numero {numero} esta sem '{campo}' preenchido")
+    if "--criar" in args and (not valor("--somente") or valor("--org") != item["org"]):
+        recusar("--criar so com --somente <numero aprovado> e --org igual a organizacao dele")
+    if "--desligar" in args:
+        if not preenchido(item.get("agente")) or valor("--se-agente") != item["agente"]:
+            recusar("--desligar so com --se-agente igual ao agente registrado na entrada do numero")
+        ultimo = {}
+        try:
+            ultimo = json.load(io.open(REGISTRO, encoding="utf-8"))
+        except Exception:
+            pass
+        incerto = ultimo.get("numero") == numero and ultimo.get("saida") == 3
+        liberado = item.get("desligar_liberado") or {}
+        if not incerto and not all(preenchido(liberado.get(c)) for c in ("por", "em", "texto")):
+            recusar("--desligar so quando o ultimo --ligar deste numero terminou incerto (saida 3), ou com desligar_liberado preenchido (um OK novo)")
     print("liberado por %s em %s: \"%s\"" % (item.get("por"), item.get("em"), (item.get("texto") or "")[:160]))
 
 COFRE = os.path.join(os.path.expanduser("~"), "WorkSync", ".secrets")
@@ -6464,34 +7506,49 @@ cmd = ["C:/Program Files/nodejs/npx.cmd", "--yes", "tsx@4.23.1", "scripts/centra
 print("comando:", " ".join(cmd[2:]))
 p = subprocess.run(cmd, cwd=WORKTREE, env=env)
 print("exit=", p.returncode)
+if "--ligar" in args:
+    os.makedirs(os.path.dirname(REGISTRO), exist_ok=True)
+    json.dump({"numero": valor("--ligar"), "saida": p.returncode}, io.open(REGISTRO, "w", encoding="utf-8"))
 sys.exit(p.returncode)
 ```
 
-Conferir sem rede que as recusas funcionam (rodar na pasta do rito, antes de preencher a organização):
+Conferir sem rede que as recusas funcionam (rodar na pasta do rito, **antes de commitar** o manifesto e depois de commitá-lo, ainda com os campos entre `<>`):
 ```bash
+python rodar_migrar_prod.py --ligar 20532687-e868-48c4-977b-f6f7cac72131 --confirmar-banco eqidsihasmwwamkaqfka
 python rodar_migrar_prod.py --ligar 00000000-0000-4000-8000-000000000000 --confirmar-banco eqidsihasmwwamkaqfka
-python rodar_migrar_prod.py --desligar 20532687-e868-48c4-977b-f6f7cac72131 --confirmar-banco eqidsihasmwwamkaqfka
+python rodar_migrar_prod.py --criar --org 00000000-0000-4000-8000-000000000000 --confirmar-banco eqidsihasmwwamkaqfka
+python rodar_migrar_prod.py --desligar 20532687-e868-48c4-977b-f6f7cac72131 --se-agente 00000000-0000-4000-8000-000000000000 --confirmar-banco eqidsihasmwwamkaqfka
 ```
-Expected: as duas recusadas com a mensagem, sem ler cofre nem chamar API (a recusa vem antes do `segredo(...)`). Commit no cérebro dos dois arquivos, por caminho explícito.
+Expected: antes do commit, todas recusadas por "tem que estar commitado". Depois do commit: a primeira por "sem 'org' preenchido", a segunda por "tem que estar em", a terceira por "--somente" (sem número, cai em "tem que estar em"), a quarta pelo `org` vazio. Nenhuma lê o cofre nem chama API: a recusa vem antes do `segredo(...)`. Commit no cérebro dos dois arquivos, por caminho explícito.
 
 - [ ] **Step B2: Dump de produção com os quatro requisitos**
 
-Na pasta do rito, um por vez, com o Docker Desktop sem ninguém mexendo (os comandos `python` e `bash` no Git Bash; os `powershell` como estão):
+Na pasta do rito, um por vez, com o Docker Desktop sem ninguém mexendo (os comandos `python` e `bash` no Git Bash; os `powershell` como estão). `<data>` é o nome da pasta do dump, o mesmo nos passos 2, 4, 5, 6 e 8 (`AAAA-MM-DD`; numa nova tentativa, com sufixo):
 1. `powershell -NoProfile -ExecutionPolicy Bypass -File prova_dump_local.ps1` → `PROVA LOCAL v2: OK`.
-2. Preparar a pasta do dia como no Step 2.2.1 do PLAN da fatia 1 (nova, cifrada por EFS, ACL só da conta, `icacls /inheritance:r`).
+2. Preparar a pasta `<data>` como no Step 2.2.1 do PLAN da fatia 1 (nova, cifrada por EFS, ACL só da conta, `icacls /inheritance:r`).
 3. Contagem de antes (só nomes de tabela e números):
 
 ```bash
 mkdir -p "$TEMP/ensaio-g23/contagens"
-PYTHONIOENCODING=utf-8 python sqlprod.py g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-g23/contagens/antes.json"
+PYTHONIOENCODING=utf-8 python sqlprod.py g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-g23/contagens/antes.json"; echo "saida=$?"
+grep -c -e '"public.ai_agents"' -e '"supabase_migrations.schema_migrations"' "$TEMP/ensaio-g23/contagens/antes.json"
 ```
-4. `powershell -NoProfile -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo criar`
+Expected: `saida=0` e `2` (as duas tabelas-sentinela do comparador). Qualquer outra coisa: parar aqui; a senha ainda não foi trocada.
+4. `powershell -NoProfile -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo criar -Data <data>` → `CRIADO`.
 5. `powershell -NoProfile -ExecutionPolicy Bypass -File dump_producao.ps1 -Data <data>` → saída 0, cinco arquivos cifrados, `pooler conferido no endpoint: aws-1-us-east-2.pooler.supabase.com`.
-6. Contagem de depois: `PYTHONIOENCODING=utf-8 python sqlprod.py g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-g23/contagens/depois.json"`.
-7. `powershell -NoProfile -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo rotacionar` (ninguém fica com a senha).
+6. `powershell -NoProfile -ExecutionPolicy Bypass -File rota_b_senha.ps1 -Modo rotacionar -Data <data>` → `ROTACIONADA` (ninguém fica com a senha). Vem logo depois do dump e antes da contagem de depois: a contagem usa o token de gerenciamento, não a senha do banco, e assim a senha usada no dump não fica valendo enquanto se conta.
+7. Contagem de depois, igual à de antes, em `depois.json`:
+
+```bash
+PYTHONIOENCODING=utf-8 python sqlprod.py g23-restauracao/contagens_todas.sql > "$TEMP/ensaio-g23/contagens/depois.json"; echo "saida=$?"
+grep -c -e '"public.ai_agents"' -e '"supabase_migrations.schema_migrations"' "$TEMP/ensaio-g23/contagens/depois.json"
+```
+Expected: `saida=0` e `2`.
 8. `powershell -NoProfile -ExecutionPolicy Bypass -File conferir_pos_dump.ps1 -Data <data>` → `POS-DUMP: OK`.
 
-Se o dump falhar, o `finally` apaga o arquivo da senha: rodar o passo 4 de novo antes de repetir o 5.
+**Se o passo 4 ou o 5 falhar** (revisão do Codex, 07/10): rodar o passo 6 (`rotacionar`) antes de qualquer outra coisa, mesmo que a troca do passo 4 pareça não ter acontecido. A senha pode ter mudado e já ter passado pelo container do dump, e rotacionar de novo não custa nada. O `dump_producao.ps1` apaga o arquivo da senha no `finally`, mas não os arquivos parciais, e tanto ele quanto o `criar` exigem a pasta vazia: a nova tentativa vai numa pasta nova (`<data>-b`, que o `-Data` aceita), preparada como no passo 2, recomeçando do passo 3. A pasta que falhou fica como está, cifrada, e segue a retenção (item 7 do B0): apagar é decisão do Junior.
+**Se o passo 6 falhar:** repetir. Se continuar falhando, avisar o Junior antes de qualquer outra coisa: a senha do passo 4 continua valendo no banco.
+**Se o passo 7 falhar:** repetir só ele, em seguida. Se falhar de novo, o requisito 4 não tem como ser provado para este dump: parar e registrar. Uma nova tentativa recomeça do passo 2, com pasta nova.
 
 - [ ] **Step B3: Restauração do dump de produção, com migration e volta da fatia**
 
@@ -6521,12 +7578,14 @@ git merge-base --is-ancestor origin/main HEAD && echo AVANCO_RAPIDO_OK
 git push origin HEAD:main
 git push origin HEAD:feat/aurora-implantacao
 ```
-Na pasta do rito:
+Na pasta do rito, um por vez. A ordem é a da revisão do Codex de 07/10: deployment pronto, login na URL dele, alias, releitura do alias, login no alias. Um redeploy do mesmo commit pode ter outras variáveis, então a prévia é provada pela URL **dela** antes de o alias mudar:
 ```bash
-python poll_deploys.py <sha-curto do HEAD>
+python poll_deploys.py <sha-curto do HEAD> --sem-alias
+python prova_login.py --url https://<url da prévia impressa pelo comando anterior> --ref zvwngsrflkicbbzfmrgy
+python alias_teste.py mover <id dpl_ da prévia impresso pelo poll_deploys>
 python prova_login.py
 ```
-Expected: produção e prévia `READY`; o alias de teste devolvido para a prévia; `prova_login.py` saindo 0 para os três domínios de produção (`eqidsihasmwwamkaqfka`) e para o de teste (`zvwngsrflkicbbzfmrgy`).
+Expected: produção e prévia `READY`; a prévia provada no banco de teste pela URL dela; o `mover` saindo 0 só com o alias relido no deployment pedido; `prova_login.py` saindo 0 para os três domínios de produção (`eqidsihasmwwamkaqfka`) e para o de teste (`zvwngsrflkicbbzfmrgy`). Entre a produção ficar pronta e o `mover`, o domínio de teste aponta para a produção (a Vercel o leva junto, PROJECT LEARNINGS de 17/09): ninguém usa o domínio de teste nesse intervalo.
 
 - [ ] **Step B6: Uma resposta real da Aurora, prova e webhook**
 
@@ -6537,10 +7596,13 @@ Expected: produção e prévia `READY`; o alias de teste devolvido para a prévi
 - [ ] **Step B7: Criar o agente e ligar a Aurora**
 
 ```bash
-python rodar_migrar_prod.py --criar --org <org da Cenno Hub> --confirmar-banco eqidsihasmwwamkaqfka
+python rodar_migrar_prod.py --criar --org <org da Cenno Hub> --somente 20532687-e868-48c4-977b-f6f7cac72131 --confirmar-banco eqidsihasmwwamkaqfka
+```
+Expected: `CRIADO agente=...` só para o grupo do número aprovado (o `--somente` recusa se ele não estiver num grupo pronto). Copiar o id do agente para `agente` na entrada de `ligacoes-aprovadas.json` e commitar no cérebro, por caminho explícito. Só então:
+```bash
 python rodar_migrar_prod.py --ligar 20532687-e868-48c4-977b-f6f7cac72131 --confirmar-banco eqidsihasmwwamkaqfka
 ```
-Expected: `CRIADO agente=...` (só para o grupo em `CONFERE`) e `LIGADO numero=20532687-... agente=... publicacao=<sha> (<dpl>); linha conferida`. Saída 3 ou 4: seguir a mensagem do script (`--desligar ... --se-agente` só para o caso `incerto`; no `ligado_a_outro`, nada de desligar sem falar com o Junior).
+Expected: `LIGADO numero=20532687-... agente=... publicacao=<sha> (<dpl>); linha conferida`. Saída 3 (`incerto`): `--desligar 20532687-... --se-agente <agente da entrada>`, que o wrapper aceita porque o último `--ligar` registrado terminou em 3. Saída 4 (`ligado_a_outro`): nada de desligar sem falar com o Junior.
 
 - [ ] **Step B8: A próxima resposta real sai pelo agente**
 
@@ -6590,7 +7652,7 @@ Feita contra a SPEC (`docs/features/central-de-agentes/SPEC.md`: "Fatia 2", "Cri
 | Publicar cria N+1 e move o ponteiro atomicamente | Task 2 |
 | Duas publicações com a mesma versão esperada: uma ganha, a outra 409; revisão diferente da mostrada: 409 | Task 2 (corrida observada) e Task 4 (tradução para 409 com código) |
 | Restaurar cria versão nova com `restored_from` | Tasks 2 e 7 |
-| A verificação aponta cada item; os prompts atuais não disparam erro nem aviso, e a Julia mostra só a informação do encerramento | Task 3 (a Julia dá exatamente `['sem_encerramento']`) |
+| A verificação aponta cada item; os prompts atuais não disparam erro nem aviso, e a Julia mostra só a informação do encerramento | Task 3 (a Julia dá exatamente `['sem_encerramento']`). A Aurora fica limpa com um número ligado que tem agenda; antes disso ela mostra o aviso `agenda_sem_numero`, que é verdadeiro (sem agenda, o runtime manda `AGENDA_NAO_CONFIGURADA`). Ponto do Codex, 07/10 |
 | Central de I.A: aviso com link e sem o editor quando todos os números da chave têm agente; aviso quando só alguns têm | Task 9 |
 | PATCH de `aiPromptKey` num número ligado: 409 | Task 10 |
 | O teste de trava falha quando o texto de uma chave migrada muda | Task 11 |
@@ -6602,14 +7664,14 @@ Feita contra a SPEC (`docs/features/central-de-agentes/SPEC.md`: "Fatia 2", "Cri
 
 | Portão | Como fica nesta fatia |
 |---|---|
-| G2 e G13 | As três funções novas: `execute` só para `authenticated`, revogado de `public`, `anon` e `service_role`. Matriz com chamada de verdade na Task 2: só `agency_admin` e o legado `admin` passam do papel. |
-| G3 | `adminOnly` em toda rota (Task 5) e papel conferido de novo dentro de cada função (Task 1). |
+| G2 e G13 | As três funções novas: `execute` só para `authenticated`, revogado de `public`, `anon` e `service_role`; a auxiliar das variáveis sem `execute` para ninguém. Na Task 2, o privilégio efetivo é lido no catálogo (`has_function_privilege`) e a chamada de verdade separa o "permission denied" do Postgres do `sem_permissao` da função. Só `agency_admin` e o legado `admin` passam do papel. |
+| G3 | `adminOnly` em toda rota (Task 5) e papel conferido de novo dentro de cada função (Task 1). A regra que bloqueia Publicar (variável fora das 12) vale também dentro da função, para quem chamar direto pelo JWT (Tasks 1 e 2). |
 | G4 | A função recebe a organização e só acha o agente com o filtro dela (Task 1); toda leitura filtra por organização (Task 4). |
 | G5 e G19 | `.strict()` em todo corpo; o autor vem de `auth.uid()`, nunca do corpo. `settings` e `model` mandados ao publicar recebem 400 (Task 5). |
 | G7 e G18 | Teto de 50 mil caracteres na rota e na função, nota de até 200, limite de células na comparação (Tasks 1, 5 e 7); aviso acima de 30 mil (Task 3). |
-| G20 | Invariantes novas: o rascunho só se grava sobre a revisão lida; só se publica o rascunho mostrado; restaurar não cria versão igual à publicada (`sem_mudancas`). A versão continua imutável pelo gatilho da fatia 1. |
+| G20 | Invariantes novas: o rascunho só se grava sobre a revisão lida; só se publica o rascunho mostrado; restaurar não cria versão igual à publicada (`sem_mudancas`); nenhuma versão é publicada nem restaurada com variável fora das 12, garantido no banco. A versão continua imutável pelo gatilho da fatia 1. |
 | G22 | A configuração da conexão nunca sai do servidor (Task 4, teste com `NAO-PODE-SAIR`); o script nunca imprime a query, os cabeçalhos ou o corpo do webhook (Task 12). |
-| G23 | A migration só cria funções (aditiva). Backup com os quatro requisitos (Task 14), restauração e volta na cópia (Task 15, B3). Continua **FAIL com exceção residual aceita** (decisão 7), como na fatia 1. |
+| G23 | A migration só cria funções (aditiva). Backup com os quatro requisitos (Task 14), com as contagens parando em erro HTTP, arquivo vazio ou falta das tabelas-sentinela, a senha sempre na pasta do dump e rotacionada depois de qualquer falha; restauração e volta na cópia (Task 15, B3). Continua **FAIL com exceção residual aceita** (decisão 7), como na fatia 1. |
 | G24 | **NÃO-TESTADO**: o rastro de versão é registro, e esta fatia não cria alerta. |
 | G25 | N/A. Nenhuma branch nova vai para o GitHub; o ensaio usa `feat/aurora-implantacao`, que já tem as variáveis do banco de teste. |
 | G15, G16 e G17 | N/A: o teste sem enviar é da fatia 3. |
@@ -6637,3 +7699,49 @@ Feita contra a SPEC (`docs/features/central-de-agentes/SPEC.md`: "Fatia 2", "Cri
   - **Task 5:** entrou o teste direto do `adminOnly`, que nenhum teste do repositório cobria. O teste de corpo estrito ganhou `settings`, `model` e um prompt acima do teto.
   - **Task 8:** entrou o teste do 409 ao publicar, porque só o 409 ao salvar estava coberto.
   - **Tasks 6 e 8:** a lista `['/agents']`, que nascia em dois arquivos, virou uma só, exportada de `workspaceRoutes.ts` na Task 6 e reusada na Task 8. Assim, uma tela de detalhe nova entra num lugar só.
+
+### 6. Revisão do Codex, rodada 1 (07/10, 09h28 a 09h41, parcial)
+
+O Codex revisou com cinco revisores em paralelo e bateu no limite de uso às 09h41, antes de consolidar o parecer. Três revisores terminaram (SQL; prompt e telas; rotas e scripts). Os dois adversariais (backup e SQL) pararam no meio, e as mensagens deles ficaram cifradas no registro. A conversa principal deixou legíveis quatro notas de andamento: a das 09h40 traz o achado 1; a das 09h32 traz os achados 24 e 25 e duas conferências que o Codex anunciou e não chegou a fazer, que eu fiz (27 e 28). O 26 é meu, da mesma classe do 25. O texto literal está no cérebro, em `06-References/central-de-agentes-2026-09-29/devolutiva-codex-1-fatia-2.md`. Todos os achados foram conferidos contra o plano e o código antes de aplicar, e todos procedem.
+
+| # | Achado | Decisão | Onde |
+|---|---|---|---|
+| 1 | Com a verificação só na rota, um `agency_admin` publicaria pelo próprio JWT, chamando a função direto, o que a tela bloqueia | Aceito. A regra das 12 variáveis vai para dentro de publicar e restaurar, numa função auxiliar travada igual à lista da tela | Tasks 1, 2, 3 e 4 |
+| 2 | PATCH da conexão: a gravação não exige que o número continue sem agente | Aceito. Gravação condicionada a `ai_agent_id is null`; sem linha, a releitura decide entre 409 e 404 | Task 10 |
+| 3 | `--criar --org` cria agente para todos os grupos prontos do cliente, além do aprovado | Aceito. `--somente <número>`, obrigatório em produção, também no wrapper | Tasks 12 e 15 |
+| 4 | `alias_teste.py` sai 0 com erro, e o B5 move o alias antes de provar o deployment | Aceito. Script v2 e a ordem "pronto, login na URL dele, alias, releitura, login no alias" | Task 15 |
+| 5 | Contagem da Central de I.A sem paginação | Aceito. Reusa o `lerConexoes` paginado da fatia 1 | Task 9 |
+| 6 | `--webhook` sem id cai na prova geral e sai 0 | Aceito. `escolherModo`: um modo por chamada e uuid obrigatório, com teste de comportamento | Task 12 |
+| 7 | A vinculação do cliente à agência grava antes do 409 | Aceito. Leitura e recusa antes da vinculação | Task 10 |
+| 8 | O wrapper aceita OK vazio, não exige o manifesto commitado e deixa desligar a qualquer hora | Aceito. Campos preenchidos, commit conferido, desligar só no caso incerto ou com OK novo | Task 15 |
+| 9 | Sem teste HTTP do 409 ao publicar | Aceito | Task 5 |
+| 10 | Os testes do webhook injetam o resultado já interpretado | Aceito. Teste com a resposta crua pelo leitor real, nos dois formatos | Task 12 |
+| 11 | A matriz não prova o `revoke`, porque os dois 42501 se confundem | Aceito. Catálogo mais mensagem | Task 2 |
+| 12 | Histórico cortado em 200 versões, contra "quaisquer duas" | Aceito. Páginas de 50 com "Carregar versões anteriores" | Tasks 4 a 7 |
+| 13 | A cópia de ajustes e modelo não é provada (a v1 tem os valores padrão) | Aceito. Publicada com valores fora do padrão | Task 2 |
+| 14 | `replyText` aceita menção solta como instrução | Aceito. Só a linha de campo conta | Task 3 |
+| 15 | `[Guia][ref]` vira pendência | Aceito | Task 3 |
+| 16 | O 409 ao salvar apaga o texto de quem editava | Aceito. Texto mantido, com "Salvar o meu por cima" ou "Descartar o meu" | Task 8 |
+| 17 | Navegação interna perde o texto não salvo | Aceito. Cópia local com aviso de recuperação | Task 8 |
+| 18 | A mesma restauração pode ser pedida duas vezes | Aceito. Trava até a resposta | Task 7 |
+| 19 | "A próxima resposta real já sai com ela" é absoluto | Aceito. "As respostas que começarem depois" | Tasks 7 e 8 |
+| 20 | O editor pode guardar estado do agente anterior ao trocar de rota | Aceito. `key` de cliente e agente na página | Task 8 |
+| 21 | Acima de 4 milhões de células a comparação some | Aceito. As duas versões lado a lado | Task 7 |
+| 22 | Desvio 2 (Aurora com 20.202 caracteres) | O Codex aceitou | Seção 4 |
+| 23 | "A Aurora não dispara nada" depende de número com agenda | Aceito. Critério reescrito | Seção 2 |
+| 24 | `sqlprod.py` imprime "HTTP 4xx" e sai 0: a contagem de antes ou de depois vira um texto de erro, e nada para | Aceito. Erro HTTP sai 1, com a mensagem no stderr (o mesmo no `sqlteste.py`, que só difere no banco) | Task 14, Step 5a |
+| 25 | O comparador aceita entrada sem contagens | Aceito. Arquivo vazio, linha que não é contagem ou falta das tabelas-sentinela param o comparador | Task 14, Step 7 |
+| 26 | (meu, da mesma classe do 25) As contagens da cópia no `restaurar_v2.sh` rodavam sem `ON_ERROR_STOP`: um erro de SQL sai 0 com o arquivo vazio, e "contagens iguais" compararia dois vazios | `ON_ERROR_STOP=1` e as mesmas sentinelas, também no ensaio local | Task 14, Steps 8 e 9 |
+| 27 | Conferência anunciada pelo Codex: os comandos da senha usam a pasta do mesmo dia? Não usavam: o B2 chamava `rota_b_senha.ps1 -Modo criar` sem `-Data`, e o script tem `2026-10-07` como padrão | Aceito. `-Data` obrigatório, com o mesmo padrão do dump, passado nos dois comandos | Task 14, Step 5b, e Task 15, B2 |
+| 28 | Conferência anunciada pelo Codex: a rotação acontece se uma etapa falha? Não: o plano mandava repetir a troca de senha na mesma pasta, que o próprio script recusa (o dump deixa os arquivos parciais), e não mandava rotacionar antes de parar | Aceito. Falha no passo 4 ou 5 rotaciona primeiro; nova tentativa em pasta nova; a rotação passou para logo depois do dump | Task 15, B2 |
+
+Medido nesta rodada, além do que a seção 5 já trazia:
+- a migration, como está no plano, roda num Postgres em memória (PGlite, Postgres 18.3). As quatro funções compilam com a checagem de corpo ligada;
+- a função auxiliar devolve nulo só com as 12, aceita espaço, tabulação e quebra de linha dentro das chaves, devolve o primeiro nome desconhecido e devolve texto vazio para `{{}}`;
+- a regra nova de `replyText` reconhece a linha de campo na Aurora e na Julia reais. As duas continuam sem pendência falsa, e a Aurora tem 20.202 caracteres;
+- no banco de teste, SQL inválido pelo `sqlteste.py` de hoje devolve `HTTP 400` na saída padrão, com saída 0 (achado 24). O `sqlprod.py` só difere dele na docstring e no `REF`;
+- o comparador v1, com as duas contagens da produção vazias, dava `falhas: 0` e saída 0 (achado 25); o novo para nos três casos ruins e passa no bom (Task 14, Step 7);
+- numa cópia do bloco `param` novo do `rota_b_senha.ps1`, a falta de `-Data` sai 1 e um formato errado também (achado 27);
+- o `dump_producao.ps1` v4.2 apaga a senha no `finally`, mas não os arquivos parciais, e recusa pasta com qualquer outro item (linhas 194 a 197 e 261 a 269), o que tornava impossível o "repetir o passo 4" da v1 (achado 28).
+
+**Ainda não chegou:** o resultado dos dois revisores adversariais e o parecer consolidado (go ou no-go). Eles voltam quando o limite do Codex liberar.
