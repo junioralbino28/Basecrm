@@ -4,7 +4,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Client } from 'pg';
 import { createMinimalFixtures, cleanupFixtures } from './helpers/fixtures';
-import { assertNoSupabaseError, getSupabaseAdminClient } from './helpers/supabaseAdmin';
+import { assertNoSupabaseError, getSupabaseAdminClient, requireSupabaseData } from './helpers/supabaseAdmin';
+import { lerAgente, listarAgentes, publicarComVerificacao, salvarRascunho } from '@/lib/agents/editorAgentes';
+import { VARIAVEIS_DO_PROMPT, verificarPrompt } from '@/lib/agents/verificarPrompt';
+import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { getAnonKey, getSupabaseUrl } from './helpers/env';
 
 const isLocalSupabase = process.env.SUPABASE_TEST_TARGET === 'local'
@@ -17,6 +20,16 @@ const describeLocal = describe.skipIf(!isLocalSupabase);
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const sha256 = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
 const BASE = 'Voce e a Aurora. {{contactName}}\n{{recentMessagesText}}';
+/** Agenda válida para ConversationCalendarConfigSchema (lib/conversations/meetingAvailability.ts). */
+const AGENDA_LIGADA = {
+  enabled: true,
+  timezone: 'America/Sao_Paulo',
+  ownerId: '33333333-3333-4333-8333-333333333333',
+  minimumNoticeMinutes: 60,
+  schedulingHorizonDays: 7,
+  humanConfirmationWeekdays: ['saturday'],
+  weeklyHours: { monday: [{ start: '09:00', end: '18:00' }], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] },
+};
 
 function exigirPostgresLocal() {
   const alvo = new URL(DB_URL);
@@ -448,5 +461,97 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     }
     const { versoes } = await estado(agente);
     expect(versoes.map((v) => [v.version, v.note, v.published_by])).toEqual([[1, null, null], [2, 'primeira', idAgencia]]);
+  });
+
+  it('servidor: lista e lê o agente com a versão publicada, o rascunho e os números, sem a config do número', async () => {
+    const admin = getSupabaseAdminClient();
+    const { agente, v1 } = await novoAgente(orgA, 'servidor');
+    const conexao = requireSupabaseData(await admin
+      .from('channel_connections')
+      .insert({
+        organization_id: orgA,
+        provider: 'evolution',
+        channel_type: 'whatsapp',
+        name: `Numero ${runId}`,
+        config: { apiKey: 'NAO-PODE-SAIR', calendar: AGENDA_LIGADA },
+        ai_agent_id: agente,
+      })
+      .select('id')
+      .single(), 'insert conexao ligada').id as string;
+    const clientes = { usuario: agencia, admin };
+
+    const lista = await listarAgentes(clientes, orgA);
+    if (!lista.ok) throw new Error(lista.erro);
+    expect(lista.dados.agentes.find((a) => a.id === agente)).toMatchObject({
+      nome: 'Aurora',
+      rascunhoPendente: false,
+      publicada: { versao: 1, origem: 'migration', publicadaPor: null },
+      numeros: [{ id: conexao, nome: `Numero ${runId}`, temAgenda: true }],
+    });
+    expect(JSON.stringify(lista)).not.toContain('NAO-PODE-SAIR');
+
+    const lido = await lerAgente(clientes, orgA, agente);
+    if (!lido.ok) throw new Error(lido.erro);
+    expect(lido.dados.publicada?.prompt).toBe(v1);
+    expect(lido.dados.rascunho).toEqual({ prompt: null, revisao: 0, atualizadoEm: null, atualizadoPor: null });
+    expect(JSON.stringify(lido)).not.toContain('NAO-PODE-SAIR');
+
+    // Agente de A pedido como se fosse de B (G4).
+    expect(await lerAgente(clientes, orgB, agente)).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it('servidor: publicar verifica o rascunho gravado, pede a confirmação do aviso e publica a mesma revisão', async () => {
+    const admin = getSupabaseAdminClient();
+    const { agente } = await novoAgente(orgA, 'servidor publicar');
+    const clientes = { usuario: agencia, admin };
+    // A v1 tem {{contactName}}; o rascunho tira.
+    const texto = 'Voce e a Aurora.\n{{recentMessagesText}}';
+    expect(await salvarRascunho(clientes, { tenantId: orgA, agentId: agente, revisao: 0, prompt: texto })).toEqual({ ok: true, dados: { revisao: 1 } });
+
+    const listada = await listarAgentes(clientes, orgA);
+    if (!listada.ok) throw new Error(listada.erro);
+    expect(listada.dados.agentes.find((a) => a.id === agente)?.rascunhoPendente).toBe(true);
+
+    const semConfirmar = await publicarComVerificacao(clientes, { tenantId: orgA, agentId: agente, versaoEsperada: 1, revisao: 1, nota: null, confirmarAvisos: [] });
+    expect(semConfirmar).toMatchObject({ ok: false, status: 422, codigo: 'AVISOS_NAO_CONFIRMADOS' });
+
+    const confirmado = await publicarComVerificacao(clientes, {
+      tenantId: orgA, agentId: agente, versaoEsperada: 1, revisao: 1, nota: 'tirei o nome', confirmarAvisos: ['perdeu:contactName'],
+    });
+    expect(confirmado).toMatchObject({ ok: true, dados: { versao: 2 } });
+
+    const lido = await lerAgente(clientes, orgA, agente);
+    if (!lido.ok) throw new Error(lido.erro);
+    expect(lido.dados.publicada).toMatchObject({ versao: 2, origem: 'publish', nota: 'tirei o nome', prompt: texto });
+    expect(lido.dados.publicada?.publicadaPor).toEqual(expect.any(String));
+  });
+
+  it('matriz comum dos marcadores: banco, tela e renderizador concordam (revisão do Codex, rodada 2)', async () => {
+    // Os mesmos 12 casos medidos em PGlite 18.3 em 07/10: 0 divergências com a regra ASCII, 1 (NBSP) com a da v2.
+    const NBSP = String.fromCodePoint(0xa0);
+    const EM = String.fromCodePoint(0x2003);
+    const casos = [
+      '{{contactName}}', '{{ contactName }}', '{{\tcontactName\n}}', `{{contactName${NBSP}}}`, `{{${EM}contactName}}`,
+      '{{}}', '{{ {{contactName}} }}', '{{{contactName}}}', 'oi {{contactName', '{{contact.name}}', '{{contactname}}',
+      '{{contactName}} e {{timezone}}',
+    ];
+    const pg = await sessaoPg();
+    try {
+      for (const texto of casos) {
+        const banco = (await pg.query('select public.central_agentes_variavel_desconhecida($1) as d', [texto])).rows[0].d as string | null;
+        const desconhecida = verificarPrompt({ rascunho: texto, publicado: null, numerosLigadosComAgenda: 0 }).erros
+          .find((e) => e.codigo.startsWith('variavel_desconhecida:'));
+        const tela = desconhecida ? desconhecida.codigo.slice('variavel_desconhecida:'.length) : null;
+        expect(tela, JSON.stringify(texto)).toBe(banco);
+        if (banco !== null) continue;
+        // Aceito pelas duas regras: o renderizador do runtime troca todo marcador das 12; nenhum chega cru ao modelo.
+        const saida = renderPromptTemplate(texto, { contactName: 'Ana', timezone: 'BRT' });
+        for (const nome of VARIAVEIS_DO_PROMPT) {
+          expect(saida, `${JSON.stringify(texto)} -> ${nome}`).not.toMatch(new RegExp(`\\{\\{\\s*${nome}\\s*\\}\\}`));
+        }
+      }
+    } finally {
+      await pg.end();
+    }
   });
 });
