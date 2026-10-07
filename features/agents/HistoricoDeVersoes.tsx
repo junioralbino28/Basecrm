@@ -138,24 +138,29 @@ export function HistoricoDeVersoes(props: {
                   aria-label={`Comparar a versão ${v.versao}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-slate-800 dark:text-slate-100">{descreverVersao(v)}</p>
-                  {v.nota ? <p className="text-xs text-slate-500 dark:text-slate-400">{`Nota: ${v.nota}`}</p> : null}
+                  {/* Nome sem espaço (e-mail) quebra em qualquer ponto, em vez de passar da coluna (ensaio a 320 px). */}
+                  <p className="text-sm text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">{descreverVersao(v)}</p>
+                  {v.nota ? <p className="text-xs text-slate-500 [overflow-wrap:anywhere] dark:text-slate-400">{`Nota: ${v.nota}`}</p> : null}
                 </div>
-                {v.versao === versaoPublicada ? (
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200">
-                    Publicada
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setRestaurar(v.versao)}
-                    disabled={restaurando}
-                    className={BOTAO_SECUNDARIO}
-                  >
-                    <RotateCcw size={14} aria-hidden="true" />
-                    {`Restaurar a versão ${v.versao}`}
-                  </button>
-                )}
+                {/* No celular, selo e botão em linha própria, alinhados com o texto: na mesma linha, o texto ficava com
+                    79 px e 6 linhas a 320 px (revisão do Codex, rodada 3, achado 6). Do sm para cima, como antes. */}
+                <div className="w-full pl-7 sm:w-auto sm:pl-0">
+                  {v.versao === versaoPublicada ? (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200">
+                      Publicada
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setRestaurar(v.versao)}
+                      disabled={restaurando}
+                      className={BOTAO_SECUNDARIO}
+                    >
+                      <RotateCcw size={14} aria-hidden="true" />
+                      {`Restaurar a versão ${v.versao}`}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
