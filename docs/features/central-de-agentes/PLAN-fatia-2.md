@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status:** v2, 07/10/2026 (sessão `a723714c`). Escrito depois da fatia 1 em produção (`main` = `6a29238`). A v2 traz a rodada 1 do Codex aplicada; ela foi parcial, porque o Codex bateu no limite de uso no meio. Os achados e as decisões estão na seção 6 da autorrevisão, no fim do arquivo. Falta o parecer consolidado dele. Produção só com o OK do Junior, dado para esta fatia (o OK da fatia 1 não vale aqui).
+> **Status:** v3, 07/10/2026 (sessão `a723714c`). Escrito depois da fatia 1 em produção (`main` = `6a29238`). A v2 trouxe a rodada 1 do Codex (parcial, interrompida pelo limite de uso; seção 6 da autorrevisão). A v3 traz a rodada 2, que deu no-go com 12 achados: 11 entraram nas tasks e 1 virou desvio declarado (seção 7, e o item 6 da seção 4). A Task 0 já rodou (registro em `06-References/central-de-agentes-2026-09-29/ensaio-fatia-2-2026-10-07.md`). Falta o parecer da rodada 3. Produção só com o OK do Junior, dado para esta fatia (o OK da fatia 1 não vale aqui).
 
 **Goal:** a agência abre a Central de Agentes de um cliente, entra num agente, lê o prompt formatado, edita, vê a verificação ao vivo, publica uma versão nova (as respostas que começarem depois da publicação já a usam), compara versões e restaura uma anterior com um clique; e Aurora (e depois a Julia) passam a ser ligadas em produção.
 
@@ -82,7 +82,7 @@ Consequência: a **Aurora** pode ser ligada em produção depois do deploy desta
 | `app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.ts` (+ `route.patch.test.ts`) | modificar (Task 10) | 409 para `aiPromptKey` em número ligado, antes de qualquer gravação e com a gravação condicionada |
 | `lib/ai/prompts/migrated-prompts.lock.json`, `lib/ai/prompts/catalog.ts` (comentários) | criar e modificar (Task 11) | Trava das chaves migradas |
 | `lib/agents/webhookDoNumero.ts`, `lib/agents/modoDaMigracao.ts`, `lib/agents/publicacaoVercel.ts`, `scripts/central-agentes/migrar-agentes.ts` | criar e modificar (Task 12) | Leitura do webhook na Evolution, `--webhook`, modo único com id obrigatório, `--somente` no `--criar`, produção liberada |
-| Cérebro: `dump_producao.ps1`, `prova_dump_local.ps1`, `conferir_pos_dump.ps1`, `sqlprod.py`, `sqlteste.py`, `rota_b_senha.ps1`, `g23-restauracao/*` | modificar e criar (Task 14) | Backup com os quatro requisitos; contagem que para no erro; senha sempre na pasta do dump |
+| Cérebro: `dump_producao.ps1`, `prova_dump_local.ps1`, `conferir_pos_dump.ps1`, `sqlprod.py`, `sqlteste.py`, `rota_b_senha.ps1`, `g23-restauracao/*` (com `ciclo_g23.sh` e `teste_ciclo.sh`) | modificar e criar (Task 14) | Backup com os quatro requisitos; contagem que para no erro e é confrontada com o inventário do dump; senha sempre na pasta do dump; restauração com limpeza garantida |
 | Cérebro: `poll_deploys.py`, `alias_teste.py`, `rodar_migrar_prod.py`, `ligacoes-aprovadas.json`, `migracoes-aprovadas.json` | modificar e criar (Task 15) | Ensaio só na prévia; alias que falha com erro e é relido; escrita em produção só com OK registrado e commitado |
 
 ---
@@ -99,10 +99,11 @@ Run (no worktree `Basecrm-worktrees/central-agentes`):
 ```bash
 git fetch origin
 git status -sb
-git rev-parse --short HEAD origin/main origin/feat/aurora-implantacao
+for r in HEAD origin/main origin/feat/aurora-implantacao; do git rev-parse --short "$r"; done
+git log --oneline origin/main..HEAD
 git config core.autocrlf
 ```
-Expected: `## feat/central-agentes` sem nada pendente; os três shas iguais (`6a29238` em 07/10, ou o que a `main` tiver se algo entrou depois: nesse caso, `git merge --ff-only origin/main` antes de seguir); `core.autocrlf` = `false` (se vier `true`, parar: um checkout reescreveria a árvore em CRLF e quebraria os testes de texto; ver PROJECT LEARNINGS).
+Expected: `## feat/central-agentes` sem nada pendente; `origin/main` igual a `origin/feat/aurora-implantacao` (`6a29238` em 07/10, ou o que a `main` tiver se algo entrou depois: nesse caso, `git merge --ff-only origin/main` antes de seguir); o `git log origin/main..HEAD` só com commits do próprio plano (`docs/features/central-de-agentes/`). (`git rev-parse --short` aceita uma revisão por vez: com três, falha com "Needed a single revision". Achado ao rodar a Task 0 em 07/10.) `core.autocrlf` = `false` (se vier `true`, parar: um checkout reescreveria a árvore em CRLF e quebraria os testes de texto; ver PROJECT LEARNINGS).
 
 - [ ] **Step 2: Suíte e tipos verdes antes**
 
@@ -132,7 +133,7 @@ Decisões que o código abaixo fixa (SPEC, "Decisões de desenho", linhas Rascun
 - cada uma trava a linha do agente **da organização informada** (`for update`) e confere a `draft_revision` que a tela leu; publicar e restaurar conferem também a versão publicada esperada. Diferença levanta erro com nome, e a rota devolve 409;
 - o rascunho desta fatia guarda só `{"prompt": ...}`; a versão nova copia `settings` e `model` da publicada (hoje `{}` e nulo). A fatia 4 abre os ajustes com a lista fechada de chaves;
 - restaurar publica o conteúdo da versão escolhida como versão nova (`source = 'restore'`, `restored_from`) e **passa esse texto para o rascunho** (revisão + 1): senão a tela mostraria "Rascunho com mudanças" com o texto que acabou de sair, e um Publicar desfaria a restauração. Por isso restaurar também confere a revisão: o rascunho descartado é o que a tela mostrou. Restaurar um conteúdo igual ao publicado (prompt, settings e model) é recusado com `sem_mudancas`, para o histórico não ganhar versões repetidas.
-- publicar e restaurar recusam texto com marcador `{{...}}` fora das 12 variáveis (`variavel_desconhecida`, P0001, com o nome no `detail`). A regra mora numa função auxiliar, `central_agentes_variavel_desconhecida(text)`, sem `execute` para ninguém, e vale também para quem chamar a função direto, sem passar pela rota. Revisão do Codex, 07/10: com a verificação só na rota, um `agency_admin` publicaria pelo próprio JWT o que a tela bloqueia. Os **avisos** continuam só na rota, porque são confirmáveis por definição e a versão guarda o autor. A lista das 12 no SQL é travada igual à da tela pelo teste da Task 3.
+- publicar e restaurar recusam texto com marcador `{{...}}` fora das 12 variáveis (`variavel_desconhecida`, P0001, com o nome no `detail`). A regra mora numa função auxiliar, `central_agentes_variavel_desconhecida(text)`, sem `execute` para ninguém, e vale também para quem chamar a função direto, sem passar pela rota. Revisão do Codex, 07/10: com a verificação só na rota, um `agency_admin` publicaria pelo próprio JWT o que a tela bloqueia. Os **avisos** continuam só na rota, porque são confirmáveis por definição e a versão guarda o autor. A lista das 12 no SQL é travada igual à da tela pelo teste da Task 3. O nome do marcador é aparado só de espaço, tab e quebra de linha ASCII, na tela e no banco (revisão do Codex, rodada 2): com `\s` no banco e `.trim()` na tela, um NBSP no fim do nome passava na tela e era recusado no banco (medido em PGlite 18.3, 07/10). A matriz comum da Task 4 prova banco, tela e renderizador juntos.
 - Os erros têm nome estável na **mensagem**, e a rota traduz pela mensagem: `sem_permissao` (42501), `agente_inexistente` e `versao_inexistente` (P0002), `rascunho_mudou`, `versao_publicada_mudou`, `rascunho_vazio`, `sem_mudancas`, `versao_ja_publicada`, `variavel_desconhecida` (P0001), `prompt_invalido` e `nota_invalida` (22023).
 
 - [ ] **Step 1: Escrever o teste que falha**
@@ -250,6 +251,8 @@ describe('migration do editor da Central de Agentes (fatia 2)', () => {
     expect(cab).toMatch(/security invoker/);
     expect(cab).toMatch(/set search_path = ''/);
     expect(corpoAuxiliar).toContain("regexp_matches(coalesce(p_prompt, ''), '\\{\\{([^{}]*)\\}\\}', 'g')");
+    // Só espaço, tab e quebra de linha ASCII nas pontas, como a tela (revisão do Codex, rodada 2).
+    expect(corpoAuxiliar).toContain("regexp_replace(r.m[1], '^[ \\t\\r\\n]+|[ \\t\\r\\n]+$', '', 'g')");
     expect(semComentarios).toContain(
       'revoke all on function public.central_agentes_variavel_desconhecida(text) from public, anon, authenticated, service_role;',
     );
@@ -319,7 +322,8 @@ Criar `supabase/migrations/20261007120000_central_agentes_editor.sql` (LF, sem C
 
 -- As 12 variáveis que o runtime troca (lib/conversations/aiReply.ts, objeto passado a renderPromptTemplate): a
 -- mesma lista de lib/agents/verificarPrompt.ts (VARIAVEIS_DO_PROMPT), e o teste dela trava as duas iguais.
--- Devolve o primeiro marcador {{...}} cujo nome, sem os espaços das pontas, não é uma delas; null quando todos
+-- Devolve o primeiro marcador {{...}} cujo nome, sem espaço, tab e quebra de linha ASCII nas pontas (a mesma
+-- regra da tela; um NBSP não é aparado em nenhum dos dois lados), não é uma delas; null quando todos
 -- são. Publicar e restaurar chamam esta função antes de gravar: a regra que a tela mostra como erro vale também
 -- para quem chamar a função direto, sem passar pela rota. Sem execute para ninguém: só as duas a usam.
 create or replace function public.central_agentes_variavel_desconhecida(p_prompt text)
@@ -331,7 +335,7 @@ set search_path = ''
 as $$
   select marcador.nome
   from (
-    select regexp_replace(r.m[1], '^\s+|\s+$', '', 'g') as nome, r.ordem
+    select regexp_replace(r.m[1], '^[ \t\r\n]+|[ \t\r\n]+$', '', 'g') as nome, r.ordem
     from regexp_matches(coalesce(p_prompt, ''), '\{\{([^{}]*)\}\}', 'g') with ordinality as r(m, ordem)
   ) marcador
   where marcador.nome <> all (array[
@@ -627,11 +631,12 @@ Expected: PASS (11 testes).
 
 Run:
 ```bash
-docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/migrations/20261007120000_central_agentes_editor.sql
-docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261007120000', 'central_agentes_editor') on conflict do nothing"
-docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "notify pgrst, 'reload schema'"
+docker exec -i supabase_db_crmia psql --single-transaction -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f - -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261007120000', 'central_agentes_editor') on conflict do nothing" \
+  < supabase/migrations/20261007120000_central_agentes_editor.sql \
+  && docker exec -i supabase_db_crmia psql -U postgres -d postgres -c "notify pgrst, 'reload schema'"
 ```
-Expected: `CREATE FUNCTION` e `REVOKE` quatro vezes e `GRANT` três (a auxiliar não ganha), sem erro; o `insert` de 1 linha; o `NOTIFY`.
+Expected: `CREATE FUNCTION` e `REVOKE` quatro vezes, `GRANT` três (a auxiliar não ganha) e `INSERT 0 1`, sem erro; depois o `NOTIFY`. Revisão do Codex, rodada 2: a migration e o registro dela vão na **mesma transação** (`--single-transaction` envolve o `-f` e o `-c`), e o `NOTIFY` só roda se ela passou; um erro no meio desfaz tudo e não deixa o histórico dizendo que foi aplicada. Em produção, o `aplicar_migration.py` manda o arquivo inteiro numa chamada à API, e essa chamada é atômica: medido em 07/10 no banco de teste, `create table` seguido de erro na mesma chamada voltou 400 e a tabela não ficou.
 
 - [ ] **Step 7: Commit**
 
@@ -798,11 +803,18 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
     return client;
   }
 
-  /** Espera outra sessão ficar BLOQUEADA por `dona` e devolve as travas que ela pede e não ganhou. */
-  async function esperarBloqueadoPor(dona: Client) {
+  /**
+   * Espera a sessão que roda `consulta` ficar BLOQUEADA por `dona` e devolve as travas que ela pede e não ganhou.
+   * Só conta a sessão daquela consulta (revisão do Codex, rodada 2): sem o filtro, uma espera alheia pela mesma
+   * trava seria atribuída à segunda publicação.
+   */
+  async function esperarBloqueadoPor(dona: Client, consulta: string) {
     const limite = Date.now() + 5000;
     for (;;) {
-      const bloqueadas = await dona.query('select a.pid from pg_stat_activity a where pg_backend_pid() = any(pg_blocking_pids(a.pid))');
+      const bloqueadas = await dona.query(
+        'select a.pid from pg_stat_activity a where pg_backend_pid() = any(pg_blocking_pids(a.pid)) and a.query like $1',
+        [`%${consulta}%`],
+      );
       if (bloqueadas.rows.length > 0) {
         const pids = bloqueadas.rows.map((linha) => linha.pid as number);
         const travas = await dona.query(
@@ -811,7 +823,7 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
         );
         return travas.rows as Array<{ locktype: string; mode: string; relacao: string }>;
       }
-      if (Date.now() > limite) throw new Error('nenhuma sessao ficou esperando a trava em 5 s: a chamada concorrente nao travou');
+      if (Date.now() > limite) throw new Error(`nenhuma sessao de ${consulta} ficou esperando a trava em 5 s: a chamada concorrente nao travou`);
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
@@ -1090,7 +1102,7 @@ describeLocal('Central de Agentes, editor (fatia 2) — Supabase local', () => {
       await a.query('reset role');
 
       const segunda = publicar(agencia, orgA, agente, 1, 1, 'segunda').then((r) => r);
-      const travas = await esperarBloqueadoPor(a);
+      const travas = await esperarBloqueadoPor(a, 'publish_ai_agent_version');
       expect(travas.map((t) => t.locktype)).toContain('transactionid');
       await a.query('commit');
 
@@ -1204,6 +1216,13 @@ describe('verificarPrompt', () => {
   it('marcador fora das 12 é erro (bloqueia Publicar); espaços dentro das chaves continuam valendo', () => {
     const ok = verificarPrompt({ rascunho: `${PUBLICADO} {{ contactName }}`, publicado: PUBLICADO, numerosLigadosComAgenda: 0 });
     expect(ok.erros).toEqual([]);
+    const tabEQuebra = verificarPrompt({ rascunho: `${PUBLICADO} {{\tcontactName\n}}`, publicado: PUBLICADO, numerosLigadosComAgenda: 0 });
+    expect(tabEQuebra.erros).toEqual([]);
+    // Só espaço, tab e quebra ASCII são aparados, como no banco: um NBSP no nome torna o marcador desconhecido
+    // (revisão do Codex, rodada 2; com .trim() aqui e \s no banco, o NBSP passava na tela e era recusado lá).
+    const NBSP = String.fromCodePoint(0xa0);
+    const comNbsp = verificarPrompt({ rascunho: `${PUBLICADO} {{contactName${NBSP}}}`, publicado: PUBLICADO, numerosLigadosComAgenda: 0 });
+    expect(codigos(comNbsp.erros)).toEqual([`variavel_desconhecida:contactName${NBSP}`]);
 
     const r = verificarPrompt({
       rascunho: `${PUBLICADO} {{nomeDoLead}} {{nome-do-lead}} {{}} {{nomeDoLead}}`,
@@ -1417,6 +1436,16 @@ export type EntradaDaVerificacao = {
 };
 
 const CONHECIDAS = new Set<string>(VARIAVEIS_DO_PROMPT);
+/**
+ * O nome do marcador sem espaço, tab e quebra de linha ASCII nas pontas: a MESMA regra do banco
+ * (`central_agentes_variavel_desconhecida`). Um NBSP ou outro espaço Unicode não é aparado em nenhum dos dois lados
+ * e torna o marcador desconhecido. Revisão do Codex, rodada 2: com `.trim()` aqui e `\s` no banco, um NBSP no fim
+ * do nome passava na tela e era recusado no banco (medido em PGlite 18.3, 07/10). A matriz comum da Task 4 trava
+ * tela, banco e renderizador juntos.
+ */
+export function nomeDoMarcador(miolo: string): string {
+  return miolo.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+}
 /** Tudo entre {{ e }}. O runtime só troca `[\w.]+` e deixa o resto literal; qualquer marcador fora das 12 é erro. */
 const MARCADOR = /\{\{([^{}]*)\}\}/g;
 /**
@@ -1432,7 +1461,7 @@ const PENDENCIA = /\[([A-ZÀ-Ý][^[\]\n]{1,80})\](?![([])/g;
 const REPLY_TEXT = /^[ \t]*(?:-[ \t]*)?"?replyText"?[ \t]*:/m;
 
 export function usaVariavel(texto: string, nome: VariavelDoPrompt): boolean {
-  return new RegExp(`\\{\\{\\s*${nome}\\s*\\}\\}`).test(texto);
+  return new RegExp(`\\{\\{[ \\t\\r\\n]*${nome}[ \\t\\r\\n]*\\}\\}`).test(texto);
 }
 
 const MENSAGEM_DA_PERDA: Partial<Record<VariavelDoPrompt, string>> = {
@@ -1450,7 +1479,7 @@ export function verificarPrompt(entrada: EntradaDaVerificacao): ResultadoDaVerif
 
   const desconhecidas = new Map<string, string>();
   for (const m of rascunho.matchAll(MARCADOR)) {
-    const nome = m[1].trim();
+    const nome = nomeDoMarcador(m[1]);
     if (!CONHECIDAS.has(nome) && !desconhecidas.has(nome)) desconhecidas.set(nome, m[0]);
   }
   for (const [nome, marcador] of desconhecidas) {
@@ -1532,7 +1561,7 @@ export function avisosNaoConfirmados(resultado: ResultadoDaVerificacao, confirma
 - [ ] **Step 4: Implementar `lib/agents/leituraDoPrompt.ts`**
 
 ```ts
-import { VARIAVEIS_DO_PROMPT } from './verificarPrompt';
+import { VARIAVEIS_DO_PROMPT, nomeDoMarcador } from './verificarPrompt';
 
 /**
  * Leitura formatada do prompt no editor (mockup aprovado em 29/09: seções com título, texto corrido e as
@@ -1592,7 +1621,7 @@ export function pedacosDaLinha(linha: string): PedacoDaLinha[] {
     if (!parte) continue;
     const m = /^\{\{([^{}]*)\}\}$/.exec(parte);
     if (m) {
-      const nome = m[1].trim();
+      const nome = nomeDoMarcador(m[1]);
       pedacos.push({ tipo: 'variavel', texto: parte, nome, conhecida: CONHECIDAS.has(nome) });
     } else {
       pedacos.push({ tipo: 'texto', texto: parte });
@@ -1697,7 +1726,14 @@ const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}
 
 type Linha = Record<string, unknown>;
 
-/** Banco em memória com o pedaço da API do supabase-js que a camada usa: select, eq, lt, in, order, limit, maybeSingle, await. */
+/** Compara número com número e o resto como texto (ids e datas ISO), como o Postgres ordena uuid e timestamptz. */
+const comparar = (a: unknown, b: unknown) =>
+  typeof a === 'number' && typeof b === 'number' ? a - b : String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+/** O PostgREST corta toda resposta em 1000 linhas, sem erro. O banco falso corta igual: sem isso, um teste de
+ * paginação passa até com leitura única e não prova nada. */
+const CORTE_DO_POSTGREST = 1000;
+
+/** Banco em memória com o pedaço da API do supabase-js que a camada usa: select, eq, lt, gt, in, order, limit, maybeSingle, await. */
 function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
   return {
     rpc,
@@ -1709,8 +1745,12 @@ function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
           linhas = linhas.filter((l) => l[coluna] === valor);
           return consulta;
         },
-        lt: (coluna: string, valor: number) => {
-          linhas = linhas.filter((l) => (l[coluna] as number) < valor);
+        lt: (coluna: string, valor: unknown) => {
+          linhas = linhas.filter((l) => comparar(l[coluna], valor) < 0);
+          return consulta;
+        },
+        gt: (coluna: string, valor: unknown) => {
+          linhas = linhas.filter((l) => comparar(l[coluna], valor) > 0);
           return consulta;
         },
         in: (coluna: string, valores: unknown[]) => {
@@ -1719,7 +1759,7 @@ function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
         },
         order: (coluna: string, opcoes?: { ascending?: boolean }) => {
           const sinal = opcoes?.ascending === false ? -1 : 1;
-          linhas.sort((a, b) => ((a[coluna] as number) - (b[coluna] as number)) * sinal);
+          linhas.sort((a, b) => comparar(a[coluna], b[coluna]) * sinal);
           return consulta;
         },
         limit: (n: number) => {
@@ -1728,7 +1768,7 @@ function fakeCliente(tabelas: Record<string, Linha[]>, rpc = vi.fn()) {
         },
         maybeSingle: () => Promise.resolve({ data: linhas[0] ?? null, error: null }),
         then: (ok: (r: unknown) => unknown, falhou?: (e: unknown) => unknown) =>
-          Promise.resolve({ data: linhas, error: null }).then(ok, falhou),
+          Promise.resolve({ data: linhas.slice(0, CORTE_DO_POSTGREST), error: null }).then(ok, falhou),
       };
       return consulta;
     },
@@ -1824,6 +1864,21 @@ describe('lerAgente', () => {
     expect(r.dados.numeros).toEqual([{ id: 'n1', nome: 'Comercial', temAgenda: false }]);
     expect(JSON.stringify(r)).not.toContain('NAO-PODE-SAIR');
     expect(r.dados.publicada).toMatchObject({ versao: 1, origem: 'migration', publicadaPor: null, prompt: PUBLICADO });
+  });
+
+  it('lê os números do agente em páginas: acima do corte de mil linhas do PostgREST, nenhum fica de fora', async () => {
+    // Revisão do Codex, rodada 2: com leitura única, o editor mostraria 1000 números e calcularia o aviso de agenda
+    // com a lista cortada. O banco falso corta em 1000 como o PostgREST, então este teste falha sem a paginação.
+    const { clientes } = cenario(null);
+    const muitos = Array.from({ length: 1203 }, (_, i) => ({
+      id: `n${String(i).padStart(5, '0')}`, organization_id: TENANT, ai_agent_id: AGENTE, name: `N${i}`, config: {},
+      created_at: `2026-10-0${1 + (i % 7)}T00:00:00Z`,
+    }));
+    const admin = fakeCliente({ organizations: [{ id: TENANT, name: 'Cenno Hub' }], channel_connections: muitos, profiles: [] });
+    const r = await lerAgente({ ...clientes, admin }, TENANT, AGENTE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.dados.numeros).toHaveLength(1203);
   });
 
   it('agente de outra organização é 404', async () => {
@@ -2038,17 +2093,32 @@ async function nomesDasPessoas(admin: SupabaseClient, ids: Array<string | null>)
   return new Map((data ?? []).map((p) => [p.id as string, nomeDaPessoa(p)]));
 }
 
+/** Páginas de 500 por id, como o `lerConexoes` da fatia 1: o PostgREST corta leitura grande sem erro. */
+const PAGINA_DE_NUMEROS = 500;
+
 async function numerosDosAgentes(admin: SupabaseClient, tenantId: string, agentIds: string[]) {
   const porAgente = new Map<string, NumeroDoAgente[]>();
   if (agentIds.length === 0) return porAgente;
-  const { data, error } = await admin
-    .from('channel_connections')
-    .select('id, name, config, ai_agent_id')
-    .eq('organization_id', tenantId)
-    .in('ai_agent_id', agentIds)
-    .order('created_at', { ascending: true });
-  if (error) throw new Error(`channel_connections: ${error.message}`);
-  for (const c of data ?? []) {
+  // Revisão do Codex, rodada 2: a leitura única cortaria em 1000 números, e o editor mostraria a lista parcial e
+  // calcularia o aviso de agenda com ela. Aqui não dá para reusar o lerConexoes, que só lê WhatsApp da Evolution.
+  const linhas: Array<{ id: string; name: string | null; config: Record<string, unknown> | null; ai_agent_id: string; created_at: string }> = [];
+  let depoisDe: string | null = null;
+  for (;;) {
+    let consulta = admin
+      .from('channel_connections')
+      .select('id, name, config, ai_agent_id, created_at')
+      .eq('organization_id', tenantId)
+      .in('ai_agent_id', agentIds);
+    if (depoisDe) consulta = consulta.gt('id', depoisDe);
+    const { data, error } = await consulta.order('id', { ascending: true }).limit(PAGINA_DE_NUMEROS);
+    if (error) throw new Error(`channel_connections: ${error.message}`);
+    const pagina = (data ?? []) as typeof linhas;
+    linhas.push(...pagina);
+    if (pagina.length < PAGINA_DE_NUMEROS) break;
+    depoisDe = pagina[pagina.length - 1].id;
+  }
+  linhas.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
+  for (const c of linhas) {
     const agente = c.ai_agent_id as string;
     const lista = porAgente.get(agente) ?? [];
     lista.push({
@@ -2334,7 +2404,7 @@ export async function restaurarVersao(
 - [ ] **Step 5: Rodar o teste de unidade e ver passar**
 
 Run: `npx vitest run lib/agents/editorAgentes.test.ts`
-Expected: PASS (23 testes: 13 de tradução, 1 de histórico, 2 de leitura, 5 de publicar, 2 de salvar e restaurar).
+Expected: PASS (24 testes: 13 de tradução, 1 de histórico, 3 de leitura, 5 de publicar, 2 de salvar e restaurar).
 
 - [ ] **Step 6: Acrescentar ao teste local as provas com banco de verdade**
 
@@ -2345,6 +2415,8 @@ Em `test/centralAgentesEditor.local.test.ts`:
 ```ts
 import { assertNoSupabaseError, getSupabaseAdminClient, requireSupabaseData } from './helpers/supabaseAdmin';
 import { lerAgente, listarAgentes, publicarComVerificacao, salvarRascunho } from '@/lib/agents/editorAgentes';
+import { VARIAVEIS_DO_PROMPT, verificarPrompt } from '@/lib/agents/verificarPrompt';
+import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 ```
 
 2. Logo depois de `const BASE = ...`, acrescentar:
@@ -2427,12 +2499,41 @@ const AGENDA_LIGADA = {
     expect(lido.dados.publicada).toMatchObject({ versao: 2, origem: 'publish', nota: 'tirei o nome', prompt: texto });
     expect(lido.dados.publicada?.publicadaPor).toEqual(expect.any(String));
   });
+
+  it('matriz comum dos marcadores: banco, tela e renderizador concordam (revisão do Codex, rodada 2)', async () => {
+    // Os mesmos 12 casos medidos em PGlite 18.3 em 07/10: 0 divergências com a regra ASCII, 1 (NBSP) com a da v2.
+    const NBSP = String.fromCodePoint(0xa0);
+    const EM = String.fromCodePoint(0x2003);
+    const casos = [
+      '{{contactName}}', '{{ contactName }}', '{{\tcontactName\n}}', `{{contactName${NBSP}}}`, `{{${EM}contactName}}`,
+      '{{}}', '{{ {{contactName}} }}', '{{{contactName}}}', 'oi {{contactName', '{{contact.name}}', '{{contactname}}',
+      '{{contactName}} e {{timezone}}',
+    ];
+    const pg = await sessaoPg();
+    try {
+      for (const texto of casos) {
+        const banco = (await pg.query('select public.central_agentes_variavel_desconhecida($1) as d', [texto])).rows[0].d as string | null;
+        const desconhecida = verificarPrompt({ rascunho: texto, publicado: null, numerosLigadosComAgenda: 0 }).erros
+          .find((e) => e.codigo.startsWith('variavel_desconhecida:'));
+        const tela = desconhecida ? desconhecida.codigo.slice('variavel_desconhecida:'.length) : null;
+        expect(tela, JSON.stringify(texto)).toBe(banco);
+        if (banco !== null) continue;
+        // Aceito pelas duas regras: o renderizador do runtime troca todo marcador das 12; nenhum chega cru ao modelo.
+        const saida = renderPromptTemplate(texto, { contactName: 'Ana', timezone: 'BRT' });
+        for (const nome of VARIAVEIS_DO_PROMPT) {
+          expect(saida, `${JSON.stringify(texto)} -> ${nome}`).not.toMatch(new RegExp(`\\{\\{\\s*${nome}\\s*\\}\\}`));
+        }
+      }
+    } finally {
+      await pg.end();
+    }
+  });
 ```
 
 - [ ] **Step 7: Rodar o teste local inteiro**
 
 Run: `npm run test:local -- test/centralAgentesEditor.local.test.ts`
-Expected: PASS (11 testes: os 9 da Task 2 e os 2 da camada de servidor).
+Expected: PASS (12 testes: os 9 da Task 2, os 2 da camada de servidor e a matriz comum dos marcadores).
 
 - [ ] **Step 8: Commit**
 
@@ -4148,7 +4249,9 @@ O desenho segue o mockup aprovado em 29/09 (`06-References/central-de-agentes-20
 - a seção Prompt tem duas abas, "Instruções" e "Versões" (o histórico da Task 7); durante a edição a outra aba fica bloqueada, para nada se perder;
 - **o texto de quem edita nunca some sem uma escolha** (revisão do Codex, 07/10):
   - se outra aba ou pessoa salvou antes (409), o texto continua no campo, a tela recarrega a revisão e o texto atuais e oferece "Salvar o meu por cima" ou "Descartar o meu e ver o atual";
-  - cada mudança não salva vai para uma cópia local (`localStorage`, por cliente e agente). Quem sai por um link interno, onde o `beforeunload` não age, e volta ao agente recebe o aviso para recuperar o texto;
+  - cada mudança não salva vai para uma cópia local (`localStorage`) **deste editor aberto**: a chave leva cliente, agente e a instância do editor, e a cópia guarda a revisão em que o texto se baseou. Quem sai por um link interno, onde o `beforeunload` não age, e volta ao agente recebe o aviso para recuperar o texto (revisão do Codex, rodada 1);
+  - salvar apaga só a cópia deste editor: outra aba com texto não salvo do mesmo agente nunca perde o dela (rodada 2, achado 2);
+  - todo salvar comum manda a revisão em que o texto se baseou, não a última lida: recuperar um texto escrito antes de outra pessoa salvar cai no conflito, e sobrescrever só com "Salvar o meu por cima" (rodada 2, achado 1);
   - o editor é montado com `key` de cliente e agente, para nenhum estado do anterior chegar ao endereço novo.
 
 Ao trocar de cliente estando no editor, o seletor do cabeçalho remontaria `/agents/<id do agente>` no outro cliente, que não existe ali, e cairia em 404 (o mesmo defeito de 24/09). `getTenantWorkspaceRelativeHref` passa a devolver a lista (`/agents`) para as rotas de detalhe, e o teste que lê o disco ganha a checagem das páginas com segmento dinâmico.
@@ -4276,6 +4379,17 @@ function fetchFalso(rotas: Record<string, (init?: RequestInit) => Promise<Respon
   });
 }
 
+const PREFIXO = `central-agentes:texto-nao-salvo:${TENANT}:${AGENTE_ID}:`;
+/** As cópias locais deste agente, de qualquer instância do editor. */
+function copiasDoAgente(): Array<{ texto: string; revisao: number }> {
+  const copias: Array<{ texto: string; revisao: number }> = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const chave = localStorage.key(i);
+    if (chave?.startsWith(PREFIXO)) copias.push(JSON.parse(localStorage.getItem(chave) ?? '{}'));
+  }
+  return copias;
+}
+
 const corpoDe = (fetchMock: ReturnType<typeof fetchFalso>, sufixo: string) => {
   const chamada = fetchMock.mock.calls.find(([url]) => String(url).endsWith(sufixo));
   return JSON.parse(String(chamada?.[1]?.body));
@@ -4379,13 +4493,12 @@ describe('AgentEditorPage', () => {
   });
 
   it('texto não salvo sobrevive a sair pela navegação interna: a cópia local oferece recuperar', async () => {
-    const CHAVE = `central-agentes:texto-nao-salvo:${TENANT}:${AGENTE_ID}`;
     vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
     const primeira = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
     await screen.findByText(/Versão 1 publicada/);
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\nnão salvei` } });
-    expect(JSON.parse(localStorage.getItem(CHAVE) ?? '{}').texto).toBe(`${PUBLICADO}\nnão salvei`);
+    expect(copiasDoAgente()).toEqual([expect.objectContaining({ texto: `${PUBLICADO}\nnão salvei`, revisao: 0 })]);
 
     // Saiu por um link interno (o editor desmonta sem passar pelo beforeunload) e voltou depois.
     primeira.unmount();
@@ -4393,11 +4506,61 @@ describe('AgentEditorPage', () => {
     expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
     expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(`${PUBLICADO}\nnão salvei`);
+    // Ninguém salvou no meio (mesma revisão): sem conflito.
+    expect(screen.queryByText(/O seu texto continua aqui/)).not.toBeInTheDocument();
 
     // Descartar a edição apaga a cópia.
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(localStorage.getItem(CHAVE)).toBeNull();
+    expect(copiasDoAgente()).toEqual([]);
+  });
+
+  it('recuperar um texto escrito antes de outra pessoa salvar cai no conflito: sobrescrever só com a escolha explícita', async () => {
+    // Revisão do Codex, rodada 2, achado 1: a cópia guarda a revisão em que o texto se baseou.
+    const ANTIGO = `${PUBLICADO}\ntexto de antes`;
+    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: ANTIGO, revisao: 0, em: '2026-10-07T10:00:00.000Z' }));
+    const depois = agente({
+      rascunho: { prompt: `${PUBLICADO}\nsalvo por outra pessoa`, revisao: 1, atualizadoEm: '2026-10-07T11:00:00Z', atualizadoPor: 'Junior' },
+    });
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: depois }),
+      [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
+
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(ANTIGO);
+    expect(
+      screen.getByText(/O rascunho foi alterado depois que este texto foi escrito\. O seu texto continua aqui, sem salvar\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar o meu por cima' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+    expect(corpoDe(fetchMock, '/draft')).toEqual({ prompt: ANTIGO, revisao: 1 });
+  });
+
+  it('salvar nesta aba não apaga a cópia de outra aba com texto não salvo do mesmo agente', async () => {
+    // Revisão do Codex, rodada 2, achado 2: a chave da cópia leva a instância do editor.
+    const DA_OUTRA_ABA = `${PUBLICADO}\ntexto da outra aba`;
+    localStorage.setItem(`${PREFIXO}outra-aba`, JSON.stringify({ texto: DA_OUTRA_ABA, revisao: 0, em: '2026-10-07T11:00:00.000Z' }));
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
+      [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\ntexto desta aba` } });
+    expect(copiasDoAgente()).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_OUTRA_ABA]);
   });
 
   it('publicar com aviso exige a confirmação e manda a versão, a revisão e os avisos confirmados', async () => {
@@ -4794,28 +4957,55 @@ const BOTAO_PRINCIPAL =
   'inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-on-brand transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
- * Cópia local do texto não salvo, por cliente e agente. O `beforeunload` só protege o fechar da aba: navegar por um
- * link interno (a trilha, o menu, o seletor de cliente) desmonta o editor sem aviso (revisão do Codex, 07/10). Com a
- * cópia, quem volta ao agente recupera o texto. Armazenamento indisponível (janela anônima, bloqueio) só desliga a
- * recuperação; a tela funciona igual.
+ * Cópia local do texto não salvo. O `beforeunload` só protege o fechar da aba: navegar por um link interno (a trilha,
+ * o menu, o seletor de cliente) desmonta o editor sem aviso (revisão do Codex, rodada 1). Com a cópia, quem volta ao
+ * agente recupera o texto. Rodada 2:
+ * - a chave leva a instância do editor: cada aba grava a SUA cópia, e salvar apaga só a dela, então outra aba com
+ *   texto não salvo do mesmo agente nunca perde o dela;
+ * - a cópia guarda a revisão em que o texto se baseou: recuperá-la depois de outra pessoa salvar cai no conflito.
+ * Armazenamento indisponível (janela anônima, bloqueio) só desliga a recuperação; a tela funciona igual.
  */
-type CopiaLocal = { texto: string; em: string };
-const chaveDaCopia = (tenantId: string, agentId: string) => `central-agentes:texto-nao-salvo:${tenantId}:${agentId}`;
+type CopiaLocal = { chave: string; texto: string; revisao: number; em: string };
+const prefixoDaCopia = (tenantId: string, agentId: string) => `central-agentes:texto-nao-salvo:${tenantId}:${agentId}:`;
+const novaInstancia = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-function lerCopia(chave: string): CopiaLocal | null {
+/** A cópia mais recente deste agente, de qualquer aba, diferente do texto salvo. As iguais ao salvo e as ilegíveis saem. */
+function procurarCopia(prefixo: string, salvo: string): CopiaLocal | null {
   try {
-    const bruto = window.localStorage.getItem(chave);
-    if (!bruto) return null;
-    const lida = JSON.parse(bruto) as Partial<CopiaLocal>;
-    return typeof lida.texto === 'string' && typeof lida.em === 'string' ? { texto: lida.texto, em: lida.em } : null;
+    const chaves: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const chave = window.localStorage.key(i);
+      if (chave?.startsWith(prefixo)) chaves.push(chave);
+    }
+    let maisRecente: CopiaLocal | null = null;
+    for (const chave of chaves) {
+      let lida: Partial<CopiaLocal> | null = null;
+      try {
+        lida = JSON.parse(window.localStorage.getItem(chave) ?? 'null') as Partial<CopiaLocal> | null;
+      } catch {
+        lida = null;
+      }
+      if (
+        !lida || typeof lida.texto !== 'string' || typeof lida.em !== 'string' || typeof lida.revisao !== 'number' ||
+        lida.texto === salvo
+      ) {
+        window.localStorage.removeItem(chave);
+        continue;
+      }
+      if (!maisRecente || lida.em > maisRecente.em) {
+        maisRecente = { chave, texto: lida.texto, revisao: lida.revisao, em: lida.em };
+      }
+    }
+    return maisRecente;
   } catch {
     return null;
   }
 }
 
-function gravarCopia(chave: string, texto: string) {
+function gravarCopia(chave: string, texto: string, revisao: number) {
   try {
-    window.localStorage.setItem(chave, JSON.stringify({ texto, em: new Date().toISOString() }));
+    window.localStorage.setItem(chave, JSON.stringify({ texto, revisao, em: new Date().toISOString() }));
   } catch {
     // Sem armazenamento, sem recuperação: o aviso do navegador ao fechar a aba continua valendo.
   }
@@ -4844,7 +5034,8 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [agente, setAgente] = React.useState<AgenteNoEditor | null>(null);
   const [carregando, setCarregando] = React.useState(true);
   const [erro, setErro] = React.useState<string | null>(null);
-  const [edicao, setEdicao] = React.useState<{ ativa: boolean; texto: string }>({ ativa: false, texto: '' });
+  // `base`: a revisão do rascunho em que o texto em edição se baseou; todo salvar comum manda ela (rodada 2).
+  const [edicao, setEdicao] = React.useState<{ ativa: boolean; texto: string; base: number }>({ ativa: false, texto: '', base: 0 });
   const [salvando, setSalvando] = React.useState(false);
   const [publicando, setPublicando] = React.useState(false);
   const [aba, setAba] = React.useState<'instrucoes' | 'versoes'>('instrucoes');
@@ -4852,7 +5043,10 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [conflito, setConflito] = React.useState<string | null>(null);
   const [copia, setCopia] = React.useState<CopiaLocal | null>(null);
   const campo = React.useRef<HTMLTextAreaElement>(null);
-  const chave = chaveDaCopia(tenantId, agentId);
+  const prefixo = prefixoDaCopia(tenantId, agentId);
+  // A cópia deste editor: a chave leva a instância, e só ela sai ao salvar ou descartar (rodada 2, achado 2).
+  const [minhaChave] = React.useState(() => `${prefixo}${novaInstancia()}`);
+  const procurouCopia = React.useRef(false);
 
   const carregar = React.useCallback(async () => {
     setCarregando(true);
@@ -4860,12 +5054,19 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     try {
       const r = await agentesApi.ler(tenantId, agentId);
       setAgente(r.agente);
+      // Na primeira leitura: a cópia mais recente deste agente, de qualquer aba, diferente do texto salvo, vira o
+      // aviso de recuperação; as iguais ao salvo são lixo e saem. Feito aqui e não num efeito, sem setState síncrono
+      // dentro de efeito.
+      if (!procurouCopia.current) {
+        procurouCopia.current = true;
+        setCopia(procurarCopia(prefixo, r.agente.rascunho.prompt ?? r.agente.publicada?.prompt ?? ''));
+      }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao carregar o agente.');
     } finally {
       setCarregando(false);
     }
-  }, [tenantId, agentId]);
+  }, [tenantId, agentId, prefixo]);
 
   React.useEffect(() => {
     void carregar();
@@ -4890,19 +5091,11 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     return () => window.removeEventListener('beforeunload', segurar);
   }, [sujo]);
 
-  // Cada mudança não salva vai para a cópia local (navegação interna não passa pelo beforeunload).
+  // Cada mudança não salva vai para a cópia deste editor (navegação interna não passa pelo beforeunload), com a
+  // revisão em que o texto se baseou.
   React.useEffect(() => {
-    if (sujo) gravarCopia(chave, edicao.texto);
-  }, [sujo, edicao.texto, chave]);
-
-  // Na primeira leitura do agente: uma cópia diferente do texto salvo vira o aviso de recuperação; igual, é lixo.
-  React.useEffect(() => {
-    if (!agente) return;
-    const lida = lerCopia(chave);
-    if (!lida) return;
-    if (lida.texto !== (agente.rascunho.prompt ?? agente.publicada?.prompt ?? '')) setCopia(lida);
-    else apagarCopia(chave);
-  }, [agente?.id, chave]);
+    if (sujo) gravarCopia(minhaChave, edicao.texto, edicao.base);
+  }, [sujo, edicao.texto, edicao.base, minhaChave]);
 
   const motivoSemPublicar = edicao.ativa
     ? 'Salve ou cancele a edição antes de publicar.'
@@ -4912,15 +5105,18 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
         ? 'Corrija os erros da verificação antes de publicar.'
         : null;
 
-  const salvar = async () => {
+  const salvar = async (porCima = false) => {
     if (!agente) return;
     setSalvando(true);
     try {
-      await agentesApi.salvarRascunho(tenantId, agentId, { prompt: edicao.texto, revisao: agente.rascunho.revisao });
+      // A revisão em que o texto se baseou, não a última lida: um salvar comum nunca passa por cima do que outra
+      // pessoa salvou depois que este texto começou (rodada 2, achado 1). Só "Salvar o meu por cima" manda a atual.
+      const revisao = porCima ? agente.rascunho.revisao : edicao.base;
+      await agentesApi.salvarRascunho(tenantId, agentId, { prompt: edicao.texto, revisao });
       addToast('Rascunho salvo.', 'success');
-      apagarCopia(chave);
+      apagarCopia(minhaChave);
       setConflito(null);
-      setEdicao({ ativa: false, texto: '' });
+      setEdicao({ ativa: false, texto: '', base: 0 });
       await carregar();
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Falha ao salvar o rascunho.', 'error');
@@ -4936,9 +5132,9 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   };
 
   const descartarOMeu = () => {
-    apagarCopia(chave);
+    apagarCopia(minhaChave);
     setConflito(null);
-    setEdicao({ ativa: false, texto: '' });
+    setEdicao({ ativa: false, texto: '', base: 0 });
   };
 
   const cancelar = () => {
@@ -4951,7 +5147,7 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
     setEdicao((atual) => {
       const inicio = el?.selectionStart ?? atual.texto.length;
       const fim = el?.selectionEnd ?? atual.texto.length;
-      return { ativa: true, texto: atual.texto.slice(0, inicio) + marcador + atual.texto.slice(fim) };
+      return { ...atual, ativa: true, texto: atual.texto.slice(0, inicio) + marcador + atual.texto.slice(fim) };
     });
   };
 
@@ -5046,7 +5242,13 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
               type="button"
               onClick={() => {
                 setAba('instrucoes');
-                setEdicao({ ativa: true, texto: copia.texto });
+                // A cópia sai daqui e passa a ser a deste editor, com a mesma base. Base diferente da revisão atual:
+                // outra pessoa salvou depois que este texto começou, e a escolha é explícita (rodada 2, achado 1).
+                apagarCopia(copia.chave);
+                setEdicao({ ativa: true, texto: copia.texto, base: copia.revisao });
+                if (copia.revisao !== agente.rascunho.revisao) {
+                  setConflito('O rascunho foi alterado depois que este texto foi escrito.');
+                }
                 setCopia(null);
               }}
               className={BOTAO_SECUNDARIO}
@@ -5056,8 +5258,8 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
             <button
               type="button"
               onClick={() => {
-                apagarCopia(chave);
-                setCopia(null);
+                apagarCopia(copia.chave);
+                setCopia(procurarCopia(prefixo, salvo));
               }}
               className={BOTAO_SECUNDARIO}
             >
@@ -5135,7 +5337,7 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
                 >
                   <p>{`${conflito} O seu texto continua aqui, sem salvar.`}</p>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void salvar()} disabled={salvando} className={BOTAO_SECUNDARIO}>
+                    <button type="button" onClick={() => void salvar(true)} disabled={salvando} className={BOTAO_SECUNDARIO}>
                       Salvar o meu por cima
                     </button>
                     <button type="button" onClick={descartarOMeu} disabled={salvando} className={BOTAO_SECUNDARIO}>
@@ -5162,7 +5364,10 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
                 ref={campo}
                 value={edicao.texto}
                 spellCheck={false}
-                onChange={(e) => setEdicao({ ativa: true, texto: e.target.value })}
+                onChange={(e) => {
+                  const texto = e.target.value;
+                  setEdicao((atual) => ({ ...atual, ativa: true, texto }));
+                }}
                 className="min-h-[480px] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm leading-6 text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-card dark:text-white"
               />
               <div className="mt-3 flex flex-wrap justify-end gap-2">
@@ -5187,7 +5392,11 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
                 <h2 className="text-base font-semibold text-slate-900 dark:text-white">
                   {rascunhoComMudancas ? 'Rascunho' : 'Prompt publicado'}
                 </h2>
-                <button type="button" onClick={() => setEdicao({ ativa: true, texto: salvo })} className={BOTAO_SECUNDARIO}>
+                <button
+                  type="button"
+                  onClick={() => setEdicao({ ativa: true, texto: salvo, base: agente.rascunho.revisao })}
+                  className={BOTAO_SECUNDARIO}
+                >
                   <Pencil size={14} aria-hidden="true" />
                   Editar
                 </button>
@@ -5316,8 +5525,10 @@ function fakeAdmin(tabelas: Record<string, Linha[]>) {
           linhas = linhas.slice(0, n);
           return consulta;
         },
+        // O PostgREST corta toda resposta em 1000 linhas, sem erro. Sem o mesmo corte aqui, o teste de mais de mil
+        // números passaria até com leitura única e não provaria a paginação (achado na rodada 2 do Codex, 07/10).
         then: (ok: (r: unknown) => unknown, falhou?: (e: unknown) => unknown) =>
-          Promise.resolve({ data: linhas, error: null }).then(ok, falhou),
+          Promise.resolve({ data: linhas.slice(0, 1000), error: null }).then(ok, falhou),
       };
       return consulta;
     },
@@ -5799,7 +6010,7 @@ git commit -m "feat(central-agentes): Central de I.A avisa quando os numeros da 
 Num número ligado, o texto vem da versão publicada do agente e a chave não tem efeito. Nenhuma tela manda `aiPromptKey` hoje (só a rota aceita); a recusa vale para qualquer pedido com o campo, igual ou diferente do gravado. Os outros campos continuam editáveis: pausar a IA de um número ligado tem que funcionar.
 
 Duas garantias, da revisão do Codex de 07/10:
-- **Nada é gravado antes da recusa.** Hoje a rota vincula o cliente à agência (`ensureTenantAgencyBinding`, que grava `organization_editions`) **antes** de ler a conexão (`route.ts`, linhas 68-91 contra 93-101, em `6a29238`). A leitura da conexão passa para antes dessa vinculação, e a recusa vem logo depois dela.
+- **Nada é gravado antes da recusa.** Hoje a rota vincula o cliente à agência (`ensureTenantAgencyBinding`, que grava `organization_editions` quando a vinculação falta) **antes** de ler a conexão (`route.ts`, linhas 68-91 contra 93-101, em `6a29238`). A leitura da conexão passa para o começo, a recusa vem logo depois dela, e a **vinculação passa para depois da gravação da conexão**: ela só acontece num PATCH que vai devolver 200. Revisão do Codex, rodada 2: com a vinculação entre a leitura e a gravação, uma ligação feita no meio deixava a vinculação gravada antes do 409. A vinculação não muda a gravação: a conexão é gravada pelo cliente de serviço, e a validação do par da Evolution (`validateEvolutionPairForWrite`) não lê a vinculação.
 - **A recusa vale também para uma ligação feita entre a leitura e a gravação.** Quando o pedido traz `aiPromptKey`, a gravação só pega a linha com `ai_agent_id is null`. Se não pegar nenhuma, a rota relê: número ligado vira 409, número sumido vira 404. Nunca 200 com a chave gravada num número ligado.
 
 - [ ] **Step 1: Testes que falham**
@@ -5920,6 +6131,9 @@ describe('PATCH da conexão — número ligado a um agente', () => {
     expect(r.status).toBe(200);
     expect(updateMock.mock.calls[0]?.[0]).toMatchObject({ config: { aiPromptKey: AURORA } });
     expect(condicaoMock).toHaveBeenCalledWith('ai_agent_id', null);
+    // A vinculação à agência continua acontecendo, mas só DEPOIS da gravação que deu certo (rodada 2).
+    expect(bindingMock).toHaveBeenCalledOnce();
+    expect(bindingMock.mock.invocationCallOrder[0]).toBeGreaterThan(updateMock.mock.invocationCallOrder[0]);
   });
 
   it('ligação feita entre a leitura e a gravação: a gravação não pega a linha e a resposta é 409, nunca 200', async () => {
@@ -5928,18 +6142,21 @@ describe('PATCH da conexão — número ligado a um agente', () => {
     const r = await patch({ config: { aiPromptKey: AURORA } });
     expect(r.status).toBe(409);
     expect(await r.json()).toMatchObject({ code: 'NUMERO_COM_AGENTE', agentId: AGENTE });
+    // Nenhuma gravação sobra num pedido recusado, nem a vinculação à agência (revisão do Codex, rodada 2).
+    expect(bindingMock).not.toHaveBeenCalled();
   });
 
   it('número que sumiu entre a leitura e a gravação: 404', async () => {
     leituras = [SEM_AGENTE, null];
     gravacaoCasa = false;
     expect((await patch({ config: { aiPromptKey: AURORA } })).status).toBe(404);
+    expect(bindingMock).not.toHaveBeenCalled();
   });
 });
 ```
 
 Run: `npx vitest run "app/api/platform/tenants/[tenantId]/channels/[connectionId]/route.agente.test.ts"`
-Expected: FAIL. O primeiro teste dá 200 e a vinculação foi chamada, o terceiro não vê a condição e os dois últimos dão 200.
+Expected: FAIL. O primeiro teste dá 200 e a vinculação foi chamada; o terceiro não vê a condição e vê a vinculação antes da gravação; os dois últimos dão 200 e chamam a vinculação.
 
 - [ ] **Step 2: Ajustar o banco falso de `route.patch.test.ts`**
 
@@ -5996,12 +6213,12 @@ async function recusarNumeroComAgente(admin: ReturnType<typeof createStaticAdmin
 }
 ```
 
-2. No `PATCH`, **recortar** o bloco da leitura `const current = await admin ... if (!current.data) return json({ error: 'Channel not found' }, 404);` (hoje logo depois da vinculação) e colá-lo logo depois de `const admin = createStaticAdminClient();`, trocando `.select('id, config, metadata')` por `.select('id, config, metadata, ai_agent_id')`. Logo depois do `404`, ainda antes do bloco `if (isAgencyAdminRole(...))` da vinculação, acrescentar:
+2. No `PATCH`, **recortar** o bloco da leitura `const current = await admin ... if (!current.data) return json({ error: 'Channel not found' }, 404);` (hoje logo depois da vinculação) e colá-lo logo depois de `const admin = createStaticAdminClient();`, trocando `.select('id, config, metadata')` por `.select('id, config, metadata, ai_agent_id')`. **Recortar também o bloco inteiro da vinculação**, `if (isAgencyAdminRole(auth.profile.role) && ...) { try { await ensureTenantAgencyBinding(...) } catch (bindingError) { ... } }`, para colá-lo no item 3. Logo depois do `404`, acrescentar:
 
 ```ts
   // Central de Agentes, fatia 2: num número ligado a um agente, o texto vem da versão publicada e a chave de prompt
   // não tem efeito. Mudança sem efeito é pior que mudança recusada (SPEC, "Rotas antigas depois de ligar"). A recusa
-  // vem antes de qualquer gravação, inclusive a vinculação do cliente à agência logo abaixo.
+  // vem antes de qualquer gravação; a vinculação do cliente à agência só acontece depois da gravação que deu certo.
   const pedeChaveDePrompt = parsed.data.config?.aiPromptKey !== undefined;
   if (pedeChaveDePrompt && current.data.ai_agent_id) {
     return recusarNumeroComAgente(admin, tenantId, current.data.ai_agent_id);
@@ -6035,9 +6252,13 @@ async function recusarNumeroComAgente(admin: ReturnType<typeof createStaticAdmin
     if (relida.data?.ai_agent_id) return recusarNumeroComAgente(admin, tenantId, relida.data.ai_agent_id);
     return json({ error: 'Channel not found' }, 404);
   }
+
+  // A vinculação do cliente à agência vem DEPOIS da gravação que deu certo: um 409 ou um 404 acima nunca deixam
+  // nada gravado (revisão do Codex, rodada 2). Colar aqui, sem mudança, o bloco recortado no item 2:
+  // if (isAgencyAdminRole(auth.profile.role) && auth.profile.organization_id && auth.profile.organization_id !== tenantId) { ... }
 ```
 
-O resto do `PATCH` (o `return json({ ok: true, channel: ... })`) fica como está.
+O resto do `PATCH` (o `return json({ ok: true, channel: ... })`) fica como está. Se a vinculação falhar, a resposta continua 500 com a mensagem dela, como hoje; a diferença é que a conexão já foi gravada. Repetir o PATCH grava de novo o mesmo valor e refaz a vinculação, que só escreve quando ela falta.
 
 - [ ] **Step 4: Rodar e ver passar, junto com os testes da rota que já existiam**
 
@@ -6756,6 +6977,7 @@ Registrar no cérebro, em `06-References/central-de-agentes-2026-09-29/` (arquiv
 - Create: `g23-restauracao/contagens_todas.sql`
 - Create: `g23-restauracao/comparar_contagens.py`
 - Create: `g23-restauracao/restaurar_v2.sh` (o `restaurar.sh` de 07/10 fica como registro)
+- Create: `g23-restauracao/ciclo_g23.sh` (o ciclo com a limpeza garantida) e `g23-restauracao/teste_ciclo.sh` (o teste dele, sem Docker)
 - Modify: `LEIA-ME.md` (itens 6, 10, 11, 12 e 13)
 
 Os quatro requisitos entraram na política de backup na 12ª devolutiva (SPEC, achados fora do escopo, item 8), e esta é a primeira vez que um dump os cumpre:
@@ -6943,22 +7165,31 @@ order by 1;
 
 - [ ] **Step 7: O comparador — `g23-restauracao/comparar_contagens.py`**
 
+Revisão do Codex, rodada 2 (achado 7): as sentinelas pegam arquivo vazio, mas não provam "todas as tabelas". Três arquivos cortados do mesmo jeito, só com as duas sentinelas, passavam com `falhas: 0`. Agora as três contagens são confrontadas com um **inventário independente**, tirado dos próprios arquivos do dump (os `CREATE TABLE` e os cabeçalhos de `COPY`, sem ler linha de dado). As excluídas de propósito do `data.sql` não são comparadas, nem quando a cópia as tem com 0 linhas.
+
 ```python
 # -*- coding: utf-8 -*-
 """Requisito 4 da politica de backup (fatia 2): compara a copia restaurada com a producao contada ANTES e DEPOIS do dump.
-Uso: python comparar_contagens.py antes.json depois.json copia.txt
+Uso: python comparar_contagens.py antes.json depois.json copia.txt <pasta-do-dump>
   antes.json / depois.json: saida do `python sqlprod.py contagens_todas.sql` (lista JSON de {tabela, linhas})
   copia.txt: saida do psql na copia (`tabela|linhas`, uma por linha)
+  <pasta-do-dump>: a pasta com os cinco arquivos do dump; dela sai o inventario das tabelas
 Regra: tabela que nao mudou na janela do dump tem que bater exatamente; tabela que mudou tem que ficar entre as duas
 contagens. Tabela da producao ausente na copia reprova, salvo as excluidas de proposito do data.sql. Tabela so da copia
 (da propria stack local) aparece como informacao. Imprime so nomes e numeros. Saida 0 = confere; 1 = nao confere.
-Revisao do Codex (07/10): entrada que nao seja uma contagem completa PARA o comparador (saida 1): arquivo vazio, linha que
-nao e `tabela|numero` (o "HTTP 400 ..." de um sqlprod.py antigo, por exemplo) ou contagem sem as tabelas-sentinela."""
-import io, json, sys
+Revisao do Codex (07/10):
+- rodada 1: entrada que nao seja uma contagem PARA o comparador (saida 1): arquivo vazio, linha que nao e
+  `tabela|numero` (o "HTTP 400 ..." de um sqlprod.py antigo, por exemplo) ou contagem sem as tabelas-sentinela;
+- rodada 2: as sentinelas nao provam "todas as tabelas" (tres arquivos cortados do mesmo jeito passavam). Agora as tres
+  contagens sao confrontadas com um inventario INDEPENDENTE, tirado dos proprios arquivos do dump: os CREATE TABLE de
+  schema.sql e historico_schema.sql e os COPY de data.sql e historico_data.sql, nos esquemas contados."""
+import io, json, os, re, sys
 
+ESQUEMAS = {"public", "auth", "storage", "supabase_migrations"}  # os mesmos de contagens_todas.sql
 EXCLUIDAS_DE_PROPOSITO = {"storage.buckets_vectors", "storage.vector_indexes"}  # os -x do data.sql (dump_producao.ps1)
 # Existem na producao (desde a fatia 1) e em toda copia restaurada dela; sem as duas, a entrada nao e uma contagem real.
 SENTINELAS = {"public.ai_agents", "supabase_migrations.schema_migrations"}
+CABECALHO = re.compile(r'^(?:CREATE TABLE (?:IF NOT EXISTS )?|COPY )"?([a-z_]+)"?\."?([A-Za-z0-9_]+)"?')
 
 def ler(caminho):
     texto = io.open(caminho, encoding="utf-8").read().strip()
@@ -6979,18 +7210,46 @@ def ler(caminho):
         sys.exit(f"{caminho}: {len(contagens)} contagem(ns) lida(s), sem {', '.join(sorted(faltam))}; nao e uma contagem completa; parar")
     return contagens
 
+def inventario(pasta):
+    """So nomes de tabela. Dentro de um bloco COPY (ate a linha \\.) nada e lido: as linhas de dado sao puladas."""
+    tabelas = set()
+    for nome in ("schema.sql", "historico_schema.sql", "data.sql", "historico_data.sql"):
+        dentro_do_copy = False
+        with io.open(os.path.join(pasta, nome), encoding="utf-8", errors="replace") as arquivo:
+            for linha in arquivo:
+                if dentro_do_copy:
+                    if linha.rstrip("\r\n") == "\\.":
+                        dentro_do_copy = False
+                    continue
+                m = CABECALHO.match(linha)
+                if not m:
+                    continue
+                if linha.startswith("COPY "):
+                    dentro_do_copy = True
+                if m.group(1) in ESQUEMAS:
+                    tabelas.add(m.group(1) + "." + m.group(2))
+    return tabelas
+
 antes, depois, copia = (ler(c) for c in sys.argv[1:4])
+inv = inventario(sys.argv[4]) - EXCLUIDAS_DE_PROPOSITO
+if not SENTINELAS <= inv:
+    sys.exit(f"inventario do dump sem {', '.join(sorted(SENTINELAS - inv))} ({len(inv)} tabela(s)): pasta errada ou dump incompleto; parar")
 falhas = 0
+for nome, contagens in (("antes", antes), ("depois", depois), ("copia", copia)):
+    faltam = sorted(inv - set(contagens))
+    if faltam:
+        print(f"FALTA NA CONTAGEM {nome}: {len(faltam)} tabela(s) do dump, ex.: {', '.join(faltam[:5])}")
+        falhas += 1
 for tabela in sorted(set(antes) | set(depois)):
     a, d = antes.get(tabela), depois.get(tabela)
     if a is None or d is None:
         print(f"MUDOU NA JANELA (tabela criada ou apagada durante o dump): {tabela} antes={a} depois={d}")
         falhas += 1
         continue
+    if tabela in EXCLUIDAS_DE_PROPOSITO:
+        print(f"excluida de proposito do data.sql (nao comparada): {tabela} ({a} linhas na producao)")
+        continue
     if tabela not in copia:
-        if tabela in EXCLUIDAS_DE_PROPOSITO:
-            print(f"excluida de proposito do data.sql: {tabela} ({a} linhas na producao)")
-            continue
         print(f"FALTA NA COPIA: {tabela} ({a} linhas na producao)")
         falhas += 1
         continue
@@ -7004,47 +7263,79 @@ for tabela in sorted(set(antes) | set(depois)):
         falhas += 1
 for tabela in sorted(set(copia) - set(antes) - set(depois)):
     print(f"so na copia (da propria stack local): {tabela} ({copia[tabela]} linhas)")
-print(f"tabelas da producao: {len(set(antes) | set(depois))} | na copia: {len(copia)} | falhas: {falhas}")
+print(f"tabelas no inventario do dump: {len(inv)} | da producao: {len(set(antes) | set(depois))} | na copia: {len(copia)} | falhas: {falhas}")
 sys.exit(1 if falhas else 0)
 ```
 
-Conferir sem rede, na pasta do rito (Git Bash), com quatro entradas: uma contagem que confere, contagens vazias, um erro HTTP no lugar da contagem e uma tabela faltando na cópia:
+Conferir sem rede, na pasta do rito (Git Bash), com cinco entradas: uma contagem que confere, contagens vazias, um erro HTTP no lugar da contagem, uma tabela faltando na cópia e as três contagens cortadas do mesmo jeito, mantendo as sentinelas. O dump falso tem uma linha de dado que parece cabeçalho de `COPY`; se ela entrasse no inventário, o primeiro caso reprovaria:
 
 ```bash
-T="$(cygpath -m "$TEMP")/comparador-prova"; mkdir -p "$T"
+T="$(cygpath -m "$TEMP")/comparador-prova"; mkdir -p "$T/dump"
 printf '[{"tabela":"public.ai_agents","linhas":2},{"tabela":"supabase_migrations.schema_migrations","linhas":90},{"tabela":"public.tabela_x","linhas":5}]\n' > "$T/ok.json"
 printf 'public.ai_agents|2\nsupabase_migrations.schema_migrations|90\npublic.tabela_x|5\n' > "$T/copia_ok.txt"
 printf 'public.ai_agents|2\nsupabase_migrations.schema_migrations|90\n' > "$T/copia_falta.txt"
+printf '[{"tabela":"public.ai_agents","linhas":2},{"tabela":"supabase_migrations.schema_migrations","linhas":90}]\n' > "$T/cortado.json"
 printf 'HTTP 400 {"message":"Failed to run sql query"}\n' > "$T/http.json"
 : > "$T/vazio.json"
-python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_ok.txt"; echo "saida=$?"
-python g23-restauracao/comparar_contagens.py "$T/vazio.json" "$T/vazio.json" "$T/copia_ok.txt"; echo "saida=$?"
-python g23-restauracao/comparar_contagens.py "$T/http.json" "$T/ok.json" "$T/copia_ok.txt"; echo "saida=$?"
-python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_falta.txt"; echo "saida=$?"
+# O inventario independente: os arquivos do dump. A linha de dado que parece cabecalho de COPY tem que ser ignorada.
+printf 'CREATE TABLE IF NOT EXISTS "public"."ai_agents" (\n    "id" uuid\n);\nCREATE TABLE IF NOT EXISTS "public"."tabela_x" (\n    "x" integer\n);\n' > "$T/dump/schema.sql"
+printf 'CREATE TABLE IF NOT EXISTS "supabase_migrations"."schema_migrations" (\n    "version" text\n);\n' > "$T/dump/historico_schema.sql"
+printf 'COPY "public"."ai_agents" ("id") FROM stdin;\nCOPY "public"."nao_e_tabela" linha de dado que parece cabecalho\n\\.\nCOPY "public"."tabela_x" ("x") FROM stdin;\n1\n\\.\n' > "$T/dump/data.sql"
+printf 'COPY "supabase_migrations"."schema_migrations" ("version") FROM stdin;\n20260930000000\n\\.\n' > "$T/dump/historico_data.sql"
+python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_ok.txt" "$T/dump"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/vazio.json" "$T/vazio.json" "$T/copia_ok.txt" "$T/dump"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/http.json" "$T/ok.json" "$T/copia_ok.txt" "$T/dump"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/ok.json" "$T/ok.json" "$T/copia_falta.txt" "$T/dump"; echo "saida=$?"
+python g23-restauracao/comparar_contagens.py "$T/cortado.json" "$T/cortado.json" "$T/copia_falta.txt" "$T/dump"; echo "saida=$?"
 rm -r "$T"
 ```
-Expected, nesta ordem: `falhas: 0` e `saida=0`; `0 contagem(ns) lida(s), sem public.ai_agents, supabase_migrations.schema_migrations` e `saida=1`; `linha que nao e contagem: 'HTTP 400 ...'` e `saida=1`; `FALTA NA COPIA: public.tabela_x` e `saida=1`. (Medido em 07/10 com este código. A v1 deste plano, sem as sentinelas, dava `falhas: 0` e `saida=0` no segundo caso: aprovava um backup sem nenhuma contagem da produção.)
+Expected, nesta ordem:
+1. `falhas: 0` e `saida=0`;
+2. `0 contagem(ns) lida(s), sem public.ai_agents, supabase_migrations.schema_migrations` e `saida=1`;
+3. `linha que nao e contagem: 'HTTP 400 ...'` e `saida=1`;
+4. `FALTA NA CONTAGEM copia` e `FALTA NA COPIA: public.tabela_x`, com `saida=1`;
+5. `FALTA NA CONTAGEM antes`, `depois` e `copia`, com `saida=1`.
+
+Medido em 07/10 com este código. A v2 deste plano dava `falhas: 0` e saída 0 no quinto caso; a v1, no segundo.
 
 - [ ] **Step 8: A restauração v2 — `g23-restauracao/restaurar_v2.sh`**
+
+Revisão do Codex, rodada 2 (achados 3 e 4):
+- toda leitura do banco sai com erro se o SQL falhar (`ON_ERROR_STOP`);
+- os três números do histórico são **exigidos**, não só impressos: mais de 0 linhas, 1 antes da volta e 0 depois;
+- os cinco SQL copiados para o `/tmp` do container saem sempre, inclusive em erro (`trap`);
+- os logs vão para a pasta da tentativa (`LOGS_DA_TENTATIVA`), que o `ciclo_g23.sh` cria cifrada;
+- erro na tela sai sem os valores entre aspas.
+
+Ele só roda dentro do ciclo do Step 8b.
 
 ```bash
 #!/usr/bin/env bash
 # restaurar_v2.sh (fatia 2) - restaura o dump de PRODUCAO na stack isolada ensaio-g23 e prova os requisitos 2, 3 e 4 da
 # politica de backup: roles.sql restaurado como supabase_admin (superusuario da stack) desde o inicio, na mesma transacao;
 # historico de migrations vindo do PROPRIO dump; contagem de todas as tabelas dos esquemas despejados; migration da fatia e
-# a volta dela direto dos arquivos, sem recriar nada a mao. Nada de producao aqui.
+# a volta dela direto dos arquivos, sem recriar nada a mao. Nada de producao aqui. Roda dentro do ciclo_g23.sh.
+# Revisao do Codex, rodada 2: toda leitura do banco sai com erro se o SQL falhar (ON_ERROR_STOP), e os tres numeros do
+# historico (mais de 0 linhas; 1 antes da volta; 0 depois) sao EXIGIDOS, nao so impressos; os cinco SQL copiados para o
+# /tmp do container saem sempre, inclusive em erro (trap); os logs vao para a pasta da tentativa (LOGS_DA_TENTATIVA).
 # Uso: bash restaurar_v2.sh "C:/Users/PC Gamer/BaseCRM-dumps/<data>" <migration.sql> <volta.sql> <versao> <nome> <sha256>
 set -u
 export MSYS_NO_PATHCONV=1   # sem isto o Git Bash converte /tmp/x nos argumentos do docker exec
 [ $# -eq 6 ] || { echo "uso: restaurar_v2.sh <pasta-do-dump> <migration.sql> <volta.sql> <versao> <nome> <sha256>"; exit 2; }
+[ -n "${LOGS_DA_TENTATIVA:-}" ] && [ -d "$LOGS_DA_TENTATIVA" ] || { echo "LOGS_DA_TENTATIVA vazio: rodar pelo ciclo_g23.sh"; exit 2; }
 D="$1"; MIG="$2"; VOLTA="$3"; VERSAO="$4"; NOME="$5"; SHA="$6"
 C=supabase_db_ensaio-g23
 AQUI="$(cd "$(dirname "$0")" && pwd)"
-LOGS="$(cygpath -u "${TEMP}")/ensaio-g23/logs"; mkdir -p "$LOGS"
+LOGS="$LOGS_DA_TENTATIVA"
 ADMIN_URL='postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres'
-p() { docker exec "$C" psql -U postgres -d postgres -At -c "$1"; }
-# Contagem de todas as tabelas. Sem ON_ERROR_STOP o psql sai 0 num erro de script, com o arquivo vazio, e "contagens
-# iguais" compararia dois vazios; as duas tabelas-sentinela do comparador tem que estar no arquivo (revisao do Codex, 07/10).
+ARQUIVOS="roles.sql schema.sql historico_schema.sql data.sql historico_data.sql"
+limpar() { for f in $ARQUIVOS; do docker exec "$C" rm -f "/tmp/$f" > /dev/null 2>&1; done; }
+trap limpar EXIT
+# Um numero lido do banco; erro de SQL sai diferente de 0 (sem ON_ERROR_STOP o psql sairia 0 com o texto vazio).
+p() { docker exec "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -At -c "$1"; }
+# Erro do psql na tela sem valores entre aspas: o log completo fica na pasta da tentativa, cifrada.
+mostrar_erros() { grep -E 'ERROR|FATAL' "$1" | head -5 | sed -E "s/\"[^\"]*\"/\"...\"/g; s/'[^']*'/'...'/g" | cut -c1-160; }
+# Contagem de todas as tabelas, com ON_ERROR_STOP e as duas tabelas-sentinela do comparador no arquivo.
 contar() {
   docker exec -i "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -At -F '|' < "$AQUI/contagens_todas.sql" > "$1" \
     || { echo "contagem FALHOU: $1"; return 1; }
@@ -7054,7 +7345,7 @@ contar() {
 
 echo "== $(date '+%H:%M:%S') container"; docker ps --filter "name=$C" --format '{{.Names}} | {{.Status}} | {{.Image}}'
 [ "$(sha256sum "$MIG" | cut -c1-64)" = "$SHA" ] || { echo "sha256 da migration diferente do informado; parar"; exit 1; }
-for f in roles.sql schema.sql historico_schema.sql data.sql historico_data.sql; do
+for f in $ARQUIVOS; do
   docker cp "$D/$f" "$C:/tmp/$f" || { echo "docker cp $f FALHOU"; exit 1; }
 done
 
@@ -7066,35 +7357,164 @@ docker exec "$C" psql --single-transaction --variable ON_ERROR_STOP=1 \
   --dbname "$ADMIN_URL" > "$LOGS/restauracao.log" 2>&1
 rc=$?
 echo "restauracao EXIT=$rc | linhas com ERROR no log: $(grep -c -E 'ERROR' "$LOGS/restauracao.log")"
-[ "$rc" = 0 ] || { grep -E 'ERROR|FATAL' "$LOGS/restauracao.log" | head -5 | cut -c1-200; exit 1; }
+[ "$rc" = 0 ] || { mostrar_erros "$LOGS/restauracao.log"; exit 1; }
+limpar   # os SQL do dump nao precisam mais ficar no container
 
 echo "== contagem de todas as tabelas dos esquemas despejados na copia (requisito 4)"
 contar "$LOGS/copia.txt" || exit 1
 echo "tabelas contadas: $(wc -l < "$LOGS/copia.txt")"
-echo "== historico de migrations veio do dump (requisito 3): $(p "select count(*) from supabase_migrations.schema_migrations") linha(s)"
+historico=$(p "select count(*) from supabase_migrations.schema_migrations") || { echo "leitura do historico FALHOU"; exit 1; }
+[ "$historico" -gt 0 ] 2>/dev/null || { echo "historico de migrations VAZIO na copia ('$historico'): o dump nao trouxe o historico"; exit 1; }
+echo "== historico de migrations veio do dump (requisito 3): $historico linha(s)"
 
 echo "== $(date '+%H:%M:%S') migration da fatia na copia"
 docker exec -i "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$MIG" > "$LOGS/migration.log" 2>&1 \
-  || { grep -E 'ERROR' "$LOGS/migration.log" | head -5 | cut -c1-200; exit 1; }
+  || { mostrar_erros "$LOGS/migration.log"; exit 1; }
 # A linha que o aplicar_migration.py grava pela API (versao, nome, idempotency_key = sha256). A TABELA veio do dump.
 # "on conflict" so importa no ensaio com o banco local, que ja tem a versao desta fatia no historico.
-p "insert into supabase_migrations.schema_migrations (version, name, idempotency_key) values ('$VERSAO', '$NOME', '$SHA') on conflict (version) do nothing" > /dev/null || exit 1
-echo "linhas da versao no historico antes da volta: $(p "select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO'") (tem que ser 1)"
+p "insert into supabase_migrations.schema_migrations (version, name, idempotency_key) values ('$VERSAO', '$NOME', '$SHA') on conflict (version) do nothing" > /dev/null || { echo "registro da versao FALHOU"; exit 1; }
+antes=$(p "select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO'") || { echo "leitura FALHOU"; exit 1; }
+[ "$antes" = "1" ] || { echo "a versao $VERSAO devia ter 1 linha no historico antes da volta; tem '$antes'"; exit 1; }
+echo "linhas da versao no historico antes da volta: 1"
 
 echo "== $(date '+%H:%M:%S') volta da fatia na copia, direto do arquivo"
 docker exec -i "$C" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$VOLTA" > "$LOGS/volta.log" 2>&1 \
-  || { grep -E 'ERROR' "$LOGS/volta.log" | head -5 | cut -c1-200; exit 1; }
-echo "linhas da versao no historico depois da volta: $(p "select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO'") (tem que ser 0)"
+  || { mostrar_erros "$LOGS/volta.log"; exit 1; }
+depois=$(p "select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO'") || { echo "leitura FALHOU"; exit 1; }
+[ "$depois" = "0" ] || { echo "a versao $VERSAO devia ter 0 linha no historico depois da volta; tem '$depois'"; exit 1; }
+echo "linhas da versao no historico depois da volta: 0"
 contar "$LOGS/copia_depois_da_volta.txt" || exit 1
 if cmp -s "$LOGS/copia.txt" "$LOGS/copia_depois_da_volta.txt"; then
   echo "contagens iguais antes e depois de migration + volta"
 else
   echo "contagens MUDARAM com migration + volta"; exit 1
 fi
-echo "== $(date '+%H:%M:%S') FIM. Agora: python comparar_contagens.py antes.json depois.json $LOGS/copia.txt"
+echo "== $(date '+%H:%M:%S') RESTAURACAO OK"
 ```
 
-- [ ] **Step 9: Ensaiar a restauração v2 com um dump da stack local (sem produção)**
+- [ ] **Step 8b: O ciclo com a limpeza garantida — `g23-restauracao/ciclo_g23.sh` — e o teste dele sem Docker**
+
+Revisão do Codex, rodada 2 (achado 4): parar a `crmia`, subir a stack isolada, restaurar, comparar e, **sempre** (sucesso, erro ou Ctrl+C), derrubar a stack isolada com `--no-backup`, religar a `crmia` e conferir que ela voltou.
+
+A pasta de logs da tentativa nasce cifrada (EFS), é apagada no sucesso e mantida no erro, com o caminho impresso.
+
+```bash
+#!/usr/bin/env bash
+# ciclo_g23.sh (fatia 2) - o ciclo inteiro da prova de restauracao, com a limpeza garantida (revisao do Codex, rodada 2):
+# para a crmia, sobe a stack isolada ensaio-g23, roda o restaurar_v2.sh e o comparador, e SEMPRE (sucesso, erro ou
+# Ctrl+C) derruba a ensaio-g23 com --no-backup (a copia restaurada some junto), religa a crmia e confere que ela voltou.
+# Logs numa pasta da tentativa, cifrada (EFS): apagada no sucesso; mantida no erro, para diagnostico, com o caminho
+# impresso no fim (apagar depois de diagnosticar).
+# Uso: bash ciclo_g23.sh <pasta-do-dump> <migration.sql> <volta.sql> <versao> <nome> <sha256> <antes> <depois>
+set -u
+export MSYS_NO_PATHCONV=1
+[ $# -eq 8 ] || { echo "uso: ciclo_g23.sh <pasta-do-dump> <migration.sql> <volta.sql> <versao> <nome> <sha256> <antes> <depois>"; exit 2; }
+AQUI="$(cd "$(dirname "$0")" && pwd)"
+# WT_DIR e G23_DIR existem so para o teste do proprio script (teste_ciclo.sh), com docker e npx falsos.
+WT="${WT_DIR:-/c/Users/PC Gamer/WorkSync/projetos/Basecrm-worktrees/central-agentes}"
+G23="${G23_DIR:-$(cygpath -u "$TEMP")/ensaio-g23}"
+[ -f "$G23/supabase/config.toml" ] || { echo "falta a pasta $G23 com o supabase init da stack isolada (Task 14, Step 9.3); parar"; exit 1; }
+export LOGS_DA_TENTATIVA="$G23/logs/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$LOGS_DA_TENTATIVA"
+cipher.exe /e "$(cygpath -w "$LOGS_DA_TENTATIVA")" > /dev/null || { echo "nao consegui cifrar a pasta de logs (EFS); parar antes de restaurar"; exit 1; }
+rc=1
+desfazer() {
+  echo "== $(date '+%H:%M:%S') desfazer (sempre): derrubar a ensaio-g23 e religar a crmia"
+  (cd "$G23" && npx --yes supabase@2.120.0 stop --no-backup) || echo "ATENCAO: a ensaio-g23 nao parou; derrubar a mao antes de qualquer outra coisa"
+  if (cd "$WT" && npx supabase start > /dev/null && npx supabase status > /dev/null); then echo "crmia de pe"; else echo "ATENCAO: a crmia nao voltou; rodar 'npx supabase start' no worktree"; fi
+  if [ "$rc" = 0 ]; then rm -rf "$LOGS_DA_TENTATIVA" && echo "logs da tentativa apagados"; else echo "logs mantidos para diagnostico (cifrados): $LOGS_DA_TENTATIVA - apagar depois"; fi
+}
+trap desfazer EXIT
+(cd "$WT" && npx supabase stop) || exit 1
+(cd "$G23" && npx --yes supabase@2.120.0 start) || exit 1
+bash "$AQUI/restaurar_v2.sh" "$1" "$2" "$3" "$4" "$5" "$6" || exit 1
+# Com MSYS_NO_PATHCONV=1 o Git Bash nao converte caminho para o Python do Windows, que nao entende /c/... nem
+# /tmp/...: o script e a copia vao no formato C:/... (cygpath -m). Pego pelo teste_ciclo.sh em 07/10.
+python "$(cygpath -m "$AQUI")/comparar_contagens.py" "$7" "$8" "$(cygpath -m "$LOGS_DA_TENTATIVA")/copia.txt" "$1" || exit 1
+rc=0
+echo "== $(date '+%H:%M:%S') CICLO OK"
+```
+
+O teste do ciclo, com `docker`, `npx` e `cipher` falsos (sem Docker e sem banco) — `g23-restauracao/teste_ciclo.sh`:
+
+```bash
+#!/usr/bin/env bash
+# Teste do ciclo_g23.sh + restaurar_v2.sh com docker, npx e cipher FALSOS (sem Docker, sem banco). Prova:
+#  A) falha no docker cp: restaurar sai 1, os SQL do container saem (trap), a stack isolada cai e a crmia volta, logs ficam;
+#  C) historico vazio na copia: sai 1 com a mensagem, mesma limpeza;
+#  D) caminho feliz: historico > 0, versao 1 antes e 0 depois da volta, comparador OK, logs apagados.
+# Uso: bash teste_ciclo.sh <pasta com ciclo_g23.sh, restaurar_v2.sh, comparar_contagens.py, contagens_todas.sql>
+set -u
+SCRIPTS="$1"
+BASE="$(cygpath -u "$TEMP")/teste-ciclo-g23"; rm -rf "$BASE"; mkdir -p "$BASE/bin" "$BASE/g23/supabase" "$BASE/wt" "$BASE/dump"
+: > "$BASE/g23/supabase/config.toml"
+LOG="$BASE/chamadas.log"
+
+cat > "$BASE/bin/docker" <<'FALSO'
+#!/usr/bin/env bash
+echo "docker $*" >> "$FAKE_LOG"
+case "$1" in
+  cp) [ "${FALHAR_CP:-0}" = 1 ] && exit 1; exit 0 ;;
+  ps) echo "supabase_db_ensaio-g23 | Up (falso) | imagem-falsa"; exit 0 ;;
+esac
+todos="$*"
+case "$todos" in
+  *"rm -f /tmp/"*) exit 0 ;;
+  *"--single-transaction"*) exit "${RC_RESTORE:-0}" ;;
+  *"-F |"*) cat > /dev/null; printf 'public.ai_agents|2\nsupabase_migrations.schema_migrations|5\n'; exit 0 ;;
+  *"where version = "*) v=$(head -1 "$SEQ_VERSAO"); sed -i '1d' "$SEQ_VERSAO"; echo "$v"; exit 0 ;;
+  *"select count(*) from supabase_migrations.schema_migrations"*) echo "${HISTORICO:-5}"; exit 0 ;;
+  *"insert into"*) exit 0 ;;
+  *"-i "*) cat > /dev/null; exit 0 ;;
+esac
+exit 0
+FALSO
+printf '#!/usr/bin/env bash\necho "npx $*" >> "$FAKE_LOG"\nexit 0\n' > "$BASE/bin/npx"
+printf '#!/usr/bin/env bash\necho "cipher $*" >> "$FAKE_LOG"\nexit 0\n' > "$BASE/bin/cipher.exe"
+chmod +x "$BASE/bin/"*
+
+# Dump falso: so cabecalhos (as duas tabelas-sentinela) e um arquivo de cada.
+printf 'CREATE TABLE IF NOT EXISTS "public"."ai_agents" (\n    "id" uuid\n);\n' > "$BASE/dump/schema.sql"
+printf 'CREATE TABLE IF NOT EXISTS "supabase_migrations"."schema_migrations" (\n    "version" text\n);\n' > "$BASE/dump/historico_schema.sql"
+printf 'COPY "public"."ai_agents" ("id") FROM stdin;\n\\.\n' > "$BASE/dump/data.sql"
+printf 'COPY "supabase_migrations"."schema_migrations" ("version") FROM stdin;\n\\.\n' > "$BASE/dump/historico_data.sql"
+: > "$BASE/dump/roles.sql"
+printf 'select 1;\n' > "$BASE/mig.sql"; printf 'select 2;\n' > "$BASE/volta.sql"
+SHA=$(sha256sum "$BASE/mig.sql" | cut -c1-64)
+printf '[{"tabela":"public.ai_agents","linhas":2},{"tabela":"supabase_migrations.schema_migrations","linhas":5}]\n' > "$BASE/antes.json"
+cp "$BASE/antes.json" "$BASE/depois.json"
+W="$(cygpath -m "$BASE")"
+
+rodar() { # $1 = nome do caso
+  : > "$LOG"; printf '1\n0\n' > "$BASE/seq"
+  PATH="$BASE/bin:$PATH" FAKE_LOG="$LOG" SEQ_VERSAO="$BASE/seq" G23_DIR="$BASE/g23" WT_DIR="$BASE/wt" \
+    bash "$SCRIPTS/ciclo_g23.sh" "$W/dump" "$BASE/mig.sql" "$BASE/volta.sql" 20261007120000 central_agentes_editor "$SHA" \
+    "$W/antes.json" "$W/depois.json" > "$BASE/saida-$1.txt" 2>&1
+  echo "$?"
+}
+conferir() { # $1 caso, $2 saida esperada, $3 texto que tem que aparecer na saida
+  local rc="$4"
+  local limpou=$(grep -c "rm -f /tmp/" "$LOG"); local parou=$(grep -c "stop --no-backup" "$LOG"); local voltou=$(grep -c "npx supabase start" "$LOG")
+  if [ "$rc" = "$2" ] && grep -q "$3" "$BASE/saida-$1.txt" && [ "$parou" = 1 ] && [ "$voltou" = 1 ]; then
+    echo "ok   $1: saida $rc | SQL do container removidos: $limpou | ensaio-g23 parada: $parou | crmia religada: $voltou | $(grep -o -E 'logs (mantidos|da tentativa apagados)' "$BASE/saida-$1.txt" | head -1)"
+  else
+    echo "FALHA $1: saida $rc (esperada $2)"; sed 's/^/    /' "$BASE/saida-$1.txt"; return 1
+  fi
+}
+falhas=0
+rc=$(FALHAR_CP=1 rodar A); conferir A 1 "docker cp roles.sql FALHOU" "$rc" || falhas=$((falhas+1))
+rc=$(HISTORICO=0 rodar C); conferir C 1 "historico de migrations VAZIO" "$rc" || falhas=$((falhas+1))
+rc=$(rodar D); conferir D 0 "CICLO OK" "$rc" || falhas=$((falhas+1))
+echo "falhas: $falhas"
+rm -rf "$BASE"
+exit $falhas
+```
+
+Run (na pasta do rito): `bash g23-restauracao/teste_ciclo.sh g23-restauracao`
+
+Expected: `ok   A` (falha no `docker cp`: saída 1, 5 SQL removidos do container, `ensaio-g23 parada: 1`, `crmia religada: 1`, `logs mantidos`); `ok   C` (histórico vazio: saída 1, mesma limpeza); `ok   D` (caminho feliz: saída 0, `logs da tentativa apagados`); `falhas: 0`. Medido em 07/10 no scratchpad. A primeira rodada do caso D falhou: com `MSYS_NO_PATHCONV=1`, o Python do Windows recebia o caminho do próprio script em formato POSIX. Corrigido com `cygpath -m`.
+
+- [ ] **Step 9: Ensaiar o ciclo com um dump da stack local (sem produção), inclusive as duas falhas**
 
 O ensaio usa a mesma mecânica com os dados de teste do banco local (`crmia`), sem produção:
 
@@ -7118,33 +7538,53 @@ docker exec -i supabase_db_crmia psql -v ON_ERROR_STOP=1 -U postgres -d postgres
 cp "$TEMP/ensaio-dump-local/antes.txt" "$TEMP/ensaio-dump-local/depois.txt"
 ```
 
-3. Trocar de stack: `npx supabase stop` no worktree (a `crmia` usa as mesmas portas); na pasta `%TEMP%/ensaio-g23` (com `supabase init` antes, se ela não existir, e `project_id = "ensaio-g23"`, `[db] major_version = 17` no `config.toml`), `npx --yes supabase@2.120.0 start`.
+3. A pasta da stack isolada, uma vez: em `%TEMP%/ensaio-g23`, `npx --yes supabase@2.120.0 init` (se ela não existir) e, no `config.toml`, `project_id = "ensaio-g23"` e `[db] major_version = 17`. Daqui em diante, o ciclo para e religa as duas stacks sozinho.
 
-4. A restauração:
+4. O ciclo, na pasta do rito:
 
 ```bash
 WT="/c/Users/PC Gamer/WorkSync/projetos/Basecrm-worktrees/central-agentes"
 MIG="$WT/supabase/migrations/20261007120000_central_agentes_editor.sql"
-bash g23-restauracao/restaurar_v2.sh "$(cygpath -m "$TEMP")/ensaio-dump-local" "$MIG" "$WT/docs/features/central-de-agentes/volta-fatia-2.sql" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)"
-python g23-restauracao/comparar_contagens.py "$TEMP/ensaio-dump-local/antes.txt" "$TEMP/ensaio-dump-local/depois.txt" "$(cygpath -u "$TEMP")/ensaio-g23/logs/copia.txt"
+VOLTA="$WT/docs/features/central-de-agentes/volta-fatia-2.sql"
+L="$(cygpath -m "$TEMP")/ensaio-dump-local"
+bash g23-restauracao/ciclo_g23.sh "$L" "$MIG" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
 ```
 
-Expected: `restauracao EXIT=0` com 0 linhas de `ERROR`; histórico com ao menos 1 linha; `antes da volta: 1` e `depois da volta: 0`; `contagens iguais antes e depois de migration + volta`; o comparador com `falhas: 0` (tabelas "só na cópia" aparecem como informação).
+Expected:
+- `restauracao EXIT=0`, com 0 linhas de `ERROR`;
+- `historico de migrations veio do dump`, com ao menos 1 linha;
+- `antes da volta: 1` e `depois da volta: 0`;
+- `contagens iguais antes e depois de migration + volta`;
+- o comparador com `falhas: 0` (tabelas "só na cópia" aparecem como informação);
+- `CICLO OK`, `crmia de pe`, `logs da tentativa apagados` e `saida=0`.
 
-5. Desfazer: `npx --yes supabase@2.120.0 stop --no-backup` na `ensaio-g23`, `npx supabase start` no worktree, `npx supabase status` com a `crmia` de pé, e apagar `%TEMP%/ensaio-dump-local`.
+5. As duas falhas de verdade, cada uma num ciclo (revisão do Codex, rodada 2: "ensaiar histórico vazio e erro SQL"):
+
+```bash
+V="$(cygpath -m "$TEMP")/ensaio-dump-vazio"
+rm -rf "$V" && cp -r "$L" "$V" && : > "$V/historico_data.sql"
+bash g23-restauracao/ciclo_g23.sh "$V" "$MIG" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
+printf 'select 1/0;\n' > "$TEMP/erro.sql"
+bash g23-restauracao/ciclo_g23.sh "$L" "$(cygpath -m "$TEMP")/erro.sql" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$TEMP/erro.sql" | cut -c1-64)" "$L/antes.txt" "$L/depois.txt"; echo "saida=$?"
+rm -rf "$V" "$TEMP/erro.sql"
+```
+
+Expected: o primeiro com `historico de migrations VAZIO` e `saida=1`; o segundo com o `ERROR` da divisão por zero na migration e `saida=1`. Nos dois: `crmia de pe` e `logs mantidos para diagnostico`. Olhar e apagar as duas pastas de logs impressas.
+
+6. Apagar `%TEMP%/ensaio-dump-local`; `npx supabase status` no worktree com a `crmia` de pé.
 
 - [ ] **Step 10: LEIA-ME e commit no cérebro**
 
-No `LEIA-ME.md` do rito: o item 6 ganha "erro HTTP sai 1, com a mensagem no stderr"; o item 10, a v4.3 (os dois requisitos do dump); o item 11, o `-Data` obrigatório (`-Modo criar|rotacionar -Data <data>`) e a regra do Step B2 da Task 15 (qualquer falha depois do `criar` rotaciona primeiro; nova tentativa em pasta nova); o item 12, a versão com parâmetro e cinco arquivos; e o item 13, o `restaurar_v2.sh`, o `contagens_todas.sql` e o `comparar_contagens.py`, com a decisão do `roles.sql` (restaurar como `supabase_admin`) e as tabelas-sentinela.
+No `LEIA-ME.md` do rito: o item 6 ganha "erro HTTP sai 1, com a mensagem no stderr"; o item 10, a v4.3 (os dois requisitos do dump); o item 11, o `-Data` obrigatório (`-Modo criar|rotacionar -Data <data>`) e a regra do Step B2 da Task 15 (qualquer falha depois do `criar` rotaciona primeiro; nova tentativa em pasta nova); o item 12, a versão com parâmetro e cinco arquivos; e o item 13, o `ciclo_g23.sh` (o jeito de rodar, com a limpeza garantida), o `restaurar_v2.sh`, o `contagens_todas.sql`, o `comparar_contagens.py` (sentinelas e inventário do dump) e o `teste_ciclo.sh`, com a decisão do `roles.sql` (restaurar como `supabase_admin`).
 
 ```bash
-git -C "/c/Users/PC Gamer/brains/cenoura-brain" add 06-References/basecrm-rito-publicacao/dump_producao.ps1 06-References/basecrm-rito-publicacao/prova_dump_local.ps1 06-References/basecrm-rito-publicacao/conferir_pos_dump.ps1 06-References/basecrm-rito-publicacao/sqlprod.py 06-References/basecrm-rito-publicacao/sqlteste.py 06-References/basecrm-rito-publicacao/rota_b_senha.ps1 06-References/basecrm-rito-publicacao/g23-restauracao/contagens_todas.sql 06-References/basecrm-rito-publicacao/g23-restauracao/comparar_contagens.py 06-References/basecrm-rito-publicacao/g23-restauracao/restaurar_v2.sh 06-References/basecrm-rito-publicacao/LEIA-ME.md
+git -C "/c/Users/PC Gamer/brains/cenoura-brain" add 06-References/basecrm-rito-publicacao/dump_producao.ps1 06-References/basecrm-rito-publicacao/prova_dump_local.ps1 06-References/basecrm-rito-publicacao/conferir_pos_dump.ps1 06-References/basecrm-rito-publicacao/sqlprod.py 06-References/basecrm-rito-publicacao/sqlteste.py 06-References/basecrm-rito-publicacao/rota_b_senha.ps1 06-References/basecrm-rito-publicacao/g23-restauracao/contagens_todas.sql 06-References/basecrm-rito-publicacao/g23-restauracao/comparar_contagens.py 06-References/basecrm-rito-publicacao/g23-restauracao/restaurar_v2.sh 06-References/basecrm-rito-publicacao/g23-restauracao/ciclo_g23.sh 06-References/basecrm-rito-publicacao/g23-restauracao/teste_ciclo.sh 06-References/basecrm-rito-publicacao/LEIA-ME.md
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" diff --cached --stat
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" commit -m "rito BaseCRM: dump v4.3 e restauracao v2 com os quatro requisitos da politica de backup (pooler lido, roles como supabase_admin, historico de migrations, todas as tabelas)"
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" push
 git -C "/c/Users/PC Gamer/brains/cenoura-brain" status -sb
 ```
-Expected: o `--stat` lista só esses dez caminhos; `status -sb` sem `[ahead N]`.
+Expected: o `--stat` lista só esses doze caminhos; `status -sb` sem `[ahead N]`.
 
 ---
 
@@ -7382,11 +7822,19 @@ Mensagem ao Junior, com o resultado da Parte A e esta lista (ele aprova, recusa 
 2. **Restauração do dump** na stack isolada, com a migration desta fatia e a volta dela aplicadas na cópia.
 3. **A migration desta fatia em produção** (só cria as três funções; nenhuma tabela, coluna ou dado muda), pelo `aplicar_migration.py`.
 4. **Publicar o código** (`main`): a Central de Agentes aparece só para a agência; o aviso na Central de I.A e o 409 do PATCH passam a valer.
-5. **Criar o agente da Aurora e ligar o número dela** (`20532687-e868-48c4-977b-f6f7cac72131`), depois de uma resposta real nova que confira. Só o grupo desse número vira agente (`--somente`). Se a conferência depois de ligar falhar, o próprio script desfaz; se terminar **incerta** (saída 3), desligar o número pelo `--desligar --se-agente` do agente criado. Qualquer outro desligamento pede um OK novo.
+5. **Criar o agente da Aurora e ligar o número dela** (`20532687-e868-48c4-977b-f6f7cac72131`), depois de uma resposta real nova que confira. Só o grupo desse número vira agente (`--somente`). Se a conferência depois de ligar falhar, o próprio script desfaz; se terminar **incerta** (saída 3), desligar o número pelo `--desligar --se-agente` do agente criado, uma vez só e em até 60 minutos. Qualquer outro desligamento pede um OK novo, que cita o agente.
 6. **A Julia fica como está:** o webhook dela está desligado por decisão dele (15/09) e o `--ligar` recusa enquanto estiver. Religar é decisão dele, e só depois disso ela entra.
-7. **Retenção dos dumps:** a proposta de 07/10 (o de 07/10 sai no máximo em 21/10/2026, ou antes, quando houver dump mais novo e o `CONFERE` da Aurora) vale também para este; sem decisão dele, nada é apagado.
+7. **Retenção dos dumps:**
+   - o de 07/10 já tem regra aprovada pelo Junior em 07/10 ("pode"): sai quando este dump novo existir, conferido no B3, e a Aurora tiver o `CONFERE`, ou em 21/10/2026, o que vier antes;
+   - para este dump novo, propor a mesma regra contada da data dele: sai em até 14 dias, ou antes, quando houver dump mais novo e a conferência da ligação;
+   - sem a palavra dele, nada é apagado.
 
-O OK vai literal para `migracoes-aprovadas.json` (`producao_liberada`, itens 1 a 4) e para `ligacoes-aprovadas.json` (item 5), commitados no cérebro antes de qualquer escrita.
+**Logo depois do OK, antes do B1 e do B2,** gravar `producao_liberada` em `migracoes-aprovadas.json`:
+- `por`, `em` e o texto literal do OK, itens 1 a 4;
+- `maquina` = o `COMPUTERNAME`;
+- `token_do_agente_aceito: true`, pela decisão 7 da SPEC.
+
+Commitar no cérebro por caminho explícito e conferir `git status -sb` sem `[ahead N]`. O item 5 vai para o `ligacoes-aprovadas.json` no B1, também commitado antes do B2. Nenhuma troca de senha, dump ou escrita em produção acontece antes desses dois commits. Revisão do Codex, rodada 2: a v2 prometia isso aqui, mas só gravava o `producao_liberada` no B3, depois da troca de senha e do dump.
 
 - [ ] **Step B1: `ligacoes-aprovadas.json` e `rodar_migrar_prod.py` v2**
 
@@ -7394,7 +7842,7 @@ Criar no rito `ligacoes-aprovadas.json`:
 
 ```json
 {
-  "_leia-me": "Lido por rodar_migrar_prod.py (v2). Escrita em produção pelo migrar-agentes.ts (--criar, --ligar, --desligar) só roda para o que estiver aqui, commitado no cérebro e sem mudança local, com o OK do Junior citado (por, em, texto; campo vazio ou entre <> recusa). --criar exige --somente com o número de uma entrada e a org dela. --desligar exige --se-agente igual a 'agente' e só roda quando o último --ligar do número terminou incerto (saída 3), ou com 'desligar_liberado' preenchido (um OK novo: por, em, texto).",
+  "_leia-me": "Lido por rodar_migrar_prod.py (v2). Escrita em produção pelo migrar-agentes.ts (--criar, --ligar, --desligar) só roda para o que estiver aqui, commitado no cérebro e sem mudança local, com o OK do Junior citado (por, em, texto; campo vazio ou entre <> recusa). --criar exige --somente com o número de uma entrada e a org dela. --desligar exige --se-agente igual a 'agente' e só roda quando o último --ligar do número terminou incerto (saída 3), ou com 'desligar_liberado' preenchido (um OK novo: por, em, texto e agente; volta a null no commit seguinte ao uso). A autorização do caso incerto é de uso único: mesmo número, mesmo agente, saída 3 e até 60 minutos.",
   "numeros": {
     "20532687-e868-48c4-977b-f6f7cac72131": {
       "nome": "Aurora, Cenno Hub (instância whatsapp-ia-bba4d621)",
@@ -7424,8 +7872,11 @@ v2 (fatia 2, com a revisao do Codex de 07/10): a escrita so roda para o que esti
 pasta), COMMITADO no cerebro e sem mudanca local, com o OK do Junior citado por inteiro (org, por, em, texto preenchidos;
 campo entre <> recusa). --criar exige --somente com um numero da lista e a organizacao dele. --ligar e --desligar exigem o
 numero listado. --desligar exige --se-agente igual ao 'agente' da entrada e so roda no caso que o OK cobre: o ultimo
---ligar deste numero, por este wrapper, terminou incerto (saida 3). Fora disso, so com 'desligar_liberado' preenchido."""
-import io, json, os, re, subprocess, sys, tempfile, urllib.request
+--ligar deste numero, por este wrapper, terminou incerto (saida 3). Fora disso, so com 'desligar_liberado' preenchido.
+Rodada 2 do Codex: a autorizacao do caso incerto e de USO UNICO e amarrada a tentativa: mesmo numero, mesmo agente,
+saida 3 e no maximo 60 minutos; o --desligar a consome antes de rodar, e o script ainda rele o numero (--se-agente).
+'desligar_liberado' (um OK novo) tem que citar o agente, e volta a null no commit seguinte ao uso."""
+import io, json, os, re, subprocess, sys, tempfile, time, urllib.request
 args = sys.argv[1:]
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MANIFESTO = "ligacoes-aprovadas.json"
@@ -7471,10 +7922,19 @@ if escrita:
             ultimo = json.load(io.open(REGISTRO, encoding="utf-8"))
         except Exception:
             pass
-        incerto = ultimo.get("numero") == numero and ultimo.get("saida") == 3
+        # Uso unico e amarrado a tentativa (revisao do Codex, rodada 2): um registro antigo, de outra ligacao do
+        # mesmo numero ou de outro agente, nao autoriza nada.
+        idade = time.time() - float(ultimo.get("quando") or 0)
+        incerto = (
+            ultimo.get("numero") == numero and ultimo.get("agente") == item["agente"]
+            and ultimo.get("saida") == 3 and 0 <= idade <= 3600
+        )
         liberado = item.get("desligar_liberado") or {}
-        if not incerto and not all(preenchido(liberado.get(c)) for c in ("por", "em", "texto")):
-            recusar("--desligar so quando o ultimo --ligar deste numero terminou incerto (saida 3), ou com desligar_liberado preenchido (um OK novo)")
+        ok_novo = all(preenchido(liberado.get(c)) for c in ("por", "em", "texto")) and liberado.get("agente") == item["agente"]
+        if not incerto and not ok_novo:
+            recusar("--desligar so quando o ultimo --ligar deste numero e deste agente terminou incerto (saida 3) ha menos de 60 minutos, ou com desligar_liberado preenchido e citando o agente (um OK novo)")
+        if incerto:
+            os.remove(REGISTRO)  # consumido antes de rodar: a mesma tentativa nao autoriza um segundo --desligar
     print("liberado por %s em %s: \"%s\"" % (item.get("por"), item.get("em"), (item.get("texto") or "")[:160]))
 
 COFRE = os.path.join(os.path.expanduser("~"), "WorkSync", ".secrets")
@@ -7508,7 +7968,8 @@ p = subprocess.run(cmd, cwd=WORKTREE, env=env)
 print("exit=", p.returncode)
 if "--ligar" in args:
     os.makedirs(os.path.dirname(REGISTRO), exist_ok=True)
-    json.dump({"numero": valor("--ligar"), "saida": p.returncode}, io.open(REGISTRO, "w", encoding="utf-8"))
+    json.dump({"numero": valor("--ligar"), "agente": item["agente"], "saida": p.returncode, "quando": time.time()},
+              io.open(REGISTRO, "w", encoding="utf-8"))
 sys.exit(p.returncode)
 ```
 
@@ -7552,14 +8013,24 @@ Expected: `saida=0` e `2`.
 
 - [ ] **Step B3: Restauração do dump de produção, com migration e volta da fatia**
 
-A mesma sequência do Step 9 da Task 14 (trocar de stack, `restaurar_v2.sh`, desfazer), com a pasta do dump de produção e os arquivos `antes.json` e `depois.json` do Step B2 no comparador:
+O mesmo ciclo do Step 9 da Task 14, com a pasta do dump de produção e os arquivos `antes.json` e `depois.json` do Step B2. O `ciclo_g23.sh` derruba a `ensaio-g23` com `--no-backup` (a cópia restaurada some junto) e religa a `crmia` sempre, também em erro:
 ```bash
-bash g23-restauracao/restaurar_v2.sh "C:/Users/PC Gamer/BaseCRM-dumps/<data>" "$MIG" "$WT/docs/features/central-de-agentes/volta-fatia-2.sql" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)"
-python g23-restauracao/comparar_contagens.py "$TEMP/ensaio-g23/contagens/antes.json" "$TEMP/ensaio-g23/contagens/depois.json" "$(cygpath -u "$TEMP")/ensaio-g23/logs/copia.txt"
+WT="/c/Users/PC Gamer/WorkSync/projetos/Basecrm-worktrees/central-agentes"
+MIG="$WT/supabase/migrations/20261007120000_central_agentes_editor.sql"
+VOLTA="$WT/docs/features/central-de-agentes/volta-fatia-2.sql"
+C="$(cygpath -m "$TEMP")/ensaio-g23/contagens"
+bash g23-restauracao/ciclo_g23.sh "C:/Users/PC Gamer/BaseCRM-dumps/<data>" "$MIG" "$VOLTA" 20261007120000 central_agentes_editor "$(sha256sum "$MIG" | cut -c1-64)" "$C/antes.json" "$C/depois.json"; echo "saida=$?"
 ```
-Expected: restauração saída 0 sem `ERROR`, histórico vindo do dump, versão `0` no histórico depois da volta, contagens iguais antes e depois de migration + volta, comparador com `falhas: 0`. Derrubar a `ensaio-g23` com `stop --no-backup` (a cópia restaurada some junto) e religar a `crmia`.
+Expected:
+- restauração saída 0 sem `ERROR`;
+- histórico vindo do dump, com 1 linha da versão antes da volta e 0 depois;
+- contagens iguais antes e depois de migration + volta;
+- comparador com `falhas: 0`, inventário do dump incluído;
+- `CICLO OK`, `crmia de pe`, `logs da tentativa apagados` e `saida=0`.
 
-Registrar em `ensaios.copia_restaurada` do manifesto (sha256 da migration, data e hora BRT, o resumo das saídas) e `producao_liberada` (por, em, texto literal do OK, `maquina` = o `COMPUTERNAME`, `token_do_agente_aceito: true` pela decisão 7 da SPEC). Commit no cérebro.
+Registrar em `ensaios.copia_restaurada` do manifesto (sha256 da migration, data e hora BRT, o resumo das saídas) e commitar no cérebro. O `producao_liberada` já foi gravado no B0.
+
+Com o B3 em `falhas: 0`, aplica-se a regra do dump de 07/10, aprovada pelo Junior em 07/10: se a Aurora já tiver o `CONFERE`, apagar a pasta `C:\Users\PC Gamer\BaseCRM-dumps\2026-10-07`, conferir que sumiu e registrar a hora no cartão do BaseCRM. Sem o `CONFERE`, ela fica até ele ou até 21/10.
 
 - [ ] **Step B4: Migration em produção**
 
@@ -7665,13 +8136,13 @@ Feita contra a SPEC (`docs/features/central-de-agentes/SPEC.md`: "Fatia 2", "Cri
 | Portão | Como fica nesta fatia |
 |---|---|
 | G2 e G13 | As três funções novas: `execute` só para `authenticated`, revogado de `public`, `anon` e `service_role`; a auxiliar das variáveis sem `execute` para ninguém. Na Task 2, o privilégio efetivo é lido no catálogo (`has_function_privilege`) e a chamada de verdade separa o "permission denied" do Postgres do `sem_permissao` da função. Só `agency_admin` e o legado `admin` passam do papel. |
-| G3 | `adminOnly` em toda rota (Task 5) e papel conferido de novo dentro de cada função (Task 1). A regra que bloqueia Publicar (variável fora das 12) vale também dentro da função, para quem chamar direto pelo JWT (Tasks 1 e 2). |
+| G3 | `adminOnly` em toda rota (Task 5) e papel conferido de novo dentro de cada função (Task 1). A regra que bloqueia Publicar (variável fora das 12) vale também dentro da função, para quem chamar direto pelo JWT (Tasks 1 e 2). A confirmação de aviso fica só na rota: desvio declarado (seção 4, item 6). |
 | G4 | A função recebe a organização e só acha o agente com o filtro dela (Task 1); toda leitura filtra por organização (Task 4). |
 | G5 e G19 | `.strict()` em todo corpo; o autor vem de `auth.uid()`, nunca do corpo. `settings` e `model` mandados ao publicar recebem 400 (Task 5). |
 | G7 e G18 | Teto de 50 mil caracteres na rota e na função, nota de até 200, limite de células na comparação (Tasks 1, 5 e 7); aviso acima de 30 mil (Task 3). |
 | G20 | Invariantes novas: o rascunho só se grava sobre a revisão lida; só se publica o rascunho mostrado; restaurar não cria versão igual à publicada (`sem_mudancas`); nenhuma versão é publicada nem restaurada com variável fora das 12, garantido no banco. A versão continua imutável pelo gatilho da fatia 1. |
 | G22 | A configuração da conexão nunca sai do servidor (Task 4, teste com `NAO-PODE-SAIR`); o script nunca imprime a query, os cabeçalhos ou o corpo do webhook (Task 12). |
-| G23 | A migration só cria funções (aditiva). Backup com os quatro requisitos (Task 14), com as contagens parando em erro HTTP, arquivo vazio ou falta das tabelas-sentinela, a senha sempre na pasta do dump e rotacionada depois de qualquer falha; restauração e volta na cópia (Task 15, B3). Continua **FAIL com exceção residual aceita** (decisão 7), como na fatia 1. |
+| G23 | A migration só cria funções (aditiva). Backup com os quatro requisitos (Task 14): as contagens param em erro HTTP, arquivo vazio ou falta das sentinelas e são confrontadas com o inventário do próprio dump; a senha fica sempre na pasta do dump e é rotacionada depois de qualquer falha; a restauração e a volta na cópia rodam pelo `ciclo_g23.sh`, que limpa a stack isolada e religa a `crmia` mesmo em erro (Task 15, B3). Continua **FAIL com exceção residual aceita** (decisão 7), como na fatia 1. |
 | G24 | **NÃO-TESTADO**: o rastro de versão é registro, e esta fatia não cria alerta. |
 | G25 | N/A. Nenhuma branch nova vai para o GitHub; o ensaio usa `feat/aurora-implantacao`, que já tem as variáveis do banco de teste. |
 | G15, G16 e G17 | N/A: o teste sem enviar é da fatia 3. |
@@ -7683,6 +8154,13 @@ Feita contra a SPEC (`docs/features/central-de-agentes/SPEC.md`: "Fatia 2", "Cri
 3. **`settings` e `model` não passam pelo publicar.** A versão nova copia os da publicada (hoje `{}` e nulo). A recusa de chave desconhecida em `settings` (G5/G19) vale por construção: a função não tem esse parâmetro e a rota devolve 400 para os dois campos. A lista fechada de chaves chega na fatia 4.
 4. **A Julia não é ligada junto com a Aurora.** O webhook dela está desligado por decisão do Junior em 15/09. O script recusa com `webhook_desligado`, e isso é o esperado (Task 15, B9). Ela entra quando ele religar o webhook num domínio da lista e houver uma resposta real nova.
 5. **Restaurar recusa conteúdo igual ao publicado** (`sem_mudancas`). A SPEC não fala disso; sem a recusa, restaurar a versão que já é a atual criaria uma N+1 idêntica, e o histórico ganharia uma linha que não muda nada.
+6. **A confirmação dos avisos fica na rota, não na função** (achado 5 da rodada 2 do Codex). A SPEC pede confirmação para publicar com aviso. A rota exige; a função não a recebe. Um `agency_admin` que chame `publish_ai_agent_version` direto, com o próprio JWT, publica um rascunho com aviso sem passar pelo diálogo. Fica assim, e a decisão vai declarada como exceção à SPEC, para o Codex aceitar ou contestar:
+   - aviso não é regra de integridade: o que quebra o atendimento (variável fora das 12, rascunho vazio, tamanho) é erro, e está no banco desde a rodada 1;
+   - só `agency_admin` e o legado `admin` executam a função (matriz G2), então não há elevação de privilégio: é o mesmo papel que confirmaria no diálogo;
+   - chamar a função direto é um ato deliberado, fora da tela, e o diálogo existe para evitar publicar por engano na tela;
+   - impor no banco obrigaria a recalcular os avisos em SQL, duplicando a verificação da tela: é a divergência que a escolha 4 da rodada 2 mostrou ser perigosa.
+
+   A versão registra o autor e a hora. O Codex disse que o autor não equivale à confirmação, e não equivale; por isso o item está aqui, como desvio, e não como fechado.
 
 ### 5. Varredura de lacunas, nomes e medições
 
@@ -7744,4 +8222,44 @@ Medido nesta rodada, além do que a seção 5 já trazia:
 - numa cópia do bloco `param` novo do `rota_b_senha.ps1`, a falta de `-Data` sai 1 e um formato errado também (achado 27);
 - o `dump_producao.ps1` v4.2 apaga a senha no `finally`, mas não os arquivos parciais, e recusa pasta com qualquer outro item (linhas 194 a 197 e 261 a 269), o que tornava impossível o "repetir o passo 4" da v1 (achado 28).
 
-**Ainda não chegou:** o resultado dos dois revisores adversariais e o parecer consolidado (go ou no-go). Eles voltam quando o limite do Codex liberar.
+**Fechado na rodada 2:** os dois revisores adversariais e o parecer consolidado chegaram. O parecer foi no-go, e a resposta está na seção 7.
+
+### 7. Revisão do Codex, rodada 2 (07/10, 14h08 a 14h28): no-go, 12 achados
+
+O parecer literal está em `06-References/central-de-agentes-2026-09-29/devolutiva-codex-2-fatia-2.md`. Os 12 achados foram conferidos contra o plano e o código, e todos procedem. O 5 virou desvio declarado (seção 4, item 6), com o motivo; os outros 11 entraram nas tasks. Na mesma conferência saíram três achados meus, e a Task 0, ao rodar, achou dois defeitos de texto.
+
+| # | Achado | Decisão | Onde |
+|---|---|---|---|
+| 1 | Recuperar uma cópia antiga contorna o 409 | Aceito. A cópia guarda a revisão de base, e todo salvar comum manda essa revisão; recuperar com base velha cai no conflito, e sobrescrever só com "Salvar o meu por cima" | Task 8 |
+| 2 | Duas abas: salvar numa apaga a cópia da outra | Aceito. A chave leva a instância do editor; salvar apaga só a própria; a busca lê as cópias de todas as abas | Task 8 |
+| 3 | O histórico da restauração só era impresso | Aceito. `p()` com `ON_ERROR_STOP`, e os três números exigidos (mais de 0, 1 e 0) | Task 14, Steps 8 e 8b |
+| 4 | Falha na restauração sem limpeza garantida | Aceito. `trap` no `restaurar_v2.sh` (SQL do container) e o `ciclo_g23.sh` (derruba a stack isolada, religa a `crmia`, logs da tentativa cifrados) | Task 14, Step 8b; Task 15, B3 |
+| 5 | A confirmação dos avisos é contornável pela função | Desvio declarado, com o motivo | Seção 4, item 6 |
+| 6 | Aplicação local sem transação | Aceito. `--single-transaction` com a migration e o registro, e o `NOTIFY` só com sucesso. Em produção, a chamada da API é atômica (medido) | Task 1, Step 6 |
+| 7 | As sentinelas não provam todas as tabelas | Aceito. Inventário independente, tirado dos arquivos do dump | Task 14, Step 7 |
+| 8 | Vinculação à agência antes do 409, na corrida | Aceito. A vinculação vai para depois da gravação bem-sucedida, e os testes exigem que ela não aconteça no 409 nem no 404 | Task 10 |
+| 9 | `--desligar` autorizado por incidente antigo | Aceito. Uso único: mesmo número, mesmo agente, saída 3 e até 60 minutos, consumido antes de rodar; o OK novo cita o agente | Task 15, B1 |
+| 10 | O OK só era gravado no B3 | Aceito. `producao_liberada` gravado e commitado logo depois do OK, antes do B1 e do B2 | Task 15, B0 e B3 |
+| 11 | O observador da corrida aceita qualquer sessão travada | Aceito. Filtra pela consulta da segunda publicação | Task 2 |
+| 12 | `numerosDosAgentes` sem paginação | Aceito. Páginas de 500 por id, com teste de 1.203 números | Task 4 |
+| Escolha 1 | Sentinelas como prova de totalidade | Contestada; resolvida pelo achado 7. As sentinelas ficam para pegar arquivo vazio | Task 14 |
+| Escolha 2 | Rotacionar a senha antes da segunda contagem | Aprovada | Task 15, B2 |
+| Escolha 3 | Cópia em `localStorage` | Contestada pelos achados 1 e 2; corrigida por eles | Task 8 |
+| Escolha 4 | Equivalência das regras de variável | Contestada, e a divergência existia. Banco e tela agora aparam só espaço, tab e quebra ASCII (`nomeDoMarcador`), e a matriz comum de 12 casos roda no teste local | Tasks 1, 3 e 4 |
+| Meu 1 | Os bancos falsos das Tasks 4 e 9 não cortavam em 1.000 linhas: o teste de paginação passaria até com leitura única | Corte de 1.000, como o PostgREST | Tasks 4 e 9 |
+| Meu 2 | O comparador recebia caminho POSIX (`/c/...`, `/tmp/...`) no Python do Windows, com `MSYS_NO_PATHCONV=1` (Step 9 da Task 14 e B3 da v2) | `cygpath -m` no ciclo; pego pelo teste do ciclo | Task 14 |
+| Meu 3 | Uma tabela excluída de propósito do `data.sql` aparece na cópia com 0 linhas e daria `DIVERGE` se a produção tivesse linhas | Não é comparada | Task 14, Step 7 |
+| Task 0 | `git rev-parse --short` com três revisões falha; o Expected pedia três shas iguais com o worktree à frente | Corrigidos | Task 0 |
+
+Medido nesta rodada:
+- **Matriz de marcadores no PGlite 18.3:**
+  - com as regras novas: 0 divergências em 12 casos;
+  - com as da v2: 1 divergência. Com NBSP no fim do nome, o banco recusava e a tela aceitava; o em space (U+2003) passava nos dois;
+  - com a regra nova, NBSP e em space são recusados nos dois;
+  - todo marcador aceito sai trocado pelo renderizador real (`render.ts`).
+- **API de gerenciamento, no banco de teste:** `create table` seguido de `select 1/0` na mesma chamada voltou 400, e a tabela não ficou. A chamada é atômica.
+- **Comparador v3:** passa no caso bom e reprova nos quatro ruins. O caso cortado, que a v2 aprovava, agora reprova nas três contagens.
+- **`teste_ciclo.sh`:** 3 casos (falha no `docker cp`, histórico vazio, caminho feliz) e 0 falhas. A primeira rodada achou o caminho POSIX (meu 2).
+- **Wrapper:** o `rodar_migrar_prod.py` v2, extraído do plano, compila.
+
+**Ainda não chegou:** o parecer da rodada 3.
