@@ -16,6 +16,14 @@ type FeatureItem = {
   promptKey?: string;
 };
 
+/** Resposta do GET /api/settings/ai-prompts/[key] (Central de Agentes, fatia 2). */
+type ResumoDosAgentes = {
+  organizationId: string;
+  numerosDaChave: number;
+  numerosComAgente: number;
+  agentes: Array<{ id: string; nome: string }>;
+};
+
 const FEATURES: FeatureItem[] = [
   {
     key: 'ai_chat_agent',
@@ -98,6 +106,10 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptResetting, setPromptResetting] = useState(false);
+  const [resumoAgentes, setResumoAgentes] = useState<ResumoDosAgentes | null>(null);
+  const todosComAgente = Boolean(
+    resumoAgentes && resumoAgentes.numerosDaChave > 0 && resumoAgentes.numerosComAgente === resumoAgentes.numerosDaChave,
+  );
 
   const items = useMemo(() => FEATURES, []);
   const catalogMap = useMemo(() => getPromptCatalogMap(), []);
@@ -143,9 +155,13 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
       const fallbackDefault = catalogMap?.[feature.promptKey]?.defaultTemplate || '';
       const nextPrompt = activeContent.trim().length > 0 ? activeContent : fallbackDefault;
       setPromptDraft(nextPrompt || '');
+      setResumoAgentes((data?.agentes as ResumoDosAgentes | null | undefined) ?? null);
     } catch (error: any) {
       showToast(error?.message || 'Falha ao carregar prompt', 'error');
       setPromptDraft('');
+      // Sem saber se os números desta chave já respondem por um agente, editar seria às cegas: o editor fecha.
+      setPromptEditorOpen(false);
+      setEditingFeature(null);
     } finally {
       setPromptLoading(false);
     }
@@ -157,6 +173,7 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
     setPromptEditorOpen(false);
     setEditingFeature(null);
     setPromptDraft('');
+    setResumoAgentes(null);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -317,7 +334,11 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
               </button>
             </div>
 
-            {promptLoading ? (
+            {resumoAgentes && resumoAgentes.numerosComAgente > 0 ? (
+              <AvisoDosAgentes resumo={resumoAgentes} todos={todosComAgente} />
+            ) : null}
+
+            {todosComAgente ? null : promptLoading ? (
               <div className="flex min-h-[280px] items-center justify-center text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -334,19 +355,23 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
             )}
 
             <div className="flex items-center justify-between gap-2 pt-2">
-              <button
-                type="button"
-                onClick={resetPromptOverride}
-                disabled={!isAdmin || promptResetting || promptSaving}
-                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
-                  !isAdmin || promptResetting || promptSaving
-                    ? 'cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10'
-                    : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5'
-                }`}
-              >
-                {promptResetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-                Reset
-              </button>
+              {todosComAgente ? (
+                <span />
+              ) : (
+                <button
+                  type="button"
+                  onClick={resetPromptOverride}
+                  disabled={!isAdmin || promptResetting || promptSaving}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
+                    !isAdmin || promptResetting || promptSaving
+                      ? 'cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10'
+                      : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {promptResetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                  Reset
+                </button>
+              )}
 
               <div className="flex items-center gap-2">
                 <button
@@ -357,19 +382,21 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
                 >
                   Fechar
                 </button>
-                <button
-                  type="button"
-                  onClick={savePromptOverride}
-                  disabled={!isAdmin || promptSaving || promptLoading || !promptDraft.trim()}
-                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                    !isAdmin || promptSaving || promptLoading || !promptDraft.trim()
-                      ? 'cursor-not-allowed bg-slate-300 dark:bg-white/10'
-                      : 'bg-brand-600 hover:bg-brand-700'
-                  }`}
-                >
-                  {promptSaving ? <Loader2 size={16} className="animate-spin" /> : null}
-                  Salvar
-                </button>
+                {todosComAgente ? null : (
+                  <button
+                    type="button"
+                    onClick={savePromptOverride}
+                    disabled={!isAdmin || promptSaving || promptLoading || !promptDraft.trim()}
+                    className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                      !isAdmin || promptSaving || promptLoading || !promptDraft.trim()
+                        ? 'cursor-not-allowed bg-slate-300 dark:bg-white/10'
+                        : 'bg-brand-600 hover:bg-brand-700'
+                    }`}
+                  >
+                    {promptSaving ? <Loader2 size={16} className="animate-spin" /> : null}
+                    Salvar
+                  </button>
+                )}
               </div>
             </div>
           </>
@@ -378,3 +405,27 @@ export const AIFeaturesSection: React.FC<{ podeEditarPrompt?: boolean }> = ({
     </div>
   );
 };
+
+function AvisoDosAgentes({ resumo, todos }: { resumo: ResumoDosAgentes; todos: boolean }) {
+  const semAgente = resumo.numerosDaChave - resumo.numerosComAgente;
+  return (
+    <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+      <p className="font-semibold">
+        {todos
+          ? resumo.numerosDaChave === 1
+            ? 'O número que usa este prompt responde por um agente da Central de Agentes. Editar aqui não muda nada nele.'
+            : `Os ${resumo.numerosDaChave} números que usam este prompt respondem por agentes da Central de Agentes. Editar aqui não muda nada neles.`
+          : `${resumo.numerosComAgente} de ${resumo.numerosDaChave} números que usam este prompt respondem por um agente. Esta edição vale só para ${semAgente === 1 ? 'o outro número' : `os outros ${semAgente}`}.`}
+      </p>
+      <ul className="mt-2 space-y-1">
+        {resumo.agentes.map((agente) => (
+          <li key={agente.id}>
+            <a href={`/platform/tenants/${resumo.organizationId}/agents/${agente.id}`} className="font-medium underline underline-offset-2">
+              {`Editar ${agente.nome} na Central de Agentes`}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

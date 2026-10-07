@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
+import { resumirNumerosDaChave, type ResumoDaChave } from '@/lib/agents/numerosDaChave';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { requireAdminTenantContext } from '@/lib/platform/adminTenantContext';
 
@@ -26,7 +27,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
   if (error) return json({ error: error.message }, 500);
 
   const active = (data || []).find((row) => row.is_active) || null;
-  return json({ key, active, versions: data || [] });
+
+  // Central de Agentes (fatia 2): quantos números desta chave já respondem por um agente. Só para a agência, que é
+  // quem edita prompt. Sem essa resposta o editor não abre (a tela fecha no erro): editar às cegas teria efeito nenhum.
+  let agentes: ResumoDaChave | null = null;
+  if (auth.isAgencyAdmin) {
+    try {
+      agentes = await resumirNumerosDaChave(createStaticAdminClient(), auth.targetOrganizationId, key);
+    } catch (erro) {
+      console.error('[ai-prompts]', 'numeros com agente', { message: erro instanceof Error ? erro.message : String(erro) });
+      return json({ error: 'Não foi possível conferir agora os números que usam este prompt. Tente de novo em instantes.' }, 500);
+    }
+  }
+  return json({ key, active, versions: data || [], agentes });
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ key: string }> }) {

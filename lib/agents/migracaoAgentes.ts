@@ -14,7 +14,7 @@ export function sha256Hex(texto: string) {
 /** Página da leitura de conexões: abaixo do `max_rows` do PostgREST (1.000 no local). */
 const PAGINA = 500;
 
-type ConexaoLida = {
+export type ConexaoLida = {
   id: string;
   organization_id: string;
   name: string;
@@ -115,7 +115,7 @@ function situacaoNaProducao(
 }
 
 /** Todas as conexões de WhatsApp, em páginas por id: o PostgREST corta leitura grande sem erro. */
-async function lerConexoes(admin: SupabaseClient, organizationId?: string): Promise<ConexaoLida[]> {
+export async function lerConexoes(admin: SupabaseClient, organizationId?: string): Promise<ConexaoLida[]> {
   const todas: ConexaoLida[] = [];
   let depoisDe: string | null = null;
   for (;;) {
