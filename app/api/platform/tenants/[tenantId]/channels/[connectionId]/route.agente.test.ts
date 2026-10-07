@@ -18,8 +18,11 @@ const LIGADO = { id: CONNECTION, ...ANTES, config: baseConfig, metadata: {}, ai_
 let leituras: Array<Record<string, unknown> | null> = [];
 /** O que a gravação devolve: a linha gravada, ou nenhuma (a condição não casou). */
 let gravacaoCasa = true;
-/** Quando não vazia, cada gravação consome o próximo item no lugar de `gravacaoCasa` (a gravação e depois o desfazer). */
-let respostasDaGravacao: boolean[] = [];
+/**
+ * Quando não vazia, cada gravação consome o próximo item no lugar de `gravacaoCasa` (a gravação e depois o desfazer):
+ * true = a linha casa, false = não casa, 'lanca' = a chamada lança (rede).
+ */
+let respostasDaGravacao: Array<boolean | 'lanca'> = [];
 
 vi.mock('node:dns/promises', () => {
   const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
@@ -56,7 +59,10 @@ vi.mock('@/lib/supabase/server', () => ({
             id: CONNECTION, provider: 'evolution', channel_type: 'whatsapp', name: 'Comercial', status: 'connected', config: updates.config, metadata: {},
             updated_at: updates.updated_at,
           };
-          const resposta = () => Promise.resolve({ data: casa ? linha : null, error: null });
+          const resposta = () =>
+            casa === 'lanca'
+              ? Promise.reject(new Error('Falha de rede simulada.'))
+              : Promise.resolve({ data: casa ? linha : null, error: null });
           const encadeamento = {
             eq: (coluna: string, valor: unknown) => {
               eqDaGravacaoMock(coluna, valor);
@@ -160,11 +166,14 @@ describe('PATCH da conexão — vinculação à agência falha depois da gravaç
     expect(gravou.config).toMatchObject({ aiEnabled: false });
     // O desfazer devolve exatamente as colunas gravadas ao valor lido antes, inclusive o updated_at...
     expect(desfez).toEqual({ config: SEM_AGENTE.config, updated_at: SEM_AGENTE.updated_at });
-    // ...e só pega a linha se ela ainda é a que esta rota gravou (ninguém gravou depois).
+    // ...e só pega a linha se ela ainda é a que esta rota gravou (ninguém gravou depois)...
     expect(eqDaGravacaoMock).toHaveBeenCalledWith('updated_at', gravou.updated_at);
+    // ...e se continua sem agente, como foi lida: ligar não muda o updated_at (rodada 4). A gravação deste pedido não
+    // usa `.is` (não traz aiPromptKey), então a condição é do desfazer.
+    expect(condicaoMock).toHaveBeenCalledWith('ai_agent_id', null);
   });
 
-  it('a vinculação falhou e o desfazer não pegou a linha (alguém gravou depois): 500 dizendo que a conexão foi alterada', async () => {
+  it('a vinculação falhou e o desfazer não pegou a linha (alguém gravou ou ligou depois): 500 com o aviso', async () => {
     leituras = [SEM_AGENTE];
     respostasDaGravacao = [true, false];
     bindingMock.mockRejectedValueOnce(new Error('Falha simulada na vinculação.'));
@@ -172,8 +181,27 @@ describe('PATCH da conexão — vinculação à agência falha depois da gravaç
     expect(r.status).toBe(500);
     const corpo = await r.json();
     expect(corpo).toMatchObject({ code: 'VINCULACAO_FALHOU_SEM_DESFAZER' });
-    expect(corpo.error).toContain('FOI alterada');
+    expect(corpo.error).toContain('pode ter ficado alterada');
     expect(updateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('o desfazer lança (rede): 500 com o aviso, nunca uma exceção solta (rodada 4)', async () => {
+    leituras = [SEM_AGENTE];
+    respostasDaGravacao = [true, 'lanca'];
+    bindingMock.mockRejectedValueOnce(new Error('Falha simulada na vinculação.'));
+    const r = await patch({ config: { aiEnabled: false } });
+    expect(r.status).toBe(500);
+    expect(await r.json()).toMatchObject({ code: 'VINCULACAO_FALHOU_SEM_DESFAZER' });
+  });
+
+  it('número ligado: o desfazer só pega a linha se ela continua com o MESMO agente lido (rodada 4)', async () => {
+    leituras = [LIGADO];
+    bindingMock.mockRejectedValueOnce(new Error('Falha simulada na vinculação.'));
+    const r = await patch({ config: { aiEnabled: false } });
+    expect(r.status).toBe(500);
+    expect(await r.json()).toMatchObject({ code: 'VINCULACAO_FALHOU' });
+    expect(eqDaGravacaoMock).toHaveBeenCalledWith('ai_agent_id', AGENTE);
+    expect(condicaoMock).not.toHaveBeenCalled();
   });
 
   it('vinculação que dá certo: uma gravação só, sem desfazer', async () => {

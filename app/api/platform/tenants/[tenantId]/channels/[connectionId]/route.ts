@@ -239,20 +239,30 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
       const anterior = current.data as Record<string, unknown>;
       const desfazer: Record<string, unknown> = {};
       for (const coluna of Object.keys(updates)) desfazer[coluna] = anterior[coluna] ?? null;
-      const desfeito = await admin
-        .from('channel_connections')
-        .update(desfazer)
-        .eq('id', connectionId)
-        .eq('organization_id', tenantId)
-        .eq('updated_at', String((data as { updated_at?: unknown }).updated_at ?? ''))
-        .select('id')
-        .maybeSingle();
-      if (!desfeito.error && desfeito.data) {
+      let desfez = false;
+      try {
+        let volta = admin
+          .from('channel_connections')
+          .update(desfazer)
+          .eq('id', connectionId)
+          .eq('organization_id', tenantId)
+          .eq('updated_at', String((data as { updated_at?: unknown }).updated_at ?? ''));
+        // Ligar um agente não muda o updated_at (central_agentes_ligar_conexao). Sem esta condição, uma ligação feita
+        // entre a gravação e o desfazer deixaria restaurar a configuração antiga por cima dela (rodada 4).
+        const agenteLido = typeof anterior.ai_agent_id === 'string' ? anterior.ai_agent_id : null;
+        volta = agenteLido ? volta.eq('ai_agent_id', agenteLido) : volta.is('ai_agent_id', null);
+        const desfeito = await volta.select('id').maybeSingle();
+        desfez = !desfeito.error && Boolean(desfeito.data);
+      } catch {
+        // O desfazer lançou (rede, por exemplo): não dá para saber se pegou a linha, então vale o aviso (rodada 4).
+        desfez = false;
+      }
+      if (desfez) {
         return json({ error: `${motivo} Nada foi alterado na conexão.`, code: 'VINCULACAO_FALHOU' }, 500);
       }
       return json(
         {
-          error: `${motivo} A conexão FOI alterada e não deu para desfazer: confira a conexão antes de tentar de novo.`,
+          error: `${motivo} A conexão pode ter ficado alterada (o desfazer não se confirmou): confira a conexão antes de tentar de novo.`,
           code: 'VINCULACAO_FALHOU_SEM_DESFAZER',
         },
         500
