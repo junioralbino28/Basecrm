@@ -155,7 +155,13 @@ describe('prompt da Aurora — gate de capacidade + consultoria (decisao de 27/0
   it('faz a pergunta de capacidade ANTES de propor reuniao, com o texto aprovado', () => {
     const t = template();
     expect(t).toContain('GATE DE CAPACIDADE E CONSULTORIA');
-    expect(t).toContain('verba mínima de R$1.000 por mês, que vai direto pra Meta');
+    expect(t).toContain('verba mínima de R$1.000 por mês, paga direto pra plataforma (Meta ou Google, a gente define no diagnóstico)');
+    expect(t).not.toContain('que vai direto pra Meta');
+    expect(t).not.toContain('(pago direto a Meta)');
+    // 07/10: lista de servicos (texto aprovado pelo Junior), para a Aurora nao negar Google Ads nem omitir SEO/GEO
+    expect(t).toContain('O QUE A CENOURA HUB FAZ');
+    expect(t).toContain('E no Google (Pesquisa e YouTube)');
+    expect(t).toContain('SEO e GEO');
     expect(t).toContain('Isso cabe no seu momento agora?');
     expect(t).toContain('nunca proponha reuniao sem ter feito essa pergunta');
     // O gate vem antes da secao de reuniao no proprio template.
