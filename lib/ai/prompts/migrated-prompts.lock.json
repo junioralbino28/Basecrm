@@ -1,0 +1,16 @@
+{
+  "_leia": "Chaves do catálogo migradas para a Central de Agentes (fatia 2). Números ligados a um agente respondem pela versão publicada do agente, não por este texto. Mudar o texto de uma chave daqui quebra migratedPromptsLock.test.ts de propósito. Antes de mexer, decida: (a) a mudança é para os números com agente: desfaça no catálogo e edite o agente na Central de Agentes; (b) a mudança é para os números SEM agente: atualize sha256 e caracteres abaixo no mesmo commit, dizendo na mensagem que é para os números sem agente.",
+  "chaves": {
+    "task_conversations_whatsapp_cenno_aurora": {
+      "sha256": "e7b24641f3222182ea90e0b57ec01913715bf4badc657aeebf8f419173b02161",
+      "caracteres": 20202,
+      "agente": "Aurora, da Cenno Hub"
+    },
+    "task_conversations_whatsapp_auto_reply": {
+      "sha256": "b4287844d2ad39e41e08b7b413a51b53933ae32589f748cc663a096b33293f62",
+      "caracteres": 2569,
+      "agente": "Julia, da Dra. Jéssica",
+      "observacao": "É também a chave padrão: números sem chave definida, de qualquer cliente, continuam lendo este texto."
+    }
+  }
+}

@@ -128,6 +128,9 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       'Importante: esse prompt é “sensível”. Mudanças ruins degradam o agente e podem quebrar fluxos. Ideal ter versionamento e botão “reset”.',
   },
   {
+    // MIGRADO PARA A CENTRAL DE AGENTES (fatia 2). Números ligados a um agente respondem pela versão publicada do
+    // agente, não por este texto. Esta é também a chave padrão: números sem chave definida continuam lendo daqui.
+    // Mudar o texto quebra lib/ai/prompts/migratedPromptsLock.test.ts de propósito; leia migrated-prompts.lock.json.
     key: 'task_conversations_whatsapp_auto_reply',
     title: 'Conversas · Atendimento automatico WhatsApp',
     usedBy: ['lib/conversations/aiReply -> generateConversationAutoReply'],
@@ -181,6 +184,9 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       'Prompt padrao da atendente virtual para resposta automatica em conversas WhatsApp.',
   },
   {
+    // MIGRADO PARA A CENTRAL DE AGENTES (fatia 2). Os números ligados ao agente Aurora respondem pela versão publicada
+    // dele, não por este texto: mudar aqui não muda a Aurora. Mudar o texto quebra
+    // lib/ai/prompts/migratedPromptsLock.test.ts de propósito; leia migrated-prompts.lock.json.
     key: 'task_conversations_whatsapp_cenno_aurora',
     title: 'Conversas · Aurora · Cenoura Hub',
     usedBy: ['lib/conversations/aiReply -> generateConversationAutoReply'],
