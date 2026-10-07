@@ -101,12 +101,21 @@ function imprimirPlano(plano: { grupos: GrupoPlanejado[]; ignoradas: ConexaoIgno
   for (const i of plano.ignoradas) console.log(`IGNORADA ${i.id} (${i.name}) org=${i.organizationId} motivo=${i.motivo}`);
 }
 
+// Encerramento: NUNCA chamar process.exit logo depois de um fetch. No Windows com Node >= 23 (nodejs/node#56645; visto aqui em
+// 07/10 no --desligar, Node 24.8 + tsx: 'Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src/win/async.c:76', saida
+// 3221226505 = 0xC0000409), a saida imediata corre contra o fechamento das conexoes keep-alive do undici (o fetch do
+// supabase-js e da API da Vercel) e o libuv aborta, perdendo o codigo de saida. Com process.exitCode o processo termina
+// sozinho quando os handles drenam (o undici solta a conexao em ate 4 s), com o codigo certo. O contrato da CLI e o codigo.
+function sair(codigo: number): void {
+  process.exitCode = codigo;
+}
+
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const chave = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !chave) {
     console.error('Faltam NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL e SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY no ambiente.');
-    process.exit(2);
+    return sair(2);
   }
   const ref = referenciaDoBanco(url);
   const commit = git(['rev-parse', 'HEAD']);
@@ -117,7 +126,7 @@ async function main() {
   const escreve = tem('--criar') || tem('--ligar') || tem('--desligar');
   if (escreve && argumento('--confirmar-banco') !== ref) {
     console.error(`Escrita recusada: passe --confirmar-banco ${ref} para confirmar o banco.`);
-    process.exit(2);
+    return sair(2);
   }
 
   const admin = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -128,40 +137,40 @@ async function main() {
     const seAgente = argumento('--se-agente');
     const r = await desligarConexao(admin, desligar, seAgente ? { seAgente } : {});
     console.log(r.ok ? `DESLIGADO numero=${desligar}${seAgente ? ` (estava com o agente ${seAgente})` : ''}` : `NAO DESLIGOU numero=${desligar} (${r.detalhe})`);
-    process.exit(r.ok ? 0 : 1);
+    return sair(r.ok ? 0 : 1);
   }
 
   if (!(tem('--prova') || tem('--criar') || tem('--ligar'))) {
     console.error('Use --prova, --criar, --ligar <id> ou --desligar <id>.');
-    process.exit(2);
+    return sair(2);
   }
 
   const ambiente = AMBIENTES[ref];
   if (!ambiente) {
     console.error(`Recusado: o banco ${ref} nao tem publicacao para conferir. --prova, --criar e --ligar so rodam contra ${Object.keys(AMBIENTES).join(' ou ')}.`);
-    process.exit(2);
+    return sair(2);
   }
   console.log(`Ambiente: ${ambiente.nome} | ramo ${ambiente.ramo} | dominios ${ambiente.dominios.join(', ')}`);
   if (tem('--ligar') && ambiente.producao && !LIGAR_EM_PRODUCAO_LIBERADO) {
     console.error('Recusado: ligar numero em producao entra na fatia 2 (falta conferir na Evolution o endereco do webhook de cada numero). Nesta fatia, --ligar so roda no ambiente de teste.');
-    process.exit(2);
+    return sair(2);
   }
 
   git(['fetch', 'origin', ambiente.ramo]);
   const publicado = git(['rev-parse', `origin/${ambiente.ramo}`]);
   if (publicado !== commit) {
     console.error(`Recusado: esta copia esta em ${commit.slice(0, 7)} e ${ambiente.ramo} publicado esta em ${publicado.slice(0, 7)}. A prova so vale com o codigo publicado.`);
-    process.exit(2);
+    return sair(2);
   }
   if (promptAlterado) {
     console.error(`Recusado: ha mudanca local em arquivo que decide o prompt (${ARQUIVOS_DO_PROMPT.join(', ')}).`);
-    process.exit(2);
+    return sair(2);
   }
   const token = process.env.VERCEL_TOKEN;
   const teamId = process.env.VERCEL_TEAM_ID;
   if (!token || !teamId) {
     console.error('Faltam VERCEL_TOKEN e VERCEL_TEAM_ID no ambiente (lidos do cofre em processo, nunca impressos).');
-    process.exit(2);
+    return sair(2);
   }
   const api = criarClienteVercel({ token, teamId });
   const lerPublicacao = () => lerPublicacaoNoAr(api, ambiente);
@@ -176,33 +185,33 @@ async function main() {
     }
     if (r.estado === 'nao_ligou') {
       console.log(`NAO LIGOU numero=${ligar} motivo=${r.motivo}`);
-      process.exit(1);
+      return sair(1);
     }
     if (r.estado === 'desfeito') {
       console.error(`DESFEITO numero=${ligar}: ${r.motivo}. O numero nao esta ligado a agente nenhum (linha conferida).`);
-      process.exit(1);
+      return sair(1);
     }
     if (r.estado === 'conexao_inexistente') {
       // 5ª rodada do Codex, achado 6: nao e "linha sem agente"; nao ha linha.
       console.error(`NAO LIGOU numero=${ligar}: ${r.motivo}. O numero NAO EXISTE MAIS neste banco (apagado durante a operacao); nada ficou ligado e nao ha o que desligar.`);
-      process.exit(1);
+      return sair(1);
     }
     if (r.estado === 'ligado_a_outro') {
       console.error(`ATENCAO numero=${ligar}: ${r.motivo}. O numero esta LIGADO A OUTRO AGENTE (${r.agenteAtual}), nao ao ${r.agentId}. Alguem ligou o numero durante a operacao: nao rode --desligar sem falar com quem ligou.`);
-      process.exit(4);
+      return sair(4);
     }
     console.error(`ATENCAO numero=${ligar}: ${r.motivo}, e NAO foi possivel confirmar a linha (${r.detalhe}). O numero PODE ESTAR LIGADO ao agente ${r.agentId}. Rode --desligar ${ligar} --confirmar-banco ${ref} --se-agente ${r.agentId} e confira antes de qualquer outra coisa.`);
-    process.exit(3);
+    return sair(3);
   }
 
   const p = await lerPublicacao();
   if (!p.ok) {
     console.error(`Recusado: a publicacao do ambiente ${ambiente.nome} nao esta parada no ramo ${ambiente.ramo} (${p.motivo}: ${p.detalhe}).`);
-    process.exit(2);
+    return sair(2);
   }
   if (p.commit !== commit) {
     console.error(`Recusado: os dominios servem ${p.commit.slice(0, 7)} (${p.deploymentId}) e esta copia esta em ${commit.slice(0, 7)}.`);
-    process.exit(2);
+    return sair(2);
   }
   console.log(`Publicacao: ${ambiente.dominios.join(', ')} servem ${p.commit.slice(0, 7)} (${p.deploymentId})`);
 
@@ -212,7 +221,7 @@ async function main() {
   if (tem('--criar')) {
     if (!organizationId) {
       console.error('--criar exige --org <uuid>: um cliente por vez.');
-      process.exit(2);
+      return sair(2);
     }
     const plano = await planejarMigracao(admin, { organizationId, incluir, publicacao: { commit: p.commit, deploymentId: p.deploymentId } });
     imprimirPlano(plano);
@@ -228,5 +237,5 @@ async function main() {
 main().catch((erro) => {
   // Só chega aqui erro ANTES de qualquer ligação (ligarComConferencia trata tudo o que acontece depois dela).
   console.error(erro instanceof Error ? erro.message : String(erro));
-  process.exit(1);
+  process.exitCode = 1;
 });
