@@ -60,6 +60,26 @@ function copiasDoAgente(): Array<{ texto: string; revisao: number }> {
   return copias;
 }
 
+/** Um instante relativo ao relógio, nunca uma data cravada: a validade das cópias é de 7 dias. */
+const ha = (ms: number) => new Date(Date.now() - ms).toISOString();
+const HORA = 60 * 60 * 1000;
+const DIA = 24 * HORA;
+
+/**
+ * Envelhece tudo o que o editor gravou no armazenamento (a cópia e, no editor de ca65a4b, também o sinal de vida): é o
+ * que acontece com uma aba em segundo plano cujo relógio o navegador suspendeu.
+ */
+function envelhecer(ms: number) {
+  const chaves: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const chave = localStorage.key(i);
+    if (chave?.startsWith('central-agentes:')) chaves.push(chave);
+  }
+  for (const chave of chaves) {
+    localStorage.setItem(chave, JSON.stringify({ ...JSON.parse(localStorage.getItem(chave) ?? '{}'), em: ha(ms) }));
+  }
+}
+
 const corpoDe = (fetchMock: ReturnType<typeof fetchFalso>, sufixo: string) => {
   const chamada = fetchMock.mock.calls.find(([url]) => String(url).endsWith(sufixo));
   return JSON.parse(String(chamada?.[1]?.body));
@@ -73,6 +93,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe('AgentEditorPage', () => {
@@ -179,18 +200,19 @@ describe('AgentEditorPage', () => {
     // Ninguém salvou no meio (mesma revisão): sem conflito.
     expect(screen.queryByText(/O seu texto continua aqui/)).not.toBeInTheDocument();
 
-    // Descartar a edição apaga a cópia. O happy-dom não implementa window.confirm: stub, como em
+    // Cancelar apaga só a cópia DESTE editor. A do editor anterior fica guardada: esta aba nunca apaga a cópia de outra
+    // instância (rodada 4). O happy-dom não implementa window.confirm: stub, como em
     // features/atendimentos/hooks/useAtendimentosController.test.tsx (o afterEach desfaz).
     const confirmar = vi.fn().mockReturnValue(true);
     vi.stubGlobal('confirm', confirmar);
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(copiasDoAgente()).toEqual([]);
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([`${PUBLICADO}\nnão salvei`]);
   });
 
   it('recuperar um texto escrito antes de outra pessoa salvar cai no conflito: sobrescrever só com a escolha explícita', async () => {
     // Revisão do Codex, rodada 2, achado 1: a cópia guarda a revisão em que o texto se baseou.
     const ANTIGO = `${PUBLICADO}\ntexto de antes`;
-    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: ANTIGO, revisao: 0, em: '2026-10-07T10:00:00.000Z' }));
+    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: ANTIGO, revisao: 0, em: ha(HORA) }));
     const depois = agente({
       rascunho: { prompt: `${PUBLICADO}\nsalvo por outra pessoa`, revisao: 1, atualizadoEm: '2026-10-07T11:00:00Z', atualizadoPor: 'Junior' },
     });
@@ -217,7 +239,7 @@ describe('AgentEditorPage', () => {
   it('salvar nesta aba não apaga a cópia de outra aba com texto não salvo do mesmo agente', async () => {
     // Revisão do Codex, rodada 2, achado 2: a chave da cópia leva a instância do editor.
     const DA_OUTRA_ABA = `${PUBLICADO}\ntexto da outra aba`;
-    localStorage.setItem(`${PREFIXO}outra-aba`, JSON.stringify({ texto: DA_OUTRA_ABA, revisao: 0, em: '2026-10-07T11:00:00.000Z' }));
+    localStorage.setItem(`${PREFIXO}outra-aba`, JSON.stringify({ texto: DA_OUTRA_ABA, revisao: 0, em: ha(HORA) }));
     const fetchMock = fetchFalso({
       [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
       [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 1 }),
@@ -235,9 +257,10 @@ describe('AgentEditorPage', () => {
     expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_OUTRA_ABA]);
   });
 
-  // Revisão do Codex, rodada 3, achado 2: recuperar ou descartar a cópia de uma aba que ainda está ABERTA não pode
-  // apagá-la. A aba dona pode sair depois pela navegação interna sem digitar de novo, e a cópia é o que salva o texto.
-  it('recuperar a cópia de uma aba ABERTA não apaga a dela: se ela sair sem digitar de novo, o texto continua guardado', async () => {
+  // Revisão do Codex, rodadas 3 e 4, achado 2: recuperar ou descartar a cópia de OUTRA aba nunca a apaga. A dona pode
+  // estar aberta com o relógio suspenso pelo navegador (em segundo plano) e sair depois pela navegação interna sem
+  // digitar de novo; a cópia é o que salva o texto dela. Os dois testes abaixo envelhecem o que a aba A gravou.
+  it('duas abas abertas, a A parada há 2 h: recuperar na B não apaga a cópia da A, nem depois de cancelar na B', async () => {
     vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
     const DA_ABA_A = `${PUBLICADO}\ntexto da aba A`;
     const abaA = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
@@ -245,6 +268,7 @@ describe('AgentEditorPage', () => {
     await a.findByText(/Versão 1 publicada/);
     fireEvent.click(a.getByRole('button', { name: 'Editar' }));
     fireEvent.change(a.getByLabelText('Prompt do agente'), { target: { value: DA_ABA_A } });
+    envelhecer(2 * HORA);
 
     const abaB = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
     const b = within(abaB.container);
@@ -254,12 +278,17 @@ describe('AgentEditorPage', () => {
     // A cópia da aba A continua; a B ganhou a sua (o texto dela também não está salvo).
     expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A, DA_ABA_A]);
 
+    // A B desiste: sai só a cópia dela.
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    fireEvent.click(b.getByRole('button', { name: 'Cancelar' }));
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A]);
+
     // A aba A sai pela navegação interna sem digitar de novo: a cópia dela não sumiu.
     abaA.unmount();
-    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A, DA_ABA_A]);
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A]);
   });
 
-  it('descartar a cópia de uma aba ABERTA só a esconde nesta aba: a outra aba não perde nada', async () => {
+  it('duas abas abertas, a A parada há 2 h: descartar na B só esconde a cópia na B; a A não perde nada', async () => {
     vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
     const DA_ABA_A = `${PUBLICADO}\ntexto da aba A`;
     const abaA = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
@@ -267,6 +296,7 @@ describe('AgentEditorPage', () => {
     await a.findByText(/Versão 1 publicada/);
     fireEvent.click(a.getByRole('button', { name: 'Editar' }));
     fireEvent.change(a.getByLabelText('Prompt do agente'), { target: { value: DA_ABA_A } });
+    envelhecer(2 * HORA);
 
     const abaB = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
     const b = within(abaB.container);
@@ -274,34 +304,68 @@ describe('AgentEditorPage', () => {
     fireEvent.click(b.getByRole('button', { name: 'Descartar' }));
     expect(b.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
     expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A]);
+
+    abaA.unmount();
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A]);
   });
 
-  it('descartar a cópia de uma aba que FECHOU (sem sinal de vida) apaga a cópia', async () => {
-    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: `${PUBLICADO}\nórfã`, revisao: 0, em: '2026-10-07T10:00:00.000Z' }));
+  it('descartar uma cópia que ninguém mais tem aberta só a esconde nesta aba: não volta aqui, e aparece numa aba nova', async () => {
+    const ORFA = `${PUBLICADO}\nórfã`;
+    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: ORFA, revisao: 0, em: ha(HORA) }));
     vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
-    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const primeira = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
     expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
     expect(screen.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
-    expect(copiasDoAgente()).toEqual([]);
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([ORFA]);
+
+    // Sair do agente e voltar, na MESMA aba (o armazenamento da aba continua): ela segue escondida.
+    primeira.unmount();
+    const segunda = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    expect(screen.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
+
+    // Numa aba nova (armazenamento da aba vazio), ela aparece de novo.
+    segunda.unmount();
+    sessionStorage.clear();
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
   });
 
-  it('o sinal de vida do editor existe enquanto ele está aberto e sai quando ele desmonta', async () => {
-    const SINAL = `central-agentes:editor-aberto:${TENANT}:${AGENTE_ID}:`;
-    const sinais = () => {
-      const achados: string[] = [];
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const chave = localStorage.key(i);
-        if (chave?.startsWith(SINAL)) achados.push(chave);
-      }
-      return achados;
-    };
+  it('cópia sem escrita há mais de 7 dias sai na procura; a de 6 dias ainda é oferecida', async () => {
+    const RECENTE = `${PUBLICADO}\nde 6 dias`;
+    localStorage.setItem(`${PREFIXO}velha`, JSON.stringify({ texto: `${PUBLICADO}\nde 8 dias`, revisao: 0, em: ha(8 * DIA) }));
+    localStorage.setItem(`${PREFIXO}recente`, JSON.stringify({ texto: RECENTE, revisao: 0, em: ha(6 * DIA) }));
     vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
-    const aba = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
-    await screen.findByText(/Versão 1 publicada/);
-    expect(sinais()).toHaveLength(1);
-    aba.unmount();
-    expect(sinais()).toEqual([]);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([RECENTE]);
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(RECENTE);
+  });
+
+  it('a validade não tira o texto de uma aba aberta: removida a cópia por outra aba, ela volta quando a aba fica visível', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const DA_ABA_A = `${PUBLICADO}\ntexto da aba A`;
+    const abaA = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const a = within(abaA.container);
+    await a.findByText(/Versão 1 publicada/);
+    fireEvent.click(a.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(a.getByLabelText('Prompt do agente'), { target: { value: DA_ABA_A } });
+    envelhecer(8 * DIA);
+
+    // A aba B abre o agente e remove a cópia vencida da A.
+    const abaB = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const b = within(abaB.container);
+    await b.findByText(/Versão 1 publicada/);
+    expect(b.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
+    expect(copiasDoAgente()).toEqual([]);
+
+    // A aba A volta a ficar visível: a cópia dela volta antes de dar para sair dali, e sobrevive à saída.
+    fireEvent(document, new Event('visibilitychange'));
+    expect(copiasDoAgente()).toEqual([expect.objectContaining({ texto: DA_ABA_A, revisao: 0 })]);
+    abaA.unmount();
+    expect(copiasDoAgente()).toEqual([expect.objectContaining({ texto: DA_ABA_A, revisao: 0 })]);
   });
 
   it('publicar com aviso exige a confirmação e manda a versão, a revisão e os avisos confirmados', async () => {
