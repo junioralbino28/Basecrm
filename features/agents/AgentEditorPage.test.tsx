@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { AgenteNoEditor } from '@/lib/agents/tiposDoEditor';
 
 const estado = vi.hoisted(() => ({ role: 'agency_admin' as string }));
@@ -233,6 +233,75 @@ describe('AgentEditorPage', () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
 
     expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_OUTRA_ABA]);
+  });
+
+  // Revisão do Codex, rodada 3, achado 2: recuperar ou descartar a cópia de uma aba que ainda está ABERTA não pode
+  // apagá-la. A aba dona pode sair depois pela navegação interna sem digitar de novo, e a cópia é o que salva o texto.
+  it('recuperar a cópia de uma aba ABERTA não apaga a dela: se ela sair sem digitar de novo, o texto continua guardado', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const DA_ABA_A = `${PUBLICADO}\ntexto da aba A`;
+    const abaA = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const a = within(abaA.container);
+    await a.findByText(/Versão 1 publicada/);
+    fireEvent.click(a.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(a.getByLabelText('Prompt do agente'), { target: { value: DA_ABA_A } });
+
+    const abaB = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const b = within(abaB.container);
+    expect(await b.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(b.getByRole('button', { name: 'Recuperar o texto' }));
+    expect((b.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(DA_ABA_A);
+    // A cópia da aba A continua; a B ganhou a sua (o texto dela também não está salvo).
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A, DA_ABA_A]);
+
+    // A aba A sai pela navegação interna sem digitar de novo: a cópia dela não sumiu.
+    abaA.unmount();
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A, DA_ABA_A]);
+  });
+
+  it('descartar a cópia de uma aba ABERTA só a esconde nesta aba: a outra aba não perde nada', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const DA_ABA_A = `${PUBLICADO}\ntexto da aba A`;
+    const abaA = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const a = within(abaA.container);
+    await a.findByText(/Versão 1 publicada/);
+    fireEvent.click(a.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(a.getByLabelText('Prompt do agente'), { target: { value: DA_ABA_A } });
+
+    const abaB = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    const b = within(abaB.container);
+    expect(await b.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(b.getByRole('button', { name: 'Descartar' }));
+    expect(b.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_ABA_A]);
+  });
+
+  it('descartar a cópia de uma aba que FECHOU (sem sinal de vida) apaga a cópia', async () => {
+    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: `${PUBLICADO}\nórfã`, revisao: 0, em: '2026-10-07T10:00:00.000Z' }));
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+    expect(screen.queryByText(/Você tem um texto não salvo deste agente/)).not.toBeInTheDocument();
+    expect(copiasDoAgente()).toEqual([]);
+  });
+
+  it('o sinal de vida do editor existe enquanto ele está aberto e sai quando ele desmonta', async () => {
+    const SINAL = `central-agentes:editor-aberto:${TENANT}:${AGENTE_ID}:`;
+    const sinais = () => {
+      const achados: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const chave = localStorage.key(i);
+        if (chave?.startsWith(SINAL)) achados.push(chave);
+      }
+      return achados;
+    };
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const aba = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    expect(sinais()).toHaveLength(1);
+    aba.unmount();
+    expect(sinais()).toEqual([]);
   });
 
   it('publicar com aviso exige a confirmação e manda a versão, a revisão e os avisos confirmados', async () => {

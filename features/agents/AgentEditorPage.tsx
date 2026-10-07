@@ -43,19 +43,46 @@ const BOTAO_PRINCIPAL =
  *   texto não salvo do mesmo agente nunca perde o dela;
  * - a cópia guarda a revisão em que o texto se baseou: recuperá-la depois de outra pessoa salvar cai no conflito.
  * Armazenamento indisponível (janela anônima, bloqueio) só desliga a recuperação; a tela funciona igual.
+ * Rodada 3: recuperar ou descartar a cópia de uma aba que ainda está ABERTA não a apaga. A aba dona pode sair depois
+ * sem digitar de novo, e a cópia é o que salva o texto dela. Cada editor aberto deixa um sinal de vida, renovado a cada
+ * 20 s e removido ao sair; sem sinal recente, a aba dona fechou e a cópia é órfã, e aí sim recuperar a traz para cá.
  */
-type CopiaLocal = { chave: string; texto: string; revisao: number; em: string };
+type CopiaLocal = { chave: string; texto: string; revisao: number; em: string; daAbaAberta: boolean };
 const prefixoDaCopia = (tenantId: string, agentId: string) => `central-agentes:texto-nao-salvo:${tenantId}:${agentId}:`;
+const prefixoDoEditorAberto = (tenantId: string, agentId: string) => `central-agentes:editor-aberto:${tenantId}:${agentId}:`;
+const BATIMENTO_MS = 20_000;
+/** Sem sinal de vida há mais que isso, a aba dona fechou (ou travou). */
+const ABA_ABERTA_MS = 60_000;
+/** Sinal de vida esquecido por uma aba que travou sai depois de um dia. */
+const SINAL_ESQUECIDO_MS = 24 * 60 * 60 * 1000;
 const novaInstancia = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-/** A cópia mais recente deste agente, de qualquer aba, diferente do texto salvo. As iguais ao salvo e as ilegíveis saem. */
-function procurarCopia(prefixo: string, salvo: string): CopiaLocal | null {
+/** A instância dona da cópia ainda está aberta (sinal de vida recente)? Erro de leitura conta como fechada. */
+function abaAberta(prefixoVivo: string, instancia: string): boolean {
+  try {
+    const sinal = JSON.parse(window.localStorage.getItem(`${prefixoVivo}${instancia}`) ?? 'null') as { em?: unknown } | null;
+    const em = typeof sinal?.em === 'string' ? Date.parse(sinal.em) : NaN;
+    return Number.isFinite(em) && Date.now() - em < ABA_ABERTA_MS;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A cópia mais recente deste agente, de outra aba, diferente do texto salvo e não escondida nesta aba. As iguais ao
+ * salvo e as ilegíveis saem. A própria cópia deste editor nunca aparece aqui.
+ */
+function procurarCopia(
+  prefixo: string,
+  salvo: string,
+  opcoes: { prefixoVivo: string; minhaChave: string; ocultas: ReadonlySet<string> },
+): CopiaLocal | null {
   try {
     const chaves: string[] = [];
     for (let i = 0; i < window.localStorage.length; i += 1) {
       const chave = window.localStorage.key(i);
-      if (chave?.startsWith(prefixo)) chaves.push(chave);
+      if (chave?.startsWith(prefixo) && chave !== opcoes.minhaChave && !opcoes.ocultas.has(chave)) chaves.push(chave);
     }
     let maisRecente: CopiaLocal | null = null;
     for (const chave of chaves) {
@@ -73,7 +100,13 @@ function procurarCopia(prefixo: string, salvo: string): CopiaLocal | null {
         continue;
       }
       if (!maisRecente || lida.em > maisRecente.em) {
-        maisRecente = { chave, texto: lida.texto, revisao: lida.revisao, em: lida.em };
+        maisRecente = {
+          chave,
+          texto: lida.texto,
+          revisao: lida.revisao,
+          em: lida.em,
+          daAbaAberta: abaAberta(opcoes.prefixoVivo, chave.slice(prefixo.length)),
+        };
       }
     }
     return maisRecente;
@@ -123,9 +156,53 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [copia, setCopia] = React.useState<CopiaLocal | null>(null);
   const campo = React.useRef<HTMLTextAreaElement>(null);
   const prefixo = prefixoDaCopia(tenantId, agentId);
-  // A cópia deste editor: a chave leva a instância, e só ela sai ao salvar ou descartar (rodada 2, achado 2).
-  const [minhaChave] = React.useState(() => `${prefixo}${novaInstancia()}`);
+  const prefixoVivo = prefixoDoEditorAberto(tenantId, agentId);
+  // A instância deste editor: a chave da cópia leva ela, e só ela sai ao salvar ou descartar (rodada 2, achado 2); o
+  // sinal de vida também (rodada 3, achado 2).
+  const [instancia] = React.useState(novaInstancia);
+  const minhaChave = `${prefixo}${instancia}`;
+  // Cópias de abas ABERTAS que esta aba recuperou ou descartou: somem só daqui, sem apagar a da outra aba.
+  const [ocultas, setOcultas] = React.useState<ReadonlySet<string>>(() => new Set());
   const procurouCopia = React.useRef(false);
+
+  // Sinal de vida deste editor: outra aba só apaga a cópia de uma aba que fechou (revisão do Codex, rodada 3).
+  React.useEffect(() => {
+    const chaveViva = `${prefixoVivo}${instancia}`;
+    const bater = () => {
+      try {
+        window.localStorage.setItem(chaveViva, JSON.stringify({ em: new Date().toISOString() }));
+      } catch {
+        // Sem armazenamento não há cópia, então não há o que sinalizar.
+      }
+    };
+    const parar = () => {
+      try {
+        window.localStorage.removeItem(chaveViva);
+      } catch {
+        // Idem.
+      }
+    };
+    try {
+      // Sinais esquecidos por abas que travaram (sem `pagehide` nem desmontagem) saem depois de um dia.
+      for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+        const chave = window.localStorage.key(i);
+        if (!chave?.startsWith(prefixoVivo)) continue;
+        const sinal = JSON.parse(window.localStorage.getItem(chave) ?? 'null') as { em?: unknown } | null;
+        const em = typeof sinal?.em === 'string' ? Date.parse(sinal.em) : NaN;
+        if (!Number.isFinite(em) || Date.now() - em > SINAL_ESQUECIDO_MS) window.localStorage.removeItem(chave);
+      }
+    } catch {
+      // Idem.
+    }
+    bater();
+    const relogio = window.setInterval(bater, BATIMENTO_MS);
+    window.addEventListener('pagehide', parar);
+    return () => {
+      window.clearInterval(relogio);
+      window.removeEventListener('pagehide', parar);
+      parar();
+    };
+  }, [prefixoVivo, instancia]);
 
   const carregar = React.useCallback(async () => {
     setCarregando(true);
@@ -138,14 +215,20 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
       // dentro de efeito.
       if (!procurouCopia.current) {
         procurouCopia.current = true;
-        setCopia(procurarCopia(prefixo, r.agente.rascunho.prompt ?? r.agente.publicada?.prompt ?? ''));
+        setCopia(
+          procurarCopia(prefixo, r.agente.rascunho.prompt ?? r.agente.publicada?.prompt ?? '', {
+            prefixoVivo,
+            minhaChave,
+            ocultas: new Set(),
+          }),
+        );
       }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao carregar o agente.');
     } finally {
       setCarregando(false);
     }
-  }, [tenantId, agentId, prefixo]);
+  }, [tenantId, agentId, prefixo, prefixoVivo, minhaChave]);
 
   React.useEffect(() => {
     void carregar();
@@ -321,9 +404,11 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
               type="button"
               onClick={() => {
                 setAba('instrucoes');
-                // A cópia sai daqui e passa a ser a deste editor, com a mesma base. Base diferente da revisão atual:
-                // outra pessoa salvou depois que este texto começou, e a escolha é explícita (rodada 2, achado 1).
-                apagarCopia(copia.chave);
+                // O texto vem para este editor, com a mesma base. Base diferente da revisão atual: outra pessoa salvou
+                // depois que este texto começou, e a escolha é explícita (rodada 2, achado 1). A cópia de uma aba
+                // FECHADA sai de lá; a de uma aba ABERTA fica com ela e só some daqui (rodada 3, achado 2).
+                if (copia.daAbaAberta) setOcultas((atuais) => new Set(atuais).add(copia.chave));
+                else apagarCopia(copia.chave);
                 setEdicao({ ativa: true, texto: copia.texto, base: copia.revisao });
                 if (copia.revisao !== agente.rascunho.revisao) {
                   setConflito('O rascunho foi alterado depois que este texto foi escrito.');
@@ -337,8 +422,11 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
             <button
               type="button"
               onClick={() => {
-                apagarCopia(copia.chave);
-                setCopia(procurarCopia(prefixo, salvo));
+                // Descartar a cópia de uma aba ABERTA só a esconde nesta aba; a de uma aba fechada sai de vez.
+                const ocultasAgora = new Set(ocultas).add(copia.chave);
+                if (copia.daAbaAberta) setOcultas(ocultasAgora);
+                else apagarCopia(copia.chave);
+                setCopia(procurarCopia(prefixo, salvo, { prefixoVivo, minhaChave, ocultas: ocultasAgora }));
               }}
               className={BOTAO_SECUNDARIO}
             >
