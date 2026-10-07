@@ -21,6 +21,21 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/** 409 para a chave de prompt num número ligado a um agente, com o nome dele (Central de Agentes, fatia 2). */
+async function recusarNumeroComAgente(admin: ReturnType<typeof createStaticAdminClient>, tenantId: string, agentId: string) {
+  const agente = await admin.from('ai_agents').select('name').eq('id', agentId).eq('organization_id', tenantId).maybeSingle();
+  if (agente.error) return json({ error: agente.error.message }, 500);
+  const quem = agente.data?.name ? `pelo agente ${agente.data.name}` : 'por um agente';
+  return json(
+    {
+      error: `Este número responde ${quem}: a chave de prompt não tem efeito aqui. Edite o prompt na Central de Agentes.`,
+      code: 'NUMERO_COM_AGENTE',
+      agentId,
+    },
+    409,
+  );
+}
+
 const ChannelUpdateSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   status: z.enum(['pending', 'connected', 'disconnected', 'error']).optional(),
@@ -66,39 +81,23 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   if (!parsed.success) return json({ error: 'Invalid payload', details: parsed.error.flatten() }, 400);
 
   const admin = createStaticAdminClient();
-  if (
-    isAgencyAdminRole(auth.profile.role) &&
-    auth.profile.organization_id &&
-    auth.profile.organization_id !== tenantId
-  ) {
-    try {
-      await ensureTenantAgencyBinding({
-        admin,
-        tenantId,
-        agencyOrganizationId: auth.profile.organization_id,
-      });
-    } catch (bindingError) {
-      return json(
-        {
-          error:
-            bindingError instanceof Error
-              ? bindingError.message
-              : 'Falha ao vincular cliente a agencia para credencial global.',
-        },
-        500
-      );
-    }
-  }
-
   const current = await admin
       .from('channel_connections')
-    .select('id, config, metadata')
+    .select('id, config, metadata, ai_agent_id')
     .eq('id', connectionId)
     .eq('organization_id', tenantId)
     .maybeSingle();
 
   if (current.error) return json({ error: current.error.message }, 500);
   if (!current.data) return json({ error: 'Channel not found' }, 404);
+
+  // Central de Agentes, fatia 2: num número ligado a um agente, o texto vem da versão publicada e a chave de prompt
+  // não tem efeito. Mudança sem efeito é pior que mudança recusada (SPEC, "Rotas antigas depois de ligar"). A recusa
+  // vem antes de qualquer gravação; a vinculação do cliente à agência só acontece depois da gravação que deu certo.
+  const pedeChaveDePrompt = parsed.data.config?.aiPromptKey !== undefined;
+  if (pedeChaveDePrompt && current.data.ai_agent_id) {
+    return recusarNumeroComAgente(admin, tenantId, current.data.ai_agent_id);
+  }
 
   if (parsed.data.config?.calendar?.enabled) {
     const owner = await admin
@@ -191,15 +190,57 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ tenantId: str
   if (parsed.data.config !== undefined) updates.config = nextConfig;
   if (parsed.data.metadata !== undefined) updates.metadata = nextMetadata;
 
-  const { data, error } = await admin
+  const colunas = 'id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at';
+  const gravacao = admin
     .from('channel_connections')
     .update(updates)
     .eq('id', connectionId)
-    .eq('organization_id', tenantId)
-    .select('id, provider, channel_type, name, status, config, metadata, last_healthcheck_at, created_at, updated_at')
-    .single();
+    .eq('organization_id', tenantId);
+  // Com a chave de prompt no pedido, a gravação só pega o número que continua sem agente: uma ligação feita entre a
+  // leitura acima e esta gravação faz a linha não casar, e a resposta vira 409 em vez de 200 (revisão do Codex, 07/10).
+  const { data, error } = pedeChaveDePrompt
+    ? await gravacao.is('ai_agent_id', null).select(colunas).maybeSingle()
+    : await gravacao.select(colunas).single();
 
   if (error) return json({ error: error.message }, 500);
+  if (!data) {
+    const relida = await admin
+      .from('channel_connections')
+      .select('ai_agent_id')
+      .eq('id', connectionId)
+      .eq('organization_id', tenantId)
+      .maybeSingle();
+    if (relida.error) return json({ error: relida.error.message }, 500);
+    if (relida.data?.ai_agent_id) return recusarNumeroComAgente(admin, tenantId, relida.data.ai_agent_id);
+    return json({ error: 'Channel not found' }, 404);
+  }
+
+  // A vinculação do cliente à agência vem DEPOIS da gravação que deu certo: um 409 ou um 404 acima nunca deixam
+  // nada gravado (revisão do Codex, rodada 2).
+  if (
+    isAgencyAdminRole(auth.profile.role) &&
+    auth.profile.organization_id &&
+    auth.profile.organization_id !== tenantId
+  ) {
+    try {
+      await ensureTenantAgencyBinding({
+        admin,
+        tenantId,
+        agencyOrganizationId: auth.profile.organization_id,
+      });
+    } catch (bindingError) {
+      return json(
+        {
+          error:
+            bindingError instanceof Error
+              ? bindingError.message
+              : 'Falha ao vincular cliente a agencia para credencial global.',
+        },
+        500
+      );
+    }
+  }
+
   return json({
     ok: true,
     channel: toPublicChannelConnection(data, { canManageChannelConfig: auth.canManageChannelConfig }),

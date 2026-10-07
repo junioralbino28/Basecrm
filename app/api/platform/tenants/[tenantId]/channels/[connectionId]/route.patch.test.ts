@@ -46,26 +46,26 @@ vi.mock('@/lib/supabase/server', () => ({
       }),
       update: (updates: Record<string, unknown>) => {
         updateMock(updates);
-        return {
-          eq: () => ({
-            eq: () => ({
-              select: () => ({
-                single: () => Promise.resolve({
-                  data: {
-                    id: CONNECTION,
-                    provider: 'evolution',
-                    channel_type: 'whatsapp',
-                    name: 'Comercial',
-                    status: 'connected',
-                    config: updates.config,
-                    metadata: { phoneNumber: '5511999' },
-                  },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
+        const resposta = () =>
+          Promise.resolve({
+            data: {
+              id: CONNECTION,
+              provider: 'evolution',
+              channel_type: 'whatsapp',
+              name: 'Comercial',
+              status: 'connected',
+              config: updates.config,
+              metadata: { phoneNumber: '5511999' },
+            },
+            error: null,
+          });
+        // Com aiPromptKey no pedido a rota condiciona a gravação a `ai_agent_id is null` (Central de Agentes, fatia 2).
+        const encadeamento = {
+          eq: () => encadeamento,
+          is: () => encadeamento,
+          select: () => ({ single: resposta, maybeSingle: resposta }),
         };
+        return encadeamento;
       },
     }),
   }),
