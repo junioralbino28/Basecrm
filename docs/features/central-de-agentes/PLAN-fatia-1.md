@@ -5260,13 +5260,13 @@ main()
 
      **Token em produção** (6ª rodada do Codex, ponto a; verificação adversarial da v7). Sem aceitação explícita no manifesto, o token vem do operador (`SUPABASE_ACCESS_TOKEN` ou digitado sem eco) e passa por duas conferências antes de qualquer escrita: (1) é **recusado se for igual a qualquer token do Supabase que o agente já tem nesta máquina**, todo valor `sbp_...` do cofre, do `~/.claude.json` (MCP do Claude) e do `~/.codex/config.toml` (MCP do Codex), lidos em processo só para comparar; o script imprime quantos valores entraram na comparação e recusa se forem zero (medido em 06/10: os três lugares têm o mesmo valor, um só); (2) **escopo:** um `GET .../database/migrations` em **cada** outro projeto do manifesto tem que ser recusado (403 ou 404); se o manifesto não trouxer outro projeto, recusa, porque o escopo ficaria sem conferência; se o token alcança outro projeto, é token amplo e só passa com `--aceitar-token-amplo` **e** `producao_liberada.token_amplo_aceito = true` no manifesto (a exceção passa pelo mesmo commit do OK); 401 = inválido. **Decisão do Junior (06/10, ~01h50): os tokens não mudam.** Então a liberação da produção traz `token_do_agente_aceito = true`, e com isso o script usa **só** o token do cofre em produção (se `SUPABASE_ACCESS_TOKEN` estiver definido e for diferente, recusa: a aceitação vale para o do cofre, não para qualquer token; 7ª devolutiva, ponto a) e imprime que o faz por decisão registrada; o G23 fica FAIL com exceção aceita (Step 2.3), e as duas conferências acima ficam valendo para o dia em que ele mudar de ideia. Em `teste`, o token é `SUPABASE_ACCESS_TOKEN` ou o do cofre.
 
-     **Aplicação e recuperação** (5ª rodada, achado 5; 6ª rodada, ponto a, bloqueante; verificação adversarial da v7): antes do POST o script **trava** um **diário local** (`.em-andamento-<ref>-<nome>.json`, ao lado do script, ignorado pelo Git), criado com exclusividade (`O_CREAT | O_EXCL`: duas execuções ao mesmo tempo, uma recusa) e **antes** de reler histórico e prova (se a releitura achar a migration, o diário é apagado e nada é enviado; 7ª devolutiva, ponto a); enquanto ele existir, rodar sem `--retomar` é recusado. Aplica por `POST /v1/projects/{ref}/database/migrations` com `Idempotency-Key` = sha256 e alinha a versão registrada à do nome do arquivo (`update` em `supabase_migrations.schema_migrations`, pelo `database/query`). Só 401 e 403 contam como "não aplicada" de imediato (saída 1, diário apagado); 400, 404 e 422 passam por uma releitura confirmatória (histórico, prova ampla e `pg_stat_activity`) antes de valer como "não aplicada", porque a OpenAPI do endpoint só documenta 200, 401, 403, 429 e 500 e a migration tem `create trigger` e `create policy`, que não são idempotentes (7ª devolutiva, limite não verificado, e achado B do verificador); resposta perdida, corpo de erro ilegível, Ctrl+C, exceção depois do diário, 408, 409, 429, 5xx e **qualquer outro código** são indeterminados (o servidor pode ter aplicado): saída 3, o diário fica e nada é repetido às cegas. `--retomar` decide só por leitura SE a migration foi aplicada (a única escrita que ele faz é o alinhamento da versão no histórico, e só depois de confirmar pelo detalhe; 8ª devolutiva, ponto 3) e, havendo diário, exige que ele seja desta aplicação (`ref`, `arquivo`, `sha256` e `maquina` iguais aos atuais; diferença = parar, 8ª devolutiva, ponto 2): exige no histórico **uma** entrada com o nome do arquivo e nenhuma outra com a versão (colisão = parar), lê o detalhe dela (`GET .../database/migrations/{version}`) e exige `idempotency_key` = sha256 aprovado **e** `name` igual ao rótulo (detalhe sem nome = parar; a OpenAPI só declara `version` como obrigatório no detalhe, então o Step 1.1 confere com um GET real no banco de teste se o `name` vem, e se não vier esta exigência é revista); só então alinha a versão e apaga o diário. Sem entrada no histórico, o `--retomar` é conservador (7ª devolutiva, ponto a, bloqueante: o pedido anterior pode estar numa fila e ainda não aparecer em `pg_stat_activity`, e a OpenAPI só promete que a `Idempotency-Key` evita registro duplicado no histórico, não execução duplicada): exige que o POST tenha pelo menos 10 minutos (o diário grava `epoch_post`, com `fsync`, logo antes do POST, e os 10 minutos contam dele, não da criação do diário: entre a criação e o POST há duas releituras com 300 s de timeout cada, e contando da criação o prazo podia vencer segundos depois de um POST perdido; 8ª devolutiva, ponto 1, bloqueante; sem `epoch_post`, contam da criação); faz **três** leituras com 60 s de intervalo, cada uma com histórico, `prova_no_banco` ampla com `read_only: true` e `pg_stat_activity` (só leitura; o endpoint roda como `supabase_read_only_user`, que lê a consulta das outras sessões, medido em 06/10 no banco de teste) atrás de sessão ativa com a `marca_sql` ou com consulta oculta; qualquer leitura que não confirme ausência = "espere e repita" (3) e o diário fica; objeto presente = "aplicada sem registro, parar" (1); em produção, com as três leituras limpas, ainda exige `--confirmo-painel` (o operador conferiu Database → Migrations e o esquema no painel); só então "não aplicada" (saída **4**, própria; o diário é renomeado para `.nao-aplicada-<epoch>`, não apagado), e só então pode rodar de novo. Sem prova conclusiva = conferir no painel antes de qualquer novo POST (1). Aplicada e não alinhada = 3 e `--retomar` para alinhar.
+     **Aplicação e recuperação** (5ª rodada, achado 5; 6ª rodada, ponto a, bloqueante; verificação adversarial da v7): toda execução, aplicação ou `--retomar`, começa adquirindo uma **trava de execução** local por ref e arquivo (`.em-andamento-<ref>-<nome>.lock`, trava do sistema operacional que morre com o processo; ocupada = recusa sem chamada), para aplicação e retomada nunca correrem juntas (9ª devolutiva, pontos 1 e 2); antes do POST o script **trava** um **diário local** (`.em-andamento-<ref>-<nome>.json`, ao lado do script, ignorado pelo Git, com `tentativa` única e `formato` 3), criado com exclusividade (`O_CREAT | O_EXCL`: duas execuções ao mesmo tempo, uma recusa) e **antes** de reler histórico e prova (se a releitura achar a migration, o diário é apagado e nada é enviado; 7ª devolutiva, ponto a); enquanto ele existir, rodar sem `--retomar` é recusado. Aplica por `POST /v1/projects/{ref}/database/migrations` com `Idempotency-Key` = sha256 e alinha a versão registrada à do nome do arquivo (`update` em `supabase_migrations.schema_migrations`, pelo `database/query`). Só 401 e 403 contam como "não aplicada" de imediato (saída 1, diário apagado); 400, 404 e 422 passam por uma releitura confirmatória (histórico, prova ampla e `pg_stat_activity`) antes de valer como "não aplicada", porque a OpenAPI do endpoint só documenta 200, 401, 403, 429 e 500 e a migration tem `create trigger` e `create policy`, que não são idempotentes (7ª devolutiva, limite não verificado, e achado B do verificador); resposta perdida, corpo de erro ilegível, Ctrl+C, exceção depois do diário, 408, 409, 429, 5xx e **qualquer outro código** são indeterminados (o servidor pode ter aplicado): saída 3, o diário fica e nada é repetido às cegas. `--retomar` decide só por leitura SE a migration foi aplicada (a única escrita no banco que ele faz é o alinhamento da versão no histórico, e só depois de confirmar pelo detalhe; a saída 4 renomeia o diário local; 8ª devolutiva, ponto 3; 9ª, ponto 8) e, havendo diário, exige que ele seja desta aplicação (`ref`, `arquivo`, `sha256` e `maquina` iguais aos atuais; diferença = parar, 8ª devolutiva, ponto 2) e relê a `tentativa` dele antes de renomear ou apagar (mudou = 3, sem tocar nele; 9ª devolutiva, ponto 1): exige no histórico **uma** entrada com o nome do arquivo e nenhuma outra com a versão (colisão = parar), lê o detalhe dela (`GET .../database/migrations/{version}`) e exige `idempotency_key` = sha256 aprovado **e** `name` igual ao rótulo (detalhe sem nome = parar; a OpenAPI só declara `version` como obrigatório no detalhe, então o Step 1.1 confere com um GET real no banco de teste se o `name` vem, e se não vier esta exigência é revista); só então alinha a versão e apaga o diário. Sem entrada no histórico, o `--retomar` é conservador (7ª devolutiva, ponto a, bloqueante: o pedido anterior pode estar numa fila e ainda não aparecer em `pg_stat_activity`, e a OpenAPI só promete que a `Idempotency-Key` evita registro duplicado no histórico, não execução duplicada): exige que o POST tenha pelo menos 10 minutos (o diário grava `epoch_post`, com `fsync`, logo antes do POST, e os 10 minutos contam dele, não da criação do diário: entre a criação e o POST há duas releituras com 300 s de timeout cada, e contando da criação o prazo podia vencer segundos depois de um POST perdido; 8ª devolutiva, ponto 1, bloqueante; a gravação da marca tem duração limitada a 5 s, senão o POST não sai; sem `epoch_post`, ou com diário de formato anterior ao 3, o 4 nunca é automático: exige `--confirmo-painel` em qualquer ambiente, 9ª devolutiva, pontos 2 e 3); faz **três** leituras com 60 s de intervalo, cada uma com histórico, `prova_no_banco` ampla com `read_only: true` e `pg_stat_activity` (só leitura; o endpoint roda como `supabase_read_only_user`, que lê a consulta das outras sessões, medido em 06/10 no banco de teste) atrás de sessão ativa com a `marca_sql` ou com consulta oculta; qualquer leitura que não confirme ausência = "espere e repita" (3) e o diário fica; objeto presente = "aplicada sem registro, parar" (1); em produção, com as três leituras limpas, ainda exige `--confirmo-painel` (o operador conferiu Database → Migrations e o esquema no painel); só então "não aplicada" (saída **4**, própria; o diário é renomeado para `.nao-aplicada-<epoch>`, não apagado), e só então pode rodar de novo. Sem prova conclusiva = conferir no painel antes de qualquer novo POST (1). Aplicada e não alinhada = 3 e `--retomar` para alinhar.
 
-     **Provas feitas em 06/10, sem nenhuma escrita:** harness com API falsa (`06-References/basecrm-rito-publicacao/harness_aplicar.py` no cérebro: roda o código real do script com `urlopen`, `getpass`, cofre, `~/.claude.json`, `~/.codex/config.toml` e manifesto trocados; toda URL ou SQL inesperado vira violação registrada, nunca engolida; cada caso confere código de saída **e** um trecho da mensagem; `python harness_aplicar.py` tem que terminar em `93/93 cenarios OK`, e `python mutacoes.py` em `18/18 mutacoes pegas` (ele planta regressões na v3.3, uma por vez, e exige que o harness pegue cada uma); os cenários da 7ª devolutiva: corpo de erro ilegível no POST e no alinhar, exceção depois do diário, `--retomar` com diário recente, sem `epoch`, com sessão na 2ª leitura e com histórico na 3ª, produção sem e com `--confirmo-painel`, teste com as três leituras limpas, diário já existente, aplicação entre a 1ª leitura e a trava, outra máquina, liberação sem máquina, prova verdadeira e prova ilegível antes do POST, manifesto sem prova e sem marca, marca com caractere fora do permitido, aceitação do token do agente com `SUPABASE_ACCESS_TOKEN` diferente e igual, cofre sem token, detalhe sem `name`, 400 com objeto parcial e sem nada, 404 e 422 com releitura, 401 e 403 diretos; os da 8ª: releituras lentas antes do POST com `--retomar` 10 s e 10 min depois do POST, diário sem `epoch_post`, diário de outro sha256, de outra máquina e de outro arquivo): todas as recusas do manifesto sem nenhuma chamada (uso errado, nome fora do padrão, arquivo fora do manifesto, `--confirmar-banco` com o ref do outro ambiente ou inventado, CRLF, sha diferente, manifesto sem sha, ref fora do formato); feliz e repetida; prova verdadeira antes do POST; 503 com e sem o servidor ter aplicado, e o `--retomar` de cada um (inclusive o diário aberto recusando a repetição); POST perdido com a migration **ainda rodando** no servidor (o `--retomar` na hora espera, e só libera quando a sessão some ou o histórico aparece); perdido; Ctrl+C; 202; 400; aplicada sem alinhar; prova ilegível antes e no `--retomar`; histórico vazio com prova verdadeira, falsa e ausente; colisões de nome e de versão; `idempotency_key` diferente; entrada só de outro nome; tokens do cofre, do Claude e do Codex colados (recusa local); nenhum token do agente encontrado; token inválido; token amplo com e sem a aceitação do manifesto; token com escopo digitado; manifesto sem o ref do teste; `token_do_agente_aceito`; produção sem ensaio e sem liberação. Ao vivo, no banco de teste (v3.1): `--retomar` com histórico vazio leu o histórico (200), a prova (`to_regclass('public.ai_reply_events')` = falso) e `pg_stat_activity` (0 ativas, 0 ocultas) e saiu com 4 (na v3.2 o mesmo comando, sem diário com idade, para com 3: não há POST para reconciliar); produção com o token do cofre colado foi recusada antes de qualquer chamada. O manifesto, como está no cérebro (os campos nulos são preenchidos nos Steps 1.1, 2.2.3 e 2.3):
+     **Provas feitas em 06/10, sem nenhuma escrita:** harness com API falsa (`06-References/basecrm-rito-publicacao/harness_aplicar.py` no cérebro: roda o código real do script com `urlopen`, `getpass`, cofre, `~/.claude.json`, `~/.codex/config.toml` e manifesto trocados; toda URL ou SQL inesperado vira violação registrada, nunca engolida; cada caso confere código de saída **e** um trecho da mensagem; `python harness_aplicar.py` tem que terminar em `112/112 cenarios OK`, e `python mutacoes.py` em `22/22 mutacoes pegas` (ele planta regressões na v3.3, uma por vez, e exige que o harness pegue cada uma); os cenários da 7ª devolutiva: corpo de erro ilegível no POST e no alinhar, exceção depois do diário, `--retomar` com diário recente, sem `epoch`, com sessão na 2ª leitura e com histórico na 3ª, produção sem e com `--confirmo-painel`, teste com as três leituras limpas, diário já existente, aplicação entre a 1ª leitura e a trava, outra máquina, liberação sem máquina, prova verdadeira e prova ilegível antes do POST, manifesto sem prova e sem marca, marca com caractere fora do permitido, aceitação do token do agente com `SUPABASE_ACCESS_TOKEN` diferente e igual, cofre sem token, detalhe sem `name`, 400 com objeto parcial e sem nada, 404 e 422 com releitura, 401 e 403 diretos; os da 8ª: releituras lentas antes do POST com `--retomar` 10 s e 10 min depois do POST, diário sem `epoch_post`, diário de outro sha256, de outra máquina e de outro arquivo; os da 9ª: trava ocupada por outra execução, diário trocado durante a retomada e antes de alinhar, sem `epoch_post` com e sem `--confirmo-painel`, diário legado sem formato, marca do POST lenta): todas as recusas do manifesto sem nenhuma chamada (uso errado, nome fora do padrão, arquivo fora do manifesto, `--confirmar-banco` com o ref do outro ambiente ou inventado, CRLF, sha diferente, manifesto sem sha, ref fora do formato); feliz e repetida; prova verdadeira antes do POST; 503 com e sem o servidor ter aplicado, e o `--retomar` de cada um (inclusive o diário aberto recusando a repetição); POST perdido com a migration **ainda rodando** no servidor (o `--retomar` na hora espera, e só libera quando a sessão some ou o histórico aparece); perdido; Ctrl+C; 202; 400; aplicada sem alinhar; prova ilegível antes e no `--retomar`; histórico vazio com prova verdadeira, falsa e ausente; colisões de nome e de versão; `idempotency_key` diferente; entrada só de outro nome; tokens do cofre, do Claude e do Codex colados (recusa local); nenhum token do agente encontrado; token inválido; token amplo com e sem a aceitação do manifesto; token com escopo digitado; manifesto sem o ref do teste; `token_do_agente_aceito`; produção sem ensaio e sem liberação. Ao vivo, no banco de teste (v3.1): `--retomar` com histórico vazio leu o histórico (200), a prova (`to_regclass('public.ai_reply_events')` = falso) e `pg_stat_activity` (0 ativas, 0 ocultas) e saiu com 4 (na v3.2 o mesmo comando, sem diário com idade, para com 3: não há POST para reconciliar); produção com o token do cofre colado foi recusada antes de qualquer chamada. O manifesto, como está no cérebro (os campos nulos são preenchidos nos Steps 1.1, 2.2.3 e 2.3):
 
 ```json
 {
-  "_leia-me": "Manifesto lido pelo aplicar_migration.py (mesma pasta, v3.3). Uma entrada por arquivo de migration, pelo nome. `sha256` e o do arquivo COMMITADO (git show HEAD:supabase/migrations/<arquivo> | sha256sum); `commit` e o sha desse commit, anotado como registro (a API nao tem como conferir). `projetos` fixa o ref de cada ambiente; o script recusa qualquer outro, e em producao exige que o token NAO alcance os outros. `prova_no_banco` e um SELECT so leitura que devolve TRUE na coluna booleana `aplicada` se QUALQUER objeto da migration existir: ela detecta um prefixo persistido da execucao sequencial da migration (a primeira alteracao cria `ai_agents`; indices, funcoes, gatilhos, policies e grants nao entram na prova); antes do POST ela tem que devolver exatamente FALSE, senao nada e enviado. O --retomar decide so por leitura SE a migration foi aplicada; a unica escrita que o --retomar faz e o alinhamento da versao no historico, e so depois de confirmar pelo detalhe. `marca_sql` e uma regex (so [A-Za-z0-9_|], nomes separados por |) dos nomes que so a migration usa, procurada com `query ~* '<marca>'` em pg_stat_activity pelo --retomar e pela releitura depois de 400/404/422. Sem `prova_no_banco` ou sem `marca_sql` o script recusa sem nenhuma chamada. `producao_liberada` pode trazer `token_amplo_aceito: true` (token do operador que alcanca outros projetos) e `token_do_agente_aceito: true` (SO o token do cofre em producao; decisao do Junior de 06/10: os tokens nao mudam): as duas sao excecoes do G23 e passam pelo mesmo commit do OK. `producao_liberada.maquina` e OBRIGATORIO em producao: o COMPUTERNAME da maquina onde a aplicacao vai rodar (o script recusa sem chamada se faltar ou se a maquina for outra, e imprime o COMPUTERNAME atual para registrar). E conferencia operacional contra erro de maquina, nao garantia tecnica: vem de variavel de ambiente, e o diario (.em-andamento-*) e local a cada copia do script. A garantia do diario e exclusao entre processos que usam esta copia; a sobrevivencia a queda de energia depende do fsync e do disco. `ensaios.teste` e `ensaios.copia_restaurada` sao preenchidos depois de cada ensaio passar (sha256 + data/hora BRT); `producao_liberada` recebe o OK do Junior citado (por, em, texto, maquina). Em producao o script exige os dois ensaios com o mesmo sha256 e a liberacao preenchida. Toda alteracao deste arquivo vai commitada no cerebro, com a data: e o registro verificavel de quem aprovou o que.",
+  "_leia-me": "Manifesto lido pelo aplicar_migration.py (mesma pasta, v3.4). Uma entrada por arquivo de migration, pelo nome. `sha256` e o do arquivo COMMITADO (git show HEAD:supabase/migrations/<arquivo> | sha256sum); `commit` e o sha desse commit, anotado como registro (a API nao tem como conferir). `projetos` fixa o ref de cada ambiente; o script recusa qualquer outro, e em producao exige que o token NAO alcance os outros. `prova_no_banco` e um SELECT so leitura que devolve TRUE na coluna booleana `aplicada` se qualquer sentinela listado existir (as duas tabelas, a coluna e a tabela de eventos), o que detecta um prefixo persistido da execucao sequencial da migration (a primeira alteracao cria `ai_agents`; indices, funcoes, gatilhos, policies e grants nao entram na prova); antes do POST ela tem que devolver exatamente FALSE, senao nada e enviado. O --retomar decide so por leitura SE a migration foi aplicada; a unica escrita NO BANCO que o --retomar faz e o alinhamento da versao no historico, e so depois de confirmar pelo detalhe (a saida 4 renomeia o diario local). Trava de execucao (v3.4): a aplicacao e o --retomar travam `.em-andamento-<ref>-<nome>.lock` antes de qualquer chamada de rede (o SO solta a trava quando o processo morre); ocupada = recusa sem chamada. O diario tem `formato` 3 e uma `tentativa` (uuid4); antes de alinhar, apagar ou renomear o diario, o --retomar o rele e exige o mesmo conteudo (mesma `tentativa`). Diario sem `epoch_post` ou de formato antigo exige --confirmo-painel em qualquer ambiente. `marca_sql` e uma regex (so [A-Za-z0-9_|], nomes separados por |) dos nomes que so a migration usa, procurada com `query ~* '<marca>'` em pg_stat_activity pelo --retomar e pela releitura depois de 400/404/422. Sem `prova_no_banco` ou sem `marca_sql` o script recusa sem nenhuma chamada. `producao_liberada` pode trazer `token_amplo_aceito: true` (token do operador que alcanca outros projetos) e `token_do_agente_aceito: true` (SO o token do cofre em producao; decisao do Junior de 06/10: os tokens nao mudam): as duas sao excecoes do G23 e passam pelo mesmo commit do OK. `producao_liberada.maquina` e OBRIGATORIO em producao: o COMPUTERNAME da maquina onde a aplicacao vai rodar (o script recusa sem chamada se faltar ou se a maquina for outra, e imprime o COMPUTERNAME atual para registrar). E conferencia operacional contra erro de maquina, nao garantia tecnica: vem de variavel de ambiente, e o diario (.em-andamento-*) e local a cada copia do script. A garantia do diario e exclusao entre processos que usam esta copia; a sobrevivencia a queda de energia depende do fsync e do disco. `ensaios.teste` e `ensaios.copia_restaurada` sao preenchidos depois de cada ensaio passar (sha256 + data/hora BRT); `producao_liberada` recebe o OK do Junior citado (por, em, texto, maquina). Em producao o script exige os dois ensaios com o mesmo sha256 e a liberacao preenchida. Toda alteracao deste arquivo vai commitada no cerebro, com a data: e o registro verificavel de quem aprovou o que.",
   "20260930000000_central_agentes_fundacao.sql": {
     "sha256": null,
     "commit": null,
@@ -5289,15 +5289,16 @@ main()
 
 ```python
 # -*- coding: utf-8 -*-
-"""Aplica UMA migration aprovada num projeto Supabase: só a que está no manifesto ao lado deste script. (v3.3, 06/10)
+"""Aplica UMA migration aprovada num projeto Supabase: só a que está no manifesto ao lado deste script. (v3.4, 06/10)
 
   python aplicar_migration.py <teste|producao> <arquivo.sql> --confirmar-banco <ref> [--retomar] [--confirmo-painel] [--aceitar-token-amplo]
 
 O operador escolhe o AMBIENTE e informa o CAMINHO do arquivo; tudo o mais vem do manifesto `migracoes-aprovadas.json`
 (versionado no cérebro): nome do arquivo, sha256 aprovado (do arquivo commitado; o commit fica anotado só como
 registro), ref de cada ambiente, `prova_no_banco` (SELECT só leitura que devolve TRUE na coluna booleana `aplicada` se
-QUALQUER objeto da migration existir: ela detecta um prefixo persistido da execução sequencial da migration — a primeira
-alteração cria `ai_agents`; índices, funções, gatilhos, policies e grants não entram na prova), `marca_sql` (regex, só
+qualquer sentinela listado existir — as duas tabelas, a coluna e a tabela de eventos —, o que detecta um prefixo
+persistido da execução sequencial da migration: a primeira alteração cria `ai_agents`; índices, funções, gatilhos,
+policies e grants não entram na prova), `marca_sql` (regex, só
 [A-Za-z0-9_|], com os nomes que só a migration usa, para achar uma sessão que ainda a esteja executando), ensaios feitos
 (banco de teste e cópia restaurada) e a liberação da produção (o OK do Junior, citado, e a `maquina` onde ela vale; a
 `maquina` é conferência operacional contra erro de máquina, não garantia técnica: vem de variável de ambiente, e o
@@ -5327,25 +5328,33 @@ SUPABASE_ACCESS_TOKEN definido e diferente dele é recusado), imprimindo que faz
 FAIL com exceção aceita; as conferências acima valem quando essa aceitação não existe).
 
 Aplica por POST /v1/projects/{ref}/database/migrations com Idempotency-Key = sha256 e alinha a versão registrada à do
-nome do arquivo. Antes do POST TRAVA um DIÁRIO local (`.em-andamento-<ref>-<nome>.json`, ao lado do script, criado com
-O_EXCL, com `ref`, `arquivo`, `sha256`, a hora da criação em `epoch` e a `maquina`) e SÓ DEPOIS relê histórico e prova:
+nome do arquivo. TRAVA DE EXECUÇÃO (v3.4): logo depois de validar manifesto e arquivo, e antes de qualquer chamada de
+rede, a aplicação E o --retomar travam `.em-andamento-<ref>-<nome>.lock` (msvcrt.locking no Windows, fcntl.flock fora
+dele; o SO solta a trava quando o processo morre); ocupada = recusa (1) sem nenhuma chamada. Duas execuções desta cópia
+para o mesmo ref+nome nunca rodam juntas. Antes do POST TRAVA um DIÁRIO local (`.em-andamento-<ref>-<nome>.json`, ao
+lado do script, criado com O_EXCL, `formato` 3, uma `tentativa` (uuid4), `ref`, `arquivo`, `sha256`, a hora da criação
+em `epoch` e a `maquina`) e SÓ DEPOIS relê histórico e prova:
 se a migration apareceu entre a 1ª leitura e a trava, apaga o diário e recusa sem POST. Imediatamente antes do POST o
 diário é regravado com `epoch_post` (v3.3: as releituras podem demorar até 300 s cada, e o prazo do --retomar conta do
-POST, não da criação). As duas gravações fazem flush + fsync; a regravação vai por arquivo temporário + os.replace. A
+POST, não da criação). As duas gravações fazem flush + fsync; a regravação vai por arquivo temporário + os.replace e
+tem que caber em 5 s (v3.4: senão é refeita, até 3 vezes; nenhuma coube = 3 sem POST), então o intervalo real entre a
+marca e o POST fica limitado a 5 s e os 600 s do --retomar contam a partir da marca. A
 garantia do diário é exclusão entre processos que usam esta cópia; a sobrevivência a queda de energia depende do fsync e
 do disco. Enquanto o diário existir, rodar sem `--retomar` é recusado.
 401 e 403 contam como "não aplicada" (saída 1). 400, 404 e 422 passam por uma releitura (histórico, prova e
 pg_stat_activity): tudo vazio = "não aplicada" (1); qualquer sinal ou leitura ilegível = 3. Resposta perdida, corpo de
 erro ilegível, Ctrl+C, 408, 409, 429, 5xx, qualquer outro código e qualquer erro inesperado depois do diário saem com
 3 e NUNCA são repetidos às cegas (6ª rodada, ponto a, bloqueante). `--retomar` decide só por leitura SE a migration
-foi aplicada; a única escrita que o --retomar faz é o alinhamento da versão no histórico, e só depois de confirmar pelo
-detalhe. Havendo diário, ele tem que ser DESTA aplicação (v3.3): `ref`, `arquivo`, `sha256` e `maquina` iguais aos
+foi aplicada; a única escrita NO BANCO que o --retomar faz é o alinhamento da versão no histórico, e só depois de
+confirmar pelo detalhe (a saída 4 renomeia o diário local). Antes de alinhar, de apagar o diário e de renomeá-lo, o
+--retomar relê o diário e exige o mesmo conteúdo lido no início, com a mesma `tentativa` (v3.4); mudou = 3. Havendo diário, ele tem que ser DESTA aplicação (v3.3): `ref`, `arquivo`, `sha256` e `maquina` iguais aos
 atuais, senão recusa (1) sem tocar nele. Com entrada: exige no histórico UMA entrada com o nome do arquivo (e nenhuma
 outra com a versão), lê o detalhe dela e exige `idempotency_key` = sha256 aprovado e `name` = o mesmo nome (ausente =
 recusa); só então alinha a versão. Sem entrada (conservador): exige o diário com pelo menos 10 min contados de
 `epoch_post` (ou de `epoch`, se o POST não chegou a ser marcado) (senão 3, "espere"), e faz 3 leituras com 1 min
 entre elas, cada uma refazendo histórico, `prova_no_banco` e `pg_stat_activity` (sessão ativa com a `marca_sql`, ou
-com consulta oculta); qualquer leitura que não confirme a ausência = 3. Em produção, mesmo com as 3 limpas, exige
+com consulta oculta); qualquer leitura que não confirme a ausência = 3. Diário sem a marca do POST (`epoch_post`), sem
+`formato` ou com `formato` < 3 (legado) exige `--confirmo-painel` em QUALQUER ambiente (v3.4). Em produção, mesmo com as 3 limpas, exige
 `--confirmo-painel` (o operador conferiu Database > Migrations e o esquema no painel), senão 3. Tudo limpo = "não
 aplicada" (4): o diário é RENOMEADO para `<diario>.nao-aplicada-<epoch>` (não apagado) e aí sim pode rodar de novo.
 
@@ -5363,6 +5372,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MANIFESTO = os.path.join(AQUI, "migracoes-aprovadas.json")
@@ -5383,7 +5393,11 @@ RELOGIO = time
 ESPERA_MIN_S = 600   # o --retomar com histórico vazio só lê depois de 10 min do POST
 LEITURAS = 3         # leituras consecutivas que têm que confirmar a ausência
 INTERVALO_S = 60     # entre uma leitura e a seguinte
+LIMITE_MARCA_S = 5   # v3.4: a marca do POST (epoch_post) tem que ficar no disco em até 5 s, senão é refeita
+TENTATIVAS_MARCA = 3
+FORMATO_DIARIO = 3   # v3.4: diário com `tentativa` e `epoch_post`; formato ausente ou menor = legado (v3.2/v3.3)
 _DIARIO_ABERTO = []  # o diário desta execução (criado aqui ou retomado); a rede do main() olha isto
+_TRAVA = []          # v3.4: (descritor, caminho) da trava de execução; o main() a solta no finally
 
 
 def segredo(nome):
@@ -5557,12 +5571,71 @@ def gravar_com_fsync(f, dados):
 
 def marcar_post(diario, dados):
     """v3.3: regrava o diário com `epoch_post` imediatamente antes do POST, mantendo os campos existentes. Vai por
-    temporário + os.replace: o caminho do diário nunca fica sem arquivo nem com JSON pela metade."""
-    dados["epoch_post"] = RELOGIO.time()
+    temporário + os.replace: o caminho do diário nunca fica sem arquivo nem com JSON pela metade.
+    v3.4: duração limitada. Se entre capturar `epoch_post` e terminar o os.replace passarem mais de LIMITE_MARCA_S,
+    captura e grava de novo (até TENTATIVAS_MARCA vezes); nenhuma coube = 3 SEM POST. Assim o intervalo real entre a
+    marca e o POST fica limitado a 5 s, e o --retomar já conta os 600 s a partir da marca."""
     temporario = diario + ".tmp"
-    with io.open(temporario, "w", encoding="utf-8") as f:
-        gravar_com_fsync(f, dados)
-    os.replace(temporario, diario)
+    for _ in range(TENTATIVAS_MARCA):
+        inicio = RELOGIO.time()
+        dados["epoch_post"] = inicio
+        with io.open(temporario, "w", encoding="utf-8") as f:
+            gravar_com_fsync(f, dados)
+        os.replace(temporario, diario)
+        if RELOGIO.time() - inicio <= LIMITE_MARCA_S:
+            return
+    indeterminado(f"disco lento ao marcar o POST; nada foi enviado ({TENTATIVAS_MARCA} gravacoes passaram de {LIMITE_MARCA_S} s; o diario fica)")
+
+
+def caminho_da_trava(ref, rotulo):
+    return os.path.join(AQUI, f".em-andamento-{ref}-{rotulo}.lock")
+
+
+def travar_execucao(ref, rotulo):
+    """v3.4: trava de EXECUÇÃO comum à aplicação e ao --retomar, por ref+rótulo, antes de qualquer chamada de rede.
+    msvcrt.locking no Windows, fcntl.flock fora dele; o SO solta a trava quando o processo morre (não há trava órfã).
+    O arquivo .lock pode ficar no disco, vazio."""
+    caminho = caminho_da_trava(ref, rotulo)
+    fd = os.open(caminho, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, 0)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        recusar(f"outra execucao deste script esta rodando para {rotulo} em {ref} (trava {os.path.basename(caminho)}); espere ela terminar")
+    _TRAVA.append((fd, caminho))
+
+
+def soltar_trava():
+    while _TRAVA:
+        fd, _ = _TRAVA.pop()
+        try:
+            if os.name == "nt":
+                import msvcrt
+                os.lseek(fd, 0, 0)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
+
+
+def conferir_mesma_tentativa(diario, inicial):
+    """v3.4: antes de renomear (saída 4), de alinhar e de apagar o diário, o --retomar relê o diário e exige o MESMO
+    conteúdo lido no início (o que inclui a mesma `tentativa`; num diário legado sem `tentativa`, o conteúdo inteiro).
+    `inicial` None = não havia diário no início; aí ele tem que continuar não existindo."""
+    if inicial is None and not os.path.exists(diario):
+        return
+    relido = ler_diario(diario)
+    if relido is None or relido != inicial:
+        indeterminado(f"o diario mudou durante a retomada ({os.path.basename(diario)}): nada foi renomeado nem apagado; conferir a mao")
 
 
 def conferir_identidade(registro, ref, nome, sha):
@@ -5618,9 +5691,10 @@ def token_para(ambiente, outros_refs, aceitar_amplo, aceitar_token_do_agente=Fal
     return token
 
 
-def retomar_sem_entrada(token, ref, ambiente, diario, rotulo, versao, prova, marca, confirmo_painel):
-    """--retomar com o histórico sem a entrada (v3.2, conservador): espera, 3 leituras limpas e, em produção, o painel."""
-    registro = ler_diario(diario)
+def retomar_sem_entrada(token, ref, ambiente, diario, rotulo, versao, prova, marca, confirmo_painel, registro):
+    """--retomar com o histórico sem a entrada (v3.2, conservador): espera, 3 leituras limpas e, em produção, o painel.
+    v3.4: `registro` é o diário lido no início do --retomar (sob a trava de execução); diário sem a marca do POST
+    (`epoch_post`) ou de formato antigo exige --confirmo-painel em QUALQUER ambiente."""
 
     def numero(v):
         return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
@@ -5646,9 +5720,17 @@ def retomar_sem_entrada(token, ref, ambiente, diario, rotulo, versao, prova, mar
         if estado != "limpa":
             indeterminado(f"leitura {n} de {LEITURAS} nao confirma a ausencia: {motivo}; espere e repita --retomar")
         print(f"leitura {n} de {LEITURAS}: historico sem a entrada, prova no banco FALSE, nenhuma sessao com a marca nem oculta")
+    # v3.4: com a trava de execução, aplicação e retomada não rodam juntas; diário sem epoch_post = a aplicação parou
+    # antes do POST. Mesmo assim (decisão): sem a marca, ou com formato antigo, a liberação passa pelo painel.
+    formato = numero(registro.get("formato")) if registro else None
+    marcado = epoch_post is not None and formato is not None and formato >= FORMATO_DIARIO
+    if not marcado and not confirmo_painel:
+        indeterminado("diario sem marca do POST (a aplicacao parou antes dele, ou e de formato antigo): confira no painel que nada foi "
+                      f"aplicado e repita com --confirmo-painel (as {LEITURAS} leituras confirmaram a ausencia)")
     if ambiente == "producao" and not confirmo_painel:
         indeterminado(f"as {LEITURAS} leituras confirmam a ausencia, mas em producao isso so vale com --confirmo-painel: confira no painel "
                       "do Supabase (Database > Migrations e o esquema) que a migration nao esta la e repita --retomar --confirmo-painel")
+    conferir_mesma_tentativa(diario, registro)
     destino = f"{diario}.nao-aplicada-{int(RELOGIO.time())}"
     os.rename(diario, destino)
     del _DIARIO_ABERTO[:]
@@ -5671,6 +5753,8 @@ def main():
         if not _DIARIO_ABERTO:
             raise
         indeterminado(f"erro inesperado depois do diario: {type(e).__name__} (o diario {os.path.basename(_DIARIO_ABERTO[0])} fica)")
+    finally:
+        soltar_trava()  # v3.4: em toda saída, inclusive SystemExit
 
 
 def executar():
@@ -5709,7 +5793,7 @@ def executar():
     # v3.2: sem prova e sem marca nada sai (a prova prévia falha fechada e o --retomar precisa das duas).
     prova = entrada.get("prova_no_banco")
     if not isinstance(prova, str) or not prova.strip():
-        recusar("o manifesto nao tem a prova_no_banco deste arquivo (SELECT que devolve TRUE se QUALQUER objeto da migration existir)")
+        recusar("o manifesto nao tem a prova_no_banco deste arquivo (SELECT que devolve TRUE se qualquer sentinela listado da migration existir)")
     marca = entrada.get("marca_sql")
     if not isinstance(marca, str) or not marca:
         recusar("o manifesto nao tem a marca_sql deste arquivo (regex dos nomes que so a migration usa)")
@@ -5749,6 +5833,8 @@ def executar():
         aceitar_token_do_agente = lib.get("token_do_agente_aceito") is True
     else:
         aceitar_token_do_agente = False
+    # v3.4: trava de execução por ref+rótulo, depois de validar manifesto e arquivo e ANTES de qualquer chamada de rede.
+    travar_execucao(ref, rotulo)
     token = token_para(ambiente, outros_refs, aceitar_amplo, aceitar_token_do_agente)
     print(f"ambiente {ambiente} | projeto {ref} | arquivo {nome} | sha256 {sha[:12]} | commit anotado: {entrada.get('commit') or '-'}")
 
@@ -5762,6 +5848,7 @@ def executar():
     com_versao = [m for m in historico if m.get("version") == versao]
 
     if retomar:
+        registro_diario = None
         if os.path.exists(diario):
             _DIARIO_ABERTO.append(diario)
             # v3.3: o diário tem que ser desta aplicação, com entrada no histórico ou sem. Ilegível (não JSON): sem entrada
@@ -5773,7 +5860,7 @@ def executar():
                 indeterminado(f"o diario {os.path.basename(diario)} e ilegivel (nao e JSON): nao da para conferir de que aplicacao ele e; "
                               "conferir a mao; nao apagar sem olhar")
         if not com_nome and not com_versao:
-            retomar_sem_entrada(token, ref, ambiente, diario, rotulo, versao, prova, marca, confirmo_painel)
+            retomar_sem_entrada(token, ref, ambiente, diario, rotulo, versao, prova, marca, confirmo_painel, registro_diario)
         if len(com_nome) != 1 or any(m is not com_nome[0] and m.get("version") == versao for m in historico):
             recusar(f"colisao no historico: {len(com_nome)} entrada(s) com o nome '{rotulo}' e {len(com_versao)} com a versao {versao}; parar e olhar")
         registro = com_nome[0]
@@ -5787,14 +5874,17 @@ def executar():
         if detalhe.get("name") != rotulo:
             recusar(f"detalhe sem nome ou com outro nome ({detalhe.get('name')}): conferir no painel (Database > Migrations) antes de qualquer passo")
         if registro.get("version") == versao:
+            conferir_mesma_tentativa(diario, registro_diario)  # v3.4
             if os.path.exists(diario):
                 os.unlink(diario)
             print(f"JA ALINHADA {nome} em {ref} | sha256 {sha[:12]}")
             sys.exit(0)
+        conferir_mesma_tentativa(diario, registro_diario)  # v3.4: antes da única escrita no banco do --retomar
         ok, msg = alinhar(token, ref, versao, rotulo)
         if not ok:
             print(f"APLICADA (confirmada pelo detalhe do historico), mas NAO ALINHOU {nome} em {ref} | {msg} | repita --retomar quando a API voltar")
             sys.exit(3)
+        conferir_mesma_tentativa(diario, registro_diario)  # v3.4: antes de apagar o diário
         if os.path.exists(diario):
             os.unlink(diario)
         print(f"ALINHADA {nome} em {ref} | {msg}")
@@ -5815,8 +5905,8 @@ def executar():
     except FileExistsError:
         recusar(f"ha uma aplicacao em aberto (ou outra execucao agora): rode --retomar (diario {os.path.basename(diario)})")
     _DIARIO_ABERTO.append(diario)
-    dados_diario = {"ref": ref, "arquivo": nome, "sha256": sha, "em": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "epoch": RELOGIO.time(), "maquina": os.environ.get("COMPUTERNAME")}
+    dados_diario = {"formato": FORMATO_DIARIO, "tentativa": str(uuid.uuid4()), "ref": ref, "arquivo": nome, "sha256": sha,
+                    "em": time.strftime("%Y-%m-%dT%H:%M:%S"), "epoch": RELOGIO.time(), "maquina": os.environ.get("COMPUTERNAME")}
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         gravar_com_fsync(f, dados_diario)
     historico, msg = registradas(token, ref)
@@ -5915,34 +6005,54 @@ main()
         - **quem roda o quê (decisão do Junior, 06/10 ~02h: "pode seguir você no terminal quando precisar"):** a senha do banco de produção **não está no cofre** (medido em 06/10, só pelos nomes das chaves: nenhuma senha nem URL de conexão do Supabase; a senha é um caminho de escrita que escopo de token não limita, 6ª rodada, ponto c) e **não vai entrar** nele nem em arquivo em texto. O agente roda o dump pelo script `dump_producao.ps1` do cérebro (bloco abaixo); a senha chega por um arquivo protegido pelo DPAPI do Windows (mesma conta), que o Junior cria no terminal dele com uma linha que não ecoa e não deixa a senha no histórico (`Read-Host -AsSecureString "senha do banco de producao" | ConvertFrom-SecureString | Set-Content "$D\.senha.dpapi"`), e que o script apaga ao terminar. **Por que não na linha de comando** (verificação adversarial da v7): o PSReadLine grava cada linha em `ConsoleHost_history.txt`, e o filtro padrão dele só pula linhas com palavras como `password` ou `token`, que uma URL `postgresql://...` não tem; e um comando do agente com a senha dentro ficaria no registro da sessão. O script monta a URL em memória e a passa só ao processo da CLI. **O que o EFS e a ACL protegem e o que não protegem:** o agente roda com a mesma conta dele nesta máquina, então EFS e ACL protegem os arquivos contra outras contas, contra o sandbox do Codex e contra o disco fora da máquina, não contra o agente; a regra de que nenhum agente lê o conteúdo é processo, registrada como tal;
         - preparar: `New-Item -ItemType Directory -Force $Raiz | Out-Null; cipher /e $Raiz; icacls $Raiz /inheritance:r /grant:r "${env:USERDOMAIN}\${env:USERNAME}:(OI)(CI)F"` (EFS do Windows 11 Pro, preso à conta do Junior: todo arquivo criado dentro nasce cifrado). Depois a pasta do dia, **nova e vazia** (6ª rodada, ponto b: `New-Item -Force` reaproveitaria uma subpasta que já existisse, com a ACL que ela tivesse): `if (Test-Path $D) { throw "$D ja existe: escolha outro sufixo ou apague antes" }; New-Item -ItemType Directory $D | Out-Null`;
         - **conferir ANTES do dump**, na raiz **e** na pasta do dia (`/inheritance:r /grant:r` tira as permissões herdadas e redefine as da conta dele, mas não remove permissão explícita de outra conta que já existisse; por isso a conferência é da ACL efetiva, e não do comando): `(Get-Acl $Raiz).AreAccessRulesProtected` tem que ser `True`; para cada uma das duas pastas, `((Get-Acl <pasta>).Access | ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique) -join ', '` tem que listar **só** `<DOMÍNIO>\<usuário dele>`; `(Get-Item $D).Attributes -band [IO.FileAttributes]::Encrypted` tem que devolver `Encrypted`; e `cipher /c $D` tem que listar só o certificado dele em "Usuários com permissão para descriptografar" e dizer "Nenhum certificado de recuperação encontrado" (o `cipher /c` funciona na pasta vazia; medido em 06/10 numa pasta de ensaio em `%TEMP%`). Qualquer outra identidade ou certificado, ou a pasta sem `Encrypted`: parar, apagar a pasta e descobrir quem a criou antes. **Por que a conferência da ACL não é excesso:** na mesma pasta de ensaio, criada sob o perfil dele sem o `/inheritance:r`, a ACL herdada trazia `SISTEMA`, `Administradores`, o grupo `CodexSandboxUsers` (o sandbox do Codex) e seis SIDs sem nome; é isso que o `/inheritance:r /grant:r` da raiz corta, e é isso que a leitura da ACL efetiva tem que mostrar cortado;
-        - dump: `powershell -NoProfile -ExecutionPolicy Bypass -File 06-References/basecrm-rito-publicacao/dump_producao.ps1 -Data <data>` (o script confere que a pasta existe, está cifrada e vazia e que o arquivo da senha está lá; roda os três `supabase db dump` por caminho absoluto, `roles.sql --role-only`, `schema.sql`, `data.sql --use-copy --data-only -x storage.buckets_vectors -x storage.vector_indexes`; apaga o arquivo da senha logo depois de carregá-la e, no fim, confere que ele não existe, senão sai com 1; e imprime tamanho, atributo cifrado e sha256 dos três). **v2 e v3 do script (7ª devolutiva, ponto b; achado C do verificador; 8ª devolutiva, pontos 4 e 5):** a senha vai para a variável de ambiente `PGPASSWORD` **só do processo filho** que roda a CLI (cada dump é lançado por `ProcessStartInfo` com o ambiente restrito ao filho; o PowerShell pai nunca a tem no ambiente, e a CLI é aquecida com `--version` antes de o arquivo DPAPI ser aberto, para nenhum download acontecer com a senha presente) e a URL vai **sem senha**: nada na linha de comando (que a auditoria de criação de processo do Windows, evento 4688, pode registrar) e nada nos logs do npm (`npm_config_logs_max=0`); a CLI repassa a senha ao `pg_dump` dentro do container pela mesma variável (lido no código da CLI, `db_url.go` e `dump.go`, e na documentação do pgx: `ParseConfig` lê `PGPASSWORD`). Provado em 06/10 na stack local: gerou o `roles.sql` (15 linhas, 370 bytes) com saída 0 em 56 s, com `PGPASSWORD` no ambiente do container do `pg_dump` e nenhuma URL com senha no comando dele; a pasta `_logs` do npm ficou vazia. A versão da CLI é fixa (`npx --yes supabase@2.120.0`), porque `npx supabase` sem versão receberia a senha de produção com o que estiver no cache ou no registro. O host do pooler e o ref do projeto são constantes no script, validadas por padrão antes de qualquer leitura do DPAPI (`aws-0-us-east-2.pooler.supabase.com`, região lida pela API; conferir em Connect → Session pooler; `eqidsihasmwwamkaqfka`; mudar só por commit): na v2 o `-Ref` era parâmetro livre e `x@evil.example/` trocaria o host efetivo da URL (8ª devolutiva, ponto 4, bloqueante); agora a senha não tem como ir a um destino arbitrário. A senha nunca aparece na saída nem na linha de comando: existe no arquivo DPAPI até o script carregá-la e, depois, só no ambiente da cadeia de processos filhos (npx/node → wrapper do pacote → `supabase.exe` → docker → container do `pg_dump`), legível pela mesma conta enquanto eles vivem, nunca no PowerShell pai (a string da senha fica na memória .NET do pai até o GC; não é invisível para o agente, que roda com essa conta; isso fica registrado, e a prova 7 do item 10 da SPEC pede a troca da senha depois do dump). Provado em 06/10 na stack local com a v3: `prova_dump_local.ps1` (na pasta do rito) gerou o `roles.sql` (15 linhas, 370 bytes, byte a byte igual ao da v2) com `PGPASSWORD` só no processo filho; o processo pai ficou sem a variável durante (113 leituras de um vigia a cada 20 ms) e depois; no container do `pg_dump` a variável está no `Env` e o `Cmd` só a cita por nome, sem valor nem URL com senha; rodar esse script logo antes do dump real também deixa a imagem do `pg_dump` baixada sem a senha presente. Todo o uso do arquivo da senha fica num `try/finally`: se ele sobrar, o script avisa com o caminho e sai com 1. O script, byte a byte igual ao do cérebro:
+        - dump: `powershell -NoProfile -ExecutionPolicy Bypass -File 06-References/basecrm-rito-publicacao/dump_producao.ps1 -Data <data>` (o script confere que a pasta existe, está cifrada e vazia e que o arquivo da senha está lá; roda os três `supabase db dump` por caminho absoluto, `roles.sql --role-only`, `schema.sql`, `data.sql --use-copy --data-only -x storage.buckets_vectors -x storage.vector_indexes`; apaga o arquivo da senha logo depois de carregá-la e, no fim, confere que ele não existe, senão sai com 1; e imprime tamanho, atributo cifrado e sha256 dos três). **v2, v3 e v4 do script (7ª devolutiva, ponto b; achado C do verificador; 8ª devolutiva, pontos 4 e 5; 9ª, pontos 4 e 5):** a senha vai para a variável de ambiente `PGPASSWORD` **só do processo filho** que roda a CLI (cada dump é lançado por `ProcessStartInfo` com o ambiente restrito ao filho, chamando direto o `supabase.exe` resolvido no cache do npx e conferido na versão fixa ANTES de o arquivo DPAPI ser aberto, sem npx nem node no momento do dump, e com a imagem do `pg_dump`, `public.ecr.aws/supabase/postgres:17.11.0.004`, conferida ou baixada também antes do DPAPI; o PowerShell pai nunca a tem no ambiente) e a URL vai **sem senha**: nada na linha de comando (que a auditoria de criação de processo do Windows, evento 4688, pode registrar) e nada nos logs do npm (`npm_config_logs_max=0`); a CLI repassa a senha ao `pg_dump` dentro do container pela mesma variável (lido no código da CLI, `db_url.go` e `dump.go`, e na documentação do pgx: `ParseConfig` lê `PGPASSWORD`). Provado em 06/10 na stack local: gerou o `roles.sql` (15 linhas, 370 bytes) com saída 0 em 56 s, com `PGPASSWORD` no ambiente do container do `pg_dump` e nenhuma URL com senha no comando dele; a pasta `_logs` do npm ficou vazia. A versão da CLI é fixa (`npx --yes supabase@2.120.0`), porque `npx supabase` sem versão receberia a senha de produção com o que estiver no cache ou no registro. O host do pooler e o ref do projeto são constantes no script, validadas por padrão antes de qualquer leitura do DPAPI (`aws-0-us-east-2.pooler.supabase.com`, região lida pela API; conferir em Connect → Session pooler; `eqidsihasmwwamkaqfka`; mudar só por commit): na v2 o `-Ref` era parâmetro livre e `x@evil.example/` trocaria o host efetivo da URL (8ª devolutiva, ponto 4, bloqueante); agora a senha não tem como ir a um destino arbitrário. O script não imprime a senha e ela não vai para a linha de comando (a saída da CLI e dos filhos não é filtrada): existe no arquivo DPAPI até o script carregá-la e, depois, só no ambiente do processo da CLI e de todos os descendentes que herdarem o ambiente dele (docker, container do `pg_dump` e o que mais ela criar; a lista não é garantida), legível pela mesma conta enquanto eles vivem, nunca no PowerShell pai (a string da senha fica na memória .NET do pai até o GC; não é invisível para o agente, que roda com essa conta; isso fica registrado, e a prova 7 do item 10 da SPEC pede a troca da senha depois do dump). Provado em 06/10 na stack local com a v3: `prova_dump_local.ps1` (na pasta do rito) gerou o `roles.sql` (15 linhas, 370 bytes, byte a byte igual ao da v2) com `PGPASSWORD` só no processo filho; o processo pai ficou sem a variável durante (113 leituras de um vigia a cada 20 ms) e depois; no container do `pg_dump` a variável está no `Env` e o `Cmd` só a cita por nome, sem valor nem URL com senha; rodar esse script logo antes do dump real também deixa a imagem do `pg_dump` baixada sem a senha presente. Com a v4 e a prova v2 (que falha por código se qualquer condição não se cumprir: dump 0, `roles.sql` com bytes, pai sem a variável, container observado com a variável no `Env` e sem senha no `Cmd`; pasta nova por execução): prova v2 OK nas 17 exigências (06/10, ~22h45 BRT): aquecimento por npx saiu 0; `supabase.exe` 2.120.0 resolvido em `_npx/0e23c24576954b26/node_modules/@supabase/cli-windows-x64/bin/`; `roles.sql` (370 bytes) em 2 s chamando o exe direto; `PGPASSWORD` nunca no pai (53 leituras do vigia, controle positivo OK) e ausente depois; 1 container observado, imagem `17.11.0.004`, `PGPASSWORD` no `Env` e nenhuma senha no `Cmd`. **Logo antes do dump real, `prova_dump_local.ps1` tem que sair 0**, com o mesmo binário e a mesma imagem; é redução de risco, não garantia (9ª devolutiva, pontos 4 e 5). Todo o uso do arquivo da senha fica num `try/finally`: se ele sobrar, o script avisa com o caminho e sai com 1. O script, byte a byte igual ao do cérebro:
 
 ```powershell
-# dump_producao.ps1 (v3, 06/10) - Step 2.2.1 do PLAN da Central de Agentes (G23). Roda os tres `supabase db dump` de
+# dump_producao.ps1 (v4, 06/10) - Step 2.2.1 do PLAN da Central de Agentes (G23). Roda os tres `supabase db dump` de
 # PRODUCAO para a pasta cifrada do dia, com a senha do banco entregue pelo Junior num arquivo protegido por DPAPI (mesma
-# conta do Windows), apagado logo depois de lido. Nada aqui imprime senha nem URL.
+# conta do Windows), apagado logo depois de lido. O script nao imprime a senha nem a URL; a saida da CLI e dos filhos
+# dela NAO e filtrada.
 #
-# ONDE A SENHA FICA (v3): este PowerShell (o pai) NAO tem PGPASSWORD no ambiente em momento nenhum; se ela vier herdada
+# ONDE A SENHA FICA (v3/v4): este PowerShell (o pai) NAO tem PGPASSWORD no ambiente em momento nenhum; se ela vier herdada
 # de quem o chamou, e removida no inicio. A senha e lida do arquivo DPAPI para uma string .NET do pai (o BSTR
 # intermediario e zerado com ZeroFreeBSTR; a string em si nao da para zerar: `$plain = $null` logo depois dos tres dumps
 # so solta a referencia, e o texto continua na memoria .NET do pai ate o GC). Cada `db dump` e lancado com
-# System.Diagnostics.ProcessStartInfo (npx.cmd resolvido por Get-Command, UseShellExecute = false, saida nao
-# redirecionada) com PGPASSWORD, npm_config_logs_max=0 e npm_config_update_notifier=false SO no ambiente do filho.
-# Quem tem a senha no ambiente e a cadeia de filhos (npx.cmd/node -> wrapper JS do pacote supabase -> supabase.exe ->
-# docker CLI -> container do pg_dump), legivel pela mesma conta enquanto eles vivem (o container, por quem tem acesso ao
-# Docker; a CLI o cria com remocao automatica). Nada vai para linha de comando (a URL e montada SEM senha) nem para log do
-# npm. A CLI e aquecida (`npx --yes supabase@<versao> --version`) ANTES de abrir o DPAPI, sem senha em lugar nenhum, para
-# que nenhum download aconteca com a senha presente.
+# System.Diagnostics.ProcessStartInfo (UseShellExecute = false, saida nao redirecionada) com PGPASSWORD SO no ambiente
+# do filho. Quem tem a senha no ambiente e o processo da CLI e TODOS os descendentes que herdarem o ambiente dele (o
+# sidecar supabase-go.exe, a docker CLI, o container do pg_dump e o que mais ela criar; a lista nao e garantida),
+# legiveis pela mesma conta enquanto vivem (o container, por quem tem acesso ao Docker; a CLI o cria com remocao
+# automatica). Nada vai para linha de comando (a URL e montada SEM senha).
+#
+# SEM NPX NO MOMENTO DO DUMP (v4; parecer da v9, ponto 5): a CLI e aquecida (`npx --yes supabase@<versao> --version`)
+# ANTES de abrir o DPAPI; em seguida o script RESOLVE o executavel dessa versao exata no cache do npx (a pasta
+# `_npx\<hash>` cujo package.json declara `_npx.packages = ["supabase@<versao>"]`, exatamente uma; dentro dela
+# node_modules\supabase\package.json e node_modules\@supabase\cli-windows-x64\package.json com a versao, e
+# node_modules\@supabase\cli-windows-x64\bin\supabase.exe), confere `supabase.exe --version` e lanca os tres dumps
+# chamando esse .exe DIRETO (sem npx, sem node, sem npm_config_*): nenhuma instalacao pode acontecer com a senha presente.
+# (Na 2.120.0 o pacote npm `supabase` e so um shim JS, dist/supabase.js, que chama esse mesmo .exe do pacote nativo.)
+#
+# IMAGEM DO PG_DUMP CONFERIDA ANTES DO DPAPI (v4; parecer da v9, pontos 4 e 5): a CLI 2.120.0 roda o pg_dump num container
+# da imagem escolhida por `db.major_version` do supabase/config.toml do DIRETORIO DE TRABALHO (padrao 17 quando nao ha
+# config; `[remotes.<ref>]` so vale em projeto vinculado, nao com --db-url; SUPABASE_USE_SLIM_IMAGES troca por imagem
+# slim; um pino gravado por `supabase start` em supabase/.temp/postgres-version troca a tag) e NAO pela versao do
+# servidor (fonte: apps/cli/src/commands/db/dump/dump.handler.ts e command-internal/db-image.ts, tag v2.120.0). Por isso
+# o script fixa o diretorio de trabalho do filho na propria pasta deste script (que nao pode ter supabase/), tira
+# SUPABASE_USE_SLIM_IMAGES do ambiente do filho e confere (`docker image inspect`) ou baixa (`docker pull`) a imagem
+# $ImagemPgDump ANTES de abrir o DPAPI; falhando, para antes da senha. $ImagemPgDump e a imagem observada no container
+# pela prova local (prova_dump_local.ps1 v2), que tambem falha se o container observado usar outra.
+#
+# ANTES DO DUMP REAL (obrigatorio, Step 2.2.1): `prova_dump_local.ps1` (v2) tem que sair 0 nesta maquina, com o mesmo
+# binario e a mesma imagem, contra a stack local. E reducao de risco, nao garantia.
 #
 # Antes (o Junior, no terminal dele, uma linha; nada aparece na tela e nada fica no historico porque e um prompt):
 #   Read-Host -AsSecureString "senha do banco de producao" | ConvertFrom-SecureString | Set-Content "C:\Users\PC Gamer\BaseCRM-dumps\<data>\.senha.dpapi"
 # Depois (o agente): powershell -NoProfile -ExecutionPolicy Bypass -File dump_producao.ps1 -Data <data>
-# Confere ANTES (dentro do try, entao o arquivo da senha some mesmo quando a conferencia reprova): ref, host do pooler e
-# versao da CLI nas constantes; caminho da pasta do dia so com [A-Za-z0-9 :\._~()-] (ele vai na linha de comando do
-# npx.cmd); pasta do dia existe e esta nova (so o .senha.dpapi dentro; roles/schema/data ausentes), cifrada (EFS), e a ACL
-# efetiva da raiz (protegida, sem heranca) e da pasta do dia so com a conta de quem roda (por SID; o PLAN manda preparar
-# com icacls /inheritance:r). Erro de parametro (-Data fora do padrao, parametro inexistente) para o PowerShell ANTES do
-# script rodar: nesse caso o arquivo da senha NAO e apagado por este script.
+# Confere ANTES (dentro do try, entao o arquivo da senha some mesmo quando a conferencia reprova): ref, host do pooler,
+# versao da CLI e imagem nas constantes; caminho da pasta do dia so com [A-Za-z0-9 :\._~()-]; pasta do dia existe e esta
+# nova (so o .senha.dpapi dentro; roles/schema/data ausentes), cifrada (EFS), e a ACL efetiva da raiz (protegida, sem
+# heranca) e da pasta do dia so com a conta de quem roda (por SID; o PLAN manda preparar com icacls /inheritance:r).
+# Erro de parametro (-Data fora do padrao, parametro inexistente) para o PowerShell ANTES do script rodar: nesse caso o
+# arquivo da senha NAO e apagado por este script.
 # Saida: 0 so com os tres dumps feitos, os tres cifrados (tamanho e sha256 impressos) e o arquivo da senha ausente;
 # qualquer outra coisa sai com 1.
 param(
@@ -5956,6 +6066,9 @@ $Ref = "eqidsihasmwwamkaqfka"
 $PoolerHost = "aws-0-us-east-2.pooler.supabase.com"
 # Versao da CLI fixa (a que `npx supabase --version` devolveu no worktree central-agentes em 06/10): mudar so por commit.
 $CliVersao = "2.120.0"
+# v4: imagem do pg_dump que a CLI 2.120.0 usa a partir de uma pasta sem supabase/config.toml (major 17, o padrao),
+# observada no container pela prova local em 06/10. Mudar so por commit, junto com $CliVersao.
+$ImagemPgDump = "public.ecr.aws/supabase/postgres:17.11.0.004"
 
 $ErrorActionPreference = 'Stop'
 $D = Join-Path $Raiz $Data
@@ -5971,15 +6084,77 @@ function Conferir-Acl([string]$Pasta, [string]$Eu) {
     if ($estranhos.Count -gt 0) { throw "a ACL de $Pasta tem outra(s) identidade(s) alem da conta atual: $($estranhos -join ', '); parar" }
 }
 
-function Invocar-Dump([string]$Npx, [string[]]$Argumentos, [string]$Segredo) {
-    # v3: PGPASSWORD e os npm_config_* vao SO no ambiente do filho; o pai nunca os recebe.
+function Raiz-CacheNpm {
+    # v4: a raiz do cache do npm (onde fica _npx): npm_config_cache, senao %LOCALAPPDATA%\npm-cache, senao `npm config get cache`.
+    if ($env:npm_config_cache) { return $env:npm_config_cache }
+    $padrao = Join-Path $env:LOCALAPPDATA 'npm-cache'
+    if (Test-Path -LiteralPath (Join-Path $padrao '_npx') -PathType Container) { return $padrao }
+    $npmCmd = (Get-Command npm.cmd -CommandType Application | Select-Object -First 1).Source
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $saida = @(& $npmCmd config get cache 2>&1 | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) }
+    finally { $ErrorActionPreference = $eap }
+    if ($LASTEXITCODE -ne 0 -or $saida.Count -eq 0) { throw "nao achei a raiz do cache do npm (npm config get cache falhou, codigo $LASTEXITCODE)" }
+    return $saida[-1]
+}
+
+function Resolver-CliSupabase([string]$Versao) {
+    # v4: o supabase.exe da versao exata, no cache do npx, conferido ANTES do DPAPI. No dump, nunca npx nem node.
+    $raiz = Join-Path (Raiz-CacheNpm) '_npx'
+    if (-not (Test-Path -LiteralPath $raiz -PathType Container)) { throw "o cache do npx nao existe em $raiz (o aquecimento deveria te-lo criado)" }
+    $candidatas = @(Get-ChildItem -LiteralPath $raiz -Directory | Where-Object {
+        $pj = Join-Path $_.FullName 'package.json'
+        if (-not (Test-Path -LiteralPath $pj)) { return $false }
+        try { $j = Get-Content -LiteralPath $pj -Raw | ConvertFrom-Json } catch { return $false }
+        $pk = @($j._npx.packages)
+        ($pk.Count -eq 1) -and ($pk[0] -ceq "supabase@$Versao")
+    })
+    if ($candidatas.Count -ne 1) { throw "esperava exatamente UMA pasta do cache do npx declarando supabase@$Versao e achei $($candidatas.Count) em $raiz; parar antes do DPAPI" }
+    $pasta = $candidatas[0].FullName
+    $nativo = Join-Path $pasta 'node_modules\@supabase\cli-windows-x64'
+    foreach ($pj in @((Join-Path $pasta 'node_modules\supabase\package.json'), (Join-Path $nativo 'package.json'))) {
+        if (-not (Test-Path -LiteralPath $pj -PathType Leaf)) { throw "falta $pj; parar antes do DPAPI" }
+        $v = (Get-Content -LiteralPath $pj -Raw | ConvertFrom-Json).version
+        if ($v -cne $Versao) { throw "$pj declara a versao '$v', nao $Versao; parar antes do DPAPI" }
+    }
+    $exe = Join-Path $nativo 'bin\supabase.exe'
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "falta o executavel $exe; parar antes do DPAPI" }
+    # Process.Start (o lancamento do dump) falha com "nome do arquivo muito grande" em caminho de executavel longo (medido
+    # em 06/10 com 272 caracteres), e isso aconteceria DEPOIS do DPAPI; o `&` do --version abaixo nao pega, porque ainda roda.
+    if ($exe.Length -gt 255) { throw "o caminho do executavel tem $($exe.Length) caracteres (limite seguro 255 para o Process.Start); mude a raiz do cache do npm (npm_config_cache) e repita; parar antes do DPAPI" }
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $saida = @(& $exe --version 2>&1 | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) }
+    finally { $ErrorActionPreference = $eap }
+    if ($LASTEXITCODE -ne 0 -or $saida.Count -lt 1 -or $saida[-1] -cne $Versao) { throw "$exe --version devolveu '$($saida -join ' | ')' (codigo $LASTEXITCODE), nao $Versao; parar antes do DPAPI" }
+    return $exe
+}
+
+function Conferir-ImagemPgDump([string]$Imagem) {
+    # v4: a imagem do pg_dump presente ANTES do DPAPI (ou baixada agora, ainda sem senha); falhou = parar antes da senha.
+    if ($Imagem -cnotmatch '^[a-z0-9./-]+:[A-Za-z0-9._-]+$') { throw "a imagem do pg_dump fora do formato repositorio:tag" }
+    $docker = (Get-Command docker -CommandType Application | Select-Object -First 1).Source
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try {
+        $null = & $docker image inspect $Imagem 2>&1
+        if ($LASTEXITCODE -eq 0) { "imagem do pg_dump presente: $Imagem"; return }
+        "imagem do pg_dump ausente; baixando ANTES do DPAPI: $Imagem"
+        & $docker pull $Imagem 2>&1 | ForEach-Object { "$_" }
+        if ($LASTEXITCODE -ne 0) { throw "docker pull $Imagem falhou (codigo $LASTEXITCODE); parar antes do DPAPI" }
+        $null = & $docker image inspect $Imagem 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "a imagem $Imagem continua ausente depois do pull; parar antes do DPAPI" }
+    }
+    finally { $ErrorActionPreference = $eap }
+}
+
+function Invocar-Dump([string]$Exe, [string[]]$Argumentos, [string]$Segredo, [string]$DiretorioDeTrabalho) {
+    # v4: o .exe resolvido, direto (sem npx nem node); PGPASSWORD SO no ambiente do filho, o pai nunca a recebe. Diretorio de
+    # trabalho fixo (sem supabase/config.toml) e sem SUPABASE_USE_SLIM_IMAGES, para a imagem do pg_dump ser a conferida.
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $Npx
+    $psi.FileName = $Exe
     $psi.Arguments = (@($Argumentos | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
     $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = $DiretorioDeTrabalho
+    foreach ($v in @('SUPABASE_USE_SLIM_IMAGES', 'npm_config_logs_max', 'npm_config_update_notifier')) { $psi.EnvironmentVariables.Remove($v) }
     $psi.EnvironmentVariables['PGPASSWORD'] = $Segredo
-    $psi.EnvironmentVariables['npm_config_logs_max'] = '0'
-    $psi.EnvironmentVariables['npm_config_update_notifier'] = 'false'
     $p = [System.Diagnostics.Process]::Start($psi)
     try {
         $p.WaitForExit()
@@ -5992,11 +6167,12 @@ function Invocar-Dump([string]$Npx, [string[]]$Argumentos, [string]$Segredo) {
 }
 
 try {
-    # Antes de qualquer coisa: as constantes que montam a URL e a linha de comando.
+    # Antes de qualquer coisa: as constantes que montam a URL, a linha de comando e a conferencia da imagem.
     if ($Ref -cnotmatch '^[a-z]{20}$') { throw "o ref do projeto fora do formato (20 letras minusculas)" }
     if ($PoolerHost -cnotmatch '^[a-z0-9.-]+$') { throw "o host do pooler tem caractere fora de [a-z0-9.-]" }
     if ($CliVersao -cnotmatch '^\d+\.\d+\.\d+$') { throw "a versao da CLI nao e X.Y.Z" }
-    if ($D -cnotmatch '^[A-Za-z0-9 :\\._~()-]+$') { throw "o caminho da pasta do dia tem caractere fora de [A-Za-z0-9 :\._~()-] (ele vai na linha de comando do npx.cmd)" }
+    if ($ImagemPgDump -cnotmatch '^[a-z0-9./-]+:[A-Za-z0-9._-]+$') { throw "a imagem do pg_dump fora do formato repositorio:tag" }
+    if ($D -cnotmatch '^[A-Za-z0-9 :\\._~()-]+$') { throw "o caminho da pasta do dia tem caractere fora de [A-Za-z0-9 :\._~()-] (ele vai na linha de comando da CLI)" }
     if (Test-Path Env:PGPASSWORD) {
         Remove-Item Env:PGPASSWORD
         Write-Host "AVISO: havia PGPASSWORD herdada no ambiente deste processo; removida (este script nunca a usa no pai)"
@@ -6023,6 +6199,13 @@ try {
     & $npxCmd --yes "supabase@$CliVersao" --version
     if ($LASTEXITCODE -ne 0) { throw "o aquecimento da CLI (supabase@$CliVersao --version) falhou (codigo $LASTEXITCODE)" }
 
+    # v4: resolver o executavel da versao exata no cache do npx e conferir a imagem do pg_dump, tudo ANTES do DPAPI.
+    $Exe = Resolver-CliSupabase $CliVersao
+    "CLI resolvida (os dumps chamam este .exe direto, sem npx): $Exe"
+    $Trabalho = $PSScriptRoot
+    if (Test-Path -LiteralPath (Join-Path $Trabalho 'supabase')) { throw "a pasta deste script tem uma subpasta supabase/ (um config.toml ali mudaria a imagem do pg_dump); parar" }
+    Conferir-ImagemPgDump $ImagemPgDump
+
     # DPAPI -> BSTR (zerado) -> string do pai (so referencia; nunca no ambiente do pai); o arquivo sai do disco em seguida.
     $sec = Get-Content -LiteralPath $Senha | ConvertTo-SecureString
     if (-not $sec) { throw "o arquivo $Senha esta vazio" }
@@ -6040,12 +6223,12 @@ try {
     if (-not $plain) { throw "a senha lida do arquivo DPAPI esta vazia" }
 
     $url = "postgresql://postgres.$Ref@" + $PoolerHost + ":5432/postgres"
-    $base = @('--yes', "supabase@$CliVersao", 'db', 'dump', '--db-url', $url, '-f')
-    $rc = Invocar-Dump $npxCmd ($base + @((Join-Path $D 'roles.sql'), '--role-only')) $plain
+    $base = @('db', 'dump', '--db-url', $url, '-f')
+    $rc = Invocar-Dump $Exe ($base + @((Join-Path $D 'roles.sql'), '--role-only')) $plain $Trabalho
     if ($rc -ne 0) { throw "roles.sql falhou (codigo $rc)" }
-    $rc = Invocar-Dump $npxCmd ($base + @((Join-Path $D 'schema.sql'))) $plain
+    $rc = Invocar-Dump $Exe ($base + @((Join-Path $D 'schema.sql'))) $plain $Trabalho
     if ($rc -ne 0) { throw "schema.sql falhou (codigo $rc)" }
-    $rc = Invocar-Dump $npxCmd ($base + @((Join-Path $D 'data.sql'), '--use-copy', '--data-only', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes')) $plain
+    $rc = Invocar-Dump $Exe ($base + @((Join-Path $D 'data.sql'), '--use-copy', '--data-only', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes')) $plain $Trabalho
     if ($rc -ne 0) { throw "data.sql falhou (codigo $rc)" }
     $plain = $null
 
@@ -6065,7 +6248,9 @@ catch {
 finally {
     $plain = $null
     $url = $null
-    Remove-Item Env:PGPASSWORD, Env:npm_config_* -ErrorAction SilentlyContinue
+    # v4: so PGPASSWORD. O script nunca poe npm_config_* no pai, e apagar as do chamador (v3 fazia) e efeito colateral:
+    # quem o roda no mesmo processo com npm_config_cache apontando para outro cache perdia a variavel no 1o caso.
+    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $Senha) { Remove-Item -LiteralPath $Senha -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $Senha) {
         Write-Warning "o arquivo da senha CONTINUA em $Senha : apague a mao (Remove-Item) antes de qualquer outra coisa"
@@ -6091,7 +6276,7 @@ exit $codigo
   3. **A escrita em produção, com o G23 registrado como ele está** (4ª rodada do Codex, achado 8; 5ª rodada, achado 2; 6ª rodada, pontos a e c). Antes de qualquer coisa, o OK explícito do Junior para ESTA escrita entra no manifesto, citado (`producao_liberada = {"por": "Junior", "em": "<data hora BRT>", "texto": "<a frase dele>"}`), commitado no cérebro junto dos dois ensaios; esse OK, dado com o estado do G23 abaixo registrado, é a **aceitação da exceção residual**. Ele deu um OK antecipado em 06/10 ~02h ("9 ok", ao item 9 da lista de pendências); na hora, o agente manda em uma linha o resumo do dump, da restauração e dos ensaios e espera a confirmação antes de rodar, e o manifesto cita os dois. Então a escrita: `python aplicar_migration.py producao <worktree>/supabase/migrations/20260930000000_central_agentes_fundacao.sql --confirmar-banco eqidsihasmwwamkaqfka`, rodada pelo agente com o token do cofre, aceito no manifesto (`producao_liberada.token_do_agente_aceito = true`; decisão dele de 06/10 ~01h50: "não vou mudar os tokens"), nesta máquina, conferida pelo `COMPUTERNAME` registrado na liberação no mesmo commit do OK (`producao_liberada.maquina`; conferência operacional, não garantia técnica, 8ª devolutiva, ponto 10); a saída vai para o cérebro com o manifesto. Sem essa aceitação, o script exigiria token do operador, recusaria qualquer token que o agente já tenha (cofre, MCP do Claude, MCP do Codex) e recusaria token que alcance o projeto de teste (salvo `--aceitar-token-amplo` com aceitação no manifesto); com ou sem ela, recusa arquivo, ref ou sha fora do manifesto, versão já registrada e objeto já existente, não aceita SQL livre, e saída 3 = indeterminado: `--retomar`, nunca repetir. Nenhuma outra escrita em produção acontece neste passo, e o MCP do Supabase não é usado para ela.
 
      **Como o G23 fica registrado, no vocabulário da régua** (um estado por gate: PASS, FAIL, N/A, NÃO-TESTADO ou ERRO; 6ª rodada do Codex, ponto c; verificação adversarial da v7): **G23 = FAIL, com exceção residual aceita pelo Junior.** As evidências, item a item: (a) restauração testada: **não testada** até o item 2 terminar com a evidência no cérebro; (b) "agente sem poder destrutivo direto em produção": **falhou**, testado; (c) "prod isolado": **falhou**, porque as variáveis de banco genéricas do projeto na Vercel valem para Preview e Production ao mesmo tempo e as prévias são públicas (SPEC, achados fora do escopo, item 9). Os caminhos de escrita em produção ao alcance do agente hoje (medidos em 05/10 e 06/10, sem imprimir valor): o token do Supabase do cofre, que é o mesmo do MCP do Claude (`~/.claude.json`) e do MCP do Codex (`~/.codex/config.toml`), alcança os 12 projetos e o endpoint de escrita de SQL (`sqlprod.py` até 05/10; desde 06/10 os leitores mandam `read_only: true`, o que fecha a porta do script, não a do token); a chave secreta de produção (`SUPABASE_NOSSOCRMV3_SECRET`, `service_role`) está no cofre e escreve dados pela API REST sem RLS; o `VERCEL_TOKEN` do cofre publica código, muda alias e variáveis do projeto, e o push para o GitHub publica pela integração (controlados por processo: push e alias só com o OK dele); a senha do banco **não** está no cofre. **Decisão do Junior (06/10, ~01h50): os tokens não mudam.** O OK dele para a escrita, registrado no manifesto com `token_do_agente_aceito = true` e com este estado escrito, é a aceitação da exceção residual; o controle é o processo: manifesto versionado, ensaios no teste e na cópia restaurada, backup, OK citado, script que só aplica o que está no manifesto e nunca repete um POST às cegas.
-     - **O que viraria PASS, se um dia ele mudar de ideia** (fica como opção, não como pendência; SPEC, achados fora do escopo, item 10): os três tokens com escopo (prefixo `sbp_fc`; `Apply a migration` exige **Migrations: Read-write**), pedidos de uma vez, trocados nos três lugares (cofre, `~/.claude.json`, `~/.codex/config.toml`); o token atual revogado com `GET /v1/projects` → 401 provado antes de sair do cofre; a chave secreta de produção fora do cofre; a senha do banco nunca no cofre; o item 9 corrigido (valores de produção só no alvo Production, Preview genérico apontando para o teste, provado pelo `ler_config_publicacao.py`); e as provas (que não alteram nada se o token estiver certo; a segunda é uma tentativa de escrita no TESTE, 7ª devolutiva, ponto c): com T1, `POST /v1/projects/eqidsihasmwwamkaqfka/database/query` e `{"query": "create temp table prova_t1 (x int)", "read_only": false}` → 403 ou erro de transação só leitura (um `select 1` com 201 provaria acesso ao endpoint, não escrita; a tabela temporária some com a sessão, por isso a prova é inócua mesmo se passar; 8ª devolutiva, ponto 7), e `select 1` com `read_only: true` → 200 ou 201; com T1, `POST /v1/projects/zvwngsrflkicbbzfmrgy/database/migrations` e `{"query": "select 1", "name": "prova_escopo_t1"}` → 403 **no projeto de teste** (nunca em produção: um 200 aplicaria e sujaria o histórico); com T2, `GET /v1/projects/eqidsihasmwwamkaqfka/database/migrations` → 403 ou 404, e `POST /v1/projects/eqidsihasmwwamkaqfka/database/query` com `create temp table prova_t2 (x int)` e `read_only: false` → 403 ou 404 (o caminho de escrita: negar Migrations ou `/read-only` não prova negar `/database/query`; 8ª devolutiva, ponto 7); com T1, `GET /v1/projects/eqidsihasmwwamkaqfka/api-keys` sem `reveal`, conferindo só nome, tipo e tamanho, sem nenhuma chave `secret` ou `service_role` inteira (se vier, API Keys Read sai de T1); com T3 recém-criado, o próprio `aplicar_migration.py` confere que ele não alcança o teste, mas só com a liberação em `token_do_agente_aceito = false` e `token_amplo_aceito = false` (com a aceitação do token do agente ele usa o do cofre e não confere escopo; 8ª devolutiva, ponto 8). Tudo registrado no cérebro. A régua ainda pediria a restauração testada e, pela mesma régua ("agente sem poder destrutivo direto em prod"), tirar do agente os caminhos de publicação (`VERCEL_TOKEN` sem deploy, alias e variáveis de Production; `main` protegido com aprovação dele; variáveis de banco de Production do tipo `sensitive`) e trocar a senha do banco depois do dump; a lista completa de provas por permissão está na SPEC, item 10 (7ª devolutiva, ponto c). Sem isso, FAIL continua, com ou sem os tokens com escopo.
+     - **O que viraria PASS, se um dia ele mudar de ideia** (fica como opção, não como pendência; SPEC, achados fora do escopo, item 10): os três tokens com escopo (prefixo `sbp_fc`; `Apply a migration` exige **Migrations: Read-write**), pedidos de uma vez, trocados nos três lugares (cofre, `~/.claude.json`, `~/.codex/config.toml`); o token atual revogado com `GET /v1/projects` → 401 provado antes de sair do cofre; a chave secreta de produção fora do cofre; a senha do banco nunca no cofre; o item 9 corrigido (valores de produção só no alvo Production, Preview genérico apontando para o teste, provado pelo `ler_config_publicacao.py`); e as provas (que não alteram nada se o token estiver certo; a segunda é uma tentativa de escrita no TESTE, 7ª devolutiva, ponto c): com T1, `POST /v1/projects/eqidsihasmwwamkaqfka/database/query` e `{"query": "create temp table prova_t1 (x int); drop table prova_t1;", "read_only": false}` → 403 ou erro de transação só leitura (um `select 1` com 201 provaria acesso ao endpoint, não escrita; o `drop` na mesma chamada não deixa nada mesmo que a API reutilize a conexão; se passar, é escrita transitória, registrada; 8ª devolutiva, ponto 7; 9ª, ponto 7), e `select 1` com `read_only: true` → 200 ou 201; com T1, `POST /v1/projects/zvwngsrflkicbbzfmrgy/database/migrations` e `{"query": "select 1", "name": "prova_escopo_t1"}` → 403 **no projeto de teste** (nunca em produção: um 200 aplicaria e sujaria o histórico; 400 é inconclusivo, 9ª devolutiva, ponto 6; 200 = apagar a entrada do histórico do teste e registrar); com T2, `GET /v1/projects/eqidsihasmwwamkaqfka/database/migrations` → 403 ou 404, e `POST /v1/projects/eqidsihasmwwamkaqfka/database/query` com `create temp table prova_t2 (x int); drop table prova_t2;` e `read_only: false` → 403 ou 404 (o caminho de escrita: negar Migrations ou `/read-only` não prova negar `/database/query`; 8ª devolutiva, ponto 7); com T1, `GET /v1/projects/eqidsihasmwwamkaqfka/api-keys` sem `reveal`, conferindo só nome, tipo e tamanho, sem nenhuma chave `secret` ou `service_role` inteira (se vier, API Keys Read sai de T1); com T3 recém-criado, o próprio `aplicar_migration.py` confere que ele não alcança o teste, mas só com a liberação em `token_do_agente_aceito = false` e `token_amplo_aceito = false` (com a aceitação do token do agente ele usa o do cofre e não confere escopo; 8ª devolutiva, ponto 8). Tudo registrado no cérebro. A régua ainda pediria a restauração testada e, pela mesma régua ("agente sem poder destrutivo direto em prod"), tirar do agente os caminhos de publicação (`VERCEL_TOKEN` sem deploy, alias e variáveis de Production; `main` protegido com aprovação dele; variáveis de banco de Production do tipo `sensitive`) e trocar a senha do banco depois do dump; a lista completa de provas por permissão está na SPEC, item 10 (7ª devolutiva, ponto c). Sem isso, FAIL continua, com ou sem os tokens com escopo.
 
   4. Conferir que a coluna e a tabela existem (`select ai_agent_id from public.channel_connections limit 1` e `select count(*) from public.ai_reply_events`, sem erro).
   5. Só então: `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD` e `git push origin HEAD:main`. A branch de ensaio já está neste commit; nenhuma outra branch é empurrada.
