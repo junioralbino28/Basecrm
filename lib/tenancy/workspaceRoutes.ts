@@ -79,10 +79,16 @@ export function isTenantWorkspacePath(pathname: string): boolean {
   return getTenantIdFromPathname(pathname) !== null;
 }
 
+/**
+ * Rotas de detalhe de um recurso do cliente ('/agents/<id>'): ao trocar de cliente, o id do recurso não existe no
+ * outro, então o caminho volta para a lista. Sem isso o seletor remontava '/agents/<id>' no outro cliente: 404.
+ */
 export function getTenantWorkspaceRelativeHref(pathname: string): string {
   const tenantId = getTenantIdFromPathname(pathname);
   if (!tenantId) return '/dashboard';
   const match = pathname.match(/^\/platform\/tenants\/[0-9a-f-]+(\/.*)?$/i);
   const relativePath = match?.[1] || '/dashboard';
+  const lista = LISTAS_COM_DETALHE.find((base) => relativePath.startsWith(`${base}/`));
+  if (lista) return lista;
   return relativePath === '/pipeline' ? '/boards' : relativePath;
 }

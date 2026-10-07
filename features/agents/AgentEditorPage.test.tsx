@@ -1,0 +1,312 @@
+import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { AgenteNoEditor } from '@/lib/agents/tiposDoEditor';
+
+const estado = vi.hoisted(() => ({ role: 'agency_admin' as string }));
+const toast = vi.hoisted(() => vi.fn());
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ profile: { role: estado.role }, loading: false }) }));
+vi.mock('@/context/ToastContext', () => ({ useToast: () => ({ addToast: toast, showToast: toast }) }));
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={String(href)} {...props}>{children}</a>
+  ),
+}));
+
+import { AgentEditorPage } from './AgentEditorPage';
+
+const TENANT = '11111111-1111-4111-8111-111111111111';
+const AGENTE_ID = '22222222-2222-4222-8222-222222222222';
+const URL_AGENTE = `/api/platform/tenants/${TENANT}/agents/${AGENTE_ID}`;
+const PUBLICADO = 'Voce e a Aurora.\nREGRAS:\n- fale com {{contactName}}\n{{conversationStageContext}}\n- replyText: resposta curta';
+
+function agente(extra: Partial<AgenteNoEditor> = {}): AgenteNoEditor {
+  return {
+    id: AGENTE_ID,
+    nome: 'Aurora',
+    cliente: { id: TENANT, nome: 'Cenno Hub' },
+    publicada: {
+      id: 'v1', versao: 1, origem: 'migration', restauradaDe: null, nota: null, publicadaEm: '2026-10-07T04:51:00Z',
+      publicadaPor: null, prompt: PUBLICADO, ajustes: {}, modelo: null,
+    },
+    rascunho: { prompt: null, revisao: 0, atualizadoEm: null, atualizadoPor: null },
+    numeros: [{ id: 'n1', nome: 'Comercial', temAgenda: false }],
+    ...extra,
+  };
+}
+
+function responder(corpo: unknown, status = 200) {
+  return Promise.resolve(new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } }));
+}
+
+/** fetch falso por "MÉTODO url"; pedido fora da lista quebra o teste. */
+function fetchFalso(rotas: Record<string, (init?: RequestInit) => Promise<Response>>) {
+  return vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+    const chave = `${init?.method ?? 'GET'} ${String(url)}`;
+    const rota = rotas[chave];
+    if (!rota) throw new Error(`fetch inesperado: ${chave}`);
+    return rota(init);
+  });
+}
+
+const PREFIXO = `central-agentes:texto-nao-salvo:${TENANT}:${AGENTE_ID}:`;
+/** As cópias locais deste agente, de qualquer instância do editor. */
+function copiasDoAgente(): Array<{ texto: string; revisao: number }> {
+  const copias: Array<{ texto: string; revisao: number }> = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const chave = localStorage.key(i);
+    if (chave?.startsWith(PREFIXO)) copias.push(JSON.parse(localStorage.getItem(chave) ?? '{}'));
+  }
+  return copias;
+}
+
+const corpoDe = (fetchMock: ReturnType<typeof fetchFalso>, sufixo: string) => {
+  const chamada = fetchMock.mock.calls.find(([url]) => String(url).endsWith(sufixo));
+  return JSON.parse(String(chamada?.[1]?.body));
+};
+
+beforeEach(() => {
+  estado.role = 'agency_admin';
+  toast.mockClear();
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
+
+describe('AgentEditorPage', () => {
+  it('quem não é da agência vê acesso restrito e nada é pedido', () => {
+    estado.role = 'agency_staff';
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(screen.getByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('mostra a versão publicada e a leitura por seções, com a variável como etiqueta', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+
+    expect(await screen.findByText('Versão 1 publicada em 07/10/2026 às 01:51 pela migração')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'REGRAS' })).toBeInTheDocument();
+    expect(screen.getByText('{{contactName}}')).toBeInTheDocument();
+    expect(screen.getByText('Sem mudanças no rascunho')).toBeInTheDocument();
+    expect(screen.getByText('Nenhum erro nem aviso.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publicar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Testar sem enviar/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Comportamento/ })).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Central de Agentes' })).toHaveAttribute('href', `/platform/tenants/${TENANT}/agents`);
+  });
+
+  it('editar: a verificação acusa a variável desconhecida a cada tecla e salvar manda a revisão lida', async () => {
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
+      [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    const campo = screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement;
+    expect(campo.value).toBe(PUBLICADO);
+    fireEvent.change(campo, { target: { value: `${PUBLICADO}\n{{nomeDoLead}}` } });
+    expect(screen.getByText(/\{\{nomeDoLead\}\} não é uma das 12 variáveis/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publicar' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+    expect(corpoDe(fetchMock, '/draft')).toEqual({ prompt: `${PUBLICADO}\n{{nomeDoLead}}`, revisao: 0 });
+  });
+
+  it('salvar com a revisão velha (outra aba salvou antes): avisa, mantém o texto e deixa a escolha explícita', async () => {
+    const MENSAGEM = 'O rascunho foi alterado em outra aba ou por outra pessoa enquanto você editava.';
+    const daOutraAba = agente({
+      rascunho: { prompt: `${PUBLICADO}\ntexto da outra aba`, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
+    });
+    let leituras = 0;
+    let gravacoes = 0;
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => {
+        leituras += 1;
+        return responder({ agente: leituras === 1 ? agente() : daOutraAba });
+      },
+      [`PUT ${URL_AGENTE}/draft`]: () => {
+        gravacoes += 1;
+        return gravacoes === 1 ? responder({ error: MENSAGEM, code: 'RASCUNHO_MUDOU' }, 409) : responder({ revisao: 2 });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    const meu = `${PUBLICADO}\nmeu texto`;
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: meu } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(MENSAGEM, 'error'));
+    await waitFor(() => expect(leituras).toBe(2));
+    // O texto de quem editava continua no campo; o salvar comum fica travado até a escolha (revisão do Codex, 07/10).
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(meu);
+    expect(screen.getByText(/O seu texto continua aqui, sem salvar\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar o meu por cima' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+    const corpos = fetchMock.mock.calls
+      .filter(([url]) => String(url).endsWith('/draft'))
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(corpos).toEqual([{ prompt: meu, revisao: 0 }, { prompt: meu, revisao: 1 }]);
+  });
+
+  it('texto não salvo sobrevive a sair pela navegação interna: a cópia local oferece recuperar', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    const primeira = render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\nnão salvei` } });
+    expect(copiasDoAgente()).toEqual([expect.objectContaining({ texto: `${PUBLICADO}\nnão salvei`, revisao: 0 })]);
+
+    // Saiu por um link interno (o editor desmonta sem passar pelo beforeunload) e voltou depois.
+    primeira.unmount();
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(`${PUBLICADO}\nnão salvei`);
+    // Ninguém salvou no meio (mesma revisão): sem conflito.
+    expect(screen.queryByText(/O seu texto continua aqui/)).not.toBeInTheDocument();
+
+    // Descartar a edição apaga a cópia. O happy-dom não implementa window.confirm: stub, como em
+    // features/atendimentos/hooks/useAtendimentosController.test.tsx (o afterEach desfaz).
+    const confirmar = vi.fn().mockReturnValue(true);
+    vi.stubGlobal('confirm', confirmar);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(copiasDoAgente()).toEqual([]);
+  });
+
+  it('recuperar um texto escrito antes de outra pessoa salvar cai no conflito: sobrescrever só com a escolha explícita', async () => {
+    // Revisão do Codex, rodada 2, achado 1: a cópia guarda a revisão em que o texto se baseou.
+    const ANTIGO = `${PUBLICADO}\ntexto de antes`;
+    localStorage.setItem(`${PREFIXO}aba-que-fechou`, JSON.stringify({ texto: ANTIGO, revisao: 0, em: '2026-10-07T10:00:00.000Z' }));
+    const depois = agente({
+      rascunho: { prompt: `${PUBLICADO}\nsalvo por outra pessoa`, revisao: 1, atualizadoEm: '2026-10-07T11:00:00Z', atualizadoPor: 'Junior' },
+    });
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: depois }),
+      [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByText(/Você tem um texto não salvo deste agente/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar o texto' }));
+
+    expect((screen.getByLabelText('Prompt do agente') as HTMLTextAreaElement).value).toBe(ANTIGO);
+    expect(
+      screen.getByText(/O rascunho foi alterado depois que este texto foi escrito\. O seu texto continua aqui, sem salvar\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar o meu por cima' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+    expect(corpoDe(fetchMock, '/draft')).toEqual({ prompt: ANTIGO, revisao: 1 });
+  });
+
+  it('salvar nesta aba não apaga a cópia de outra aba com texto não salvo do mesmo agente', async () => {
+    // Revisão do Codex, rodada 2, achado 2: a chave da cópia leva a instância do editor.
+    const DA_OUTRA_ABA = `${PUBLICADO}\ntexto da outra aba`;
+    localStorage.setItem(`${PREFIXO}outra-aba`, JSON.stringify({ texto: DA_OUTRA_ABA, revisao: 0, em: '2026-10-07T11:00:00.000Z' }));
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
+      [`PUT ${URL_AGENTE}/draft`]: () => responder({ revisao: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(screen.getByLabelText('Prompt do agente'), { target: { value: `${PUBLICADO}\ntexto desta aba` } });
+    expect(copiasDoAgente()).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Rascunho salvo.', 'success'));
+
+    expect(copiasDoAgente().map((c) => c.texto)).toEqual([DA_OUTRA_ABA]);
+  });
+
+  it('publicar com aviso exige a confirmação e manda a versão, a revisão e os avisos confirmados', async () => {
+    const semNome = 'Voce e a Aurora.\nREGRAS:\n- fale\n{{conversationStageContext}}\n- replyText: resposta curta';
+    const comRascunho = agente({
+      rascunho: { prompt: semNome, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
+    });
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: comRascunho }),
+      [`POST ${URL_AGENTE}/publish`]: () => responder({ versao: 2, versaoId: 'v2' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+
+    expect(await screen.findByText('Rascunho com mudanças')).toBeInTheDocument();
+    expect(screen.getByText('salvo em 07/10/2026 às 09:00 por Junior')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+
+    const botao = await screen.findByRole('button', { name: 'Publicar versão 2' });
+    expect(botao).toBeDisabled();
+    expect(screen.getAllByText(/O rascunho tirou \{\{contactName\}\}/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/As respostas do número Comercial que começarem depois da publicação já saem com esta versão/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Li os avisos e quero publicar assim.'));
+    fireEvent.change(screen.getByLabelText('Nota da versão (opcional)'), { target: { value: 'tirei o nome' } });
+    expect(botao).toBeEnabled();
+    fireEvent.click(botao);
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith('Versão 2 publicada. As respostas que começarem a partir de agora já saem com ela.', 'success'),
+    );
+    expect(corpoDe(fetchMock, '/publish')).toEqual({ versaoEsperada: 1, revisao: 1, nota: 'tirei o nome', confirmarAvisos: ['perdeu:contactName'] });
+  });
+
+  it('publicar quando outra pessoa publicou antes (409): avisa, fecha o diálogo e recarrega (SPEC, fatia 2)', async () => {
+    const MENSAGEM = 'Outra versão foi publicada enquanto você editava. A tela foi atualizada com a versão atual.';
+    const comRascunho = agente({
+      rascunho: { prompt: `${PUBLICADO}\nmais uma regra`, revisao: 1, atualizadoEm: '2026-10-07T12:00:00Z', atualizadoPor: 'Junior' },
+    });
+    let leituras = 0;
+    vi.stubGlobal('fetch', fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => {
+        leituras += 1;
+        return responder({ agente: comRascunho });
+      },
+      [`POST ${URL_AGENTE}/publish`]: () => responder({ error: MENSAGEM, code: 'VERSAO_PUBLICADA_MUDOU' }, 409),
+    }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText('Rascunho com mudanças');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    // Sem aviso no rascunho: o botão do diálogo já vem habilitado.
+    fireEvent.click(await screen.findByRole('button', { name: 'Publicar versão 2' }));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(MENSAGEM, 'error'));
+    await waitFor(() => expect(leituras).toBe(2));
+    expect(screen.queryByRole('button', { name: 'Publicar versão 2' })).toBeNull();
+  });
+
+  it('a aba Versões abre o histórico do agente; durante a edição ela fica bloqueada', async () => {
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
+      [`GET ${URL_AGENTE}/versions`]: () => responder({ versoes: [], temMais: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    expect(screen.getByRole('tab', { name: 'Versões' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Versões' }));
+    expect(await screen.findByRole('heading', { name: 'Versões' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`${URL_AGENTE}/versions`, expect.objectContaining({ credentials: 'include' }));
+  });
+});

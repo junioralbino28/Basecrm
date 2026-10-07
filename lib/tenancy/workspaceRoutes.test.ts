@@ -39,6 +39,20 @@ function rotasEmDisco(dir = BASE, prefixo = ''): string[] {
   return achadas;
 }
 
+/** Páginas com segmento dinâmico sob [tenantId] ('/agents/[agentId]'). */
+function rotasDinamicasEmDisco(dir = BASE, prefixo = ''): string[] {
+  const achadas: string[] = [];
+  for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entrada.isDirectory()) {
+      if (entrada.name === 'page.tsx' && prefixo.includes('[')) achadas.push(prefixo);
+      continue;
+    }
+    if (entrada.name.startsWith('(')) continue;
+    achadas.push(...rotasDinamicasEmDisco(path.join(dir, entrada.name), `${prefixo}/${entrada.name}`));
+  }
+  return achadas;
+}
+
 describe('rotas do workspace do cliente', () => {
   const rotas = rotasEmDisco().sort();
 
@@ -72,5 +86,25 @@ describe('rotas do workspace do cliente', () => {
 
   it('/pipeline continua caindo em /boards', () => {
     expect(getTenantWorkspaceHref('/pipeline', TENANT)).toBe(`/platform/tenants/${TENANT}/boards`);
+  });
+});
+
+describe('rotas de detalhe sob o cliente', () => {
+  const dinamicas = rotasDinamicasEmDisco().sort();
+  const bases = rotasEmDisco();
+
+  it('encontra o editor de agente em disco (se isto falhar, a pasta mudou)', () => {
+    expect(dinamicas).toContain('/agents/[agentId]');
+  });
+
+  it.each(dinamicas)('%s: trocar de cliente leva para a lista no outro cliente, nunca para o id do anterior', (rota) => {
+    const atual = `/platform/tenants/${OUTRO}${rota.replace(/\[[^\]]+\]/g, '22222222-2222-4222-8222-222222222222')}`;
+    const destino = getTenantWorkspaceHref(getTenantWorkspaceRelativeHref(atual), TENANT);
+    expect(destino.startsWith(`/platform/tenants/${TENANT}/`)).toBe(true);
+    expect(
+      bases,
+      `"${rota}" ao trocar de cliente foi para "${destino}", que não é uma tela que existe no outro cliente. `
+        + 'Acrescente a lista em LISTAS_COM_DETALHE (lib/tenancy/workspaceRoutes.ts).',
+    ).toContain(destino.slice(`/platform/tenants/${TENANT}`.length));
   });
 });
