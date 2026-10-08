@@ -54,6 +54,7 @@ import { generateConversationAutoReply } from '@/lib/conversations/aiReply';
 import { loadAvailableMeetingSlots } from '@/lib/conversations/aiReplyCore';
 import { conferirRetrato } from './retratoDoTeste';
 import {
+  LIMITE_DO_PROMPT_DO_TESTE,
   MENSAGENS_NA_MEMORIA,
   TELEFONE_DO_TESTE,
   explicarRespostaDoTeste,
@@ -389,5 +390,26 @@ describe('generateAgentReplyPreview — teste sem enviar', () => {
     for (const proibido of ['@/lib/conversations/aiReply', '../conversations/aiReply', '@/lib/channels/evolution']) {
       expect(importados).not.toContain(proibido);
     }
+  });
+
+  it('16. prompt montado acima do teto (G18): 422 antes de chamar o modelo', async () => {
+    const r = await testar(semear({ draft: { prompt: `${RASCUNHO}
+${'x'.repeat(LIMITE_DO_PROMPT_DO_TESTE)}` } }));
+    expect(r).toMatchObject({ ok: false, status: 422, codigo: 'PROMPT_GRANDE_DEMAIS' });
+    expect(roteiro.argumentos).toHaveLength(0);
+
+    // Logo abaixo do teto passa: a recusa é pelo tamanho, não pelo conteúdo.
+    roteiro.respostas.push(OK);
+    const folga = LIMITE_DO_PROMPT_DO_TESTE - RASCUNHO.length - 2_000;
+    dados(await testar(semear({ draft: { prompt: `${RASCUNHO}
+${'x'.repeat(folga)}` } })));
+    expect(String(roteiro.argumentos[0].prompt).length).toBeLessThanOrEqual(LIMITE_DO_PROMPT_DO_TESTE);
+  });
+
+  it('17. resposta só de espaços: 502 RESPOSTA_VAZIA, sem retrato e sem envio', async () => {
+    roteiro.respostas.push(responde({ replyText: '   ', shouldHandoff: false }));
+    const r = await testar(semear());
+    expect(r).toEqual({ ok: false, status: 502, codigo: 'RESPOSTA_VAZIA', erro: 'O modelo devolveu uma resposta vazia. Tente de novo.' });
+    expect(enviar).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,7 @@ import { consumeConversationRateLimit } from '@/lib/conversations/conversationRa
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
-import type { Clientes, Falha } from './editorAgentes';
+import type { Clientes, Falha, Resultado } from './editorAgentes';
 
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -153,16 +153,72 @@ export const ExplicarSchema = z.object({
   }).strict(),
 }).strict();
 
-/** Os três baldes do teste e da explicação (D6), na ordem em que são consumidos. */
+/**
+ * Os baldes do teste e da explicação (D6), na ordem em que são consumidos. O último é o teto de custo do cliente (G18,
+ * rodada 3 do Codex): com o prompt limitado (LIMITE_DO_PROMPT_DO_TESTE) e a saída limitada (maxOutputTokens), 200
+ * chamadas por dia dão um gasto máximo conhecido na chave do cliente.
+ */
 export const BALDES_DO_TESTE = [
-  { nome: 'pessoa', limite: 20, janelaSegundos: 600, mensagem: 'Limite de 20 testes a cada 10 minutos por pessoa.' },
-  { nome: 'rajada', limite: 3, janelaSegundos: 30, mensagem: 'Muitos testes ao mesmo tempo. Espere a resposta anterior.' },
-  { nome: 'cliente', limite: 60, janelaSegundos: 600, mensagem: 'Limite de 60 testes a cada 10 minutos neste cliente.' },
+  { nome: 'pessoa', por: 'pessoa', limite: 20, janelaSegundos: 600, mensagem: 'Limite de 20 testes a cada 10 minutos por pessoa.' },
+  { nome: 'rajada', por: 'pessoa', limite: 3, janelaSegundos: 30, mensagem: 'Muitos testes ao mesmo tempo. Espere a resposta anterior.' },
+  { nome: 'cliente', por: 'cliente', limite: 60, janelaSegundos: 600, mensagem: 'Limite de 60 testes a cada 10 minutos neste cliente.' },
+  { nome: 'cliente-dia', por: 'cliente', limite: 200, janelaSegundos: 86_400, mensagem: 'Limite de 200 testes por dia neste cliente.' },
 ] as const;
 
 /**
- * Falha fechada: recusa, erro devolvido ou chamada rejeitada em qualquer balde vira 429 com `retry-after`. Um balde
- * que já consumiu não devolve a vaga quando o seguinte recusa: a contagem erra para mais, nunca para menos.
+ * Disjuntor do provedor (G18): falhas do modelo no cliente (erro, prazo estourado ou resposta vazia) são contadas num
+ * balde próprio; com 5 na janela de 5 minutos, o teste e a explicação param até a janela vencer, sem chamar o modelo.
+ */
+export const DISJUNTOR_DO_TESTE = { falhas: 5, janelaSegundos: 300 } as const;
+export const CODIGOS_DE_FALHA_DO_PROVEDOR: ReadonlySet<string> = new Set(['FALHA_DO_MODELO', 'MODELO_DEMOROU', 'RESPOSTA_VAZIA']);
+const chaveDoDisjuntor = (tenantId: string) => `central-agentes:teste:falhas:${tenantId}`;
+
+const recusaDoDisjuntor = (mensagem: string, retryAfter: number) =>
+  new Response(JSON.stringify({ error: mensagem, code: 'IA_INSTAVEL' }), {
+    status: 503,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'retry-after': String(retryAfter) },
+  });
+
+/** Só lê o balde das falhas, sem consumir. Leitura com erro fecha (503), como os limites. */
+async function conferirDisjuntor(admin: SupabaseClient, tenantId: string): Promise<Response | null> {
+  const lido = await Promise.resolve(
+    admin
+      .from('conversation_ai_rate_limits')
+      .select('window_started_at, request_count')
+      .eq('scope_key', chaveDoDisjuntor(tenantId))
+      .maybeSingle(),
+  ).catch(() => null);
+  if (!lido || lido.error) {
+    return recusaDoDisjuntor('Não foi possível conferir a saúde da IA agora. Tente de novo em instantes.', 30);
+  }
+  const linha = lido.data as { window_started_at?: string; request_count?: number } | null;
+  if (!linha) return null;
+  const inicio = Date.parse(String(linha.window_started_at));
+  const resta = Math.ceil((inicio + DISJUNTOR_DO_TESTE.janelaSegundos * 1000 - Date.now()) / 1000);
+  if (Number(linha.request_count) >= DISJUNTOR_DO_TESTE.falhas && resta > 0) {
+    return recusaDoDisjuntor(
+      `O provedor de IA falhou ${DISJUNTOR_DO_TESTE.falhas} vezes nos últimos minutos neste cliente. Os testes voltam em ${resta} s.`,
+      resta,
+    );
+  }
+  return null;
+}
+
+/** Conta a falha do provedor no disjuntor. Não registrar não muda a resposta já decidida. */
+export async function contarFalhaDoProvedor(admin: SupabaseClient, tenantId: string, r: Resultado<unknown>): Promise<void> {
+  if (r.ok || !CODIGOS_DE_FALHA_DO_PROVEDOR.has(r.codigo)) return;
+  await consumeConversationRateLimit({
+    admin: admin as never,
+    scopeKey: chaveDoDisjuntor(tenantId),
+    limit: DISJUNTOR_DO_TESTE.falhas,
+    windowSeconds: DISJUNTOR_DO_TESTE.janelaSegundos,
+  }).catch(() => undefined);
+}
+
+/**
+ * Antes do modelo: o disjuntor (só leitura; aberto, nada é consumido) e depois os baldes. Falha fechada: recusa, erro
+ * devolvido ou chamada rejeitada em qualquer balde vira 429 com `retry-after`. Um balde que já consumiu não devolve a
+ * vaga quando o seguinte recusa: a contagem erra para mais, nunca para menos.
  */
 export async function consumirLimitesDeTeste(
   admin: SupabaseClient,
@@ -170,8 +226,10 @@ export async function consumirLimitesDeTeste(
   tenantId: string,
 ): Promise<Response | null> {
   if (!usuarioId) return json({ error: 'Forbidden' }, 403);
+  const disjuntor = await conferirDisjuntor(admin, tenantId);
+  if (disjuntor) return disjuntor;
   for (const balde of BALDES_DO_TESTE) {
-    const dono = balde.nome === 'cliente' ? tenantId : usuarioId;
+    const dono = balde.por === 'cliente' ? tenantId : usuarioId;
     // O adaptador trata `{ error }`; uma rejeição da chamada (rede) também fecha, com 429 e não 500 (rodada 2, ponto 3).
     const r = await consumeConversationRateLimit({
       admin: admin as never,

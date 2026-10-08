@@ -9,12 +9,20 @@ const mocks = vi.hoisted(() => ({
   requireTenantAccess: vi.fn(),
   isAllowedOrigin: vi.fn(),
   rpc: vi.fn(),
+  lerDisjuntor: vi.fn(),
   generateAgentReplyPreview: vi.fn(),
   explicarRespostaDoTeste: vi.fn(),
 }));
 
 const USUARIO = { papel: 'usuario' };
-const ADMIN = { papel: 'admin', rpc: mocks.rpc };
+// O disjuntor lê `conversation_ai_rate_limits` pela chave do cliente: from().select().eq().maybeSingle().
+const ADMIN = {
+  papel: 'admin',
+  rpc: mocks.rpc,
+  from: (tabela: string) => ({
+    select: () => ({ eq: (coluna: string, valor: string) => ({ maybeSingle: () => mocks.lerDisjuntor(tabela, coluna, valor) }) }),
+  }),
+};
 const CLIENTES = { usuario: USUARIO, admin: ADMIN };
 
 vi.mock('@/lib/platform/tenantAccess', () => ({ requireTenantAccess: mocks.requireTenantAccess }));
@@ -30,6 +38,7 @@ vi.mock('@/lib/agents/testeDoAgente', () => ({
 
 import { POST as testar } from './route';
 import { POST as explicar } from './explain/route';
+import { ExplicarSchema } from '@/lib/agents/rotaDoEditor';
 
 const ASSINATURA = 'a'.repeat(64);
 const CORPO_DO_TESTE = { revisao: 3, mensagens: [{ autor: 'lead', texto: '  oi, quanto custa?  ' }] };
@@ -61,6 +70,7 @@ beforeEach(() => {
   mocks.isAllowedOrigin.mockReturnValue(true);
   mocks.requireTenantAccess.mockResolvedValue({ profile: { id: PERFIL, role: 'agency_admin', organization_id: 'org-agencia' } });
   mocks.rpc.mockResolvedValue(libera());
+  mocks.lerDisjuntor.mockResolvedValue({ data: null, error: null });
   mocks.generateAgentReplyPreview.mockResolvedValue({ ok: true, dados: { partes: ['Oi!'] } });
   mocks.explicarRespostaDoTeste.mockResolvedValue({ ok: true, dados: { explicacao: 'Porque o prompt manda.' } });
 });
@@ -177,7 +187,7 @@ describe('rotas do teste sem enviar e da explicação', () => {
     expect((await explicar(req, doAgente())).status).toBe(413);
   });
 
-  it('consome os três baldes na ordem, com as chaves e os números do D6', async () => {
+  it('consome os quatro baldes na ordem, com as chaves e os números do D6 e o teto diário do cliente (G18)', async () => {
     for (const r of rotas()) {
       mocks.rpc.mockClear();
       expect((await r.chamar()).status, r.nome).toBe(200);
@@ -185,6 +195,7 @@ describe('rotas do teste sem enviar e da explicação', () => {
         ['consume_conversation_ai_rate_limit', { p_scope_key: `central-agentes:teste:pessoa:${PERFIL}`, p_limit: 20, p_window_seconds: 600 }],
         ['consume_conversation_ai_rate_limit', { p_scope_key: `central-agentes:teste:rajada:${PERFIL}`, p_limit: 3, p_window_seconds: 30 }],
         ['consume_conversation_ai_rate_limit', { p_scope_key: `central-agentes:teste:cliente:${TENANT}`, p_limit: 60, p_window_seconds: 600 }],
+        ['consume_conversation_ai_rate_limit', { p_scope_key: `central-agentes:teste:cliente-dia:${TENANT}`, p_limit: 200, p_window_seconds: 86_400 }],
       ]);
     }
   });
@@ -194,6 +205,7 @@ describe('rotas do teste sem enviar e da explicação', () => {
       { recusa: 0, mensagem: 'Limite de 20 testes a cada 10 minutos por pessoa.' },
       { recusa: 1, mensagem: 'Muitos testes ao mesmo tempo. Espere a resposta anterior.' },
       { recusa: 2, mensagem: 'Limite de 60 testes a cada 10 minutos neste cliente.' },
+      { recusa: 3, mensagem: 'Limite de 200 testes por dia neste cliente.' },
     ];
     for (const r of rotas()) {
       for (const caso of casos) {
@@ -227,6 +239,73 @@ describe('rotas do teste sem enviar e da explicação', () => {
       expect(rejeitada.headers.get('retry-after'), r.nome).toBe('30');
       expect(r.motor, r.nome).not.toHaveBeenCalled();
     }
+  });
+
+  it('disjuntor aberto (5 falhas do provedor na janela): 503 com retry-after, sem consumir cota e sem chamar o modelo', async () => {
+    mocks.lerDisjuntor.mockResolvedValue({ data: { window_started_at: new Date(Date.now() - 60_000).toISOString(), request_count: 5 }, error: null });
+    for (const r of rotas()) {
+      const resposta = await r.chamar();
+      expect(resposta.status, r.nome).toBe(503);
+      const espera = Number(resposta.headers.get('retry-after'));
+      expect(espera, r.nome).toBeGreaterThanOrEqual(239);
+      expect(espera, r.nome).toBeLessThanOrEqual(241);
+      expect(await resposta.json(), r.nome).toEqual({
+        error: `O provedor de IA falhou 5 vezes nos últimos minutos neste cliente. Os testes voltam em ${espera} s.`,
+        code: 'IA_INSTAVEL',
+      });
+      expect(r.motor, r.nome).not.toHaveBeenCalled();
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.lerDisjuntor).toHaveBeenCalledWith('conversation_ai_rate_limits', 'scope_key', `central-agentes:teste:falhas:${TENANT}`);
+  });
+
+  it('disjuntor fechado: 4 falhas, ou 5 com a janela vencida, deixam passar', async () => {
+    mocks.lerDisjuntor.mockResolvedValueOnce({ data: { window_started_at: new Date(Date.now() - 60_000).toISOString(), request_count: 4 }, error: null });
+    expect((await testar(pedir(CORPO_DO_TESTE), doAgente())).status).toBe(200);
+    mocks.lerDisjuntor.mockResolvedValueOnce({ data: { window_started_at: new Date(Date.now() - 301_000).toISOString(), request_count: 5 }, error: null });
+    expect((await testar(pedir(CORPO_DO_TESTE), doAgente())).status).toBe(200);
+  });
+
+  it('disjuntor ilegível (erro ou leitura rejeitada): 503, falha fechada, nada consumido', async () => {
+    mocks.lerDisjuntor.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    expect((await testar(pedir(CORPO_DO_TESTE), doAgente())).status).toBe(503);
+    mocks.lerDisjuntor.mockRejectedValueOnce(new Error('rede caiu'));
+    expect((await explicar(pedir(CORPO_DA_EXPLICACAO), doAgente())).status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.generateAgentReplyPreview).not.toHaveBeenCalled();
+    expect(mocks.explicarRespostaDoTeste).not.toHaveBeenCalled();
+  });
+
+  it('falha do provedor (erro, prazo, resposta vazia) conta no disjuntor; recusa de regra não conta; falha ao contar não muda a resposta', async () => {
+    const contagens = () => mocks.rpc.mock.calls.filter(([, a]) => String(a.p_scope_key).includes(':falhas:'));
+    for (const r of rotas()) {
+      for (const [status, codigo, conta] of [
+        [502, 'FALHA_DO_MODELO', true], [504, 'MODELO_DEMOROU', true], [502, 'RESPOSTA_VAZIA', true],
+        [409, 'RASCUNHO_MUDOU', false], [409, 'RETRATO_VENCIDO', false], [422, 'SEM_CHAVE_DE_IA', false],
+      ] as const) {
+        mocks.rpc.mockClear();
+        r.motor.mockResolvedValueOnce({ ok: false, status, codigo, erro: `erro ${codigo}` });
+        const resposta = await r.chamar();
+        expect(resposta.status, `${r.nome} ${codigo}`).toBe(status);
+        expect(contagens(), `${r.nome} ${codigo}`).toEqual(
+          conta ? [['consume_conversation_ai_rate_limit', { p_scope_key: `central-agentes:teste:falhas:${TENANT}`, p_limit: 5, p_window_seconds: 300 }]] : [],
+        );
+      }
+    }
+    mocks.rpc.mockReset();
+    for (let i = 0; i < 4; i += 1) mocks.rpc.mockResolvedValueOnce(libera());
+    mocks.rpc.mockRejectedValueOnce(new Error('rede caiu'));
+    mocks.generateAgentReplyPreview.mockResolvedValueOnce({ ok: false, status: 502, codigo: 'FALHA_DO_MODELO', erro: 'erro' });
+    const resposta = await testar(pedir(CORPO_DO_TESTE), doAgente());
+    expect(resposta.status).toBe(502);
+    expect(await resposta.json()).toEqual({ error: 'erro', code: 'FALHA_DO_MODELO' });
+  });
+
+  it('todo retrato que o teste pode devolver cabe na explicação: o teto do prompt do motor fica dentro do schema', async () => {
+    const { LIMITE_DO_PROMPT_DO_TESTE } = await vi.importActual<typeof import('@/lib/agents/testeDoAgente')>('@/lib/agents/testeDoAgente');
+    const noTeto = { ...CORPO_DA_EXPLICACAO, retrato: { ...CORPO_DA_EXPLICACAO.retrato, prompt: 'p'.repeat(LIMITE_DO_PROMPT_DO_TESTE) } };
+    expect(ExplicarSchema.safeParse(noTeto).success).toBe(true);
+    expect(JSON.stringify(noTeto).length).toBeLessThan(1024 * 1024);
   });
 
   it('caminho feliz do teste: 200 com o corpo do motor, chamado com os dois clientes e o corpo validado', async () => {

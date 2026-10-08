@@ -4,6 +4,7 @@ import {
   LIMITE_DA_EXPLICACAO_BYTES,
   abrirRotaDoAgente,
   consumirLimitesDeTeste,
+  contarFalhaDoProvedor,
   json,
   lerCorpoLimitado,
   responderFalha,
@@ -23,5 +24,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ tenantId: stri
   const limite = await consumirLimitesDeTeste(aberta.clientes.admin, aberta.usuarioId, aberta.tenantId);
   if (limite) return limite;
   const r = await explicarRespostaDoTeste(aberta.clientes, { tenantId: aberta.tenantId, agentId: aberta.agentId, ...corpo.corpo });
+  await contarFalhaDoProvedor(aberta.clientes.admin, aberta.tenantId, r);
   return r.ok ? json(r.dados) : responderFalha(r);
 }

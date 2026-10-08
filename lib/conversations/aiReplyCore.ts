@@ -418,12 +418,10 @@ export async function responderComModelo(input: {
   /** Encerramento depois do handoff: nunca abre handoff novo nem mexe na agenda. */
   closing: boolean;
   recentMessages: RecentMessage[];
-  /** false só no teste sem enviar: o log da saída fora do formato leva o tamanho, nunca o texto (G22). */
-  registrarSaidaCrua?: boolean;
   /** Só no teste sem enviar: prazo para as gerações. No atendimento real a chamada sai sem ele, como sempre. */
   abortSignal?: AbortSignal;
 }) {
-  const { model, fetchContador, organizationId, inicio, contexto, closing, recentMessages, registrarSaidaCrua, abortSignal } = input;
+  const { model, fetchContador, organizationId, inicio, contexto, closing, recentMessages, abortSignal } = input;
   const { prompt, calendarAvailability, calendarMs, tagCatalog, wantsTagContext } = contexto;
   const uso: UsoDoModelo = { entrada: null, saida: null, raciocinio: null, entradaEmCache: null };
   const mais = (a: number | null, b: number | undefined) => (typeof b === 'number' ? (a ?? 0) + b : a);
@@ -487,12 +485,15 @@ export async function responderComModelo(input: {
         generated = repaired.data;
         repairedOutput = true;
       } else {
+        // G22 (OK do Junior, 08/10): o texto do modelo pode repetir o que o lead escreveu, entao nunca vai para o log.
+        // Fica a forma, que basta para o diagnostico de 20/09 (JSON cortado pelo teto de tokens: abre e nao fecha).
+        const aparado = rawText ? rawText.trim() : '';
         console.warn('[Conversation AI] Structured output could not be parsed; retrying once', {
           organizationId,
           finishReason: error.finishReason ?? null,
-          ...(registrarSaidaCrua === false
-            ? { textLength: rawText ? rawText.length : null }
-            : { text: rawText ? rawText.slice(0, 300) : null }),
+          textLength: rawText ? rawText.length : null,
+          startsWithBrace: aparado.startsWith('{'),
+          endsWithBrace: aparado.endsWith('}'),
         });
         generated = (await generateOnce()).output;
       }

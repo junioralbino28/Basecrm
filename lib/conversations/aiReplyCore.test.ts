@@ -168,26 +168,15 @@ describe('responderComModelo', () => {
     expect(r.uso).toEqual({ entrada: null, saida: null, raciocinio: null, entradaEmCache: null });
   });
 
-  it('registrarSaidaCrua false: o log da saída fora do formato não leva o texto (G22)', async () => {
-    roteiro.respostas.push(
-      saidaFora(`texto cru com ${SENTINELA}`, {}),
-      () => Promise.resolve({ output: { replyText: 'Oi!', shouldHandoff: false } }),
-    );
-    const avisos = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    await responder({ registrarSaidaCrua: false });
-    const registrado = avisos.mock.calls.map((chamada) => JSON.stringify(chamada)).join('\n');
-    expect(registrado).not.toContain(SENTINELA);
-    expect(registrado).toContain('textLength');
-  });
-
-  it('sem a opção (atendimento real): o log continua com os 300 caracteres de hoje', async () => {
-    roteiro.respostas.push(
-      saidaFora(`texto cru com ${SENTINELA}`, {}),
-      () => Promise.resolve({ output: { replyText: 'Oi!', shouldHandoff: false } }),
-    );
+  it('o log da saída fora do formato nunca leva o texto, em nenhum caminho (G22): só o tamanho e a forma', async () => {
+    const cru = `{"replyText": "texto cru com ${SENTINELA}`;
+    roteiro.respostas.push(saidaFora(cru, {}), () => Promise.resolve({ output: { replyText: 'Oi!', shouldHandoff: false } }));
     const avisos = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await responder();
-    expect(avisos.mock.calls.map((chamada) => JSON.stringify(chamada)).join('\n')).toContain(SENTINELA);
+    const registrado = avisos.mock.calls.map((chamada) => JSON.stringify(chamada)).join('\n');
+    expect(registrado).not.toContain(SENTINELA);
+    const aviso = avisos.mock.calls.find((chamada) => String(chamada[0]).includes('could not be parsed'));
+    expect(aviso?.[1]).toMatchObject({ textLength: cru.length, startsWithBrace: true, endsWithBrace: false });
   });
 
   it('prazo: com abortSignal, o modelo recebe o sinal; sem ele, a chamada sai sem a chave, como hoje', async () => {

@@ -29,6 +29,12 @@ export const TELEFONE_DO_TESTE = '5500000000000';
 /** As duas gerações do teste juntas, dentro dos 60 s da rota (D14). */
 export const PRAZO_DO_TESTE_MS = 45_000;
 export const PRAZO_DA_EXPLICACAO_MS = 30_000;
+/**
+ * Teto do prompt montado (instruções, conversa, etiquetas e agenda), conferido ANTES de chamar o modelo (G18, rodada 3
+ * do Codex, achados 1 e 3). Fica abaixo do teto do retrato na rota da explicação (200 mil), então todo teste que
+ * responde 200 pode ser explicado.
+ */
+export const LIMITE_DO_PROMPT_DO_TESTE = 150_000;
 const EXPLICACAO_MAX = 3_000;
 
 export type EntradaDoTeste = {
@@ -192,6 +198,13 @@ async function prepararTeste(c: Clientes, e: EntradaDoTeste): Promise<Resultado<
     somenteLeitura: true,
   });
   if (!carregado.ok) return falha(500, 'TESTE_INDISPONIVEL', 'Não foi possível montar o teste.');
+  if (carregado.contexto.prompt.length > LIMITE_DO_PROMPT_DO_TESTE) {
+    return falha(
+      422,
+      'PROMPT_GRANDE_DEMAIS',
+      'O prompt montado passou de 150 mil caracteres (instruções, conversa, etiquetas e agenda). Encurte o prompt ou a conversa simulada.',
+    );
+  }
 
   return {
     ok: true,
@@ -247,11 +260,12 @@ export async function generateAgentReplyPreview(c: Clientes, e: EntradaDoTeste):
       contexto: p.dados.contexto,
       closing: false,
       recentMessages: p.dados.historico,
-      registrarSaidaCrua: false,
       abortSignal: AbortSignal.timeout(PRAZO_DO_TESTE_MS),
     });
     const o = r.object;
     const partes = splitReplyIntoParts(o.replyText);
+    // Só espaços passam no schema (min 1) e viram zero partes: nada a mostrar nem a explicar (rodada 3, achado 2).
+    if (partes.length === 0) return falha(502, 'RESPOSTA_VAZIA', 'O modelo devolveu uma resposta vazia. Tente de novo.');
     const repasse = o.shouldHandoff ? { tipo: o.handoffType ?? 'other', motivo: o.handoffReason } : null;
     return {
       ok: true,
