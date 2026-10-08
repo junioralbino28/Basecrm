@@ -1,5 +1,7 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { consumeConversationRateLimit } from '@/lib/conversations/conversationRateLimit';
 import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
@@ -50,20 +52,25 @@ export async function abrirRotaDoCliente(
   req: Request,
   params: { tenantId: string },
   opcoes: { escreve: boolean },
-): Promise<{ ok: true; tenantId: string; clientes: Clientes } | Recusa> {
+): Promise<{ ok: true; tenantId: string; usuarioId: string | null; clientes: Clientes } | Recusa> {
   if (opcoes.escreve && !isAllowedOrigin(req)) return recusa({ error: 'Forbidden' }, 403);
   if (!Uuid.safeParse(params.tenantId).success) return recusa({ error: 'Endereço inválido.' }, 400);
   const auth = await requireTenantAccess(params.tenantId, { adminOnly: true });
   // `'error' in auth` não estreita aqui: o TypeScript normaliza a união do retorno (error?: undefined no sucesso).
   if (auth.error) return { ok: false, resposta: auth.error };
-  return { ok: true, tenantId: params.tenantId, clientes: { usuario: await createClient(), admin: createStaticAdminClient() } };
+  return {
+    ok: true,
+    tenantId: params.tenantId,
+    usuarioId: auth.profile?.id ?? null,
+    clientes: { usuario: await createClient(), admin: createStaticAdminClient() },
+  };
 }
 
 export async function abrirRotaDoAgente(
   req: Request,
   params: { tenantId: string; agentId: string },
   opcoes: { escreve: boolean },
-): Promise<{ ok: true; tenantId: string; agentId: string; clientes: Clientes } | Recusa> {
+): Promise<{ ok: true; tenantId: string; agentId: string; usuarioId: string | null; clientes: Clientes } | Recusa> {
   if (!Uuid.safeParse(params.agentId).success) return recusa({ error: 'Endereço inválido.' }, 400);
   const aberta = await abrirRotaDoCliente(req, params, opcoes);
   if (!aberta.ok) return aberta;
@@ -74,6 +81,112 @@ export async function lerCorpo<T>(req: Request, schema: z.ZodType<T>): Promise<{
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return recusa({ error: 'Pedido inválido.', details: parsed.error.flatten() }, 400);
   return { ok: true, corpo: parsed.data };
+}
+
+export const LIMITE_DO_TESTE_BYTES = 512 * 1024;
+export const LIMITE_DA_EXPLICACAO_BYTES = 1024 * 1024;
+
+/**
+ * Corpo lido em fluxo com teto em bytes ANTES do JSON.parse (D14, G7/G18): `content-length` acima do teto já é 413,
+ * e um corpo sem `content-length` é cortado ao passar do teto. Depois, o zod estrito de sempre.
+ */
+export async function lerCorpoLimitado<T>(
+  req: Request,
+  schema: z.ZodType<T>,
+  maxBytes: number,
+): Promise<{ ok: true; corpo: T } | Recusa> {
+  const grande = () => recusa({ error: 'Pedido grande demais.', code: 'CORPO_GRANDE' }, 413);
+  const declarado = Number(req.headers.get('content-length') ?? '');
+  if (Number.isFinite(declarado) && declarado > maxBytes) return grande();
+  if (!req.body) return recusa({ error: 'Pedido inválido.' }, 400);
+  const leitor = req.body.getReader();
+  const pedacos: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await leitor.cancel().catch(() => undefined);
+      return grande();
+    }
+    pedacos.push(value);
+  }
+  let bruto: unknown = null;
+  try {
+    bruto = JSON.parse(Buffer.concat(pedacos).toString('utf8'));
+  } catch {
+    bruto = null;
+  }
+  const parsed = schema.safeParse(bruto);
+  if (!parsed.success) return recusa({ error: 'Pedido inválido.', details: parsed.error.flatten() }, 400);
+  return { ok: true, corpo: parsed.data };
+}
+
+const MensagemSimuladaSchema = z.discriminatedUnion('autor', [
+  z.object({ autor: z.literal('lead'), texto: z.string().trim().min(1).max(2_000) }).strict(),
+  z.object({ autor: z.literal('agente'), texto: z.string().trim().min(1).max(4_000) }).strict(),
+]);
+
+/** Corpo do teste (G5/G19 e D1-D4): até 30 mensagens, a última do lead; campo fora da lista é 400. */
+export const TesteSchema = z.object({
+  revisao: z.number().int().min(0),
+  mensagens: z.array(MensagemSimuladaSchema).min(1).max(30)
+    .refine((m) => m[m.length - 1]?.autor === 'lead', { message: 'A última mensagem precisa ser do lead.' }),
+  numeroId: z.string().uuid().nullable().optional(),
+  nomeDoLead: z.string().trim().min(1).max(80).optional(),
+}).strict();
+
+/** Corpo da explicação (D7): o retrato assinado do teste e a resposta mostrada. */
+export const ExplicarSchema = z.object({
+  revisao: z.number().int().min(0),
+  retrato: z.object({
+    prompt: z.string().min(1).max(200_000),
+    provedor: z.enum(['google', 'openai', 'anthropic']),
+    modelo: z.string().min(1).max(120),
+    expiraEm: z.number().int().positive(),
+    assinatura: z.string().regex(/^[0-9a-f]{64}$/),
+  }).strict(),
+  resposta: z.object({
+    partes: z.array(z.string().min(1).max(4_000)).min(1).max(3),
+    repasse: z.object({ tipo: z.string().min(1).max(40), motivo: z.string().max(240).nullable() }).strict().nullable(),
+  }).strict(),
+}).strict();
+
+/** Os três baldes do teste e da explicação (D6), na ordem em que são consumidos. */
+export const BALDES_DO_TESTE = [
+  { nome: 'pessoa', limite: 20, janelaSegundos: 600, mensagem: 'Limite de 20 testes a cada 10 minutos por pessoa.' },
+  { nome: 'rajada', limite: 3, janelaSegundos: 30, mensagem: 'Muitos testes ao mesmo tempo. Espere a resposta anterior.' },
+  { nome: 'cliente', limite: 60, janelaSegundos: 600, mensagem: 'Limite de 60 testes a cada 10 minutos neste cliente.' },
+] as const;
+
+/**
+ * Falha fechada: recusa, erro devolvido ou chamada rejeitada em qualquer balde vira 429 com `retry-after`. Um balde
+ * que já consumiu não devolve a vaga quando o seguinte recusa: a contagem erra para mais, nunca para menos.
+ */
+export async function consumirLimitesDeTeste(
+  admin: SupabaseClient,
+  usuarioId: string | null,
+  tenantId: string,
+): Promise<Response | null> {
+  if (!usuarioId) return json({ error: 'Forbidden' }, 403);
+  for (const balde of BALDES_DO_TESTE) {
+    const dono = balde.nome === 'cliente' ? tenantId : usuarioId;
+    // O adaptador trata `{ error }`; uma rejeição da chamada (rede) também fecha, com 429 e não 500 (rodada 2, ponto 3).
+    const r = await consumeConversationRateLimit({
+      admin: admin as never,
+      scopeKey: `central-agentes:teste:${balde.nome}:${dono}`,
+      limit: balde.limite,
+      windowSeconds: balde.janelaSegundos,
+    }).catch(() => ({ allowed: false, retryAfterSeconds: balde.janelaSegundos }));
+    if (!r.allowed) {
+      return new Response(
+        JSON.stringify({ error: `${balde.mensagem} Tente de novo em ${r.retryAfterSeconds} s.`, code: 'LIMITE_DE_TESTES' }),
+        { status: 429, headers: { 'content-type': 'application/json; charset=utf-8', 'retry-after': String(r.retryAfterSeconds) } },
+      );
+    }
+  }
+  return null;
 }
 
 export function responderFalha(f: Falha) {
