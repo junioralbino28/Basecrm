@@ -59,6 +59,24 @@ describe('loadAvailableMeetingSlots — merge do ocupado do Google (Fatia 2)', (
     }));
   });
 
+  it('somenteLeitura (teste sem enviar): repassa recordFailures e fillCache falsos; sem a opcao, os dois verdadeiros', async () => {
+    loadGoogleBusyIntervalsMock.mockResolvedValue([]);
+    const admin = seedAdmin();
+    const base = {
+      admin: admin as never,
+      organizationId: ORG,
+      connectionId: CONN,
+      connectionConfig: CALENDAR_CONFIG,
+      now: '2026-09-20T10:00:00.000Z',
+    };
+
+    await loadAvailableMeetingSlots({ ...base, somenteLeitura: true });
+    expect(loadGoogleBusyIntervalsMock).toHaveBeenLastCalledWith(expect.objectContaining({ recordFailures: false, fillCache: false }));
+
+    await loadAvailableMeetingSlots(base);
+    expect(loadGoogleBusyIntervalsMock).toHaveBeenLastCalledWith(expect.objectContaining({ recordFailures: true, fillCache: true }));
+  });
+
   it('agenda desativada: nem chama loadGoogleBusyIntervals', async () => {
     loadGoogleBusyIntervalsMock.mockResolvedValue([]);
     const admin = seedAdmin();

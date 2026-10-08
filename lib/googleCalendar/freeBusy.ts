@@ -91,6 +91,11 @@ export async function loadGoogleBusyIntervals(input: {
   timeMax: string;
   /** false só no teste sem enviar (Central de Agentes, fatia 3): a falha não marca a conexão nem grava aviso. */
   recordFailures?: boolean;
+  /**
+   * false só no teste sem enviar: lê o cache que já existe, mas não o preenche. O cache é do processo e vale 60 s;
+   * um teste não pode decidir o que a próxima resposta real vê (revisão do Codex, fatia 3, rodada 1).
+   */
+  fillCache?: boolean;
 }): Promise<BusyInterval[]> {
   if (!input.ownerId) return [];
   const ownerId = input.ownerId;
@@ -136,12 +141,14 @@ export async function loadGoogleBusyIntervals(input: {
       timeMax: input.timeMax,
       timeoutMs: FREEBUSY_TIMEOUT_MS,
     });
-    freeBusyCache.set(key, {
-      expiresAt: Date.now() + FREEBUSY_CACHE_TTL_MS,
-      timeMin: new Date(input.timeMin).getTime(),
-      timeMax: new Date(input.timeMax).getTime(),
-      intervals,
-    });
+    if (input.fillCache !== false) {
+      freeBusyCache.set(key, {
+        expiresAt: Date.now() + FREEBUSY_CACHE_TTL_MS,
+        timeMin: new Date(input.timeMin).getTime(),
+        timeMax: new Date(input.timeMax).getTime(),
+        intervals,
+      });
+    }
     return intervals;
   } catch (error) {
     const isInvalidGrant = error instanceof GoogleApiError && error.code === 'invalid_grant';

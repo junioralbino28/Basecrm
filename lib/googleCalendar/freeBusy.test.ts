@@ -244,6 +244,35 @@ describe('loadGoogleBusyIntervals com recordFailures false — o teste sem envia
     expect(fake.rowsOf('system_notifications')).toHaveLength(0);
   });
 
+  it('fillCache false: o teste nao aquece o cache, e a chamada real seguinte consulta o Google', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockResolvedValue([]);
+    const fake = createFakeSupabaseAdmin();
+
+    await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX, fillCache: false,
+    });
+    await loadGoogleBusyIntervals({ admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX });
+
+    expect(queryGoogleFreeBusyMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('fillCache false: le o cache que ja existia (sem consultar o Google de novo)', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockResolvedValue([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }]);
+    const fake = createFakeSupabaseAdmin();
+
+    await loadGoogleBusyIntervals({ admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX });
+    const doTeste = await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX, fillCache: false,
+    });
+
+    expect(queryGoogleFreeBusyMock).toHaveBeenCalledTimes(1);
+    expect(doTeste).toEqual([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }]);
+  });
+
   it('com sucesso, le e devolve os intervalos como sempre', async () => {
     getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
     getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
