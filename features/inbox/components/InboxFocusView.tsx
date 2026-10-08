@@ -25,6 +25,7 @@ import { useCRM } from '@/context/CRMContext';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
 import { InboxZeroState } from './InboxZeroState';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 // Performance: reuse Intl formatter instances (avoid per-render allocations).
 const PT_BR_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -360,7 +361,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
   };
 
   // Título e descrição
-  const title = activity?.title || suggestion?.title || '';
+  const title = (activity ? tituloDaAtividade(activity.title) : '') || suggestion?.title || '';
   const description = activity?.description || suggestion?.description || '';
   const context = activity?.dealTitle || suggestion?.data.deal?.companyName || suggestion?.data.contact?.name || '';
   const value = suggestion?.data.deal?.value;

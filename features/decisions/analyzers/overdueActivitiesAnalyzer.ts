@@ -68,13 +68,13 @@ function generateSuggestedActions(activity: Activity, deal?: DealView): {
     icon: 'CalendarPlus',
     payload: {
       activityType: validType,
-      activityTitle: activity.title,
+      activityTitle: tituloDaAtividade(activity.title),
       activityDate: tomorrow.toISOString(),
       activityDescription: `Reagendado de ${PT_BR_DATE_FORMATTER.format(new Date(activity.date))}. ${activity.description || ''}`,
       dealId: activity.dealId,
     },
     preview: {
-      title: activity.title,
+      title: tituloDaAtividade(activity.title),
       scheduledFor: tomorrow.toISOString(),
       recipient: deal?.contactName,
     },

@@ -5,6 +5,7 @@
 
 import { DealView, Activity } from '@/types';
 import { Decision, AnalyzerResult, AnalyzerConfig, SuggestedAction } from '../types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 export const stagnantDealsConfig: AnalyzerConfig = {
   id: 'stagnant_deals',
@@ -61,7 +62,7 @@ function generateReasoning(
     const activityType = lastActivity.type === 'CALL' ? 'uma ligação' :
                         lastActivity.type === 'EMAIL' ? 'um email' :
                         lastActivity.type === 'MEETING' ? 'uma reunião' : 'uma tarefa';
-    parts.push(`A última interação foi ${activityType}: "${lastActivity.title}".`);
+    parts.push(`A última interação foi ${activityType}: "${tituloDaAtividade(lastActivity.title)}".`);
     
     // Suggest alternative based on last activity
     if (lastActivity.type === 'EMAIL') {
@@ -116,7 +117,7 @@ function generateSuggestedAction(
       activityType: actionType,
       activityTitle: `Follow-up: ${deal.title}`,
       activityDate: tomorrow.toISOString(),
-      activityDescription: `Retomar contato após ${lastActivity ? 'última atividade: ' + lastActivity.title : 'período sem interação'}`,
+      activityDescription: `Retomar contato após ${lastActivity ? 'última atividade: ' + tituloDaAtividade(lastActivity.title) : 'período sem interação'}`,
       dealId: deal.id,
       contactId: deal.contactId,
     },

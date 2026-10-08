@@ -3,6 +3,7 @@ import { BellRing } from 'lucide-react';
 import { useCallListController } from './hooks/useCallListController';
 import { CallListTable } from './components/CallListTable';
 import { CallModal } from '@/features/inbox/components/CallModal';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface CallListPageProps {
   /** "Agora" injetável para testes determinísticos (default: relógio real). */
@@ -35,7 +36,7 @@ export const CallListPage: React.FC<CallListPageProps> = ({ now }) => {
   } = useCallListController(now);
 
   const activeTitle =
-    activeEntry?.kind === 'task' ? activeEntry.task.title : activeEntry?.activity?.title;
+    activeEntry?.kind === 'task' ? activeEntry.task.title : activeEntry?.activity ? tituloDaAtividade(activeEntry.activity.title) : undefined;
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">

@@ -53,8 +53,37 @@ const PACIENTE: Regra = {
   tecnica: /'Paciente Criado'|task-paciente|quando o paciente fecha/,
 };
 
-/** O título de uma atividade mostrado cru: em JSX, em template string ou num objeto de linha do tempo. */
-const TITULO_CRU = /\{\s*activity\.title\s*\}|\$\{\s*(activity|a)\.title\s*\}|title:\s*a\.title\b/;
+/**
+ * Uso do título de uma atividade: variável com "activity" no nome (activity, lastActivity, activeEntry.activity...),
+ * `act`, ou `a` num objeto de linha do tempo ou num template. Todo uso passa por tituloDaAtividade ou está em
+ * USOS_DE_DADO (2ª revisão do Codex, 07/10: a regra por nome exato deixou passar `lastActivity.title`).
+ */
+const USO_DO_TITULO = /\b(\w*[Aa]ctivit\w*|act)\??\.title\b|title:\s*a\.title\b|\$\{\s*a\.title\s*\}/;
+
+/** Usos que tratam o DADO gravado, não o texto da tela: arquivo e trecho da linha. */
+const USOS_DE_DADO: Array<[string, string]> = [
+  // formatTitle chama tituloDaAtividade.
+  [path.join('features', 'activities', 'components', 'ActivityRow.tsx'), 'formatTitle(activity.title)'],
+  // Formulário de editar: mostra o dado real, que é o que vai ser regravado.
+  [path.join('features', 'activities', 'hooks', 'useActivitiesController.ts'), 'title: activity.title,'],
+  // Lógica, não texto: detecção do tipo, mudança de etapa, extração do nome do contato.
+  [path.join('features', 'dashboard', 'components', 'ActivityFeedItem.tsx'), 'activity.title.toLowerCase()'],
+  [path.join('features', 'inbox', 'components', 'FocusContextPanel.tsx'), "activity.title.includes('Moveu para')"],
+  [path.join('features', 'inbox', 'components', 'FocusContextPanel.tsx'), "activity.title.replace('Moveu para'"],
+  [path.join('features', 'inbox', 'components', 'InboxFocusView.tsx'), 'tryExtractContactNameFromText(act.title)'],
+  [path.join('features', 'inbox', 'components', 'InboxFocusView.tsx'), 'act.title?.match('],
+  // Gravação no banco.
+  [path.join('lib', 'conversations', 'aiReply.ts'), 'p_title: activity.title'],
+];
+
+/** Pastas de dado: as rotas de API devolvem o título gravado (contrato) e lib/supabase é a camada do banco. */
+const PASTAS_DE_DADO = [path.join('app', 'api'), path.join('lib', 'supabase')];
+
+function usoCruDoTitulo(rel: string, linha: string): boolean {
+  if (!USO_DO_TITULO.test(linha) || LINHA_COMENTARIO.test(linha)) return false;
+  if (linha.includes('tituloDaAtividade(')) return false;
+  return !USOS_DE_DADO.some(([arquivo, trecho]) => rel === arquivo && linha.includes(trecho));
+}
 
 function linhaProibida(linha: string, regra: Regra): boolean {
   return regra.palavra.test(linha) && !regra.tecnica.test(linha) && !LINHA_COMENTARIO.test(linha);
@@ -105,36 +134,44 @@ describe('vocabulário do produto — o tenant se chama CLIENTE', () => {
     expect(tituloDaAtividade('Paciente Criado')).toBe('Lead criado');
   });
 
-  // Revisão do Codex (07/10): a tradução existia só na lista de atividades; painel, calendário e caixa de entrada
-  // mostravam o título cru. Toda tela que mostra o título de uma atividade passa por tituloDaAtividade.
-  it('nenhuma tela mostra o título de uma atividade sem passar por tituloDaAtividade', () => {
+  // Revisão do Codex (07/10): a tradução existia só na lista de atividades; painel, calendário, caixa de entrada e o
+  // analisador de negócios parados mostravam o título cru. Todo uso do título passa por tituloDaAtividade ou é dado.
+  it('todo uso do título de uma atividade passa por tituloDaAtividade ou está na lista de dado', () => {
     const achados: string[] = [];
     const visitar = (dir: string) => {
       for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
         if (IGNORAR_PASTA.has(entrada.name)) continue;
         const completo = path.join(dir, entrada.name);
-        // As rotas de API entregam o dado como está gravado (a API pública devolve o título original): traduzir ali
-        // mudaria o contrato. A tradução é só de apresentação.
-        if (path.relative(RAIZ, completo).startsWith(path.join('app', 'api'))) continue;
+        const rel = path.relative(RAIZ, completo);
+        if (PASTAS_DE_DADO.some(p => rel.startsWith(p))) continue;
         if (entrada.isDirectory()) {
           visitar(completo);
           continue;
         }
         if (!/\.tsx?$/.test(entrada.name) || /\.(test|spec)\.tsx?$/.test(entrada.name)) continue;
         fs.readFileSync(completo, 'utf8').split('\n').forEach((linha, i) => {
-          if (TITULO_CRU.test(linha)) achados.push(`${path.relative(RAIZ, completo)}:${i + 1}  ${linha.trim().slice(0, 110)}`);
+          if (usoCruDoTitulo(rel, linha)) achados.push(`${rel}:${i + 1}  ${linha.trim().slice(0, 110)}`);
         });
       }
     };
-    ['app', 'components', 'features'].forEach(p => visitar(path.join(RAIZ, p)));
-    expect(achados, `Use tituloDaAtividade(...):\n${achados.join('\n')}`).toEqual([]);
+    ['app', 'components', 'features', 'lib'].forEach(p => visitar(path.join(RAIZ, p)));
+    expect(
+      achados,
+      `Use tituloDaAtividade(...) ou, se for dado e não tela, inclua em USOS_DE_DADO com o motivo:\n${achados.join('\n')}`,
+    ).toEqual([]);
   });
 
-  it('o detector do título cru pega os padrões que existiam (prova do próprio detector)', () => {
-    expect(TITULO_CRU.test('                    {activity.title}')).toBe(true);
-    expect(TITULO_CRU.test('title={`${activity.title} - ${x}`}')).toBe(true);
-    expect(TITULO_CRU.test('      title: a.title,')).toBe(true);
-    expect(TITULO_CRU.test('                    {tituloDaAtividade(activity.title)}')).toBe(false);
+  it('o detector do uso cru pega os padrões que existiam, inclusive o que escapou (prova do próprio detector)', () => {
+    const outro = path.join('features', 'qualquer.tsx');
+    expect(usoCruDoTitulo(outro, 'parts.push(`A última interação foi ${activityType}: "${lastActivity.title}".`);')).toBe(true);
+    expect(usoCruDoTitulo(outro, '                    {activity.title}')).toBe(true);
+    expect(usoCruDoTitulo(outro, 'title={`${activity.title} - ${x}`}')).toBe(true);
+    expect(usoCruDoTitulo(outro, '      title: a.title,')).toBe(true);
+    expect(usoCruDoTitulo(outro, '                    {tituloDaAtividade(activity.title)}')).toBe(false);
+    // A exceção vale só no arquivo dela.
+    const feed = path.join('features', 'dashboard', 'components', 'ActivityFeedItem.tsx');
+    expect(usoCruDoTitulo(feed, '    const titleLower = activity.title.toLowerCase();')).toBe(false);
+    expect(usoCruDoTitulo(outro, '    const titleLower = activity.title.toLowerCase();')).toBe(true);
   });
 
   it('o menu da agência diz Clientes e Novo Cliente', () => {

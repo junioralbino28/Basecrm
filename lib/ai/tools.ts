@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import type { CRMCallOptions } from '@/types/ai';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 /**
  * Creates all CRM tools with context injection
@@ -1255,7 +1256,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     activities:
                         (data || []).map((a: any) => ({
                             id: a.id,
-                            title: a.title,
+                            title: tituloDaAtividade(a.title),
                             type: a.type,
                             date: a.date,
                             completed: !!a.completed,
