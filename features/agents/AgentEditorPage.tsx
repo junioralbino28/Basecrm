@@ -48,7 +48,8 @@ const BOTAO_PRINCIPAL =
  * o texto dela. Recuperar traz o texto para este editor, que grava a própria cópia; recuperar e descartar só escondem
  * a da outra aba NESTA aba. Saem sozinhas só as cópias iguais ao texto salvo (não guardam nada) e as sem nenhuma
  * escrita há mais de 7 dias, para o armazenamento do navegador não encher (cada uma pode ter o prompt inteiro, até
- * 50 mil caracteres); a dona aberta regrava a sua ao voltar a ficar visível.
+ * 50 mil caracteres); a dona aberta regrava a sua ao voltar a ficar visível. Limite aceito na rodada 5: a validade vale
+ * para QUALQUER aba, e uma que fica visível o tempo todo, sem escrever por 7 dias, não regrava a cópia.
  */
 type CopiaLocal = { chave: string; texto: string; revisao: number; em: string };
 const prefixoDaCopia = (tenantId: string, agentId: string) => `central-agentes:texto-nao-salvo:${tenantId}:${agentId}:`;

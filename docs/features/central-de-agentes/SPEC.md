@@ -222,6 +222,12 @@ Ordem (revista em 29/09, ao escrever o PLAN):
 - **Editor, na seção Prompt:** mostra a leitura formatada e troca para edição ao clicar em "Editar". A barra mostra: "Versão N publicada em [data] por [pessoa]", "Rascunho com mudanças" e "Publicar".
 - **Rotas de API:** todas com `requireTenantAccess(tenantId, { adminOnly: true })` e corpo validado por zod com `.strict()` (campo fora da lista vira 400). Salvar rascunho e publicar chamam as funções SQL com o cliente do usuário (`createClient`, JWT), nunca com a chave de serviço, para o `auth.uid()` e a checagem de papel valerem.
 - **Salvar rascunho** manda a `draft_revision` que a tela leu; se outra aba salvou antes, avisa em vez de sobrescrever (409).
+- **Texto não salvo:**
+  - cada editor aberto grava o texto em edição numa cópia no navegador, com a chave por cliente, agente e instância do editor e com a revisão em que o texto se baseou;
+  - quem sai por um link interno e volta ao agente recebe o aviso para recuperar;
+  - recuperar ou descartar a cópia de outra aba nunca a apaga: só a esconde nesta aba.
+
+  **Limite (ressalva do Codex, rodada 5 da fatia 2):** a cópia sem nenhuma escrita há mais de 7 dias sai na próxima procura de qualquer aba, **inclusive a de um editor que continua aberto**. A aba dona regrava a sua quando volta a ficar visível, mas uma aba que ficou visível o tempo todo não regrava. Se ela sair pela navegação interna depois disso, o texto se perde.
 - **Publicar** manda a versão publicada e a `draft_revision` que a tela mostrou. A função recebe também a organização e confere que o agente é dela; depois trava a linha e publica exatamente aquele rascunho. Se qualquer um dos dois números mudou, devolve 409 e a tela recarrega.
 - **Histórico:** lista de versões com autor, data e nota. Compara quaisquer duas (texto linha a linha e ajustes campo a campo). "Restaurar" pede confirmação e publica como versão nova.
 - **Primeira ligação em produção (Aurora e Julia), junto com esta entrega:**
