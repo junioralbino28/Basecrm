@@ -1,4 +1,13 @@
-import type { AgenteNaLista, AgenteNoEditor, PaginaDeVersoes, VersaoCompleta } from '@/lib/agents/tiposDoEditor';
+import type {
+  AgenteNaLista,
+  AgenteNoEditor,
+  MensagemSimulada,
+  PaginaDeVersoes,
+  RespostaDoRetrato,
+  ResultadoDoTeste,
+  RetratoDoTeste,
+  VersaoCompleta,
+} from '@/lib/agents/tiposDoEditor';
 import type { ResultadoDaVerificacao } from '@/lib/agents/verificarPrompt';
 
 /** Erro de uma rota da Central, com o código e, no 422 de publicar, a verificação feita pelo servidor. */
@@ -50,4 +59,13 @@ export const agentesApi = {
     agentId: string,
     corpo: { versao: number; versaoEsperada: number; revisao: number; nota?: string },
   ) => pedir<{ versao: number; versaoId: string; revisao: number }>(`${base(tenantId)}/${agentId}/restore`, { method: 'POST', body: JSON.stringify(corpo) }),
+  /** Testa o rascunho numa conversa simulada (fatia 3): nada é enviado nem gravado. */
+  testar: (
+    tenantId: string,
+    agentId: string,
+    corpo: { revisao: number; mensagens: MensagemSimulada[]; numeroId?: string | null; nomeDoLead?: string },
+  ) => pedir<ResultadoDoTeste>(`${base(tenantId)}/${agentId}/test`, { method: 'POST', body: JSON.stringify(corpo) }),
+  /** Explica um teste pelo retrato que a rota do teste devolveu (D7): sem reler agente, agenda nem relógio. */
+  explicar: (tenantId: string, agentId: string, corpo: { revisao: number; retrato: RetratoDoTeste; resposta: RespostaDoRetrato }) =>
+    pedir<{ explicacao: string }>(`${base(tenantId)}/${agentId}/test/explain`, { method: 'POST', body: JSON.stringify(corpo) }),
 };

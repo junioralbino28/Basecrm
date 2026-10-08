@@ -116,9 +116,26 @@ describe('AgentEditorPage', () => {
     expect(screen.getByText('Sem mudanças no rascunho')).toBeInTheDocument();
     expect(screen.getByText('Nenhum erro nem aviso.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publicar' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Testar sem enviar/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Testar sem enviar/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Comportamento/ })).toBeDisabled();
     expect(screen.getByRole('link', { name: 'Central de Agentes' })).toHaveAttribute('href', `/platform/tenants/${TENANT}/agents`);
+  });
+
+  it('testar sem enviar: abre o painel; em edição o botão fica desabilitado com o motivo', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Testar sem enviar/ }));
+    const painel = screen.getByRole('dialog', { name: 'Testar sem enviar' });
+    expect(within(painel).getByText('Nada aqui vai para o WhatsApp. A conversa simulada não é gravada.')).toBeInTheDocument();
+    fireEvent.click(within(painel).getByRole('button', { name: 'Fechar' }));
+    expect(screen.queryByRole('dialog', { name: 'Testar sem enviar' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    const testar = screen.getByRole('button', { name: /Testar sem enviar/ });
+    expect(testar).toBeDisabled();
+    expect(testar).toHaveAttribute('title', 'Salve ou cancele a edição antes de testar.');
   });
 
   it('editar: a verificação acusa a variável desconhecida a cada tecla e salvar manda a revisão lida', async () => {

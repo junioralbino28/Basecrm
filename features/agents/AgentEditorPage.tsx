@@ -14,6 +14,7 @@ import { ErroDaApi, agentesApi } from './agentesApi';
 import { DialogoPublicar } from './DialogoPublicar';
 import { HistoricoDeVersoes } from './HistoricoDeVersoes';
 import { LeituraDoPrompt } from './LeituraDoPrompt';
+import { PainelDeTeste } from './PainelDeTeste';
 import { PainelDaVerificacao, resumoDaVerificacao } from './PainelDaVerificacao';
 import { descreverVersao, formatarDataHora } from './formatos';
 
@@ -157,6 +158,7 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [edicao, setEdicao] = React.useState<{ ativa: boolean; texto: string; base: number }>({ ativa: false, texto: '', base: 0 });
   const [salvando, setSalvando] = React.useState(false);
   const [publicando, setPublicando] = React.useState(false);
+  const [testando, setTestando] = React.useState(false);
   const [aba, setAba] = React.useState<'instrucoes' | 'versoes'>('instrucoes');
   // Outra aba ou pessoa salvou antes: a mensagem fica na tela e o texto de quem editava continua no campo.
   const [conflito, setConflito] = React.useState<string | null>(null);
@@ -341,7 +343,14 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled title={PROXIMA_ENTREGA} className={BOTAO_SECUNDARIO}>
+          {/* O teste usa o texto SALVO (rascunho ou publicada): em edição, o que está no campo ainda não existe lá. */}
+          <button
+            type="button"
+            onClick={() => setTestando(true)}
+            disabled={edicao.ativa || !salvo}
+            title={edicao.ativa ? 'Salve ou cancele a edição antes de testar.' : !salvo ? 'Este agente ainda não tem texto.' : undefined}
+            className={BOTAO_SECUNDARIO}
+          >
             <FlaskConical size={16} aria-hidden="true" />
             Testar sem enviar
           </button>
@@ -554,6 +563,10 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
           {aba === 'instrucoes' ? <PainelDaVerificacao verificacao={verificacao} /> : null}
         </div>
       </div>
+
+      {testando ? (
+        <PainelDeTeste tenantId={tenantId} agente={agente} onFechar={() => setTestando(false)} onMudou={() => void carregar()} />
+      ) : null}
 
       {publicando ? (
         <DialogoPublicar
