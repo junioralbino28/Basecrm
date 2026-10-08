@@ -7,7 +7,9 @@ import { VARIAVEIS_DO_PROMPT, avisosNaoConfirmados, verificarPrompt } from './ve
 
 const catalogo = getPromptCatalogMap() as Record<string, { defaultTemplate: string }>;
 const AURORA = catalogo.task_conversations_whatsapp_cenno_aurora.defaultTemplate;
-const JULIA = catalogo.task_conversations_whatsapp_auto_reply.defaultTemplate;
+const JULIA = catalogo.task_conversations_whatsapp_julia.defaultTemplate;
+/** Padrão neutro desde 07/10 (8 seções da SquadOS), para números sem chave e sem agente. */
+const PADRAO = catalogo.task_conversations_whatsapp_auto_reply.defaultTemplate;
 const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}}\n- replyText: resposta curta';
 
 const codigos = (itens: Array<{ codigo: string }>) => itens.map((i) => i.codigo);
@@ -133,6 +135,13 @@ describe('verificarPrompt', () => {
     expect(julia.erros).toEqual([]);
     expect(julia.avisos).toEqual([]);
     expect(codigos(julia.informacoes)).toEqual(['sem_encerramento']);
+  });
+
+  it('o padrão neutro (07/10) não tem erro nem aviso: só a informação do encerramento, como a Julia', () => {
+    const padrao = verificarPrompt({ rascunho: PADRAO, publicado: PADRAO, numerosLigadosComAgenda: 0 });
+    expect(padrao.erros).toEqual([]);
+    expect(padrao.avisos).toEqual([]);
+    expect(codigos(padrao.informacoes)).toEqual(['sem_encerramento']);
   });
 
   it('a Aurora antes de ser ligada a um número com agenda: só o aviso da agenda', () => {

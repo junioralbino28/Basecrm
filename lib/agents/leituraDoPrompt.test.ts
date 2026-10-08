@@ -5,7 +5,9 @@ import { dividirEmSecoes, juntarSecoes, pedacosDaLinha } from './leituraDoPrompt
 
 const catalogo = getPromptCatalogMap() as Record<string, { defaultTemplate: string }>;
 const AURORA = catalogo.task_conversations_whatsapp_cenno_aurora.defaultTemplate;
-const JULIA = catalogo.task_conversations_whatsapp_auto_reply.defaultTemplate;
+const JULIA = catalogo.task_conversations_whatsapp_julia.defaultTemplate;
+/** Padrão neutro desde 07/10 (8 seções da SquadOS), para números sem chave e sem agente. */
+const PADRAO = catalogo.task_conversations_whatsapp_auto_reply.defaultTemplate;
 
 describe('leitura formatada do prompt', () => {
   it('divide a Aurora e a Julia pelos títulos em maiúscula, com a abertura antes do primeiro', () => {
@@ -44,9 +46,26 @@ describe('leitura formatada do prompt', () => {
   });
 
   it('não perde nada: juntar as seções devolve o texto original, byte a byte', () => {
-    for (const texto of [AURORA, JULIA, '', 'REGRAS:\n- uma', 'sem titulo nenhum\n\n']) {
+    for (const texto of [AURORA, JULIA, PADRAO, '', 'REGRAS:\n- uma', 'sem titulo nenhum\n\n']) {
       expect(juntarSecoes(dividirEmSecoes(texto))).toBe(texto);
     }
+  });
+
+  it('o padrão neutro (07/10) lê nas 8 seções da SquadOS, mais contexto, histórico e formato de saída', () => {
+    expect(dividirEmSecoes(PADRAO).map((s) => s.titulo)).toEqual([
+      null,
+      'PAPEL',
+      'MISSAO',
+      'TOM DE VOZ',
+      'FLUXO DA CONVERSA',
+      'FERRAMENTAS',
+      'CONHECIMENTO',
+      'LIMITES E ESCALONAMENTO',
+      'EXEMPLOS DE TOM',
+      'CONTEXTO',
+      'HISTORICO RECENTE',
+      'RETORNE APENAS UM OBJETO COM',
+    ]);
   });
 
   it('marca as variáveis da linha, conhecidas e desconhecidas', () => {
