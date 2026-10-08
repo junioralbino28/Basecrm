@@ -1,4 +1,7 @@
-/** Formas que as rotas da Central de Agentes devolvem e a tela lê (fatia 2). */
+/** Formas que as rotas da Central de Agentes devolvem e a tela lê (fatias 2 e 3). */
+import type { AIReplyTiming } from '@/lib/ai/medicaoResposta';
+import type { UsoDoModelo } from '@/lib/conversations/aiReplyCore';
+
 export type OrigemDaVersao = 'migration' | 'publish' | 'restore';
 
 export type VersaoResumo = {
@@ -38,4 +41,38 @@ export type AgenteNoEditor = {
   publicada: VersaoCompleta | null;
   rascunho: { prompt: string | null; revisao: number; atualizadoEm: string | null; atualizadoPor: string | null };
   numeros: NumeroDoAgente[];
+};
+
+/** Fatia 3, teste sem enviar: uma mensagem da conversa simulada. */
+export type MensagemSimulada = { autor: 'lead' | 'agente'; texto: string };
+
+/** O que foi ao modelo no teste, assinado pelo servidor; a explicação confere e explica exatamente isto (D7). */
+export type RetratoDoTeste = {
+  prompt: string;
+  provedor: 'google' | 'openai' | 'anthropic';
+  modelo: string;
+  expiraEm: number;
+  assinatura: string;
+};
+
+export type RespostaDoRetrato = { partes: string[]; repasse: { tipo: string; motivo: string | null } | null };
+
+export type ResultadoDoTeste = {
+  partes: string[];
+  oQueFez: {
+    repasse: { tipo: string; motivo: string | null } | null;
+    horarioPedido: { em: string | null; texto: string | null } | null;
+    lead: { nome: string | null; email: string | null; empresa: string | null; segmento: string | null };
+    etiquetas: string[] | null;
+    gateDeCapacidade: 'passed' | 'failed' | 'unanswered' | null;
+    resumo: string | null;
+    conversaEncerrada: boolean;
+  };
+  tempo: AIReplyTiming;
+  uso: UsoDoModelo;
+  prompt: { origem: 'rascunho' | 'publicada'; revisao: number; versao: number | null; sha256: string };
+  numero: { id: string; nome: string; referenciaHipotetica: boolean } | null;
+  modelo: string;
+  /** Nulo só se o servidor não tiver segredo para assinar; aí a tela não oferece a explicação. */
+  retrato: RetratoDoTeste | null;
 };

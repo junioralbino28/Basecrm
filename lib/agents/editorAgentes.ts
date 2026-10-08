@@ -25,7 +25,7 @@ export type Clientes = { usuario: SupabaseClient; admin: SupabaseClient };
 export type Falha = { ok: false; status: number; codigo: string; erro: string; verificacao?: ResultadoDaVerificacao };
 export type Resultado<T> = { ok: true; dados: T } | Falha;
 
-const falha = (status: number, codigo: string, erro: string, extra: Partial<Falha> = {}): Falha => ({
+export const falha = (status: number, codigo: string, erro: string, extra: Partial<Falha> = {}): Falha => ({
   ok: false,
   status,
   codigo,
