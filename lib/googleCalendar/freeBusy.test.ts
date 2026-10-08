@@ -214,3 +214,45 @@ describe('loadGoogleBusyIntervals — le o ocupado do Google sem derrubar a ofer
     expect(queryGoogleFreeBusyMock).not.toHaveBeenCalled();
   });
 });
+
+describe('loadGoogleBusyIntervals com recordFailures false — o teste sem enviar so le (Central de Agentes, fatia 3)', () => {
+  it('invalid_grant: devolve [] sem marcar a conexao e sem aviso no sino', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockRejectedValue(new GoogleApiError('Token has been expired or revoked.', 400, 'invalid_grant'));
+    const fake = createFakeSupabaseAdmin();
+
+    const result = await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX, recordFailures: false,
+    });
+    expect(result).toEqual([]);
+    expect(markGoogleCalendarConnectionIssueMock).not.toHaveBeenCalled();
+    expect(fake.rowsOf('system_notifications')).toHaveLength(0);
+  });
+
+  it('401: devolve [] sem gravar o ultimo erro na conexao e sem aviso no sino', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockRejectedValue(new GoogleApiError('Invalid Credentials', 401, null));
+    const fake = createFakeSupabaseAdmin();
+
+    const result = await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX, recordFailures: false,
+    });
+    expect(result).toEqual([]);
+    expect(markGoogleCalendarConnectionIssueMock).not.toHaveBeenCalled();
+    expect(fake.rowsOf('system_notifications')).toHaveLength(0);
+  });
+
+  it('com sucesso, le e devolve os intervalos como sempre', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockResolvedValue([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }]);
+    const fake = createFakeSupabaseAdmin();
+
+    const result = await loadGoogleBusyIntervals({
+      admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX, recordFailures: false,
+    });
+    expect(result).toEqual([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }]);
+  });
+});

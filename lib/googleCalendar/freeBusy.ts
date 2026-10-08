@@ -89,6 +89,8 @@ export async function loadGoogleBusyIntervals(input: {
   ownerId: string | null;
   timeMin: string;
   timeMax: string;
+  /** false só no teste sem enviar (Central de Agentes, fatia 3): a falha não marca a conexão nem grava aviso. */
+  recordFailures?: boolean;
 }): Promise<BusyInterval[]> {
   if (!input.ownerId) return [];
   const ownerId = input.ownerId;
@@ -151,6 +153,7 @@ export async function loadGoogleBusyIntervals(input: {
       error: message,
     });
 
+    if (input.recordFailures === false) return [];
     try {
       await markGoogleCalendarConnectionIssue({
         admin: input.admin,

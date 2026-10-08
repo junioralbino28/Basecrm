@@ -264,6 +264,8 @@ export async function loadAvailableMeetingSlots(input: {
   connectionId: string;
   connectionConfig: Record<string, unknown> | null | undefined;
   now: string;
+  /** false só no teste sem enviar: a falha do Google não marca a conexão nem grava aviso (freeBusy.ts). */
+  recordFailures?: boolean;
 }) {
   const calendar = resolveConversationCalendarConfig(input.connectionConfig);
   if (!calendar) {
@@ -332,6 +334,7 @@ export async function loadAvailableMeetingSlots(input: {
     ownerId: calendar.ownerId,
     timeMin: rangeStart,
     timeMax: rangeEnd,
+    recordFailures: input.recordFailures,
   });
 
   const availableMeetingSlots = buildMeetingSlots({
