@@ -392,12 +392,12 @@ export function UIChat({
                     {
                         label: '🧾 Diagnóstico do Deal',
                         prompt:
-                            'Faça um diagnóstico completo deste paciente usando o contexto do cockpit (notas, atividades e arquivos). Liste riscos, próximos passos e um plano de follow-up para 7 dias.',
+                            'Faça um diagnóstico completo deste lead usando o contexto do cockpit (notas, atividades e arquivos). Liste riscos, próximos passos e um plano de follow-up para 7 dias.',
                     },
                     {
                         label: '👉 Próxima ação',
                         prompt:
-                            'Qual a próxima melhor ação para avançar este paciente agora? Seja específico e use o histórico do cockpit para justificar.',
+                            'Qual a próxima melhor ação para avançar este lead agora? Seja específico e use o histórico do cockpit para justificar.',
                     },
                     {
                         label: '✍️ Mensagem WhatsApp',
@@ -407,7 +407,7 @@ export function UIChat({
                     {
                         label: '✅ Tarefas da semana',
                         prompt:
-                            'Crie 3 tarefas objetivas para avançar este paciente nesta semana (com datas sugeridas) e descreva rapidamente o porquê de cada uma.',
+                            'Crie 3 tarefas objetivas para avançar este lead nesta semana (com datas sugeridas) e descreva rapidamente o porquê de cada uma.',
                     },
                 ],
             };
@@ -418,8 +418,8 @@ export function UIChat({
                 subtitle: 'Pipeline • Deals • Contatos • Tarefas',
                 quickActions: [
                     { label: '📊 Analisar Pipeline', prompt: 'Analise meu pipeline de vendas' },
-                    { label: '⏰ Pacientes Parados', prompt: 'Quais pacientes estão parados há mais de 7 dias?' },
-                    { label: '🔍 Buscar', prompt: 'Buscar pacientes por: ' },
+                    { label: '⏰ Leads Parados', prompt: 'Quais leads estão parados há mais de 7 dias?' },
+                    { label: '🔍 Buscar', prompt: 'Buscar leads por: ' },
                 ],
             };
         }
@@ -427,7 +427,7 @@ export function UIChat({
         return {
             subtitle: 'Deals • Contatos • Tarefas',
             quickActions: [
-                { label: '🔍 Buscar pacientes', prompt: 'Buscar pacientes por: ' },
+                { label: '🔍 Buscar leads', prompt: 'Buscar leads por: ' },
                 { label: '👤 Buscar contatos', prompt: 'Buscar contatos por: ' },
                 { label: '✅ Próximas tarefas', prompt: 'Quais tarefas eu deveria priorizar hoje?' },
             ],
@@ -447,11 +447,11 @@ export function UIChat({
 
     const toolLabelMap: Record<string, string> = {
         moveDeal: 'Mover etapa',
-        createDeal: 'Criar novo paciente',
-        updateDeal: 'Atualizar paciente',
-        markDealAsWon: 'Marcar paciente como ganho',
-        markDealAsLost: 'Marcar paciente como perdido',
-        assignDeal: 'Atribuir paciente',
+        createDeal: 'Criar novo lead',
+        updateDeal: 'Atualizar lead',
+        markDealAsWon: 'Marcar lead como ganho',
+        markDealAsLost: 'Marcar lead como perdido',
+        assignDeal: 'Atribuir lead',
         createTask: 'Criar tarefa',
     };
 
@@ -738,7 +738,7 @@ export function UIChat({
                                                         toolPart,
                                                         id: getApprovalId(toolPart),
                                                         toolInput,
-                                                        dealTitle: dealTitle || 'Sem paciente',
+                                                        dealTitle: dealTitle || 'Sem lead',
                                                         dueDate,
                                                         main,
                                                         extra: detailLines.slice(1),

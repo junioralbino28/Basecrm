@@ -19,7 +19,7 @@ export async function buildAtendimentosCsv(admin: any, organizationId: string): 
   if (error) throw new Error(error.message);
 
   const rows: unknown[][] = [
-    ['Data', 'Paciente', 'Telefone', 'Procedimento', 'Profissional', 'Valor', 'Desconto', 'Líquido', 'Pagamento', 'Parcelas', 'Recebido', 'Pago em'],
+    ['Data', 'Lead', 'Telefone', 'Procedimento', 'Profissional', 'Valor', 'Desconto', 'Líquido', 'Pagamento', 'Parcelas', 'Recebido', 'Pago em'],
   ];
   for (const r of data || []) {
     const contact = (r.contacts || {}) as { name?: string; phone?: string };

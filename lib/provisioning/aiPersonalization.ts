@@ -49,13 +49,13 @@ export async function generateProvisioningBoardDraft(params: {
       },
       {
         name: 'Atendimento agendado',
-        description: 'Consulta, avaliacao ou procedimento inicial agendado.',
+        description: 'Reuniao, visita ou primeiro atendimento agendado.',
         color: 'bg-emerald-500',
         linkedLifecycleStage: 'PROSPECT',
       },
       {
-        name: 'Paciente',
-        description: 'Paciente convertido e em atendimento ativo.',
+        name: 'Cliente',
+        description: 'Lead convertido e em atendimento ativo.',
         color: 'bg-indigo-500',
         linkedLifecycleStage: 'CUSTOMER',
       },
@@ -123,7 +123,7 @@ export async function generateProvisioningBoardDraft(params: {
         { id: 'LEAD', name: 'Lead' },
         { id: 'MQL', name: 'Qualificado' },
         { id: 'PROSPECT', name: 'Em proposta' },
-        { id: 'CUSTOMER', name: 'Paciente' },
+        { id: 'CUSTOMER', name: 'Cliente' },
         { id: 'OTHER', name: 'Outros' },
       ]),
     });

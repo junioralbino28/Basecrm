@@ -19,7 +19,7 @@ export async function GET() {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="pacientes-${date}.csv"`,
+      'content-disposition': `attachment; filename="atendimentos-${date}.csv"`,
     },
   });
 }

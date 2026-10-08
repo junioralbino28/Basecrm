@@ -13,6 +13,13 @@
  * - Clinicorp (`app/api/agenda/*`, `lib/channels/clinicorp*`): integracao com software DE
  *   clinica, onde a palavra esta certa — ha "dentistas" na mesma frase;
  * - comentario de codigo: nao aparece na tela.
+ *
+ * 07/10/2026: a pessoa do funil tambem nao se chama "paciente" na tela (o Junior: "erro grotesco que ja
+ * era para estar resolvido"). O vocabulario do CRM e Lead (negocio/pessoa) e Cliente (estagio final do
+ * ciclo). Ficam de fora o Clinicorp, o titulo historico 'Paciente Criado' gravado no banco (a tela o traduz
+ * para "Lead criado"), o id `task-paciente` (o rotulo e "Lead") e a linha do prompt padrao do WhatsApp que
+ * hoje e o texto da Julia (clinica da Dra. Jessica), travado em lib/ai/prompts/migrated-prompts.lock.json:
+ * separar o texto dela do padrao e decisao pendente do Junior.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -34,14 +41,29 @@ const LINHA_TECNICA =
   /brandTheme|data-brand|BRAND_THEME|'clinica'|"clinica"|clinic_|Clinicorp|clinicorp|isClinicAdmin|selectedClinic|hasActiveClinic|ClinicAdmin/;
 const LINHA_COMENTARIO = /^\s*(\/\/|\*|\/\*|\{\/\*)/;
 
-function varrer(dir: string, achados: string[] = []): string[] {
+type Regra = { palavra: RegExp; permitido: string[]; tecnica: RegExp };
+
+const CLINICA: Regra = { palavra: /[Cc]l[íi]nica/, permitido: PERMITIDO, tecnica: LINHA_TECNICA };
+
+/** "Paciente" so onde e a palavra certa ou dado gravado; ver o cabecalho. */
+const PACIENTE: Regra = {
+  palavra: /[Pp]acientes?/,
+  permitido: [path.join('app', 'api', 'agenda'), path.join('lib', 'channels', 'clinicorp')],
+  tecnica: /'Paciente Criado'|task-paciente|quando o paciente fecha/,
+};
+
+function linhaProibida(linha: string, regra: Regra): boolean {
+  return regra.palavra.test(linha) && !regra.tecnica.test(linha) && !LINHA_COMENTARIO.test(linha);
+}
+
+function varrer(dir: string, regra: Regra, achados: string[] = []): string[] {
   for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
     if (IGNORAR_PASTA.has(entrada.name)) continue;
     const completo = path.join(dir, entrada.name);
     const rel = path.relative(RAIZ, completo);
-    if (PERMITIDO.some(p => rel.startsWith(p))) continue;
+    if (regra.permitido.some(p => rel.startsWith(p))) continue;
     if (entrada.isDirectory()) {
-      varrer(completo, achados);
+      varrer(completo, regra, achados);
       continue;
     }
     if (!/\.(ts|tsx)$/.test(entrada.name)) continue;
@@ -49,8 +71,7 @@ function varrer(dir: string, achados: string[] = []): string[] {
 
     const linhas = fs.readFileSync(completo, 'utf8').split('\n');
     linhas.forEach((linha, i) => {
-      if (!/[Cc]l[íi]nica/.test(linha)) return;
-      if (LINHA_TECNICA.test(linha) || LINHA_COMENTARIO.test(linha)) return;
+      if (!linhaProibida(linha, regra)) return;
       achados.push(`${rel}:${i + 1}  ${linha.trim().slice(0, 110)}`);
     });
   }
@@ -59,8 +80,26 @@ function varrer(dir: string, achados: string[] = []): string[] {
 
 describe('vocabulário do produto — o tenant se chama CLIENTE', () => {
   it('nenhum texto de tela chama o tenant de "clínica"', () => {
-    const achados = PASTAS.flatMap(p => varrer(path.join(RAIZ, p)));
+    const achados = PASTAS.flatMap(p => varrer(path.join(RAIZ, p), CLINICA));
     expect(achados, `Troque por "cliente" (concordância no masculino):\n${achados.join('\n')}`).toEqual([]);
+  });
+
+  it('nenhum texto de tela chama a pessoa do funil de "paciente"', () => {
+    const achados = PASTAS.flatMap(p => varrer(path.join(RAIZ, p), PACIENTE));
+    expect(achados, `Troque por "lead" (ou "cliente" no estágio final do ciclo):\n${achados.join('\n')}`).toEqual([]);
+  });
+
+  it('o detector pega texto de tela e deixa passar comentário e dado gravado (prova do próprio detector)', () => {
+    expect(linhaProibida('                  Paciente Perdido', PACIENTE)).toBe(true);
+    expect(linhaProibida("formatter={(value: number) => [`${value} pacientes`, 'Quantidade']}", PACIENTE)).toBe(true);
+    expect(linhaProibida('        <h3>Nova Clínica</h3>', CLINICA)).toBe(true);
+    expect(linhaProibida(' * Usado pelos relatórios do N7 (export de pacientes).', PACIENTE)).toBe(false);
+    expect(linhaProibida("        if (title === 'Paciente Criado') return 'Lead criado';", PACIENTE)).toBe(false);
+  });
+
+  it('o título histórico gravado no banco continua traduzido na tela', () => {
+    const atividade = fs.readFileSync(path.join(RAIZ, 'features', 'activities', 'components', 'ActivityRow.tsx'), 'utf8');
+    expect(atividade).toContain("if (title === 'Paciente Criado') return 'Lead criado';");
   });
 
   it('o menu da agência diz Clientes e Novo Cliente', () => {

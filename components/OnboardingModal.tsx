@@ -105,7 +105,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                                 <div className="p-4 bg-white/10 rounded-xl backdrop-blur-sm" role="listitem">
                                     <div className="text-2xl mb-2" aria-hidden="true">✨</div>
                                     <h3 className="font-semibold mb-1">Criação com IA</h3>
-                                    <p className="text-sm text-white/80">Descreva seu paciente em 1 frase</p>
+                                    <p className="text-sm text-white/80">Descreva seu negócio em 1 frase</p>
                                 </div>
 
                                 <div className="p-4 bg-white/10 rounded-xl backdrop-blur-sm" role="listitem">

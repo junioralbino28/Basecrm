@@ -194,7 +194,10 @@ describeSupabase('N7 — planilhas conectadas AO VIVO (token de planilha isolado
     const csv = await buildAtendimentosCsv(admin, orgAId);
     expect(csv).toContain(phoneA);
     expect(csv).not.toContain(phoneB);
-    expect(csv).toContain('Paciente');
+    // Cabeçalho multi-nicho: a coluna da pessoa se chama Lead, não Paciente (limpeza de vocabulário de 07/10).
+    const cabecalho = csv.split(/\r?\n/)[0];
+    expect(cabecalho).toContain('Lead');
+    expect(cabecalho).not.toContain('Paciente');
   });
 
   it('(5) create_report_token: clinic_admin gera; clinic_staff leva Forbidden', async () => {

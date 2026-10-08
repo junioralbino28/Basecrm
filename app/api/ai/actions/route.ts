@@ -329,7 +329,7 @@ Responda em português do Brasil.`,
                 { id: 'LEAD', name: 'Lead' },
                 { id: 'MQL', name: 'Qualificado' },
                 { id: 'PROSPECT', name: 'Em proposta' },
-                { id: 'CUSTOMER', name: 'Paciente' },
+                { id: 'CUSTOMER', name: 'Cliente' },
                 { id: 'OTHER', name: 'Outros' },
               ];
 
