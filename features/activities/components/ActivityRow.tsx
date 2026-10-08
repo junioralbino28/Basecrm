@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Phone, Users, Mail, CheckSquare, Clock, Trash2, Edit2, CheckCircle2, Circle, Building2 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { Activity, Deal, Contact, Company } from '@/types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface ActivityRowProps {
     activity: Activity;
@@ -97,10 +98,8 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                 </span>
             );
         }
-        // Compara com o título HISTÓRICO gravado no banco ('Paciente Criado');
-        // só o texto exibido vira o termo neutro.
-        if (title === 'Paciente Criado') return 'Lead criado';
-        return title;
+        // Título histórico gravado no banco ('Paciente Criado'): só o texto exibido vira o termo neutro.
+        return tituloDaAtividade(title);
     };
 
     const isSystemActivity = activity.type === 'STATUS_CHANGE';

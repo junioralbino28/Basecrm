@@ -24,6 +24,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 const RAIZ = path.resolve(__dirname, '..');
 const PASTAS = ['app', 'components', 'context', 'features', 'lib'];
@@ -51,6 +52,9 @@ const PACIENTE: Regra = {
   permitido: [path.join('app', 'api', 'agenda'), path.join('lib', 'channels', 'clinicorp')],
   tecnica: /'Paciente Criado'|task-paciente|quando o paciente fecha/,
 };
+
+/** O título de uma atividade mostrado cru: em JSX, em template string ou num objeto de linha do tempo. */
+const TITULO_CRU = /\{\s*activity\.title\s*\}|\$\{\s*(activity|a)\.title\s*\}|title:\s*a\.title\b/;
 
 function linhaProibida(linha: string, regra: Regra): boolean {
   return regra.palavra.test(linha) && !regra.tecnica.test(linha) && !LINHA_COMENTARIO.test(linha);
@@ -98,8 +102,39 @@ describe('vocabulário do produto — o tenant se chama CLIENTE', () => {
   });
 
   it('o título histórico gravado no banco continua traduzido na tela', () => {
-    const atividade = fs.readFileSync(path.join(RAIZ, 'features', 'activities', 'components', 'ActivityRow.tsx'), 'utf8');
-    expect(atividade).toContain("if (title === 'Paciente Criado') return 'Lead criado';");
+    expect(tituloDaAtividade('Paciente Criado')).toBe('Lead criado');
+  });
+
+  // Revisão do Codex (07/10): a tradução existia só na lista de atividades; painel, calendário e caixa de entrada
+  // mostravam o título cru. Toda tela que mostra o título de uma atividade passa por tituloDaAtividade.
+  it('nenhuma tela mostra o título de uma atividade sem passar por tituloDaAtividade', () => {
+    const achados: string[] = [];
+    const visitar = (dir: string) => {
+      for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (IGNORAR_PASTA.has(entrada.name)) continue;
+        const completo = path.join(dir, entrada.name);
+        // As rotas de API entregam o dado como está gravado (a API pública devolve o título original): traduzir ali
+        // mudaria o contrato. A tradução é só de apresentação.
+        if (path.relative(RAIZ, completo).startsWith(path.join('app', 'api'))) continue;
+        if (entrada.isDirectory()) {
+          visitar(completo);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entrada.name) || /\.(test|spec)\.tsx?$/.test(entrada.name)) continue;
+        fs.readFileSync(completo, 'utf8').split('\n').forEach((linha, i) => {
+          if (TITULO_CRU.test(linha)) achados.push(`${path.relative(RAIZ, completo)}:${i + 1}  ${linha.trim().slice(0, 110)}`);
+        });
+      }
+    };
+    ['app', 'components', 'features'].forEach(p => visitar(path.join(RAIZ, p)));
+    expect(achados, `Use tituloDaAtividade(...):\n${achados.join('\n')}`).toEqual([]);
+  });
+
+  it('o detector do título cru pega os padrões que existiam (prova do próprio detector)', () => {
+    expect(TITULO_CRU.test('                    {activity.title}')).toBe(true);
+    expect(TITULO_CRU.test('title={`${activity.title} - ${x}`}')).toBe(true);
+    expect(TITULO_CRU.test('      title: a.title,')).toBe(true);
+    expect(TITULO_CRU.test('                    {tituloDaAtividade(activity.title)}')).toBe(false);
   });
 
   it('o menu da agência diz Clientes e Novo Cliente', () => {

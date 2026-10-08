@@ -9,6 +9,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { Activity } from '@/types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface ActivityFeedItemProps {
     activity: Activity;
@@ -97,7 +98,7 @@ export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({ activity }) 
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
-                    {activity.title}
+                    {tituloDaAtividade(activity.title)}
                 </p>
                 {activity.dealTitle && (
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">

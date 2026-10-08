@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Activity } from '@/types';
 import { CheckCircle2, Clock, Calendar, Phone, Mail, FileText, Building2, MoreHorizontal, X, SkipForward } from 'lucide-react';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface InboxItemProps {
   activity: Activity;
@@ -64,7 +65,7 @@ const InboxItemComponent: React.FC<InboxItemProps> = ({
           className="text-left group/title"
         >
           <h3 className={`font-medium text-slate-900 dark:text-white group-hover/title:text-brand-500 transition-colors ${activity.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
-            {activity.title}
+            {tituloDaAtividade(activity.title)}
           </h3>
         </button>
 

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Phone, Users, Mail, CheckSquare } from 'lucide-react';
 import { Activity, Deal } from '@/types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface ActivitiesCalendarProps {
     activities: Activity[];
@@ -199,7 +200,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                                                         cursor-pointer
                                                         overflow-hidden
                                                     `}
-                                                    title={`${activity.title} - ${activity.dealId ? (dealTitleById.get(activity.dealId) ?? '') : ''}`}
+                                                    title={`${tituloDaAtividade(activity.title)} - ${activity.dealId ? (dealTitleById.get(activity.dealId) ?? '') : ''}`}
                                                 >
                                                     {/* Shine effect on hover */}
                                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
@@ -214,7 +215,7 @@ export const ActivitiesCalendar: React.FC<ActivitiesCalendarProps> = ({
                                                             </span>
                                                         </div>
                                                         <div className={`font-bold text-white leading-tight ${activity.completed ? 'line-through' : ''}`}>
-                                                            {activity.title}
+                                                            {tituloDaAtividade(activity.title)}
                                                         </div>
 
                                                         {/* Hover Expanded Info */}

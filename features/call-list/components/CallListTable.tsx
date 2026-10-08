@@ -11,6 +11,7 @@ import {
 import { normalizePhoneE164 } from '@/lib/phone';
 import type { TaskType } from '@/types';
 import type { CallListBuckets, CallListEntry } from '@/lib/utils/callList';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 interface CallListTableProps {
   buckets: CallListBuckets;
@@ -90,7 +91,7 @@ function waDigits(phone?: string): string {
 
 /** Título da entrada (motivo da ligação/tarefa) — usado nas ações acessíveis. */
 function entryTitle(entry: CallListEntry): string {
-  return entry.kind === 'activity' ? entry.activity.title : entry.task.title;
+  return entry.kind === 'activity' ? tituloDaAtividade(entry.activity.title) : entry.task.title;
 }
 
 /**

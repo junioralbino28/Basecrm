@@ -45,6 +45,7 @@ import { MessageComposerModal, type MessageChannel } from './MessageComposerModa
 import { callAIProxy } from '@/lib/supabase/ai-proxy';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
 import { ContactCallOutcome } from '@/features/contacts/components/ContactCallOutcome';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 // Performance: reuse Intl formatter instances.
 const PT_BR_SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
@@ -132,7 +133,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
     const recentHistory = useMemo(() => {
         return activities
             .slice(0, 5) // Last 5 activities
-            .map(a => `[${PT_BR_SHORT_DATE_FORMATTER.format(new Date(a.date))}] ${a.type}: ${a.title} (${a.description})`)
+            .map(a => `[${PT_BR_SHORT_DATE_FORMATTER.format(new Date(a.date))}] ${a.type}: ${tituloDaAtividade(a.title)} (${a.description})`)
             .join('\n');
     }, [activities]);
 
@@ -522,7 +523,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
         const activitiesPreview = (activities ?? []).slice(0, activitiesLimit).map((a) => ({
             id: a.id,
             type: a.type,
-            title: a.title,
+            title: tituloDaAtividade(a.title),
             description: a.description,
             date: a.date,
             completed: a.completed,
@@ -1410,7 +1411,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                                                                 </span>
                                                                             </span>
                                                                         );
-                                                                    })() : activity.title}
+                                                                    })() : tituloDaAtividade(activity.title)}
                                                                 </span>
                                                             </div>
                                                             {activity.description && (

@@ -37,6 +37,7 @@ import { ScheduleModal, type ScheduleData, type ScheduleType } from '@/features/
 
 import type { QuickScript, ScriptCategory } from '@/lib/supabase/quickScripts';
 import type { Activity, Board, BoardStage, Contact, DealView } from '@/types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 type Tab = 'chat' | 'notas' | 'scripts' | 'arquivos';
 
@@ -852,7 +853,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
     const activitiesPreview = (dealActivities ?? []).slice(0, activitiesLimit).map((a) => ({
       id: a.id,
       type: a.type,
-      title: a.title,
+      title: tituloDaAtividade(a.title),
       description: a.description,
       date: a.date,
       completed: a.completed,
@@ -973,7 +974,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
         id: a.id,
         at: formatAtISO(a.date),
         kind,
-        title: a.title || a.type,
+        title: tituloDaAtividade(a.title) || a.type,
         subtitle,
         tone,
       });

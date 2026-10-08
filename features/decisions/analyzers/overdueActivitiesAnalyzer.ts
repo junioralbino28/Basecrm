@@ -5,6 +5,7 @@
 
 import { Activity, DealView } from '@/types';
 import { Decision, AnalyzerResult, AnalyzerConfig, SuggestedAction } from '../types';
+import { tituloDaAtividade } from '@/lib/utils/tituloDaAtividade';
 
 // Performance: reuse date formatter to avoid repeated `toLocaleDateString` allocations.
 const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
@@ -29,7 +30,7 @@ function generateReasoning(activity: Activity, daysOverdue: number, deal?: DealV
                    activity.type === 'MEETING' ? 'Reunião' :
                    activity.type === 'EMAIL' ? 'Email' : 'Tarefa';
   
-  parts.push(`${typeLabel} "${activity.title}" está ${daysOverdue} ${daysOverdue === 1 ? 'dia' : 'dias'} atrasada.`);
+  parts.push(`${typeLabel} "${tituloDaAtividade(activity.title)}" está ${daysOverdue} ${daysOverdue === 1 ? 'dia' : 'dias'} atrasada.`);
   
   if (deal) {
     parts.push(`Esta atividade está vinculada ao deal "${deal.title}" (R$ ${deal.value.toLocaleString('pt-BR')}).`);
@@ -181,7 +182,7 @@ export function analyzeOverdueActivities(
       type: 'overdue_activity',
       priority,
       category: 'deadline',
-      title: `${typeLabel} atrasada: ${activity.title}`,
+      title: `${typeLabel} atrasada: ${tituloDaAtividade(activity.title)}`,
       description: `${daysOverdue} ${daysOverdue === 1 ? 'dia' : 'dias'} de atraso • ${deal ? deal.title : 'Sem deal vinculado'}`,
       reasoning: generateReasoning(activity, daysOverdue, deal),
       dealId: activity.dealId,
