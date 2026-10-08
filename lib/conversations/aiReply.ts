@@ -282,20 +282,22 @@ async function reserveConfirmedMeeting(input: {
 }
 
 /**
- * A falha de entrega sem o texto que tentamos mandar (G22, rodada 5 do Codex, fatia 3). O motivo da Evolution vai para o
- * balão ("Falha no envio: ...") e para o registro da falha; se ela repetir a parte enviada, a parte vira
- * "[texto da resposta]", literal ou escapada em JSON. O resto do motivo fica, porque diz ao operador o que fazer
- * (número inexistente, instância desconectada). Parte com menos de 8 caracteres não é trocada, para não apagar palavras
- * comuns do motivo.
+ * A falha de entrega da resposta da IA em texto FIXO (G22, rodadas 5 e 6 do Codex, fatia 3): vai para o balão ("Falha no
+ * envio: ..."), para o registro da falha e para o aviso. A mensagem livre que a Evolution devolve fica de fora, porque
+ * pode repetir o texto enviado, inteiro, curto ou em pedaço, e nenhuma troca por trecho cobre todos os casos. Ficam o
+ * status HTTP e se o resultado é desconhecido (rede ou tempo esgotado). Os erros são lidos pelos campos, sem `instanceof`,
+ * porque testes de outras telas substituem o módulo da Evolution.
  */
-function descreverFalhaDeEntrega(error: unknown, partes: string[]): string {
-  let texto = error instanceof Error && error.message ? error.message : 'Falha ao enviar resposta automatica.';
-  for (const parte of partes) {
-    for (const forma of new Set([parte, parte.trim(), JSON.stringify(parte).slice(1, -1)])) {
-      if (forma.length >= 8) texto = texto.split(forma).join('[texto da resposta]');
-    }
+function descreverFalhaDeEntrega(error: unknown): string {
+  const campos = error && typeof error === 'object' ? (error as { status?: unknown; deliveryUnknown?: unknown }) : {};
+  const status = typeof campos.status === 'number' ? campos.status : null;
+  if (status !== null) {
+    return campos.deliveryUnknown === true
+      ? `Evolution respondeu HTTP ${status}; não dá para saber se a mensagem saiu.`
+      : `Evolution recusou o envio (HTTP ${status}).`;
   }
-  return texto.slice(0, 300);
+  if (campos.deliveryUnknown === true) return 'Sem resposta da Evolution (rede ou tempo esgotado); não dá para saber se a mensagem saiu.';
+  return 'Falha ao enviar resposta automatica.';
 }
 
 export async function executeConversationAIReply(params: {
@@ -545,7 +547,7 @@ export async function executeConversationAIReply(params: {
       credential_source: resolved.source,
     };
   } catch (error) {
-    deliveryWarning = descreverFalhaDeEntrega(error, replyParts);
+    deliveryWarning = descreverFalhaDeEntrega(error);
     deliveryMetadata = {
       ...deliveryMetadata,
       delivery_status: 'failed',

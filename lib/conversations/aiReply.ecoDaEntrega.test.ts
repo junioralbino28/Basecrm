@@ -2,15 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeSupabaseAdmin, type FakeSupabaseAdmin } from '@/test/helpers/fakeSupabaseAdmin';
 
 /**
- * G22, rodada 5 do Codex (fatia 3 da Central de Agentes): se a Evolution repetir no motivo do erro a parte que tentamos
- * enviar, essa parte não pode chegar ao `delivery_error` da mensagem nem ao registro da falha. O envio é o REAL
- * (`sendEvolutionTextMessage`); só o `fetch` responde HTTP 400 com o eco, como uma Evolution que devolvesse o texto.
+ * G22, rodadas 5 e 6 do Codex (fatia 3 da Central de Agentes): a falha de entrega da resposta da IA vira texto FIXO no
+ * `delivery_error` da mensagem, no registro da falha e no aviso. A mensagem livre da Evolution nunca chega lá, porque ela
+ * pode repetir o texto enviado (inteiro, curto ou em pedaço). O envio é o REAL (`sendEvolutionTextMessage`); só o
+ * `fetch` responde, como uma Evolution que devolvesse o texto no motivo.
  */
 const ORG = '11111111-1111-4111-8111-111111111111';
 const CONN = '22222222-2222-4222-8222-222222222222';
 const THREAD = '33333333-3333-4333-8333-333333333333';
 const SENTINELA = 'SENTINELA-ENTREGA-3301';
-const RESPOSTA = `Oi Marina, aqui é a Aurora ${SENTINELA}. Posso te ajudar?`;
 
 let fake: FakeSupabaseAdmin;
 
@@ -42,40 +42,73 @@ beforeEach(() => {
       metadata: { lastDirection: 'inbound', unreadCount: 1 },
     }],
   });
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe('falha de entrega com eco do texto enviado', () => {
-  it('o eco vira "[texto da resposta]" na mensagem, no registro da falha e no aviso; o motivo da Evolution fica', async () => {
-    const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
-      const enviado = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      const texto = String(enviado.text ?? enviado.textMessage ?? enviado.body ?? (enviado.message as { text?: string })?.text ?? '');
-      return new Response(JSON.stringify({ status: 400, error: 'Bad Request', response: { message: [`numero invalido para: ${texto}`] } }), {
-        status: 400,
-        headers: { 'content-type': 'application/json' },
-      });
+/** A Evolution responde `status` e põe no motivo o que `eco` fizer com o texto enviado. */
+function evolutionEcoando(status: number, eco: (texto: string) => string) {
+  return vi.fn(async (_url: unknown, init?: RequestInit) => {
+    const enviado = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const texto = String(enviado.text ?? enviado.textMessage ?? enviado.body ?? (enviado.message as { text?: string })?.text ?? '');
+    return new Response(JSON.stringify({ status, error: 'Erro', response: { message: [`numero invalido para: ${eco(texto)}`] } }), {
+      status,
+      headers: { 'content-type': 'application/json' },
     });
-    vi.stubGlobal('fetch', fetchMock);
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+}
 
-    const r = await executeConversationAIReply({
-      admin: fake as never,
-      connection: { id: CONN, organization_id: ORG, name: 'Aurora', config: { aiEnabled: true, instanceName: 'inst-teste' } },
-      payload: { threadId: THREAD, replyText: RESPOSTA, metadata: { native_ai: true }, automationSource: 'native_crm' } as never,
+async function responder(resposta: string) {
+  const r = await executeConversationAIReply({
+    admin: fake as never,
+    connection: { id: CONN, organization_id: ORG, name: 'Aurora', config: { aiEnabled: true, instanceName: 'inst-teste' } },
+    payload: { threadId: THREAD, replyText: resposta, metadata: { native_ai: true }, automationSource: 'native_crm' } as never,
+  });
+  const mensagem = fake.rowsOf('conversation_messages').find((m) => m.thread_id === THREAD && m.direction === 'outbound');
+  const conversa = fake.rowsOf('conversation_threads').find((t) => t.id === THREAD)?.metadata as Record<string, unknown>;
+  return {
+    mensagem,
+    deliveryError: (mensagem?.metadata as Record<string, unknown> | undefined)?.delivery_error,
+    aiFailureError: conversa.aiFailureError,
+    aviso: (r as { warning?: string | null }).warning,
+    previa: conversa.lastMessagePreview,
+  };
+}
+
+describe('falha de entrega da resposta da IA: texto fixo, sem a mensagem livre da Evolution', () => {
+  const casos: Array<[string, string, (texto: string) => string]> = [
+    ['eco inteiro de uma resposta longa', `Oi Marina, aqui é a Aurora ${SENTINELA}. Posso te ajudar?`, (t) => t],
+    ['eco de uma resposta curta', 'Oi Ana', (t) => t],
+    ['eco parcial (só o começo)', `${SENTINELA} e o resto da resposta que ficou de fora`, (t) => t.slice(0, 30)],
+  ];
+
+  for (const [nome, resposta, eco] of casos) {
+    it(`${nome}: HTTP 400 vira "Evolution recusou o envio (HTTP 400)." nos três lugares`, async () => {
+      vi.stubGlobal('fetch', evolutionEcoando(400, eco));
+      const r = await responder(resposta);
+      for (const [onde, valor] of [['delivery_error', r.deliveryError], ['aiFailureError', r.aiFailureError], ['aviso', r.aviso]] as const) {
+        expect(valor, onde).toBe('Evolution recusou o envio (HTTP 400).');
+      }
+      // O texto continua como CONTEÚDO (o balão e a prévia da caixa de entrada mostram a resposta); só o diagnóstico é fixo.
+      expect(r.mensagem?.content).toBe(resposta);
+      expect(r.previa).toBe(resposta);
     });
+  }
 
-    expect(fetchMock).toHaveBeenCalled();
-    const mensagem = fake.rowsOf('conversation_messages').find((m) => m.thread_id === THREAD && m.direction === 'outbound');
-    const erroDaMensagem = String((mensagem?.metadata as Record<string, unknown> | undefined)?.delivery_error);
-    expect(erroDaMensagem).toBe('numero invalido para: [texto da resposta]');
-    const metadadoDaConversa = fake.rowsOf('conversation_threads').find((t) => t.id === THREAD)?.metadata as Record<string, unknown>;
-    expect(metadadoDaConversa.aiFailureError).toBe('numero invalido para: [texto da resposta]');
-    expect((r as { warning?: string | null }).warning).toBe('numero invalido para: [texto da resposta]');
-    // O texto continua como CONTEÚDO (o balão e a prévia da caixa de entrada mostram a resposta); só o diagnóstico perde o eco.
-    expect(mensagem?.content).toBe(RESPOSTA);
-    expect(metadadoDaConversa.lastMessagePreview).toBe(RESPOSTA);
+  it('HTTP 5xx: o diagnóstico diz que não dá para saber se saiu, sem o motivo da Evolution', async () => {
+    vi.stubGlobal('fetch', evolutionEcoando(503, (t) => t));
+    const r = await responder(`Oi Marina ${SENTINELA}`);
+    expect(r.deliveryError).toBe('Evolution respondeu HTTP 503; não dá para saber se a mensagem saiu.');
+    expect(JSON.stringify([r.deliveryError, r.aiFailureError, r.aviso])).not.toContain(SENTINELA);
+  });
+
+  it('sem resposta da Evolution (rede): diagnóstico fixo, sem a mensagem do erro de rede', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError(`fetch failed ${SENTINELA}`); }));
+    const r = await responder('Oi Marina, tudo bem?');
+    expect(r.deliveryError).toBe('Sem resposta da Evolution (rede ou tempo esgotado); não dá para saber se a mensagem saiu.');
+    expect(JSON.stringify([r.deliveryError, r.aiFailureError, r.aviso])).not.toContain(SENTINELA);
   });
 });
