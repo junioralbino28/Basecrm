@@ -14,13 +14,19 @@ const PUBLICADO = 'Voce e a Aurora. {{contactName}}\n{{conversationStageContext}
 
 const codigos = (itens: Array<{ codigo: string }>) => itens.map((i) => i.codigo);
 
-/** As chaves do objeto que aiReply.ts passa a renderPromptTemplate, lidas do código-fonte. */
+/**
+ * As chaves do objeto que o runtime passa a renderPromptTemplate, lidas do código-fonte. Desde a fatia 3 a única
+ * chamada mora no miolo (aiReplyCore.ts), usado pelo atendimento real e pelo teste sem enviar; nenhum dos dois pode
+ * montar o prompt por conta própria.
+ */
 function variaveisDoRuntime(): string[] {
-  const fonte = readFileSync(resolve(process.cwd(), 'lib/conversations/aiReply.ts'), 'utf8');
-  const chamadas = fonte.split('renderPromptTemplate(').length - 1;
-  // Uma chamada só hoje. Se a fatia 3 criar outra, confira se ela troca as mesmas variáveis e ajuste aqui.
-  expect(chamadas, 'chamadas de renderPromptTemplate em aiReply.ts').toBe(1);
-  const inicio = fonte.indexOf('renderPromptTemplate(resolvedPrompt.content, {');
+  const ler = (arquivo: string) => readFileSync(resolve(process.cwd(), arquivo), 'utf8');
+  const contar = (fonte: string) => fonte.split('renderPromptTemplate(').length - 1;
+  expect(contar(ler('lib/conversations/aiReply.ts')), 'chamadas de renderPromptTemplate em aiReply.ts').toBe(0);
+  expect(contar(ler('lib/agents/testeDoAgente.ts')), 'chamadas de renderPromptTemplate em testeDoAgente.ts').toBe(0);
+  const fonte = ler('lib/conversations/aiReplyCore.ts');
+  expect(contar(fonte), 'chamadas de renderPromptTemplate em aiReplyCore.ts').toBe(1);
+  const inicio = fonte.indexOf('renderPromptTemplate(promptContent, {');
   expect(inicio, 'a chamada mudou de forma: atualize este leitor').toBeGreaterThan(-1);
   const fim = fonte.indexOf('\n  });', inicio);
   const bloco = fonte.slice(inicio, fim).split('\n').slice(1);
@@ -34,7 +40,7 @@ function variaveisDoRuntime(): string[] {
 }
 
 describe('verificarPrompt', () => {
-  it('a lista das 12 variáveis é exatamente a que o runtime troca (lida de aiReply.ts)', () => {
+  it('a lista das 12 variáveis é exatamente a que o runtime troca (lida de aiReplyCore.ts)', () => {
     const doRuntime = variaveisDoRuntime();
     expect(doRuntime).toHaveLength(12);
     expect([...doRuntime].sort()).toEqual([...VARIAVEIS_DO_PROMPT].sort());

@@ -6,7 +6,8 @@ const root = process.cwd();
 
 describe('Aurora handoff integration', () => {
   it('usa o contrato estruturado do AI SDK v6 e limita a geracao', () => {
-    const source = fs.readFileSync(path.join(root, 'lib/conversations/aiReply.ts'), 'utf8');
+    // A chamada ao modelo mora em aiReplyCore.ts desde a fatia 3 da Central de Agentes.
+    const source = fs.readFileSync(path.join(root, 'lib/conversations/aiReplyCore.ts'), 'utf8');
 
     expect(source).toContain("import { generateText, NoObjectGeneratedError, Output } from 'ai'");
     expect(source).not.toContain('generateObject(');

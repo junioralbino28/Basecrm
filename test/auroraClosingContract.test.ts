@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 // Contrato estatico do encerramento em executeConversationAIReply: a resposta de encerramento
 // passa em human_queue (nunca em human_active), nao abre handoff e mantem a conversa na fila.
 describe('encerramento depois do handoff — contrato do executor', () => {
-  const source = readFileSync(resolve(__dirname, '../lib/conversations/aiReply.ts'), 'utf-8');
+  // Desde a fatia 3 da Central de Agentes, a geracao (modelo, reparo, encerramento) mora em aiReplyCore.ts e o
+  // executor continua em aiReply.ts: o contrato vale para os dois juntos.
+  const source = ['aiReply.ts', 'aiReplyCore.ts']
+    .map((arquivo) => readFileSync(resolve(__dirname, '../lib/conversations', arquivo), 'utf-8'))
+    .join('\n');
 
   it('so libera a fila humana quando a resposta e de encerramento', () => {
     expect(source).toContain("thread.status === 'human_active' || (thread.status === 'human_queue' && !closingReply)");

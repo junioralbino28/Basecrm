@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { generateText, NoObjectGeneratedError, Output, type LanguageModelUsage } from 'ai';
+import { generateText, NoObjectGeneratedError, Output } from 'ai';
+import type { LanguageModelUsage } from 'ai';
 import { z } from 'zod';
 import type { getModel } from '@/lib/ai/config';
 import type { AIReplyTiming, criarFetchContador } from '@/lib/ai/medicaoResposta';
@@ -363,7 +364,7 @@ export async function carregarContextoDaResposta(input: {
   // Encerramento so vale para prompt desenhado para ele (tem {{conversationStageContext}}). O prompt
   // padrao e overrides antigos continuam mudos depois do handoff, como antes; nada de instrucao colada no topo.
   if (closing && !/\{\{\s*conversationStageContext\s*\}\}/.test(promptContent)) {
-    return { ok: false, reason: 'closing_unsupported' };
+    return { ok: false, reason: 'closing_unsupported' as const };
   }
   const meetingChannelText = readMeetingChannelText(connectionConfig);
   // Catalogo de etiquetas so para template que pede ({{availableTagsContext}}): nos demais,
@@ -436,9 +437,10 @@ export async function responderComModelo(input: {
 
   let generations = 0;
   let repairedOutput = false;
-  const generateOnce = () => {
+  // O consumo de cada geracao entra na soma aqui dentro, para as linhas que chamam ficarem como sempre foram.
+  const generateOnce = async () => {
     generations += 1;
-    return generateText({
+    const resultado = await generateText({
       model,
       maxRetries: 2,
       // No Gemini 3 os tokens de raciocinio contam neste teto; 1.200 truncava o JSON e derrubava a
@@ -448,6 +450,8 @@ export async function responderComModelo(input: {
       prompt,
       ...(abortSignal ? { abortSignal } : {}),
     });
+    somarUso(resultado.usage);
+    return resultado;
   };
   const inicioModelo = Date.now();
   const medir = (): AIReplyTiming => {
@@ -471,9 +475,7 @@ export async function responderComModelo(input: {
   let generated: z.infer<typeof ConversationAutoReplySchema>;
   try {
     try {
-      const primeira = await generateOnce();
-      somarUso(primeira.usage);
-      generated = primeira.output;
+      generated = (await generateOnce()).output;
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
       somarUso(error.usage);
@@ -492,9 +494,7 @@ export async function responderComModelo(input: {
             ? { textLength: rawText ? rawText.length : null }
             : { text: rawText ? rawText.slice(0, 300) : null }),
         });
-        const segunda = await generateOnce();
-        somarUso(segunda.usage);
-        generated = segunda.output;
+        generated = (await generateOnce()).output;
       }
     }
   } catch (error) {
