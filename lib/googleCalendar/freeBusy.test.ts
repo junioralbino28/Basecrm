@@ -92,6 +92,36 @@ describe('loadGoogleBusyIntervals — le o ocupado do Google sem derrubar a ofer
     expect(queryGoogleFreeBusyMock).toHaveBeenCalledTimes(1);
   });
 
+  it('reconexao (connected_at novo) invalida a agenda guardada e o token vai com a versao nova (rodada 4 do Codex)', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock
+      .mockResolvedValueOnce([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }])
+      .mockResolvedValueOnce([]);
+    const fake = createFakeSupabaseAdmin();
+    const ler = () => loadGoogleBusyIntervals({ admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX });
+
+    expect(await ler()).toHaveLength(1);
+    getGoogleCalendarConnectionMock.mockResolvedValue({ ...CONNECTED, googleAccountEmail: 'outra@exemplo.com', connectedAt: '2026-10-08T20:00:00.000Z' });
+    expect(await ler()).toEqual([]);
+    expect(queryGoogleFreeBusyMock).toHaveBeenCalledTimes(2);
+    expect(getGoogleCalendarAccessTokenMock.mock.calls.map(([a]) => (a as { versaoDaConexao: string }).versaoDaConexao)).toEqual([
+      '2026-09-22T00:00:00.000Z|cenourahub@gmail.com',
+      '2026-10-08T20:00:00.000Z|outra@exemplo.com',
+    ]);
+  });
+
+  it('conexao desligada depois de guardar: a agenda guardada nao e servida', async () => {
+    getGoogleCalendarConnectionMock.mockResolvedValue(CONNECTED);
+    getGoogleCalendarAccessTokenMock.mockResolvedValue('at-1');
+    queryGoogleFreeBusyMock.mockResolvedValue([{ start: '2026-09-21T12:00:00.000Z', end: '2026-09-21T13:00:00.000Z' }]);
+    const fake = createFakeSupabaseAdmin();
+    const ler = () => loadGoogleBusyIntervals({ admin: fake as never, organizationId: ORG, ownerId: OWNER, timeMin: TIME_MIN, timeMax: TIME_MAX });
+    expect(await ler()).toHaveLength(1);
+    getGoogleCalendarConnectionMock.mockResolvedValue({ ...CONNECTED, status: 'reconnect_required' });
+    expect(await ler()).toEqual([]);
+  });
+
   it('agenda de OBSERVACAO nao entra no ocupado: o horario continua sendo oferecido', async () => {
     // Pedido do Junior (22/09): a agenda principal e usada pela equipe inteira; um compromisso
     // la nao pode tirar horario do closer. So `busyCalendarIds` bloqueia.

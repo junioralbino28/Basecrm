@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const refreshGoogleAccessTokenMock = vi.fn();
 const readGoogleCalendarRefreshTokenMock = vi.fn();
+const getGoogleCalendarConnectionMock = vi.fn();
 
 vi.mock('./googleApiClient', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./googleApiClient')>();
@@ -12,7 +13,11 @@ vi.mock('./googleApiClient', async (importOriginal) => {
 });
 vi.mock('./connectionStore', () => ({
   readGoogleCalendarRefreshToken: (...args: unknown[]) => readGoogleCalendarRefreshTokenMock(...args),
+  getGoogleCalendarConnection: (...args: unknown[]) => getGoogleCalendarConnectionMock(...args),
 }));
+
+/** Só os campos que formam a versão da conexão (data de conexão e conta). */
+const conexao = (connectedAt: string, googleAccountEmail = 'agenda@exemplo.com') => ({ connectedAt, googleAccountEmail, status: 'connected' });
 
 import {
   buildGoogleCalendarAuthUrl,
@@ -32,6 +37,7 @@ describe('oauth — URL de consentimento, origem permitida e cache de access tok
   beforeEach(() => {
     vi.clearAllMocks();
     clearGoogleCalendarAccessTokenCache();
+    getGoogleCalendarConnectionMock.mockResolvedValue(conexao('2026-09-22T00:00:00.000Z'));
     process.env.GOOGLE_OAUTH_CLIENT_ID = 'client-1';
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'secret-1';
   });
@@ -112,6 +118,36 @@ describe('oauth — URL de consentimento, origem permitida e cache de access tok
     const token = await getGoogleCalendarAccessToken({ admin, organizationId: ORG, ownerId: OWNER });
     expect(token).toBeNull();
     expect(readGoogleCalendarRefreshTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('reconectar (connected_at novo, mesma conta ou outra) invalida o token guardado, nesta e em qualquer instância', async () => {
+    readGoogleCalendarRefreshTokenMock.mockResolvedValueOnce('rt-conta-a').mockResolvedValueOnce('rt-conta-b');
+    refreshGoogleAccessTokenMock
+      .mockResolvedValueOnce({ access_token: 'at-conta-a', expires_in: 3600 })
+      .mockResolvedValueOnce({ access_token: 'at-conta-b', expires_in: 3600 });
+    const admin = {} as never;
+
+    // O teste sem enviar (ou uma resposta real) guarda o token da conta A.
+    expect(await getGoogleCalendarAccessToken({ admin, organizationId: ORG, ownerId: OWNER })).toBe('at-conta-a');
+    // A pessoa reconecta a conta B: o callback grava refresh token novo e connected_at novo.
+    getGoogleCalendarConnectionMock.mockResolvedValue(conexao('2026-10-08T20:00:00.000Z', 'outra@exemplo.com'));
+    // A resposta real seguinte não reaproveita o token da conta A.
+    expect(await getGoogleCalendarAccessToken({ admin, organizationId: ORG, ownerId: OWNER })).toBe('at-conta-b');
+    expect(refreshGoogleAccessTokenMock).toHaveBeenCalledTimes(2);
+    expect(readGoogleCalendarRefreshTokenMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('com a versão vinda do chamador, não lê a conexão de novo; sem conexão, devolve null sem renovar', async () => {
+    readGoogleCalendarRefreshTokenMock.mockResolvedValue('rt-1');
+    refreshGoogleAccessTokenMock.mockResolvedValue({ access_token: 'at-1', expires_in: 3600 });
+    const admin = {} as never;
+    await getGoogleCalendarAccessToken({ admin, organizationId: ORG, ownerId: OWNER, versaoDaConexao: 'v1|a@exemplo.com' });
+    expect(getGoogleCalendarConnectionMock).not.toHaveBeenCalled();
+
+    clearGoogleCalendarAccessTokenCache();
+    getGoogleCalendarConnectionMock.mockResolvedValue(null);
+    expect(await getGoogleCalendarAccessToken({ admin, organizationId: ORG, ownerId: OWNER })).toBeNull();
+    expect(refreshGoogleAccessTokenMock).toHaveBeenCalledTimes(1);
   });
 
   it('invalid_grant do refresh propaga para o chamador decidir (reconnect_required)', async () => {

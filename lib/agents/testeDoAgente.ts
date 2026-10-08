@@ -35,6 +35,8 @@ export const PRAZO_DA_EXPLICACAO_MS = 30_000;
  * responde 200 pode ser explicado.
  */
 export const LIMITE_DO_PROMPT_DO_TESTE = 150_000;
+/** O mesmo teto do `aiModel` na configuração de IA e do retrato na explicação: todo retrato devolvido é explicável. */
+export const LIMITE_DO_ID_DO_MODELO = 200;
 const EXPLICACAO_MAX = 3_000;
 
 export type EntradaDoTeste = {
@@ -170,6 +172,9 @@ async function prepararTeste(c: Clientes, e: EntradaDoTeste): Promise<Resultado<
   const modeloDoRascunho = typeof rascunho.model === 'string' && rascunho.model ? rascunho.model : null;
   const modelo = modeloDoRascunho || publicada?.model || chave.dados.modeloDoCliente
     || AI_DEFAULT_MODELS[chave.dados.provider] || AI_DEFAULT_MODELS.google;
+  if (modelo.length > LIMITE_DO_ID_DO_MODELO) {
+    return falha(422, 'MODELO_INVALIDO', 'O identificador do modelo configurado passa de 200 caracteres. Corrija na Central de I.A.');
+  }
   const fetchContador = criarFetchContador();
   const model = getModel(chave.dados.provider, chave.dados.apiKey, modelo, { fetch: fetchContador.fetch });
 

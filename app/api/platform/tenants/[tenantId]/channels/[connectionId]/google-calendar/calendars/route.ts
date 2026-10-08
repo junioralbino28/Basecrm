@@ -4,6 +4,7 @@ import { ConversationCalendarConfigSchema } from '@/lib/conversations/meetingAva
 import { redactChannelSecrets } from '@/lib/channels/redactChannelSecrets';
 import { getGoogleCalendarConnection } from '@/lib/googleCalendar/connectionStore';
 import { getGoogleCalendarAccessToken } from '@/lib/googleCalendar/oauth';
+import { versaoDaConexaoGoogle } from '@/lib/googleCalendar/versaoDaConexao';
 import { scopeCoversCalendarList } from '@/lib/googleCalendar/oauth';
 import { GoogleApiError, listGoogleCalendars } from '@/lib/googleCalendar/googleApiClient';
 
@@ -54,7 +55,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
 
   let accessToken: string | null = null;
   try {
-    accessToken = await getGoogleCalendarAccessToken({ admin, organizationId: tenantId, ownerId });
+    accessToken = await getGoogleCalendarAccessToken({
+      admin,
+      organizationId: tenantId,
+      ownerId,
+      versaoDaConexao: versaoDaConexaoGoogle(googleConnection),
+    });
     if (!accessToken) return json({ connected: true, needsReconnect: true, calendars: [] });
 
     const calendars = await listGoogleCalendars({ accessToken });

@@ -179,6 +179,16 @@ describe('responderComModelo', () => {
     expect(aviso?.[1]).toMatchObject({ textLength: cru.length, startsWithBrace: true, endsWithBrace: false });
   });
 
+  it('G22: duas falhas de formato seguidas lançam o erro, e o log continua sem o texto do modelo', async () => {
+    roteiro.respostas.push(
+      saidaFora(`{"replyText": "primeira ${SENTINELA}`, {}),
+      saidaFora(`{"replyText": "segunda ${SENTINELA}`, {}),
+    );
+    const avisos = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(responder()).rejects.toThrow();
+    expect(avisos.mock.calls.map((chamada) => JSON.stringify(chamada)).join('\n')).not.toContain(SENTINELA);
+  });
+
   it('prazo: com abortSignal, o modelo recebe o sinal; sem ele, a chamada sai sem a chave, como hoje', async () => {
     const sinal = AbortSignal.timeout(45_000);
     roteiro.respostas.push(() => Promise.resolve({ output: { replyText: 'Oi!', shouldHandoff: false } }));

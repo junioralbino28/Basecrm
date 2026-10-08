@@ -301,11 +301,17 @@ describe('rotas do teste sem enviar e da explicação', () => {
     expect(await resposta.json()).toEqual({ error: 'erro', code: 'FALHA_DO_MODELO' });
   });
 
-  it('todo retrato que o teste pode devolver cabe na explicação: o teto do prompt do motor fica dentro do schema', async () => {
-    const { LIMITE_DO_PROMPT_DO_TESTE } = await vi.importActual<typeof import('@/lib/agents/testeDoAgente')>('@/lib/agents/testeDoAgente');
-    const noTeto = { ...CORPO_DA_EXPLICACAO, retrato: { ...CORPO_DA_EXPLICACAO.retrato, prompt: 'p'.repeat(LIMITE_DO_PROMPT_DO_TESTE) } };
+  it('todo retrato que o teste pode devolver cabe na explicação: prompt e modelo no teto do motor passam no schema', async () => {
+    const { LIMITE_DO_PROMPT_DO_TESTE, LIMITE_DO_ID_DO_MODELO } = await vi.importActual<typeof import('@/lib/agents/testeDoAgente')>('@/lib/agents/testeDoAgente');
+    const noTeto = {
+      ...CORPO_DA_EXPLICACAO,
+      retrato: { ...CORPO_DA_EXPLICACAO.retrato, prompt: 'p'.repeat(LIMITE_DO_PROMPT_DO_TESTE), modelo: 'm'.repeat(LIMITE_DO_ID_DO_MODELO) },
+    };
     expect(ExplicarSchema.safeParse(noTeto).success).toBe(true);
     expect(JSON.stringify(noTeto).length).toBeLessThan(1024 * 1024);
+    // Um identificador entre 121 e 200 (o que a configuração aceita) passa; acima do teto do motor, não.
+    expect(ExplicarSchema.safeParse({ ...noTeto, retrato: { ...noTeto.retrato, modelo: 'm'.repeat(150) } }).success).toBe(true);
+    expect(ExplicarSchema.safeParse({ ...noTeto, retrato: { ...noTeto.retrato, modelo: 'm'.repeat(LIMITE_DO_ID_DO_MODELO + 1) } }).success).toBe(false);
   });
 
   it('caminho feliz do teste: 200 com o corpo do motor, chamado com os dois clientes e o corpo validado', async () => {

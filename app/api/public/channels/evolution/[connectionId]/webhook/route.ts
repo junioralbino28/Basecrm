@@ -15,7 +15,7 @@ import {
 import { isNomeDeContatoFraco } from '@/lib/conversations/leadProfile';
 import { notifyConversationAutomation } from '@/lib/conversations/n8nAutomation';
 import { executeConversationAIReply, generateConversationAutoReply } from '@/lib/conversations/aiReply';
-import { lerMedicaoDoErro, resumirMedicao } from '@/lib/ai/medicaoResposta';
+import { descreverFalhaDoModelo, lerMedicaoDoErro, resumirMedicao } from '@/lib/ai/medicaoResposta';
 import { resolveConversationAIAgentConfig } from '@/lib/conversations/aiAgentConfig';
 import { evaluateWebhookAuth, readWebhookSecretFromRequest } from '@/lib/conversations/webhookAuth';
 import { buildEvolutionMessageMetadata } from '@/lib/conversations/messageMetadata';
@@ -352,19 +352,15 @@ export async function processDeferredAIReply(params: {
       return;
     }
     nativeFailureStage = 'provider';
-    // O texto cru do modelo (quando o SDK nao conseguiu interpretar) fica no registro da falha, cortado:
-    // sem isso nao da para saber POR QUE o JSON nao veio (ensaio de 20/09).
-    const rawModelText = nativeAiError && typeof nativeAiError === 'object' && typeof (nativeAiError as { text?: unknown }).text === 'string'
-      ? ` | texto: ${String((nativeAiError as { text: string }).text).replace(/\s+/g, ' ').slice(0, 160)}`
-      : '';
+    // G22 (OK do Junior, 08/10): nem o texto do modelo nem a mensagem livre do erro vao para o registro da falha
+    // ou para o log; vai a forma da saida (tamanho, abre e fecha com chave), que basta para o diagnostico de 20/09.
+    const falhaDescrita = descreverFalhaDoModelo(nativeAiError);
     const medicaoDaFalha = lerMedicaoDoErro(nativeAiError);
-    nativeFailureError = (nativeAiError instanceof Error ? `${nativeAiError.name}: ${nativeAiError.message}` : String(nativeAiError))
-      + rawModelText
-      + (medicaoDaFalha ? ` | ${resumirMedicao(medicaoDaFalha)}` : '');
+    nativeFailureError = falhaDescrita + (medicaoDaFalha ? ` | ${resumirMedicao(medicaoDaFalha)}` : '');
     console.warn('[Evolution webhook] Native AI reply failed', {
       connectionId,
       threadId,
-      error: nativeAiError instanceof Error ? nativeAiError.message : String(nativeAiError),
+      error: falhaDescrita,
     });
   }
 

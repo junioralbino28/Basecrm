@@ -156,4 +156,30 @@ describe('webhook: medicao de tempo da resposta da IA (29/09)', () => {
     expect(failureMock.mock.calls[0]?.[0]).toMatchObject({ stage: 'provider' });
     expect(failureMock.mock.calls[0]?.[0]?.errorMessage).toContain('tempo 51.0s (modelo 50.0s, agenda 0.7s), 3 chamada(s), falhas 529,529');
   });
+
+  it('G22: a segunda falha de formato chega ao registro e ao log sem o texto do modelo e sem a mensagem livre do erro', async () => {
+    const SENTINELA = 'SENTINELA-WEBHOOK-5519';
+    const avisos = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const cru = `{"replyText": "o lead disse ${SENTINELA}`;
+    generateMock.mockRejectedValueOnce(Object.assign(
+      new Error(`No object generated: could not parse the response. Text: ${SENTINELA}`),
+      { name: 'AI_NoObjectGeneratedError', text: cru, finishReason: 'length', aiTiming: MEDICAO },
+    ));
+    await responder(`${MESSAGE}:${Date.now()}`);
+    const formato = String(failureMock.mock.calls[0]?.[0]?.errorMessage);
+    expect(formato).not.toContain(SENTINELA);
+    expect(formato).toContain(`AI_NoObjectGeneratedError | parada: length | saida: ${cru.length} caracteres, abre com chave, nao fecha`);
+    expect(formato).toContain('falhas 529,529');
+
+    const ultimoErro = Object.assign(new Error(`Overloaded ${SENTINELA}`), { statusCode: 529 });
+    generateMock.mockRejectedValueOnce(Object.assign(new Error(`Failed after 3 attempts. Last error: ${SENTINELA}`), {
+      name: 'AI_RetryError', lastError: ultimoErro,
+    }));
+    await responder(`${MESSAGE}:${Date.now()}`);
+    const provedor = String(failureMock.mock.calls[1]?.[0]?.errorMessage);
+    expect(provedor).toBe('AI_RetryError | HTTP 529');
+
+    expect(avisos.mock.calls.map((c) => JSON.stringify(c)).join('\n')).not.toContain(SENTINELA);
+    avisos.mockRestore();
+  });
 });

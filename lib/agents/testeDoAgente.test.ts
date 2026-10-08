@@ -54,6 +54,7 @@ import { generateConversationAutoReply } from '@/lib/conversations/aiReply';
 import { loadAvailableMeetingSlots } from '@/lib/conversations/aiReplyCore';
 import { conferirRetrato } from './retratoDoTeste';
 import {
+  LIMITE_DO_ID_DO_MODELO,
   LIMITE_DO_PROMPT_DO_TESTE,
   MENSAGENS_NA_MEMORIA,
   TELEFONE_DO_TESTE,
@@ -404,6 +405,12 @@ ${'x'.repeat(LIMITE_DO_PROMPT_DO_TESTE)}` } }));
     dados(await testar(semear({ draft: { prompt: `${RASCUNHO}
 ${'x'.repeat(folga)}` } })));
     expect(String(roteiro.argumentos[0].prompt).length).toBeLessThanOrEqual(LIMITE_DO_PROMPT_DO_TESTE);
+  });
+
+  it('18. identificador de modelo acima do teto: 422 antes de chamar o modelo', async () => {
+    const r = await testar(semear({ ajustes: { ai_model: 'm'.repeat(LIMITE_DO_ID_DO_MODELO + 1) } }));
+    expect(r).toMatchObject({ ok: false, status: 422, codigo: 'MODELO_INVALIDO' });
+    expect(roteiro.argumentos).toHaveLength(0);
   });
 
   it('17. resposta só de espaços: 502 RESPOSTA_VAZIA, sem retrato e sem envio', async () => {

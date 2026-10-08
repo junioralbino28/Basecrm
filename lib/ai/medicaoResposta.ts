@@ -52,6 +52,30 @@ export function resumirMedicao(timing: AIReplyTiming): string {
   return `tempo ${(timing.total_ms / 1000).toFixed(1)}s (modelo ${(timing.model_ms / 1000).toFixed(1)}s, agenda ${(timing.calendar_ms / 1000).toFixed(1)}s), ${timing.model_http_calls} chamada(s)${falhas}`;
 }
 
+/**
+ * A falha do gerador em texto para o registro que o operador lê e para o log, SEM conteúdo do modelo nem do lead (G22,
+ * rodada 4 do Codex): nome do erro, status HTTP, motivo de parada e a FORMA da saída quando o SDK a anexa (tamanho, se
+ * abre e se fecha com chave; basta para o diagnóstico de 20/09, JSON cortado). A mensagem livre do erro fica de fora:
+ * a do SDK pode embutir o texto do modelo ("Text: ...", "Value: ...") e a do provedor é texto de terceiro.
+ */
+export function descreverFalhaDoModelo(erro: unknown): string {
+  if (!erro || typeof erro !== 'object') return 'erro sem detalhes';
+  const e = erro as { name?: unknown; finishReason?: unknown; text?: unknown; lastError?: unknown; cause?: unknown };
+  const partes = [typeof e.name === 'string' && e.name ? e.name.slice(0, 60) : 'Error'];
+  const status = [erro, e.lastError, e.cause]
+    .map((x) => (x && typeof x === 'object' ? (x as { statusCode?: unknown }).statusCode : undefined))
+    .find((v): v is number => typeof v === 'number');
+  if (status) partes.push(`HTTP ${status}`);
+  if (typeof e.finishReason === 'string') partes.push(`parada: ${e.finishReason.slice(0, 30)}`);
+  if (typeof e.text === 'string') {
+    const aparado = e.text.trim();
+    partes.push(
+      `saida: ${e.text.length} caracteres, ${aparado.startsWith('{') ? 'abre' : 'nao abre'} com chave, ${aparado.endsWith('}') ? 'fecha' : 'nao fecha'}`,
+    );
+  }
+  return partes.join(' | ');
+}
+
 /** Lê a medição pendurada num erro lançado pela geração (ver generateConversationAutoReply). */
 export function lerMedicaoDoErro(error: unknown): AIReplyTiming | null {
   if (!error || typeof error !== 'object') return null;

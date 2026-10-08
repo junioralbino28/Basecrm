@@ -7,7 +7,8 @@ import {
   revokeGoogleToken,
   type GoogleTokenResponse,
 } from './googleApiClient';
-import { readGoogleCalendarRefreshToken } from './connectionStore';
+import { getGoogleCalendarConnection, readGoogleCalendarRefreshToken } from './connectionStore';
+import { versaoDaConexaoGoogle } from './versaoDaConexao';
 import type { createStaticAdminClient } from '@/lib/supabase/server';
 
 type AdminClient = ReturnType<typeof createStaticAdminClient>;
@@ -98,7 +99,7 @@ export async function revokeGoogleCalendarToken(token: string): Promise<boolean>
   return revokeGoogleToken({ token });
 }
 
-type AccessTokenCacheEntry = { accessToken: string; expiresAt: number };
+type AccessTokenCacheEntry = { accessToken: string; expiresAt: number; versao: string };
 
 // Cache em memoria da INSTANCIA, por (organization_id, owner_id). Nunca persistido — a cada
 // reinicio do processo o access token e renovado de novo a partir do refresh token (Vault).
@@ -128,10 +129,23 @@ export async function getGoogleCalendarAccessToken(input: {
   admin: AdminClient;
   organizationId: string;
   ownerId: string;
+  /** `versaoDaConexaoGoogle` da conexão já lida pelo chamador; sem ela, a função lê a conexão. */
+  versaoDaConexao?: string;
 }): Promise<string | null> {
+  let versao = input.versaoDaConexao;
+  if (versao === undefined) {
+    const conexao = await getGoogleCalendarConnection({
+      admin: input.admin,
+      organizationId: input.organizationId,
+      ownerId: input.ownerId,
+    });
+    if (!conexao) return null;
+    versao = versaoDaConexaoGoogle(conexao);
+  }
+
   const key = cacheKey(input.organizationId, input.ownerId);
   const cached = accessTokenCache.get(key);
-  if (cached && cached.expiresAt - ACCESS_TOKEN_SAFETY_MARGIN_MS > Date.now()) {
+  if (cached && cached.versao === versao && cached.expiresAt - ACCESS_TOKEN_SAFETY_MARGIN_MS > Date.now()) {
     return cached.accessToken;
   }
 
@@ -154,6 +168,7 @@ export async function getGoogleCalendarAccessToken(input: {
   accessTokenCache.set(key, {
     accessToken: token.access_token,
     expiresAt: Date.now() + token.expires_in * 1_000,
+    versao,
   });
   return token.access_token;
 }

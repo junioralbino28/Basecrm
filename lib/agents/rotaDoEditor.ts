@@ -143,7 +143,8 @@ export const ExplicarSchema = z.object({
   retrato: z.object({
     prompt: z.string().min(1).max(200_000),
     provedor: z.enum(['google', 'openai', 'anthropic']),
-    modelo: z.string().min(1).max(120),
+    // Igual a LIMITE_DO_ID_DO_MODELO do motor e ao aiModel da configuração de IA (rodada 4 do Codex, achado 4).
+    modelo: z.string().min(1).max(200),
     expiraEm: z.number().int().positive(),
     assinatura: z.string().regex(/^[0-9a-f]{64}$/),
   }).strict(),
@@ -156,7 +157,8 @@ export const ExplicarSchema = z.object({
 /**
  * Os baldes do teste e da explicação (D6), na ordem em que são consumidos. O último é o teto de custo do cliente (G18,
  * rodada 3 do Codex): com o prompt limitado (LIMITE_DO_PROMPT_DO_TESTE) e a saída limitada (maxOutputTokens), 200
- * chamadas por dia dão um gasto máximo conhecido na chave do cliente.
+ * chamadas por dia limitam o consumo diário em tokens na chave do cliente. O valor em reais depende do modelo
+ * configurado e não é calculado aqui (fatia 5).
  */
 export const BALDES_DO_TESTE = [
   { nome: 'pessoa', por: 'pessoa', limite: 20, janelaSegundos: 600, mensagem: 'Limite de 20 testes a cada 10 minutos por pessoa.' },

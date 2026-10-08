@@ -6,6 +6,7 @@ import { buildConversationScopedEventId } from '@/lib/conversations/handoffEvent
 import { redactChannelSecrets } from '@/lib/channels/redactChannelSecrets';
 import { getGoogleCalendarConnection, markGoogleCalendarConnectionIssue } from './connectionStore';
 import { getGoogleCalendarAccessToken } from './oauth';
+import { versaoDaConexaoGoogle } from './versaoDaConexao';
 import { GoogleApiError, queryGoogleFreeBusy } from './googleApiClient';
 
 type AdminClient = ReturnType<typeof createStaticAdminClient>;
@@ -20,7 +21,7 @@ const FREEBUSY_WARNING_WINDOW_MS = 24 * 60 * 60_000;
 // ate 10 min depois da janela consultada.
 const FREEBUSY_CACHE_WINDOW_TOLERANCE_MS = 10 * 60_000;
 
-type CacheEntry = { expiresAt: number; timeMin: number; timeMax: number; intervals: BusyInterval[] };
+type CacheEntry = { versao: string; expiresAt: number; timeMin: number; timeMax: number; intervals: BusyInterval[] };
 const freeBusyCache = new Map<string, CacheEntry>();
 
 // Chave so por (organizacao, responsavel): com timeMin/timeMax na chave (milissegundo de `now`)
@@ -100,12 +101,6 @@ export async function loadGoogleBusyIntervals(input: {
   if (!input.ownerId) return [];
   const ownerId = input.ownerId;
 
-  const key = cacheKey(input.organizationId, ownerId);
-  const cached = freeBusyCache.get(key);
-  if (cached && cached.expiresAt > Date.now() && cacheCovers(cached, input.timeMin, input.timeMax)) {
-    return cached.intervals;
-  }
-
   let connection;
   try {
     connection = await getGoogleCalendarConnection({
@@ -124,12 +119,22 @@ export async function loadGoogleBusyIntervals(input: {
 
   if (!connection || connection.status !== 'connected') return [];
 
+  // O cache só vale para a MESMA conexão: reconectar (mesma conta ou outra) muda a versão, em qualquer instância.
+  // Por isso a conexão é lida antes do cache (rodada 4 do Codex, fatia 3).
+  const versao = versaoDaConexaoGoogle(connection);
+  const key = cacheKey(input.organizationId, ownerId);
+  const cached = freeBusyCache.get(key);
+  if (cached && cached.versao === versao && cached.expiresAt > Date.now() && cacheCovers(cached, input.timeMin, input.timeMax)) {
+    return cached.intervals;
+  }
+
   let accessToken: string | null = null;
   try {
     accessToken = await getGoogleCalendarAccessToken({
       admin: input.admin,
       organizationId: input.organizationId,
       ownerId,
+      versaoDaConexao: versao,
     });
     if (!accessToken) return [];
 
@@ -143,6 +148,7 @@ export async function loadGoogleBusyIntervals(input: {
     });
     if (input.fillCache !== false) {
       freeBusyCache.set(key, {
+        versao,
         expiresAt: Date.now() + FREEBUSY_CACHE_TTL_MS,
         timeMin: new Date(input.timeMin).getTime(),
         timeMax: new Date(input.timeMax).getTime(),
