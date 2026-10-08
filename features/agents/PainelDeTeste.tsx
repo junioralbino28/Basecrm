@@ -211,13 +211,15 @@ export function PainelDeTeste(props: {
   const itens = resposta ? itensDoQueFez(resposta) : [];
 
   return (
-    <div className="fixed inset-0 z-40">
+    // Mesma camada do Sheet e do ActionSheet do app: acima da barra de navegação do celular (BottomNav, z-50), que
+    // cobria o campo e o botão Enviar (ensaio da fatia 3, 08/10).
+    <div className="fixed inset-0 z-[9999]">
       <div aria-hidden="true" data-testid="fundo-do-teste" onClick={onFechar} className="absolute inset-0 bg-slate-950/50" />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}
-        className="fixed inset-y-0 right-0 z-40 flex w-full flex-col bg-white shadow-2xl sm:w-[440px] dark:bg-card"
+        className="fixed inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl sm:w-[440px] dark:bg-card"
       >
         <header className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 dark:border-white/10">
           <h2 id={tituloId} className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">

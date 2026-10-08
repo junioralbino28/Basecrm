@@ -407,6 +407,21 @@ ${'x'.repeat(folga)}` } })));
     expect(String(roteiro.argumentos[0].prompt).length).toBeLessThanOrEqual(LIMITE_DO_PROMPT_DO_TESTE);
   });
 
+  it('19. explicação em texto simples: o pedido proíbe Markdown e nome de campo; as marcas que sobrarem saem', async () => {
+    roteiro.respostas.push(OK);
+    const r = dados(await testar(semear()));
+    roteiro.respostas.push(() => Promise.resolve({
+      text: '# Análise\n- **Tom**: seguiu a voz pedida\n* __Repasse__: não houve\n\n\n\nFim',
+    }));
+    const explicada = await explicarRespostaDoTeste(clientes(semear()), {
+      tenantId: ORG, agentId: AGENTE, revisao: 2, retrato: r.retrato!, resposta: { partes: r.partes, repasse: r.oQueFez.repasse },
+    });
+    expect(explicada).toEqual({ ok: true, dados: { explicacao: 'Análise\n• Tom: seguiu a voz pedida\n• Repasse: não houve\n\nFim' } });
+    const pedido = String(roteiro.argumentos[1].prompt);
+    expect(pedido).toContain('sem Markdown');
+    expect(pedido).toContain('Não use nomes técnicos de campo');
+  });
+
   it('18. identificador de modelo acima do teto: 422 antes de chamar o modelo', async () => {
     const r = await testar(semear({ ajustes: { ai_model: 'm'.repeat(LIMITE_DO_ID_DO_MODELO + 1) } }));
     expect(r).toMatchObject({ ok: false, status: 422, codigo: 'MODELO_INVALIDO' });

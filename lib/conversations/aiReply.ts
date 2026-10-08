@@ -281,6 +281,23 @@ async function reserveConfirmedMeeting(input: {
   return result.data === true;
 }
 
+/**
+ * A falha de entrega sem o texto que tentamos mandar (G22, rodada 5 do Codex, fatia 3). O motivo da Evolution vai para o
+ * balão ("Falha no envio: ...") e para o registro da falha; se ela repetir a parte enviada, a parte vira
+ * "[texto da resposta]", literal ou escapada em JSON. O resto do motivo fica, porque diz ao operador o que fazer
+ * (número inexistente, instância desconectada). Parte com menos de 8 caracteres não é trocada, para não apagar palavras
+ * comuns do motivo.
+ */
+function descreverFalhaDeEntrega(error: unknown, partes: string[]): string {
+  let texto = error instanceof Error && error.message ? error.message : 'Falha ao enviar resposta automatica.';
+  for (const parte of partes) {
+    for (const forma of new Set([parte, parte.trim(), JSON.stringify(parte).slice(1, -1)])) {
+      if (forma.length >= 8) texto = texto.split(forma).join('[texto da resposta]');
+    }
+  }
+  return texto.slice(0, 300);
+}
+
 export async function executeConversationAIReply(params: {
   admin: AdminClient;
   connection: ChannelConnectionRow;
@@ -528,7 +545,7 @@ export async function executeConversationAIReply(params: {
       credential_source: resolved.source,
     };
   } catch (error) {
-    deliveryWarning = error instanceof Error ? error.message : 'Falha ao enviar resposta automatica.';
+    deliveryWarning = descreverFalhaDeEntrega(error, replyParts);
     deliveryMetadata = {
       ...deliveryMetadata,
       delivery_status: 'failed',
