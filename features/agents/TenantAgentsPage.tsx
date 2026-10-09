@@ -2,13 +2,15 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Bot, Loader2, RefreshCcw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bot, Loader2, Plus, RefreshCcw } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import { PageLoader } from '@/components/PageLoader';
 import { useAuth } from '@/context/AuthContext';
 import { isAgencyAdminRole } from '@/lib/auth/scope';
 import type { AgenteNaLista } from '@/lib/agents/tiposDoEditor';
 import { agentesApi } from './agentesApi';
+import { DialogoNovoAgente } from './DialogoNovoAgente';
 import { descreverVersao } from './formatos';
 
 /** Central de Agentes: os agentes de um cliente. Só agency_admin e o legado admin (a API também recusa os outros). */
@@ -25,6 +27,8 @@ type Estado = { carregando: boolean; erro: string | null; cliente: string | null
 
 function ListaDeAgentes({ tenantId }: { tenantId: string }) {
   const [estado, setEstado] = React.useState<Estado>({ carregando: true, erro: null, cliente: null, agentes: [] });
+  const [criando, setCriando] = React.useState(false);
+  const router = useRouter();
 
   const carregar = React.useCallback(async () => {
     setEstado((atual) => ({ ...atual, carregando: true, erro: null }));
@@ -40,6 +44,17 @@ function ListaDeAgentes({ tenantId }: { tenantId: string }) {
     void carregar();
   }, [carregar]);
 
+  const botaoNovo = (
+    <button
+      type="button"
+      onClick={() => setCriando(true)}
+      className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-on-brand transition hover:bg-brand-500"
+    >
+      <Plus size={16} aria-hidden="true" />
+      Novo agente
+    </button>
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6 sm:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -52,14 +67,17 @@ function ListaDeAgentes({ tenantId }: { tenantId: string }) {
             Cada agente responde pelos números ligados a ele. Edite, publique e volte versões sem publicar código.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void carregar()}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-400 dark:border-white/10 dark:bg-card dark:text-slate-200"
-        >
-          <RefreshCcw size={16} aria-hidden="true" />
-          Atualizar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void carregar()}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-400 dark:border-white/10 dark:bg-card dark:text-slate-200"
+          >
+            <RefreshCcw size={16} aria-hidden="true" />
+            Atualizar
+          </button>
+          {botaoNovo}
+        </div>
       </header>
 
       {estado.carregando ? (
@@ -71,8 +89,9 @@ function ListaDeAgentes({ tenantId }: { tenantId: string }) {
           {estado.erro}
         </div>
       ) : estado.agentes.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-sm text-slate-600 dark:border-white/15 dark:text-slate-300">
-          Nenhum agente neste cliente ainda. Por enquanto, os agentes chegam pela migração do prompt de hoje; criar pela biblioteca vem na fase 2.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-sm text-slate-600 dark:border-white/15 dark:text-slate-300">
+          <span>Nenhum agente neste cliente ainda.</span>
+          {botaoNovo}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -104,6 +123,17 @@ function ListaDeAgentes({ tenantId }: { tenantId: string }) {
           ))}
         </ul>
       )}
+      {criando ? (
+        <DialogoNovoAgente
+          tenantId={tenantId}
+          clienteNome={estado.cliente}
+          onFechar={() => setCriando(false)}
+          onCriado={(agenteId) => {
+            setCriando(false);
+            router.push(`/platform/tenants/${tenantId}/agents/${agenteId}`);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

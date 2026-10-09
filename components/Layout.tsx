@@ -49,6 +49,7 @@ import {
   Building2,
   PlusSquare,
   ArrowRightLeft,
+  Library,
   Camera,
   Wallet,
   Stethoscope,
@@ -436,6 +437,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ? [
         { to: '/platform', icon: Building2, label: 'Plataforma', prefetch: 'dashboard' as const },
         { to: '/platform/team', icon: Users, label: 'Equipe da Agencia', prefetch: 'dashboard' as const },
+        { to: '/platform/agent-templates', icon: Library, label: 'Modelos de agente', prefetch: 'dashboard' as const },
         { to: '/platform/tenants', icon: ArrowRightLeft, label: 'Clientes', prefetch: 'dashboard' as const },
         { to: '/platform/tenants/new', icon: PlusSquare, label: 'Novo Cliente', prefetch: 'dashboard' as const },
       ]

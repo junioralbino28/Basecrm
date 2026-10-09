@@ -5,6 +5,8 @@ import type { AgenteNoEditor } from '@/lib/agents/tiposDoEditor';
 
 const estado = vi.hoisted(() => ({ role: 'agency_admin' as string }));
 const toast = vi.hoisted(() => vi.fn());
+const navegar = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: navegar, replace: navegar }) }));
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ profile: { role: estado.role }, loading: false }) }));
 vi.mock('@/context/ToastContext', () => ({ useToast: () => ({ addToast: toast, showToast: toast }) }));
 vi.mock('next/link', () => ({
@@ -458,5 +460,35 @@ describe('AgentEditorPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Versões' }));
     expect(await screen.findByRole('heading', { name: 'Versões' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(`${URL_AGENTE}/versions`, expect.objectContaining({ credentials: 'include' }));
+  });
+});
+
+describe('AgentEditorPage: Salvar como modelo (bloco 2)', () => {
+  it('só aparece com versão publicada; cria o modelo a partir dela e abre o editor do modelo', async () => {
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }),
+      'POST /api/platform/agency/agent-templates': () => responder({ id: 'modelo-novo' }, 201),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Salvar como modelo/ }));
+    const dialogo = await screen.findByRole('dialog');
+    fireEvent.change(within(dialogo).getByLabelText('Nome do modelo'), { target: { value: 'SDR de loja' } });
+    fireEvent.click(within(dialogo).getByRole('button', { name: /Criar modelo/ }));
+    await waitFor(() => expect(navegar).toHaveBeenCalledWith('/platform/agent-templates/modelo-novo'));
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      nome: 'SDR de loja',
+      deAgente: { tenantId: TENANT, agenteId: AGENTE_ID, versaoEsperada: 1 },
+    });
+  });
+
+  it('sem versão publicada o botão não aparece', async () => {
+    vi.stubGlobal('fetch', fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente({ publicada: null, rascunho: { prompt: 'Oi', revisao: 1, atualizadoEm: null, atualizadoPor: null } }) }),
+    }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    expect(await screen.findByRole('heading', { name: 'Aurora' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Salvar como modelo/ })).toBeNull();
   });
 });

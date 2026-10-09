@@ -1,6 +1,9 @@
 import type {
   AgenteNaLista,
   AgenteNoEditor,
+  InicioDoAgente,
+  ModeloCompleto,
+  ModeloNaLista,
   MensagemSimulada,
   PaginaDeVersoes,
   RespostaDoRetrato,
@@ -36,8 +39,27 @@ async function pedir<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 const base = (tenantId: string) => `/api/platform/tenants/${tenantId}/agents`;
+const MODELOS = '/api/platform/agency/agent-templates';
+
+type CorpoDoModeloNovo =
+  | { nome: string; descricao?: string; prompt: string }
+  | { nome: string; descricao?: string; deAgente: { tenantId: string; agenteId: string; versaoEsperada: number } };
 
 export const agentesApi = {
+  /** Bloco 2: cria um agente neste cliente; em modelo e cópia o texto é montado no servidor. */
+  criar: (tenantId: string, corpo: { nome: string; inicio: InicioDoAgente }) =>
+    pedir<{ agenteId: string }>(base(tenantId), { method: 'POST', body: JSON.stringify(corpo) }),
+  /** Os clientes da agência, para escolher a origem de uma cópia (a mesma lista da tela de clientes). */
+  clientes: () => pedir<{ tenants: Array<{ id: string; name: string }> }>('/api/platform/tenants'),
+  modelos: {
+    listar: (arquivados = false) => pedir<{ modelos: ModeloNaLista[] }>(`${MODELOS}${arquivados ? '?arquivados=1' : ''}`),
+    ler: (id: string) => pedir<ModeloCompleto>(`${MODELOS}/${id}`),
+    criar: (corpo: CorpoDoModeloNovo) => pedir<{ id: string }>(MODELOS, { method: 'POST', body: JSON.stringify(corpo) }),
+    salvar: (id: string, corpo: { nome: string; descricao?: string; prompt: string; revisaoEsperada: number }) =>
+      pedir<{ id: string; revisao: number }>(`${MODELOS}/${id}`, { method: 'PUT', body: JSON.stringify(corpo) }),
+    arquivar: (id: string, corpo: { arquivar: boolean; revisaoEsperada: number }) =>
+      pedir<{ revisao: number }>(`${MODELOS}/${id}/archive`, { method: 'POST', body: JSON.stringify(corpo) }),
+  },
   listar: (tenantId: string) =>
     pedir<{ cliente: { id: string; nome: string }; agentes: AgenteNaLista[] }>(base(tenantId)),
   ler: (tenantId: string, agentId: string) =>

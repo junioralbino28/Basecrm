@@ -14,6 +14,7 @@ import {
   MessagesSquare,
   Workflow,
   Bot,
+  Library,
 } from 'lucide-react';
 
 export type PrimaryNavId = 'boards' | 'contacts' | 'activities' | 'more';
@@ -39,6 +40,7 @@ export type SecondaryNavId =
   | 'profile'
   | 'platform'
   | 'platform_tenants'
+  | 'platform_agent_templates'
   | 'platform_new_tenant'
   | 'tenant_whatsapp_connect'
   | 'tenant_whatsapp'
@@ -87,6 +89,7 @@ export function getSecondaryNav(options: {
   return [
     { id: 'platform', label: 'Plataforma', href: '/platform', icon: Building2 },
     { id: 'platform_tenants', label: 'Clientes', href: '/platform/tenants', icon: Building2 },
+    { id: 'platform_agent_templates', label: 'Modelos de agente', href: '/platform/agent-templates', icon: Library },
     { id: 'platform_new_tenant', label: 'Novo Cliente', href: '/platform/tenants/new', icon: PlusSquare },
     ...baseItems,
   ];

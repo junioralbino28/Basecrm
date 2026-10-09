@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Bot, ChevronRight, FlaskConical, Loader2, Pencil, Save, Send, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bot, ChevronRight, FlaskConical, Library, Loader2, Pencil, Save, Send, X } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import { PageLoader } from '@/components/PageLoader';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +13,7 @@ import type { AgenteNoEditor } from '@/lib/agents/tiposDoEditor';
 import { VARIAVEIS_DO_PROMPT, verificarPrompt } from '@/lib/agents/verificarPrompt';
 import { ErroDaApi, agentesApi } from './agentesApi';
 import { DialogoPublicar } from './DialogoPublicar';
+import { DialogoSalvarComoModelo } from './DialogoSalvarComoModelo';
 import { HistoricoDeVersoes } from './HistoricoDeVersoes';
 import { LeituraDoPrompt } from './LeituraDoPrompt';
 import { PainelDeTeste } from './PainelDeTeste';
@@ -159,6 +161,8 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [salvando, setSalvando] = React.useState(false);
   const [publicando, setPublicando] = React.useState(false);
   const [testando, setTestando] = React.useState(false);
+  const [salvandoModelo, setSalvandoModelo] = React.useState(false);
+  const router = useRouter();
   const [aba, setAba] = React.useState<'instrucoes' | 'versoes'>('instrucoes');
   // Outra aba ou pessoa salvou antes: a mensagem fica na tela e o texto de quem editava continua no campo.
   const [conflito, setConflito] = React.useState<string | null>(null);
@@ -354,6 +358,13 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
             <FlaskConical size={16} aria-hidden="true" />
             Testar sem enviar
           </button>
+          {/* Bloco 2: o modelo nasce da versão PUBLICADA; sem ela, não há o que guardar. */}
+          {agente.publicada ? (
+            <button type="button" onClick={() => setSalvandoModelo(true)} className={BOTAO_SECUNDARIO}>
+              <Library size={16} aria-hidden="true" />
+              Salvar como modelo
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setPublicando(true)}
@@ -566,6 +577,19 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
 
       {testando ? (
         <PainelDeTeste tenantId={tenantId} agente={agente} onFechar={() => setTestando(false)} onMudou={() => void carregar()} />
+      ) : null}
+
+      {salvandoModelo ? (
+        <DialogoSalvarComoModelo
+          tenantId={tenantId}
+          agente={agente}
+          onFechar={() => setSalvandoModelo(false)}
+          onCriado={(modeloId) => {
+            setSalvandoModelo(false);
+            addToast('Modelo criado. Troque o que é deste cliente por lacunas.', 'success');
+            router.push(`/platform/agent-templates/${modeloId}`);
+          }}
+        />
       ) : null}
 
       {publicando ? (
