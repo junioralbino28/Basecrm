@@ -60,6 +60,27 @@ const MARCADOR = /\{\{([^{}]*)\}\}/g;
  * ("[Guia](url)") e link de referência ("[Guia][ref]") não contam.
  */
 const PENDENCIA = /\[([A-ZÀ-Ý][^[\]\n]{1,80})\](?![([])/g;
+
+/**
+ * Bloco 2: cada ocorrência de lacuna, COM repetição, na ordem do texto. É a lista que o banco confere ao criar um
+ * agente a partir de um modelo (central_agentes_lacunas); o teste local compara as duas nos mesmos exemplos.
+ */
+export function ocorrenciasDeLacunas(texto: string): string[] {
+  return [...texto.matchAll(PENDENCIA)].map((m) => m[0]);
+}
+
+/** As lacunas de um modelo para a tela: as ocorrências sem repetir, na ordem da primeira aparição. */
+export function lacunasDoTexto(texto: string): string[] {
+  return [...new Set(ocorrenciasDeLacunas(texto))];
+}
+
+/**
+ * Lacuna que também aparece colada a "(" ou "[" (rótulo de link): trocar o texto mexeria no link. A criação do agente
+ * recusa (lacuna_ambigua) e a tela do modelo avisa (rodada 2 do Codex na SPEC do bloco 2, ponto 1).
+ */
+export function lacunasAmbiguas(texto: string): string[] {
+  return lacunasDoTexto(texto).filter((l) => texto.includes(`${l}(`) || texto.includes(`${l}[`));
+}
 /**
  * A instrução de saída é a LINHA DE CAMPO, no começo da linha: "- replyText: ..." (como nos dois prompts do catálogo
  * em 07/10) ou "replyText:" / "\"replyText\":". Uma menção solta ("nunca escreva replyText") não conta: senão
@@ -97,7 +118,7 @@ export function verificarPrompt(entrada: EntradaDaVerificacao): ResultadoDaVerif
     });
   }
 
-  const pendencias = [...new Set([...rascunho.matchAll(PENDENCIA)].map((m) => m[0]))];
+  const pendencias = lacunasDoTexto(rascunho);
   if (pendencias.length > 0) {
     const mais = pendencias.length > 3 ? ` e mais ${pendencias.length - 3}` : '';
     avisos.push({

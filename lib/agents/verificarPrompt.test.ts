@@ -3,7 +3,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { getPromptCatalogMap } from '@/lib/ai/prompts/catalog';
-import { VARIAVEIS_DO_PROMPT, avisosNaoConfirmados, verificarPrompt } from './verificarPrompt';
+import {
+  VARIAVEIS_DO_PROMPT,
+  avisosNaoConfirmados,
+  lacunasAmbiguas,
+  lacunasDoTexto,
+  ocorrenciasDeLacunas,
+  verificarPrompt,
+} from './verificarPrompt';
 
 const catalogo = getPromptCatalogMap() as Record<string, { defaultTemplate: string }>;
 const AURORA = catalogo.task_conversations_whatsapp_cenno_aurora.defaultTemplate;
@@ -152,5 +159,29 @@ describe('verificarPrompt', () => {
 
   it('a Aurora antes de ser ligada a um número com agenda: só o aviso da agenda', () => {
     expect(codigos(verificarPrompt({ rascunho: AURORA, publicado: AURORA, numerosLigadosComAgenda: 0 }).avisos)).toEqual(['agenda_sem_numero']);
+  });
+});
+
+describe('lacunas do modelo (bloco 2): a mesma PENDENCIA da verificação', () => {
+  it('acha as lacunas na ordem da primeira aparição, sem repetir; as ocorrências mantêm a repetição', () => {
+    const texto = 'Oi, [Nome da empresa]. Atendemos [Horário] e [Nome da empresa].';
+    expect(lacunasDoTexto(texto)).toEqual(['[Nome da empresa]', '[Horário]']);
+    expect(ocorrenciasDeLacunas(texto)).toEqual(['[Nome da empresa]', '[Horário]', '[Nome da empresa]']);
+  });
+
+  it('não conta link de markdown, minúscula, colchete vazio nem uma letra só', () => {
+    expect(lacunasDoTexto('[Guia](https://x) [Guia][ref] [minuscula] [] [X]')).toEqual([]);
+  });
+
+  it('caso positivo do detector: o mesmo texto que a verificação marca como pendência', () => {
+    const texto = 'Ligue para [Telefone] e fale com [Ana].';
+    expect(lacunasDoTexto(texto)).toEqual(['[Telefone]', '[Ana]']);
+    expect(codigos(verificarPrompt({ rascunho: texto, publicado: null, numerosLigadosComAgenda: 0 }).avisos)).toContain('pendencia');
+  });
+
+  it('lacuna ambígua: o mesmo texto também aparece como rótulo de link, com parêntese ou colchete', () => {
+    expect(lacunasAmbiguas('[Nome] e o link [Nome](https://x)')).toEqual(['[Nome]']);
+    expect(lacunasAmbiguas('[Nome] e o link [Nome][ref]')).toEqual(['[Nome]']);
+    expect(lacunasAmbiguas('[Nome] e o link [Guia](https://x)')).toEqual([]);
   });
 });
