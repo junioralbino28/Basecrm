@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   salvarRascunho: vi.fn(),
   publicarComVerificacao: vi.fn(),
   restaurarVersao: vi.fn(),
+  criarAgente: vi.fn(),
 }));
 
 vi.mock('@/lib/platform/tenantAccess', () => ({ requireTenantAccess: mocks.requireTenantAccess }));
@@ -35,7 +36,9 @@ vi.mock('@/lib/agents/editorAgentes', () => ({
   restaurarVersao: mocks.restaurarVersao,
 }));
 
-import { GET as listar } from './route';
+vi.mock('@/lib/agents/modelosAgentes', () => ({ criarAgente: mocks.criarAgente }));
+
+import { GET as listar, POST as criar } from './route';
 import { GET as ler } from './[agentId]/route';
 import { PUT as salvar } from './[agentId]/draft/route';
 import { POST as publicar } from './[agentId]/publish/route';
@@ -186,5 +189,69 @@ describe('rotas da Central de Agentes', () => {
     expect((await versao(pedir('GET'), daVersao('abc'))).status).toBe(400);
     expect((await versao(pedir('GET'), daVersao('1.5'))).status).toBe(400);
     expect(mocks.lerVersao).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('POST: criar agente (bloco 2)', () => {
+  const MODELO = '33333333-3333-4333-8333-333333333333';
+  const corpoModelo = (respostas: Record<string, unknown>) => ({
+    nome: '  Atendente  ',
+    inicio: { tipo: 'modelo', modeloId: MODELO, revisaoDoModelo: 2, respostas },
+  });
+
+  it('origem de fora: 403 antes de tudo, e nada é criado', async () => {
+    mocks.isAllowedOrigin.mockReturnValue(false);
+    const r = await criar(pedir('POST', { nome: 'A', inicio: { tipo: 'branco' } }), doCliente());
+    expect(r.status).toBe(403);
+    expect(mocks.requireTenantAccess).not.toHaveBeenCalled();
+    expect(mocks.criarAgente).not.toHaveBeenCalled();
+  });
+
+  it('cliente (não agência): 403 e nada é criado', async () => {
+    mocks.requireTenantAccess.mockResolvedValue({ error: Response.json({ error: 'Forbidden' }, { status: 403 }) });
+    expect((await criar(pedir('POST', { nome: 'A', inicio: { tipo: 'branco' } }), doCliente())).status).toBe(403);
+    expect(mocks.criarAgente).not.toHaveBeenCalled();
+  });
+
+  it('corpo estrito: texto, origem, campo a mais, lacuna fora da forma e resposta com chave ou colchete são 400', async () => {
+    const casos: Array<[string, unknown]> = [
+      ['texto no modelo', { nome: 'A', inicio: { tipo: 'modelo', modeloId: MODELO, revisaoDoModelo: 2, respostas: {}, prompt: 'x' } }],
+      ['origem enviada', { nome: 'A', inicio: { tipo: 'branco' }, origin: { kind: 'template' } }],
+      ['texto no branco', { nome: 'A', inicio: { tipo: 'branco', prompt: 'x' } }],
+      ['tipo desconhecido', { nome: 'A', inicio: { tipo: 'outro' } }],
+      ['nome vazio', { nome: '   ', inicio: { tipo: 'branco' } }],
+      ['lacuna minuscula', corpoModelo({ '[nome]': 'a' })],
+      ['lacuna sem colchete', corpoModelo({ Nome: 'a' })],
+      ['duas lacunas numa chave', corpoModelo({ '[Nome] [Outra]': 'a' })],
+      ['resposta com chave', corpoModelo({ '[Nome]': '{' })],
+      ['resposta com colchete', corpoModelo({ '[Nome]': 'a]' })],
+      ['resposta longa', corpoModelo({ '[Nome]': 'x'.repeat(501) })],
+      ['respostas demais', corpoModelo(Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`[Campo ${i}]`, 'a'])))],
+      ['copia sem versao', { nome: 'A', inicio: { tipo: 'copia', clienteDeOrigemId: TENANT, agenteId: AGENTE } }],
+    ];
+    for (const [nome, corpo] of casos) expect((await criar(pedir('POST', corpo), doCliente())).status, nome).toBe(400);
+    expect(mocks.criarAgente).not.toHaveBeenCalled();
+  });
+
+  it('corpo acima de 256 KB: 413', async () => {
+    const r = await criar(pedir('POST', { nome: 'A', inicio: { tipo: 'branco' }, x: 'y'.repeat(300 * 1024) }), doCliente());
+    expect(r.status).toBe(413);
+    expect(mocks.criarAgente).not.toHaveBeenCalled();
+  });
+
+  it('caminho feliz: 201 com o id, nome aparado e as respostas como vieram; o 409 da camada passa como está', async () => {
+    mocks.criarAgente.mockResolvedValueOnce({ ok: true, dados: { agenteId: AGENTE } });
+    const ok = await criar(pedir('POST', corpoModelo({ '[Nome da empresa]': 'Loja Sol' })), doCliente());
+    expect(ok.status).toBe(201);
+    expect(await ok.json()).toEqual({ agenteId: AGENTE });
+    expect(mocks.criarAgente).toHaveBeenCalledWith(CLIENTES, {
+      tenantId: TENANT,
+      nome: 'Atendente',
+      inicio: { tipo: 'modelo', modeloId: MODELO, revisaoDoModelo: 2, respostas: { '[Nome da empresa]': 'Loja Sol' } },
+    });
+    mocks.criarAgente.mockResolvedValueOnce({ ok: false, status: 409, codigo: 'MODELO_MUDOU', erro: 'O modelo mudou.' });
+    const conflito = await criar(pedir('POST', corpoModelo({})), doCliente());
+    expect(conflito.status).toBe(409);
+    expect(await conflito.json()).toEqual({ error: 'O modelo mudou.', code: 'MODELO_MUDOU' });
   });
 });

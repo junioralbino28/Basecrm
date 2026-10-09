@@ -6,6 +6,7 @@ import { requireTenantAccess } from '@/lib/platform/tenantAccess';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import type { Clientes, Falha, Resultado } from './editorAgentes';
+import { ocorrenciasDeLacunas } from './verificarPrompt';
 
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -39,6 +40,58 @@ export const RestaurarSchema = z.object({
   revisao: z.number().int().min(0),
   nota: z.string().max(200).optional(),
 }).strict();
+
+/** Bloco 2: corpo das rotas de criar agente e dos modelos (G5/G19: estrito; origem e autor nunca vêm daqui). */
+export const LIMITE_DO_MODELO_BYTES = 256 * 1024;
+const NomeCurto = z.string().trim().min(1).max(80);
+const Descricao = z.string().trim().max(280).optional();
+/** Uma lacuna é um texto que o detector da verificação reconhece INTEIRO como uma ocorrência só. */
+const Lacuna = z.string().refine((k) => {
+  const ocorrencias = ocorrenciasDeLacunas(k);
+  return ocorrencias.length === 1 && ocorrencias[0] === k;
+}, 'Lacuna inválida.');
+const PROIBIDOS_NA_RESPOSTA = ['{', '}', '[', ']'];
+const Resposta = z.string().max(500).refine((v) => !PROIBIDOS_NA_RESPOSTA.some((c) => v.includes(c)), 'Sem chaves nem colchetes.');
+
+export const CriarAgenteSchema = z.object({
+  nome: NomeCurto,
+  inicio: z.discriminatedUnion('tipo', [
+    z.object({ tipo: z.literal('branco') }).strict(),
+    z.object({
+      tipo: z.literal('modelo'),
+      modeloId: Uuid,
+      revisaoDoModelo: z.number().int().min(1),
+      respostas: z.record(Lacuna, Resposta).refine((r) => Object.keys(r).length <= 50, 'No máximo 50 respostas.'),
+    }).strict(),
+    z.object({
+      tipo: z.literal('copia'),
+      clienteDeOrigemId: Uuid,
+      agenteId: Uuid,
+      versaoEsperada: z.number().int().min(1),
+    }).strict(),
+  ]),
+}).strict();
+
+export const SalvarModeloSchema = z.object({
+  nome: NomeCurto,
+  descricao: Descricao,
+  prompt: z.string().min(1).max(50_000),
+  revisaoEsperada: z.number().int().min(1),
+}).strict();
+
+export const CriarModeloSchema = z.union([
+  z.object({ nome: NomeCurto, descricao: Descricao, prompt: z.string().min(1).max(50_000) }).strict(),
+  z.object({
+    nome: NomeCurto,
+    descricao: Descricao,
+    deAgente: z.object({ tenantId: Uuid, agenteId: Uuid, versaoEsperada: z.number().int().min(1) }).strict(),
+  }).strict(),
+]);
+
+export const ArquivarModeloSchema = z.object({ arquivar: z.boolean(), revisaoEsperada: z.number().int().min(1) }).strict();
+
+/** Consulta da lista de modelos: só `arquivados=1`; outro parâmetro é 400. */
+export const ConsultaDosModelos = z.object({ arquivados: z.enum(['0', '1']).optional() }).strict();
 
 type Recusa = { ok: false; resposta: Response };
 const recusa = (body: unknown, status: number): Recusa => ({ ok: false, resposta: json(body, status) });
