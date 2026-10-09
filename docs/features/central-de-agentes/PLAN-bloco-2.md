@@ -27,7 +27,7 @@
 | Rodada 2, ponto 2 (409 antes de 400) | Ordem fixa, na rota e no banco: (1) modelo existe, (2) não arquivado, (3) revisão = esperada → só então as chaves. A rota lê o modelo pela RLS para dar 400 com mensagem clara, mas confere a revisão **antes** das chaves; o banco repete tudo sob `for share`. |
 | Rodada 2, ponto 3 | As validações estão descritas por função na Task 2. |
 | Versão da migration | `20261009120000_central_agentes_modelos.sql` (a última da `main` é `20261007120000`). Se a implementação passar de 09/10, manter o número: ele só precisa ser maior que o último aplicado. |
-| Detector compartilhado | `verificarPrompt.ts` passa a exportar `lacunasDoTexto(texto)` e `lacunasAmbiguas(texto)`, usando a `PENDENCIA` que já existe (sem cópia da expressão). A forma SQL é casada com ela nos mesmos exemplos pelo teste local. |
+| Detector compartilhado | `verificarPrompt.ts` passa a exportar `ocorrenciasDeLacunas(texto)` (com repetição, na ordem), `lacunasDoTexto(texto)` (distintas, para a tela) e `lacunasAmbiguas(texto)`, usando a `PENDENCIA` que já existe (sem cópia da expressão). A forma SQL (`central_agentes_lacunas`, ocorrências com repetição) é casada com `ocorrenciasDeLacunas` nos mesmos exemplos pelo teste local. |
 | "Padrão em branco" | O servidor lê `task_conversations_whatsapp_auto_reply` de `getPromptCatalogMap()` e chama `create_ai_agent_blank`. |
 | Erros | Nome estável na mensagem, como na fatia 2; `ERROS_DO_BANCO` de `editorAgentes.ts` ganha os nomes novos. Os 22023 de resposta e lacuna viram 422 com o código; `modelo_mudou`/`versao_publicada_mudou` 409; os `_inexistente` 404. |
 
@@ -39,7 +39,7 @@ Ligar número a agente pela tela (bloco 8), assistente (bloco 3), conhecimento (
 
 | Arquivo | Ação | Responsabilidade |
 |---|---|---|
-| `lib/agents/verificarPrompt.ts` | modificar (Task 1) | Exportar `lacunasDoTexto` e `lacunasAmbiguas` |
+| `lib/agents/verificarPrompt.ts` | modificar (Task 1) | Exportar `ocorrenciasDeLacunas`, `lacunasDoTexto` e `lacunasAmbiguas` |
 | `lib/agents/verificarPrompt.test.ts` | modificar (Task 1) | Casos das lacunas e da ambiguidade |
 | `supabase/migrations/20261009120000_central_agentes_modelos.sql` | criar (Task 2) | Tabela, RLS, grants, 2 auxiliares e 6 funções |
 | `docs/features/central-de-agentes/volta-bloco-2.sql` | criar (Task 2) | Volta |
@@ -78,11 +78,13 @@ Ligar número a agente pela tela (bloco 8), assistente (bloco 3), conhecimento (
 - [ ] **Step 1: Teste que falha** (acrescentar a `verificarPrompt.test.ts`):
 
 ```ts
-import { lacunasAmbiguas, lacunasDoTexto } from './verificarPrompt';
+import { lacunasAmbiguas, lacunasDoTexto, ocorrenciasDeLacunas } from './verificarPrompt';
 
 describe('lacunas do modelo (bloco 2): a mesma PENDENCIA da verificação', () => {
-  it('acha as lacunas na ordem da primeira aparição, sem repetir', () => {
-    expect(lacunasDoTexto('Oi, [Nome da empresa]. Atendemos [Horário] e [Nome da empresa].')).toEqual(['[Nome da empresa]', '[Horário]']);
+  it('acha as lacunas na ordem da primeira aparição, sem repetir; as ocorrências mantêm a repetição', () => {
+    const texto = 'Oi, [Nome da empresa]. Atendemos [Horário] e [Nome da empresa].';
+    expect(lacunasDoTexto(texto)).toEqual(['[Nome da empresa]', '[Horário]']);
+    expect(ocorrenciasDeLacunas(texto)).toEqual(['[Nome da empresa]', '[Horário]', '[Nome da empresa]']);
   });
   it('não conta link de markdown, minúscula nem colchete vazio', () => {
     expect(lacunasDoTexto('[Guia](https://x) [Guia][ref] [minuscula] [] [X]')).toEqual([]);
@@ -105,9 +107,14 @@ describe('lacunas do modelo (bloco 2): a mesma PENDENCIA da verificação', () =
 - [ ] **Step 3: Implementação** (em `verificarPrompt.ts`, logo depois de `PENDENCIA`):
 
 ```ts
-/** Bloco 2: as lacunas de um modelo são as pendências do texto, na ordem da primeira aparição, sem repetir. */
+/** Bloco 2: cada ocorrência de lacuna, COM repetição, na ordem do texto (a mesma lista que o banco confere). */
+export function ocorrenciasDeLacunas(texto: string): string[] {
+  return [...texto.matchAll(PENDENCIA)].map((m) => m[0]);
+}
+
+/** As lacunas de um modelo para a tela: as ocorrências sem repetir, na ordem da primeira aparição. */
 export function lacunasDoTexto(texto: string): string[] {
-  return [...new Set([...texto.matchAll(PENDENCIA)].map((m) => m[0]))];
+  return [...new Set(ocorrenciasDeLacunas(texto))];
 }
 
 /**
@@ -132,11 +139,11 @@ Validações por função (rodada 2, ponto 3). Todas: gate `is_agency_admin_role
 
 | Função | Confere, nesta ordem |
 |---|---|
-| `create_ai_agent_blank(p_organization_id, p_name, p_prompt)` | nome 1–80 (aparado) · texto 1–50.000 · cliente existe e `deleted_at is null` · variável desconhecida |
-| `create_ai_agent_from_template(p_organization_id, p_name, p_template_id, p_expected_template_revision, p_answers)` | nome · cliente · modelo existe (`for share`) · não arquivado · **revisão** · respostas: objeto, até 50 chaves · cada chave é lacuna do modelo · cada valor é string, aparado, vazio = pula, até 500, sem `{ } [ ]` · lacuna respondida não ambígua · troca · resultado: mesmos `{{...}}` na ordem · lacunas restantes = as do modelo menos as respondidas · texto até 50.000 · variável desconhecida |
-| `create_ai_agent_from_copy(p_organization_id, p_name, p_source_organization_id, p_source_agent_id, p_expected_source_version)` | nome · cliente de destino · agente de origem pela organização E pelo id (`for share`) · tem versão publicada · versão = esperada |
+| `create_ai_agent_blank(p_organization_id, p_name, p_prompt)` | nome 1–80 (aparado) · texto 1–50.000 · cliente existe e `deleted_at is null`, **travado `for share`** · variável desconhecida |
+| `create_ai_agent_from_template(p_organization_id, p_name, p_template_id, p_expected_template_revision, p_answers)` | nome · cliente (`for share`) · modelo existe (`for share`) · não arquivado · **revisão** · respostas: objeto, até 50 chaves · cada chave é lacuna do modelo · cada valor é string, aparado, vazio = pula, até 500, sem `{ } [ ]` · lacuna respondida não ambígua · troca · resultado: mesmos `{{...}}` na ordem · **ocorrências** de lacuna = as do modelo menos todas as ocorrências das respondidas, com repetição e na ordem · texto até 50.000 · variável desconhecida |
+| `create_ai_agent_from_copy(p_organization_id, p_name, p_source_organization_id, p_source_agent_id, p_expected_source_version)` | nome · cliente de destino (`for share`) · agente de origem pela organização E pelo id (`for share`) · tem versão publicada · versão = esperada · **variável desconhecida no texto copiado** |
 | `save_ai_agent_template(p_template_id, p_expected_revision, p_name, p_description, p_prompt)` | nome · descrição até 280 (aparada; vazia = nula) · texto · variável desconhecida · id nulo = cria (revisão 1, `origin = {"kind":"blank"}`); senão existe (`for update`) · não arquivado · revisão = esperada · sobe a revisão |
-| `create_ai_agent_template_from_agent(p_organization_id, p_agent_id, p_expected_version, p_name, p_description)` | nome · descrição · agente pela organização e pelo id (`for share`) · tem versão publicada · versão = esperada |
+| `create_ai_agent_template_from_agent(p_organization_id, p_agent_id, p_expected_version, p_name, p_description)` | nome · descrição · agente pela organização e pelo id (`for share`) · tem versão publicada · versão = esperada · **variável desconhecida no texto copiado** |
 | `set_ai_agent_template_archived(p_template_id, p_archived, p_expected_revision)` | `p_archived` não nulo · existe (`for update`) · revisão = esperada · muda alguma coisa (senão `sem_mudancas`) · sobe a revisão |
 
 - [ ] **Step 1: Teste que falha** — `test/centralAgentesModelosMigration.test.ts`, no molde de `test/centralAgentesEditorMigration.test.ts` (cabeçalho e corpo `$$...$$` por função):
@@ -206,6 +213,17 @@ describe('migration dos modelos da Central de Agentes (bloco 2)', () => {
     expect(b.indexOf("'modelo_mudou'")).toBeLessThan(b.indexOf("'lacuna_inexistente'"));
     expect(b.indexOf("'lacuna_ambigua'")).toBeLessThan(b.indexOf('replace(v_texto'));
     expect(b).toMatch(/for share/);
+  });
+  it('os três começos travam o cliente de destino; as duas cópias revalidam as variáveis (rodada 1 do PLAN)', () => {
+    for (const n of ['create_ai_agent_blank', 'create_ai_agent_from_template', 'create_ai_agent_from_copy'] as const) {
+      expect(corpo(n), n).toMatch(/from public\.organizations o where o\.id = p_organization_id and o\.deleted_at is null for share;/);
+    }
+    for (const n of ['create_ai_agent_from_copy', 'create_ai_agent_template_from_agent'] as const) {
+      expect(corpo(n), n).toContain('public.central_agentes_variavel_desconhecida(v_prompt)');
+    }
+  });
+  it('as lacunas do banco são ocorrências com repetição: nada de distinct nem group by', () => {
+    expect(corpo('central_agentes_lacunas')).not.toMatch(/group by|distinct/i);
   });
   it('grants: as seis só para authenticated; as auxiliares sem execute', () => {
     for (const [n, assinatura] of Object.entries(FUNCOES)) {
@@ -303,9 +321,11 @@ revoke all on table public.ai_agent_templates from anon, authenticated;
 grant select on table public.ai_agent_templates to authenticated;
 grant all on table public.ai_agent_templates to service_role;
 
--- As lacunas: a mesma forma da PENDENCIA de lib/agents/verificarPrompt.ts ("[" + maiúscula + até 80 caracteres sem
--- colchete nem quebra de linha + "]", não seguido de "(" nem "["), distintas, na ordem da primeira aparição. O
--- teste local confere SQL e TypeScript nos mesmos exemplos. Sem execute para ninguém.
+-- As OCORRÊNCIAS de lacuna, COM repetição, na ordem do texto: a mesma forma da PENDENCIA de
+-- lib/agents/verificarPrompt.ts ("[" + maiúscula + até 80 caracteres sem colchete nem quebra de linha + "]", não
+-- seguido de "(" nem "["). Com repetição de propósito (rodada 1 do PLAN, achado 1): a conferência do resultado
+-- compara ocorrências, e uma lista distinta deixaria passar "[[Nome]] e [Cliente]" respondendo "Cliente". O teste
+-- local confere com ocorrenciasDeLacunas (TypeScript) nos mesmos exemplos. Sem execute para ninguém.
 create or replace function public.central_agentes_lacunas(p_texto text)
 returns text[]
 language sql
@@ -313,16 +333,12 @@ immutable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(array_agg(l.lacuna order by l.primeira), '{}'::text[])
-  from (
-    select '[' || r.m[1] || ']' as lacuna, min(r.ordem) as primeira
-    from regexp_matches(
-      coalesce(p_texto, ''),
-      '[[]([A-ZÀ-Ý][^][' || chr(10) || ']{1,80})[]](?![([])',
-      'g'
-    ) with ordinality as r(m, ordem)
-    group by 1
-  ) l
+  select coalesce(array_agg('[' || r.m[1] || ']' order by r.ordem), '{}'::text[])
+  from regexp_matches(
+    coalesce(p_texto, ''),
+    '[[]([A-ZÀ-Ý][^][' || chr(10) || ']{1,80})[]](?![([])',
+    'g'
+  ) with ordinality as r(m, ordem)
 $$;
 
 revoke all on function public.central_agentes_lacunas(text) from public, anon, authenticated, service_role;
@@ -369,7 +385,9 @@ begin
   if p_prompt is null or char_length(p_prompt) < 1 or char_length(p_prompt) > 50000 then
     raise exception 'prompt_invalido' using errcode = '22023';
   end if;
-  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null;
+  -- FOR SHARE: uma exclusao logica concorrente (update de deleted_at) espera esta transacao, e uma que ja
+  -- aconteceu reavalia o filtro (rodada 1 do PLAN, achado 2).
+  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null for share;
   if not found then
     raise exception 'cliente_inexistente' using errcode = 'P0002';
   end if;
@@ -428,7 +446,9 @@ begin
   if char_length(v_nome) < 1 or char_length(v_nome) > 80 then
     raise exception 'nome_invalido' using errcode = '22023';
   end if;
-  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null;
+  -- FOR SHARE: uma exclusao logica concorrente (update de deleted_at) espera esta transacao, e uma que ja
+  -- aconteceu reavalia o filtro (rodada 1 do PLAN, achado 2).
+  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null for share;
   if not found then
     raise exception 'cliente_inexistente' using errcode = 'P0002';
   end if;
@@ -476,7 +496,8 @@ begin
     v_respondidas := v_respondidas || v_chave;
   end loop;
 
-  -- O resultado, não só o valor (achado 4): os mesmos {{...}} do modelo, na ordem, e só as lacunas não respondidas.
+  -- O resultado, não só o valor (achado 4 da SPEC): os mesmos {{...}} do modelo, na ordem, e exatamente as
+  -- OCORRÊNCIAS de lacuna do modelo menos todas as ocorrências das respondidas, com repetição e na ordem.
   if public.central_agentes_marcadores(v_texto) is distinct from public.central_agentes_marcadores(v_modelo_prompt) then
     raise exception 'lacuna_invalida' using errcode = '22023';
   end if;
@@ -536,6 +557,7 @@ declare
   v_versao integer;
   v_prompt text;
   v_sha text;
+  v_desconhecida text;
   v_id uuid;
 begin
   if not public.is_agency_admin_role() then
@@ -545,7 +567,9 @@ begin
   if char_length(v_nome) < 1 or char_length(v_nome) > 80 then
     raise exception 'nome_invalido' using errcode = '22023';
   end if;
-  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null;
+  -- FOR SHARE: uma exclusao logica concorrente (update de deleted_at) espera esta transacao, e uma que ja
+  -- aconteceu reavalia o filtro (rodada 1 do PLAN, achado 2).
+  perform 1 from public.organizations o where o.id = p_organization_id and o.deleted_at is null for share;
   if not found then
     raise exception 'cliente_inexistente' using errcode = 'P0002';
   end if;
@@ -568,6 +592,12 @@ begin
   where v.id = v_publicada;
   if v_versao is distinct from p_expected_source_version then
     raise exception 'versao_publicada_mudou' using errcode = 'P0001';
+  end if;
+  -- Uma versão antiga pode ter variável que deixou de ser aceita (rodada 1 do PLAN, achado 3), como o restaurar já
+  -- confere (20261007120000_central_agentes_editor.sql).
+  v_desconhecida := public.central_agentes_variavel_desconhecida(v_prompt);
+  if v_desconhecida is not null then
+    raise exception 'variavel_desconhecida' using errcode = 'P0001', detail = v_desconhecida;
   end if;
 
   v_sha := encode(extensions.digest(v_prompt, 'sha256'), 'hex');
@@ -692,6 +722,7 @@ declare
   v_publicada uuid;
   v_versao integer;
   v_prompt text;
+  v_desconhecida text;
   v_id uuid;
 begin
   if not public.is_agency_admin_role() then
@@ -724,6 +755,10 @@ begin
   where v.id = v_publicada;
   if v_versao is distinct from p_expected_version then
     raise exception 'versao_publicada_mudou' using errcode = 'P0001';
+  end if;
+  v_desconhecida := public.central_agentes_variavel_desconhecida(v_prompt);
+  if v_desconhecida is not null then
+    raise exception 'variavel_desconhecida' using errcode = 'P0001', detail = v_desconhecida;
   end if;
 
   insert into public.ai_agent_templates (name, description, prompt, origin, revision, created_by, updated_by)
@@ -840,15 +875,16 @@ Casos, cada um com o que prova:
 
 1. **Matriz de acesso** (`clinic_admin`, `agency_staff`, anônimo e chave de serviço) → as seis funções recusam: os três primeiros com `sem_permissao`/42501 ou "permission denied", a chave de serviço com "permission denied" (sem `execute`). Prova o gate e os grants juntos; se a chave de serviço receber `sem_permissao`, ela herdou `execute` e o `revoke` falhou: parar.
 2. **Branco:** cria; `draft.prompt` = texto enviado; `draft_revision` 1; `published_version_id` nulo; `origin` = `{"kind":"blank","promptSha256": sha256(texto)}`; `created_by` = o usuário. Cliente apagado (`deleted_at` preenchido no fixture) → `cliente_inexistente`. `{{desconhecida}}` → `variavel_desconhecida`.
+   - **Exclusão concorrente** (rodada 1 do PLAN, achado 2): numa conexão `pg`, `begin; update organizations set deleted_at = now() where id = <cliente>` sem commit; disparar a criação pelo JWT da agência (ela fica esperando a trava); dar `commit` na primeira; a criação termina com `cliente_inexistente` e nenhum agente novo existe. Repetir nos três começos.
 3. **Modelo, caminho feliz:** modelo `"Oi [Nome da empresa], abrimos [Horário]. Fale com [Nome da empresa]. {{contactName}}"`; respostas `{"[Nome da empresa]": "Loja Sol", "[Horário]": ""}` → texto `"Oi Loja Sol, abrimos [Horário]. Fale com Loja Sol. {{contactName}}"`; `origin.answered` = `["[Nome da empresa]"]`; `origin.promptSha256` = sha do `draft.prompt`; `origin.templateSha256` = sha do texto do modelo. Prova a derivação e a troca de todas as ocorrências.
 4. **Chamada direta** (achado 1): o cabeçalho não tem texto (contrato estático); aqui, a mesma chamada com respostas diferentes dá textos diferentes, e o sha gravado bate sempre com o texto gravado.
 5. **Concorrência** (achados 1 e 3): ler a revisão; salvar o modelo por outra sessão; criar com a revisão velha → `modelo_mudou`. Duas `save_ai_agent_template` com a mesma revisão em duas conexões `pg` abertas (a segunda espera o `for update` da primeira) → uma passa, a outra `modelo_mudou`. Arquivar com revisão velha → `modelo_mudou`; arquivar duas vezes → `sem_mudancas`; restaurar sobe a revisão.
 6. **Ordem 409 antes de 400** (rodada 2, ponto 2): renomear a lacuna no modelo (revisão sobe) e criar com a revisão velha e a chave antiga → `modelo_mudou`, não `lacuna_inexistente`.
-7. **Bordas** (achado 4): modelo `"{[Campo]contactName}}"` com resposta `"{"` → `respostas_invalidas` (o valor já cai na regra); para provar a conferência do RESULTADO, um modelo `"[[Nome]] e [Cliente]"` com resposta `{"[Nome]": "Cliente"}` → `lacuna_invalida` (o texto viraria `"[Cliente] e [Cliente]"`, com uma lacuna nova na posição da antiga); valor `"$&"` gravado literalmente; lacuna repetida trocada nas duas posições.
+7. **Bordas** (achado 4): modelo `"{[Campo]contactName}}"` com resposta `"{"` → `respostas_invalidas` (o valor já cai na regra); para provar a conferência do RESULTADO, um modelo `"[[Nome]] e [Cliente]"` com resposta `{"[Nome]": "Cliente"}` → `lacuna_invalida` (o texto viraria `"[Cliente] e [Cliente]"`: duas ocorrências onde o esperado é uma; com lista distinta as duas dariam `["[Cliente]"]` e o caso passaria, rodada 1 do PLAN, achado 1); valor `"$&"` gravado literalmente; lacuna repetida trocada nas duas posições.
 8. **Ambiguidade** (rodada 2, ponto 1): modelo `"[Nome] e o link [Nome](https://x)"`, respondendo `[Nome]` → `lacuna_ambigua`; sem responder `[Nome]` → cria, com o link intacto.
-9. **Cópia:** de outro cliente → texto igual ao da versão publicada de origem, `origin.kind = 'copy'` com organização, agente, versão e sha; organização e agente que não combinam → `agente_inexistente`; agente sem versão publicada → `sem_versao_publicada`; versão esperada velha → `versao_publicada_mudou`.
-10. **Modelo a partir de agente:** texto = versão publicada; `origin.kind = 'agent'`; mesmas recusas da cópia.
-11. **Paridade SQL × TypeScript:** para uma lista de exemplos (os da Task 1 mais `"[Á vista]"`, `"[Nome]\n]"`, `"[Nome][x]"`, `"[A]"`, uma lacuna de 81 caracteres e uma de 82), `select public.central_agentes_lacunas($1)` pela conexão `pg` de superusuário é igual a `lacunasDoTexto(texto)`. Caso positivo: pelo menos três exemplos com lacuna, para a paridade não passar com as duas listas vazias.
+9. **Cópia:** de outro cliente → texto igual ao da versão publicada de origem, `origin.kind = 'copy'` com organização, agente, versão e sha; organização e agente que não combinam → `agente_inexistente`; agente sem versão publicada → `sem_versao_publicada`; versão esperada velha → `versao_publicada_mudou`; **versão publicada com variável que não é mais aceita** → `variavel_desconhecida` (rodada 1 do PLAN, achado 3; o fixture cria essa versão por `create_ai_agent_from_legacy_prompt` com a chave de serviço, que não confere variável, com `{{variavelAntiga}}` no texto).
+10. **Modelo a partir de agente:** texto = versão publicada; `origin.kind = 'agent'`; mesmas recusas da cópia, inclusive a variável não aceita.
+11. **Paridade SQL × TypeScript:** para uma lista de exemplos (os da Task 1, um texto com a mesma lacuna três vezes, `"[Á vista]"`, um `"[Nome"` seguido de quebra de linha e `"]"`, `"[Nome][x]"`, `"[A]"`, uma lacuna de 81 caracteres e uma de 82), `select public.central_agentes_lacunas($1)` pela conexão `pg` de superusuário é igual a `ocorrenciasDeLacunas(texto)`, **com repetição e ordem**. Caso positivo: pelo menos três exemplos com lacuna e um com repetição, para a paridade não passar com as duas listas vazias.
 12. **Nenhuma escrita fora do esperado:** contagem de `ai_agents`, `ai_agent_versions` e `ai_agent_templates` antes e depois de cada recusa: igual.
 
 - [ ] **Step 1:** escrever os 12 casos. **Step 2:** `npm run test:local -- test/centralAgentesModelos.local.test.ts` → PASS (se `skipped`, o Supabase local não está no ar). **Step 3:** provar a volta no local: aplicar a volta, conferir que as oito funções e a tabela sumiram e que a versão saiu do histórico, reaplicar a migration (Task 2, Step 6) e rodar o teste de novo. **Step 4: Commit** `test(central-agentes): modelos e criacao de agentes no banco local (bloco 2)`.
@@ -924,7 +960,9 @@ export async function criarAgente(c: Clientes, p: { tenantId: string; nome: stri
 
 (`CHAVE_DO_PADRAO_EM_BRANCO = 'task_conversations_whatsapp_auto_reply'`; conferir no `catalog.ts` o nome do campo do texto padrão e usar o real.) `traduzirErroDoBanco` e `ERROS_DO_BANCO` passam a ser exportados de `editorAgentes.ts`, se ainda não forem.
 
-- [ ] **Step 4: Testes** (`modelosAgentes.test.ts`, com `c.usuario` falso): ordem do criar com modelo (revisão velha → 409 sem chamar a RPC; chave sobrando → 400 sem chamar a RPC; tudo certo → a RPC recebe exatamente os cinco parâmetros, sem texto); branco manda o texto do catálogo; cópia manda organização e agente de origem; tradução de cada erro novo; **teste de fonte**: `modelosAgentes.ts` não contém `.insert(`, `.update(`, `.upsert(` nem `.delete(` (com caso positivo: o mesmo detector acha `.rpc(` no arquivo).
+- [ ] **Step 4: Testes** (`modelosAgentes.test.ts`, com `c.usuario` falso): ordem do criar com modelo (revisão velha → 409 sem chamar a RPC; chave sobrando → 400 sem chamar a RPC; tudo certo → a RPC recebe exatamente os cinco parâmetros, sem texto); branco manda o texto do catálogo; cópia manda organização e agente de origem; tradução de cada erro novo.
+  - **Prova de que toda escrita usa o JWT do usuário** (rodada 1 do PLAN, achado 4): em `criarAgente` (os três começos), `salvarModelo`, `criarModeloDeAgente` e `arquivarModelo`, o `c.admin` do teste é um `Proxy` que lança erro em qualquer acesso, e o teste exige a RPC certa (nome e parâmetros) no `c.usuario`. Prova contrária: um caso do próprio teste chama `c.admin.rpc` de propósito e espera o erro do `Proxy`.
+  - Teste de fonte, como defesa a mais: `modelosAgentes.ts` não contém `.insert(`, `.update(`, `.upsert(`, `.delete(` nem `admin.rpc(` (caso positivo: o mesmo detector acha `usuario.rpc(` no arquivo).
 - [ ] **Step 5:** casos de servidor acrescentados ao teste local (Task 3) chamando `criarAgente` com o cliente do usuário de verdade: os três começos e a ordem 409/400. **Step 6:** suíte completa; **Commit** `feat(central-agentes): camada de servidor dos modelos e da criacao (bloco 2)`.
 
 ### Task 5: Rotas
@@ -1013,7 +1051,15 @@ export async function abrirRotaDaAgencia(req: Request, opcoes: { escreve: boolea
 
 - [ ] **Step 1:** pedir o OK uma vez, com tudo o que vai acontecer: dump, restauração na cópia com migration e volta, migration em produção, push na `main`, alias devolvido. Registrar o OK citado no cartão do projeto e na liberação de `migracoes-aprovadas.json`.
 - [ ] **Step 2:** dump de produção pelo rito (`rota_b_senha.ps1 criar` → `dump_producao.ps1 -Data <data>` → `conferir_pos_dump.ps1` → `rota_b_senha.ps1 rotacionar`).
-- [ ] **Step 3:** `ciclo_g23.sh <pasta-do-dump> <migration> volta-bloco-2.sql 20261009120000 central_agentes_modelos <sha256> <antes> <depois>` → contagens iguais depois de migration + volta.
+- [ ] **Step 3:** cópia restaurada, com diretório e caminhos explícitos (rodada 1 do PLAN, achado 5; `LEIA-ME.md` do rito, item 13):
+  ```bash
+  cd "/c/Users/PC Gamer/brains/cenoura-brain/06-References/basecrm-rito-publicacao"
+  bash g23-restauracao/ciclo_g23.sh "/c/Users/PC Gamer/BaseCRM-dumps/<data>" \
+    "/c/Users/PC Gamer/WorkSync/projetos/Basecrm-worktrees/central-agentes/supabase/migrations/20261009120000_central_agentes_modelos.sql" \
+    "/c/Users/PC Gamer/WorkSync/projetos/Basecrm-worktrees/central-agentes/docs/features/central-de-agentes/volta-bloco-2.sql" \
+    20261009120000 central_agentes_modelos <sha256-do-arquivo> <contagem-antes.json> <contagem-depois.json>
+  ```
+  Expected: saída 0, contagens iguais depois de migration + volta, a `ensaio-g23` derrubada e a `crmia` de volta. Antes, conferir no `LEIA-ME.md` a ordem exata dos argumentos e o formato de caminho que o script espera.
 - [ ] **Step 4:** `aplicar_migration.py producao ... --confirmar-banco eqidsihasmwwamkaqfka`; conferir o histórico. **A migration entra antes do código** que a chama.
 - [ ] **Step 5:** `git fetch`; `origin/main` ancestral do HEAD; `git push origin HEAD:main`; `poll_deploys.py <sha> --sem-alias`; alias de teste devolvido à prévia; `prova_login.py` nos três domínios (e `basecrm.vercel.app`).
 - [ ] **Step 6:** prova no ar: `GET /api/platform/agency/agent-templates` sem login = 401; com o Junior, na tela, a lista de modelos abre vazia e o botão "Novo agente" aparece. Nada é criado em produção pelo agente: o primeiro modelo e o primeiro agente de verdade são do Junior.
@@ -1024,3 +1070,15 @@ export async function abrirRotaDaAgencia(req: Request, opcoes: { escreve: boolea
 - **Cobertura da SPEC:** começos (Tasks 2, 4, 5, 6), modelos (2, 4, 5, 6), salvar como modelo (2, 4, 6), origem como prova/registro (2, 3), concorrência (2, 3), bordas e ambiguidade (1, 2, 3), origem HTTP em toda escrita (5), ordem 409/400 (2, 3, 4, 5), telas e celular (6, 9), rito e regra 4 (9, 10). Sem lacuna encontrada.
 - **Placeholders:** dois pontos dependem de nome real no código e estão marcados para conferir na hora (assinatura de `verificarPrompt`, campo do texto padrão no catálogo, endpoint da lista de clientes); nenhum TBD.
 - **Tipos:** `revisaoDoModelo`/`p_expected_template_revision`, `versaoEsperada`/`p_expected_source_version`/`p_expected_version`, `revisaoEsperada`/`p_expected_revision` conferidos entre Tasks 2, 4 e 5.
+
+## Revisão do Codex, rodada 1 do PLAN (09/10, NO-GO) — como ficou
+
+Parecer literal no cérebro: `devolutiva-codex-3-bloco-2.md`. Os cinco achados foram aceitos.
+
+| Achado | Como ficou |
+|---|---|
+| 1. A conferência perde repetições (`group by` na lista de lacunas); `[[Nome]] e [Cliente]` respondendo "Cliente" passaria | `central_agentes_lacunas` devolve as **ocorrências**, com repetição e na ordem; a lista esperada tira todas as ocorrências das respondidas. O TypeScript ganha `ocorrenciasDeLacunas` (a paridade compara com ela) e `lacunasDoTexto` fica distinta, só para a tela. O contrato estático proíbe `group by` e `distinct` na auxiliar; o caso 7 explica por que a lista distinta falharia. |
+| 2. Corrida com a exclusão lógica do cliente | A organização de destino é lida com `for share` nos três começos; caso local com duas conexões, nos três. |
+| 3. As duas cópias não revalidam variáveis | `central_agentes_variavel_desconhecida(v_prompt)` nas duas, como no restaurar; casos locais com uma versão antiga que tem `{{variavelAntiga}}`. |
+| 4. O teste de fonte não pega `c.admin.rpc` | Nos testes de cada escrita, o `c.admin` é um `Proxy` que lança erro e a RPC é exigida no `c.usuario`; a inspeção de fonte fica como defesa a mais e também procura `admin.rpc(`. |
+| 5. `ciclo_g23.sh` sem caminho | Step 10.3 com o diretório do rito e caminhos absolutos. |
