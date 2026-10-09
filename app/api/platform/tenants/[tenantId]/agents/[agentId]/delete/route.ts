@@ -1,5 +1,12 @@
 import { excluirAgente } from '@/lib/agents/editorAgentes';
-import { ExcluirSchema, abrirRotaDoAgente, json, lerCorpo, responderFalha } from '@/lib/agents/rotaDoEditor';
+import {
+  LIMITE_DE_RENOMEAR_EXCLUIR_BYTES,
+  ExcluirSchema,
+  abrirRotaDoAgente,
+  json,
+  lerCorpoLimitado,
+  responderFalha,
+} from '@/lib/agents/rotaDoEditor';
 
 /**
  * Exclui o agente de vez (decisão do Junior, 09/10). O corpo traz o estado que a tela mostrou; se mudou, 409 e nada sai.
@@ -8,7 +15,7 @@ import { ExcluirSchema, abrirRotaDoAgente, json, lerCorpo, responderFalha } from
 export async function POST(req: Request, ctx: { params: Promise<{ tenantId: string; agentId: string }> }) {
   const aberta = await abrirRotaDoAgente(req, await ctx.params, { escreve: true });
   if (!aberta.ok) return aberta.resposta;
-  const corpo = await lerCorpo(req, ExcluirSchema);
+  const corpo = await lerCorpoLimitado(req, ExcluirSchema, LIMITE_DE_RENOMEAR_EXCLUIR_BYTES);
   if (!corpo.ok) return corpo.resposta;
   const r = await excluirAgente(aberta.clientes, {
     tenantId: aberta.tenantId,

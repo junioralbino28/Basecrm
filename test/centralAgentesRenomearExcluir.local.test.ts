@@ -97,7 +97,10 @@ describeLocal('Central de Agentes, renomear e excluir agente — Supabase local'
     for (;;) {
       await observador.query('select pg_stat_clear_snapshot()');
       const bloqueadas = await observador.query(
-        'select a.pid, a.wait_event_type from pg_stat_activity a where $2 = any(pg_blocking_pids(a.pid)) and a.query like $1',
+        // pg_blocking_pids lê as travas ao vivo; wait_event_type vem da foto de pg_stat_activity. Sem exigir os dois, a
+        // sessão aparece bloqueada com a foto ainda sem a espera: era a falha rara do 6a (achada no 10/10, com a
+        // mensagem que a asserção passou a guardar), uma corrida da observação, não da exclusão.
+        "select a.pid, a.wait_event_type from pg_stat_activity a where $2 = any(pg_blocking_pids(a.pid)) and a.wait_event_type = 'Lock' and a.query like $1",
         [`%${trecho}%`, pidDaDona],
       );
       if (bloqueadas.rows.length > 0) return bloqueadas.rows[0] as { pid: number; wait_event_type: string };
@@ -329,8 +332,7 @@ describeLocal('Central de Agentes, renomear e excluir agente — Supabase local'
       expect(espera.wait_event_type).toBe('Lock');
       await t1.query('commit');
       const r = await pedido;
-      // A falha rara de 09/10 (1 em 14 rodadas, logo depois de trocar a função no banco local) não deixou mensagem:
-      // o erro inteiro vai junto, se voltar.
+      // Se a recusa vier diferente, o erro inteiro vai junto na mensagem.
       expect(nomeDoErro(r.error), JSON.stringify(r.error)).toBe('agente_com_numero');
     } finally {
       await t1.query('rollback').catch(() => undefined);
@@ -386,6 +388,35 @@ describeLocal('Central de Agentes, renomear e excluir agente — Supabase local'
       expect(negado.error?.code).toBe('42501');
     }
     expect(await existe(agente)).toBe(1);
+  });
+
+  it('9. agente só em rascunho (sem versão publicada): sai com zero versões e um registro com a publicada nula', async () => {
+    const criado = await agencia.rpc('create_ai_agent_blank', { p_organization_id: orgA, p_name: 'So rascunho', p_prompt: `Texto ${randomUUID()}` });
+    expect(criado.error).toBeNull();
+    const agente = criado.data as string;
+    const e = await estado(agente);
+    expect(e.published_version_id).toBeNull();
+    const r = await excluir(agencia, orgA, agente, e);
+    expect(r.error).toBeNull();
+    expect(r.data).toBe(0);
+    expect(await existe(agente)).toBe(0);
+    const reg = await registros(agente);
+    expect(reg).toHaveLength(1);
+    expect(reg[0]).toMatchObject({ agent_name: 'So rascunho', published_version_id: null, versions_deleted: 0, deleted_by: idAgencia });
+  });
+
+  it('9b. lido sem versão publicada e publicado pela primeira vez antes de confirmar: agente_mudou (o nulo conta)', async () => {
+    const criado = await agencia.rpc('create_ai_agent_blank', { p_organization_id: orgA, p_name: 'Primeira publicacao', p_prompt: `Texto ${randomUUID()}` });
+    expect(criado.error).toBeNull();
+    const agente = criado.data as string;
+    const lido = await estado(agente);
+    expect(lido.published_version_id).toBeNull();
+    await publicar(orgA, agente, 0, lido.draft_revision);
+    expect((await estado(agente)).published_version_id).not.toBeNull();
+    const r = await excluir(agencia, orgA, agente, lido);
+    expect(nomeDoErro(r.error)).toBe('agente_mudou');
+    expect(await existe(agente)).toBe(1);
+    expect(await registros(agente)).toHaveLength(0);
   });
 
   it('8. catálogo: só as versões e o número apontam para ai_agents por FK (histórico e mensagens ficam)', async () => {

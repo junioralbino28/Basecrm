@@ -42,6 +42,8 @@ export const RestaurarSchema = z.object({
 }).strict();
 
 /** Renomear e excluir agente (SPEC-renomear-excluir.md). O banco confere o nome de 1 a 80 depois do btrim. */
+/** Teto dos dois corpos, lido em fluxo antes do JSON.parse (revisão do Codex no código, rodada 1, achado 2). */
+export const LIMITE_DE_RENOMEAR_EXCLUIR_BYTES = 4 * 1024;
 export const RenomearSchema = z.object({ nome: z.string().max(200) }).strict();
 
 /** O estado que a tela mostrou na confirmação; diferente do atual, o banco recusa com 409 e nada é apagado. */

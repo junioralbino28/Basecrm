@@ -107,6 +107,14 @@ describe('POST rename e POST delete do agente', () => {
     });
   });
 
+  it('corpo acima de 4 KB: 413, lido em fluxo antes do JSON, e nada é chamado (rodada 1 do código, achado 2)', async () => {
+    const grande = 'x'.repeat(5 * 1024);
+    expect((await renomear(pedir({ nome: grande }), doAgente())).status).toBe(413);
+    expect((await excluir(pedir({ ...ESPERADO, nomeEsperado: grande }), doAgente())).status).toBe(413);
+    expect(mocks.renomearAgente).not.toHaveBeenCalled();
+    expect(mocks.excluirAgente).not.toHaveBeenCalled();
+  });
+
   it('o 409 da camada passa com código e mensagem', async () => {
     mocks.excluirAgente.mockResolvedValueOnce({ ok: false, status: 409, codigo: 'AGENTE_MUDOU', erro: 'O agente mudou.' });
     const r = await excluir(pedir(ESPERADO), doAgente());
