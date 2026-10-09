@@ -76,3 +76,25 @@ export type ResultadoDoTeste = {
   /** Nulo só se o servidor não tiver segredo para assinar; aí a tela não oferece a explicação. */
   retrato: RetratoDoTeste | null;
 };
+
+/** Bloco 2: um modelo da agência na biblioteca (as lacunas são calculadas do texto, nunca guardadas à parte). */
+export type ModeloNaLista = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  revisao: number;
+  lacunas: string[];
+  ambiguas: string[];
+  arquivado: boolean;
+  atualizadoEm: string;
+  atualizadoPor: string | null;
+  agentesCriados: number;
+};
+
+export type ModeloCompleto = ModeloNaLista & { prompt: string };
+
+/** Bloco 2: de onde o agente novo começa. Em modelo e cópia, o texto é montado no banco, nunca enviado pela tela. */
+export type InicioDoAgente =
+  | { tipo: 'branco' }
+  | { tipo: 'modelo'; modeloId: string; revisaoDoModelo: number; respostas: Record<string, string> }
+  | { tipo: 'copia'; clienteDeOrigemId: string; agenteId: string; versaoEsperada: number };

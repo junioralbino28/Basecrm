@@ -6,6 +6,8 @@ import { Client } from 'pg';
 import { createMinimalFixtures, cleanupFixtures } from './helpers/fixtures';
 import { assertNoSupabaseError, getSupabaseAdminClient } from './helpers/supabaseAdmin';
 import { ocorrenciasDeLacunas } from '@/lib/agents/verificarPrompt';
+import { criarAgente } from '@/lib/agents/modelosAgentes';
+import type { Clientes } from '@/lib/agents/editorAgentes';
 import { getAnonKey, getSupabaseUrl } from './helpers/env';
 
 /**
@@ -455,5 +457,34 @@ describeLocal('Central de Agentes, criar agentes e modelos (bloco 2) — Supabas
     const novo = await novoModelo('Oi [Nome]', 'Com origem');
     const t = await getSupabaseAdminClient().from('ai_agent_templates').select('origin, revision').eq('id', novo.out_id).single();
     expect(t.data).toEqual({ origin: { kind: 'blank' }, revision: 1 });
+  });
+
+  it('13. camada de servidor de verdade: os três começos pelo JWT da agência, admin proibido, e 409 antes de 400', async () => {
+    const adminProibido = new Proxy({}, { get: () => { throw new Error('admin usado numa escrita'); } }) as Clientes['admin'];
+    const c: Clientes = { usuario: agencia, admin: adminProibido };
+    const branco = await criarAgente(c, { tenantId: orgA, nome: 'Camada branco', inicio: { tipo: 'branco' } });
+    expect(branco.ok).toBe(true);
+    const { out_id: modelo, out_revision: rev } = await novoModelo('Oi [Nome], somos a [Empresa].');
+    const doMolde = await criarAgente(c, {
+      tenantId: orgA, nome: 'Camada modelo', inicio: { tipo: 'modelo', modeloId: modelo, revisaoDoModelo: rev, respostas: { '[Empresa]': 'Loja Sol' } },
+    });
+    expect(doMolde.ok).toBe(true);
+    if (doMolde.ok) expect((await agente(doMolde.dados.agenteId)).draft.prompt).toBe('Oi [Nome], somos a Loja Sol.');
+    const fonte = await agentePublicado(orgB, `Camada copia ${randomUUID()}`);
+    const copia = await criarAgente(c, {
+      tenantId: orgA, nome: 'Camada copia', inicio: { tipo: 'copia', clienteDeOrigemId: orgB, agenteId: fonte, versaoEsperada: 1 },
+    });
+    expect(copia.ok).toBe(true);
+    // Modelo mudado entre a tela e o envio, com uma chave que deixou de existir: 409, nunca 400.
+    const s2 = await agencia.rpc('save_ai_agent_template', {
+      p_template_id: modelo, p_expected_revision: rev, p_name: 'M', p_description: null, p_prompt: 'Oi [Pessoa].',
+    });
+    expect(s2.error).toBeNull();
+    expect(await criarAgente(c, {
+      tenantId: orgA, nome: 'X', inicio: { tipo: 'modelo', modeloId: modelo, revisaoDoModelo: rev, respostas: { '[Empresa]': 'a' } },
+    })).toMatchObject({ ok: false, status: 409, codigo: 'MODELO_MUDOU' });
+    expect(await criarAgente(c, {
+      tenantId: orgA, nome: 'X', inicio: { tipo: 'modelo', modeloId: modelo, revisaoDoModelo: rev + 1, respostas: { '[Empresa]': 'a' } },
+    })).toMatchObject({ ok: false, status: 400, codigo: 'LACUNA_INEXISTENTE' });
   });
 });

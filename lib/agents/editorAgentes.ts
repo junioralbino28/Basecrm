@@ -34,7 +34,7 @@ export const falha = (status: number, codigo: string, erro: string, extra: Parti
 });
 
 /** Erros com nome das funções da migration 20261007120000 (o nome vem na mensagem). */
-const ERROS_DO_BANCO: Record<string, { status: number; codigo: string; erro: string }> = {
+export const ERROS_DO_BANCO: Record<string, { status: number; codigo: string; erro: string }> = {
   sem_permissao: { status: 403, codigo: 'SEM_PERMISSAO', erro: 'Só a agência edita agentes.' },
   agente_inexistente: { status: 404, codigo: 'AGENTE_INEXISTENTE', erro: 'Agente não encontrado neste cliente.' },
   versao_inexistente: { status: 404, codigo: 'VERSAO_INEXISTENTE', erro: 'Essa versão não existe neste agente.' },
@@ -58,9 +58,38 @@ const ERROS_DO_BANCO: Record<string, { status: number; codigo: string; erro: str
   },
   prompt_invalido: { status: 400, codigo: 'PROMPT_INVALIDO', erro: 'O prompt precisa ter de 1 a 50 mil caracteres.' },
   nota_invalida: { status: 400, codigo: 'NOTA_INVALIDA', erro: 'A nota pode ter no máximo 200 caracteres.' },
+  // Bloco 2 (migration 20261009120000): criar agentes e modelos da agência.
+  cliente_inexistente: { status: 404, codigo: 'CLIENTE_INEXISTENTE', erro: 'Cliente não encontrado.' },
+  modelo_inexistente: { status: 404, codigo: 'MODELO_INEXISTENTE', erro: 'Modelo não encontrado.' },
+  modelo_mudou: {
+    status: 409,
+    codigo: 'MODELO_MUDOU',
+    erro: 'O modelo foi alterado por outra pessoa enquanto você trabalhava. A tela foi atualizada.',
+  },
+  modelo_arquivado: { status: 409, codigo: 'MODELO_ARQUIVADO', erro: 'Este modelo está arquivado. Restaure antes de usar ou editar.' },
+  sem_versao_publicada: { status: 422, codigo: 'SEM_VERSAO_PUBLICADA', erro: 'Este agente ainda não tem versão publicada para copiar.' },
+  nome_invalido: { status: 400, codigo: 'NOME_INVALIDO', erro: 'O nome precisa ter de 1 a 80 caracteres.' },
+  descricao_invalida: { status: 400, codigo: 'DESCRICAO_INVALIDA', erro: 'A descrição pode ter no máximo 280 caracteres.' },
+  pedido_invalido: { status: 400, codigo: 'PEDIDO_INVALIDO', erro: 'Pedido inválido.' },
+  respostas_invalidas: {
+    status: 422,
+    codigo: 'RESPOSTAS_INVALIDAS',
+    erro: 'Cada resposta pode ter até 500 caracteres, sem chaves nem colchetes.',
+  },
+  lacuna_inexistente: { status: 422, codigo: 'LACUNA_INEXISTENTE', erro: 'Uma das respostas é para uma lacuna que não existe no modelo.' },
+  lacuna_ambigua: {
+    status: 422,
+    codigo: 'LACUNA_AMBIGUA',
+    erro: 'Essa lacuna também aparece como texto de um link no modelo. Ajuste o modelo antes de responder a ela.',
+  },
+  lacuna_invalida: {
+    status: 422,
+    codigo: 'LACUNA_INVALIDA',
+    erro: 'Uma resposta formaria uma lacuna ou variável nova junto do texto do modelo. Ajuste a resposta.',
+  },
 };
 
-const MENSAGEM_ERRO_INTERNO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise o suporte.';
+export const MENSAGEM_ERRO_INTERNO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise o suporte.';
 
 /** Traduz o erro do banco. Sem nome conhecido: 500 com mensagem genérica, e o detalhe só no log do servidor (G10). */
 export function traduzirErroDoBanco(
@@ -113,7 +142,7 @@ function nomeDaPessoa(p: { nickname?: string | null; first_name?: string | null;
   return completo || p.name?.trim() || ALGUEM;
 }
 
-async function nomesDasPessoas(admin: SupabaseClient, ids: Array<string | null>) {
+export async function nomesDasPessoas(admin: SupabaseClient, ids: Array<string | null>) {
   const unicos = [...new Set(ids.filter((id): id is string => Boolean(id)))];
   if (unicos.length === 0) return new Map<string, string>();
   const { data, error } = await admin.from('profiles').select('id, nickname, first_name, last_name, name').in('id', unicos);
@@ -181,7 +210,7 @@ function versaoCompleta(v: LinhaDaVersao, nomes: Map<string, string>): VersaoCom
   return { ...resumoDaVersao(v, nomes), prompt: v.prompt ?? '', ajustes: v.settings ?? {}, modelo: v.model ?? null };
 }
 
-const comoFalha = (erro: unknown, contexto: string) =>
+export const comoFalha = (erro: unknown, contexto: string) =>
   traduzirErroDoBanco({ message: erro instanceof Error ? erro.message : String(erro) }, contexto);
 
 export async function listarAgentes(
