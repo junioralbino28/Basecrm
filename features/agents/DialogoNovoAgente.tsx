@@ -4,7 +4,7 @@ import React from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import type { AgenteNaLista, InicioDoAgente, ModeloNaLista } from '@/lib/agents/tiposDoEditor';
-import { ErroDaApi, agentesApi } from './agentesApi';
+import { ErroDaApi, agentesApi, type CursorDeClientes } from './agentesApi';
 
 type Comeco = 'modelo' | 'branco' | 'copia';
 const PROIBIDOS = ['{', '}', '[', ']'];
@@ -29,6 +29,10 @@ export function DialogoNovoAgente(props: {
   const [respostas, setRespostas] = React.useState<Record<string, string>>({});
   const [clientes, setClientes] = React.useState<Array<{ id: string; name: string }> | null>(null);
   const [buscaCliente, setBuscaCliente] = React.useState('');
+  const [proximaClientes, setProximaClientes] = React.useState<CursorDeClientes | null>(null);
+  const [carregandoMais, setCarregandoMais] = React.useState(false);
+  /** Muda a cada busca nova: um "mostrar mais" que chegar depois dela é descartado. */
+  const geracaoDaBusca = React.useRef(0);
   const [origemId, setOrigemId] = React.useState<string | null>(null);
   const [agentesDaOrigem, setAgentesDaOrigem] = React.useState<AgenteNaLista[] | null>(null);
   const [agenteId, setAgenteId] = React.useState<string | null>(null);
@@ -50,10 +54,12 @@ export function DialogoNovoAgente(props: {
     void carregarModelos();
   }, [carregarModelos]);
 
-  // A lista do servidor para em 100 clientes; a busca por nome alcança os outros (revisão do Codex, código, rodada 1).
+  // O servidor manda 100 clientes por página: a busca por nome e o "Mostrar mais clientes" alcançam os outros
+  // (revisão do Codex no código, rodadas 1 e 2).
   React.useEffect(() => {
     if (comeco !== 'copia') return;
     let valido = true;
+    setProximaClientes(null);
     const espera = setTimeout(() => {
       agentesApi
         .clientes(buscaCliente.trim())
@@ -61,15 +67,36 @@ export function DialogoNovoAgente(props: {
           if (!valido) return;
           const lista = r.tenants.map((t) => ({ id: t.id, name: t.name }));
           setClientes(lista);
+          setProximaClientes(r.proxima ?? null);
           setOrigemId((atual) => (atual && lista.some((c) => c.id === atual) ? atual : null));
         })
         .catch((e) => valido && setErro(e instanceof Error ? e.message : 'Falha ao carregar os clientes.'));
     }, buscaCliente ? 300 : 0);
     return () => {
       valido = false;
+      geracaoDaBusca.current += 1;
       clearTimeout(espera);
     };
   }, [comeco, buscaCliente]);
+
+  const mostrarMaisClientes = async () => {
+    if (!proximaClientes || carregandoMais) return;
+    const geracao = geracaoDaBusca.current;
+    setCarregandoMais(true);
+    try {
+      const r = await agentesApi.clientes(buscaCliente.trim(), proximaClientes);
+      if (geracao !== geracaoDaBusca.current) return;
+      setClientes((atual) => {
+        const vistos = new Set((atual ?? []).map((c) => c.id));
+        return [...(atual ?? []), ...r.tenants.filter((t) => !vistos.has(t.id)).map((t) => ({ id: t.id, name: t.name }))];
+      });
+      setProximaClientes(r.proxima ?? null);
+    } catch (e) {
+      if (geracao === geracaoDaBusca.current) setErro(e instanceof Error ? e.message : 'Falha ao carregar os clientes.');
+    } finally {
+      setCarregandoMais(false);
+    }
+  };
 
   React.useEffect(() => {
     setAgentesDaOrigem(null);
@@ -232,7 +259,7 @@ export function DialogoNovoAgente(props: {
               placeholder="Parte do nome do cliente"
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-white/15 dark:bg-white/5 dark:text-white"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sem busca, a lista mostra os 100 clientes mais recentes.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">A lista vem do cliente mais recente ao mais antigo, 100 por vez.</p>
           </div>
           <div>
             <label htmlFor="cliente-de-origem" className="mb-1 block text-sm font-medium text-slate-800 dark:text-slate-100">
@@ -251,6 +278,16 @@ export function DialogoNovoAgente(props: {
                 </option>
               ))}
             </select>
+            {proximaClientes ? (
+              <button
+                type="button"
+                onClick={() => void mostrarMaisClientes()}
+                disabled={carregandoMais}
+                className="mt-2 text-sm font-medium text-brand-700 underline-offset-2 hover:underline disabled:opacity-60 dark:text-brand-300"
+              >
+                {carregandoMais ? 'Carregando mais clientes...' : 'Mostrar mais clientes'}
+              </button>
+            ) : null}
           </div>
           {origemId ? (
             <div>

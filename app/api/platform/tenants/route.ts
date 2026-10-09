@@ -4,6 +4,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { runProvisioning } from '@/lib/provisioning/runProvisioning';
 import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
 import { termoDeBusca } from '@/lib/platform/termoDeBusca';
+import { PAGINA_DE_CLIENTES, filtroDoCursor, lerCursorDeClientes } from '@/lib/platform/cursorDeClientes';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -47,7 +48,11 @@ export async function GET(req: Request) {
   const auth = await requireAdminProfile();
   if ('error' in auth) return auth.error;
 
-  const busca = termoDeBusca(new URL(req.url).searchParams.get('busca'));
+  const parametros = new URL(req.url).searchParams;
+  const busca = termoDeBusca(parametros.get('busca'));
+  // Página seguinte (Central de Agentes, bloco 2): o par (created_at, id) do último cliente da página anterior.
+  const cursor = lerCursorDeClientes(parametros);
+  if (cursor === 'invalido') return json({ error: 'Pedido inválido.' }, 400);
   const admin = createStaticAdminClient();
   let consulta = admin
     .from('organizations')
@@ -60,7 +65,12 @@ export async function GET(req: Request) {
     `)
     .is('deleted_at', null);
   if (busca) consulta = consulta.ilike('name', `%${busca}%`);
-  const { data, error } = await consulta.order('created_at', { ascending: false }).limit(100);
+  if (cursor) consulta = consulta.or(filtroDoCursor(cursor));
+  // O id desempata clientes criados no mesmo instante: sem ele, a página seguinte pularia parte deles.
+  const { data, error } = await consulta
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(PAGINA_DE_CLIENTES);
 
   if (error) return json({ error: error.message }, 500);
 
@@ -79,7 +89,8 @@ export async function GET(req: Request) {
     };
   });
 
-  return json({ tenants });
+  const ultimo = tenants.length === PAGINA_DE_CLIENTES ? tenants[tenants.length - 1] : null;
+  return json({ tenants, proxima: ultimo ? { antesDe: ultimo.created_at, antesDeId: ultimo.id } : null });
 }
 
 export async function POST(req: Request) {

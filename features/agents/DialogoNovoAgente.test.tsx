@@ -169,3 +169,69 @@ describe('DialogoNovoAgente: cópia alcança cliente além dos 100 mais recentes
     });
   });
 });
+
+describe('DialogoNovoAgente: "Mostrar mais clientes" (revisão do Codex, código, rodada 2, achado 3)', () => {
+  const ALVO = '77777777-7777-4777-8777-777777777777';
+  const CURSOR = { antesDe: '2026-01-01T00:00:00.000001+00:00', antesDeId: 'id-99' };
+  const paginaSeguinte = `/api/platform/tenants?${new URLSearchParams({ antesDe: CURSOR.antesDe, antesDeId: CURSOR.antesDeId }).toString()}`;
+  // 100 clientes com o MESMO nome do alvo: a busca por nome não o separa, só a página seguinte o alcança.
+  const iguais = Array.from({ length: 100 }, (_, i) => ({ id: `id-${i}`, name: 'Loja' }));
+
+  it('traz a página seguinte, junta à lista, e a cópia sai com o cliente que estava nela', async () => {
+    const pedidos: Array<{ url: string; metodo: string; corpo: unknown }> = [];
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      const metodo = init?.method ?? 'GET';
+      pedidos.push({ url, metodo, corpo: init?.body ? JSON.parse(String(init.body)) : null });
+      if (url === '/api/platform/agency/agent-templates') return responder({ modelos: [] });
+      if (url === '/api/platform/tenants') return responder({ tenants: iguais, proxima: CURSOR });
+      if (url === paginaSeguinte) return responder({ tenants: [{ id: ALVO, name: 'Loja' }], proxima: null });
+      if (url === `/api/platform/tenants/${ALVO}/agents`) return responder({ cliente: { id: ALVO, nome: 'Loja' }, agentes: [PUBLICADO] });
+      if (url === `/api/platform/tenants/${TENANT}/agents` && metodo === 'POST') return responder({ agenteId: 'novo-id' }, 201);
+      return responder({ error: 'nao esperado' }, 500);
+    }));
+    const onCriado = vi.fn();
+    render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={onCriado} />);
+    await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
+    fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
+    await waitFor(() => expect(screen.getAllByRole('option', { name: 'Loja' })).toHaveLength(100));
+    expect(screen.getByLabelText('Cliente de origem').querySelector(`option[value="${ALVO}"]`)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais clientes' }));
+    await waitFor(() => expect(screen.getAllByRole('option', { name: 'Loja' })).toHaveLength(101));
+    expect(pedidos.some((p) => p.url === paginaSeguinte)).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Mostrar mais clientes' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Cliente de origem'), { target: { value: ALVO } });
+    await screen.findByRole('option', { name: 'Aurora' });
+    fireEvent.change(screen.getByLabelText('Agente'), { target: { value: PUBLICADO.id } });
+    fireEvent.change(screen.getByLabelText('Nome do agente'), { target: { value: 'Copia da pagina 2' } });
+    fireEvent.click(botaoCriar());
+    await waitFor(() => expect(onCriado).toHaveBeenCalledWith('novo-id'));
+    expect(pedidos.find((p) => p.metodo === 'POST')?.corpo).toEqual({
+      nome: 'Copia da pagina 2',
+      inicio: { tipo: 'copia', clienteDeOrigemId: ALVO, agenteId: PUBLICADO.id, versaoEsperada: 3 },
+    });
+  });
+
+  it('uma busca nova descarta a página seguinte que chegar atrasada', async () => {
+    let soltarPagina: (r: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url === '/api/platform/agency/agent-templates') return responder({ modelos: [] });
+      if (url === '/api/platform/tenants') return responder({ tenants: iguais, proxima: CURSOR });
+      if (url === paginaSeguinte) return new Promise<Response>((resolve) => { soltarPagina = resolve; });
+      if (url === '/api/platform/tenants?busca=Sol') return responder({ tenants: [{ id: 'sol', name: 'Loja Sol' }], proxima: null });
+      return responder({ error: 'nao esperado' }, 500);
+    }));
+    render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={vi.fn()} />);
+    await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
+    fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mostrar mais clientes' }));
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Sol' } });
+    await screen.findByRole('option', { name: 'Loja Sol' }, { timeout: 2000 });
+    soltarPagina(new Response(JSON.stringify({ tenants: [{ id: ALVO, name: 'Loja Atrasada' }], proxima: null }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole('option', { name: 'Loja Atrasada' })).toBeNull();
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Escolha o cliente', 'Loja Sol']);
+  });
+});

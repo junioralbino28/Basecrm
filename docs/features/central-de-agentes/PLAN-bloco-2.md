@@ -1096,3 +1096,15 @@ Commits locais, nesta ordem: `192c573` (Task 1), `602fbca` (Task 2), `a25a4a8` (
 3. **Camada (Task 4):** `ERROS_DO_BANCO`, `MENSAGEM_ERRO_INTERNO`, `comoFalha` e `nomesDasPessoas` passaram a ser exportados de `editorAgentes.ts` para a camada nova reaproveitar. Prova contrária: uma chamada trocada para `c.admin.rpc` derrubou 4 testes.
 4. **Telas (Task 6):** "Novo modelo" abre o editor em `/platform/agent-templates/novo` (o mesmo componente cria ao salvar). A lista de clientes da cópia usa `GET /api/platform/tenants` (a mesma da tela de clientes, só agência, até 100 clientes). O diálogo usa o `Modal` do app (camada `z-[9999]`, acima da barra de navegação do celular).
 5. **Verificação (Task 7):** suíte completa 374 arquivos e 2.553 testes, 0 falhas; testes locais da Central (modelos, editor, fundação) 41 de 41; tsc 0; lint do projeto 0; build 0, com as rotas novas na lista (`/api/platform/agency/agent-templates`, `/[templateId]`, `/[templateId]/archive`, `/platform/agent-templates`, `/platform/agent-templates/[templateId]`).
+
+## Revisão do Codex, código (09/10) — como ficou
+
+Pareceres literais no cérebro: `devolutiva-codex-5-bloco-2.md` (rodada 1, NO-GO, 2 achados) e `devolutiva-codex-6-bloco-2.md` (rodada 2, NO-GO, 3 achados). Todos aceitos.
+
+| Rodada e achado | Como ficou |
+|---|---|
+| 1.1 O 409 ao salvar o modelo recarregava tudo e apagava o texto da pessoa | O editor separa a cópia do servidor dos campos; no 409 só a cópia é relida, o texto fica, e aparecem "Salvar o meu por cima" (com a revisão relida) e "Descartar o meu e ver o atual". Arquivar trava com mudança pendente. Commit `7d61c6b`. |
+| 1.2 A cópia só alcançava os 100 clientes mais recentes | `GET /api/platform/tenants?busca=` (ILIKE no nome, curingas tirados em `lib/platform/termoDeBusca.ts`) e o campo "Buscar cliente" no diálogo. Commit `7d61c6b`. |
+| 2.1 409 seguido de releitura falhando deixava "Descartar" aplicar a versão VELHA | O conflito guarda `atual` só depois de uma releitura bem-sucedida; sem ela, nenhuma das duas escolhas aparece, só "Tentar de novo". Prova contrária: com o fallback para a versão velha, o teste quebra. |
+| 2.2 Texto digitado durante o salvamento sumia na releitura | Os três campos ficam `disabled` enquanto salva (também ao criar). Prova contrária: sem o `salvando` na trava, dois testes quebram. |
+| 2.3 Mais de 100 clientes com o mesmo nome continuavam fora de alcance | Página seguinte por cursor composto `(created_at, id)` em `lib/platform/cursorDeClientes.ts`: os dois valores só passam por regex ancorada (entram no texto de um filtro `.or()` do PostgREST), a ordem ganhou o id como desempate e a resposta traz `proxima` quando a página vem cheia. O diálogo ganhou "Mostrar mais clientes", que descarta página atrasada depois de uma busca nova. Provado contra o PostgREST local em `test/cursorDeClientes.local.test.ts` (3 clientes no mesmo instante; só com a data, 2 deles sumiam). |

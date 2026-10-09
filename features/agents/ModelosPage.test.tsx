@@ -148,6 +148,62 @@ describe('EditorDoModelo', () => {
     expect(screen.queryByText(/O seu texto continua aqui/)).toBeNull();
   });
 
+  it('409 com a releitura FALHANDO: o texto fica, nenhuma escolha que mexa nele aparece, e "Tentar de novo" libera depois', async () => {
+    let leituras = 0;
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') {
+        leituras += 1;
+        if (leituras === 1) return responder({ ...MODELO, prompt: 'Oi' });
+        if (leituras === 2) return responder({ error: 'Falha de rede.' }, 500);
+        return responder({ ...MODELO, revisao: 4, prompt: 'Texto da outra pessoa' });
+      }
+      return responder({ error: 'O modelo foi alterado por outra pessoa.', code: 'MODELO_MUDOU' }, 409);
+    }));
+    render(<EditorDoModelo templateId={ID} />);
+    fireEvent.change(await screen.findByLabelText('Texto do modelo'), { target: { value: 'O meu' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Salvar$/ }));
+    expect(await screen.findByText('Não deu para carregar a versão atual agora.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Texto do modelo')).toHaveValue('O meu');
+    expect(screen.queryByRole('button', { name: 'Descartar o meu e ver o atual' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar o meu por cima' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar o meu e ver o atual' }));
+    expect(screen.getByLabelText('Texto do modelo')).toHaveValue('Texto da outra pessoa');
+  });
+
+  it('salvamento demorado: os campos ficam travados até a resposta, então nada digitado no meio se perde', async () => {
+    let liberar: (r: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') return responder({ ...MODELO, prompt: 'Oi' });
+      return new Promise<Response>((resolve) => {
+        liberar = resolve;
+      });
+    }));
+    render(<EditorDoModelo templateId={ID} />);
+    const texto = await screen.findByLabelText('Texto do modelo');
+    fireEvent.change(texto, { target: { value: 'Oi, mudei' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Salvar$/ }));
+    await waitFor(() => expect(screen.getByLabelText('Texto do modelo')).toBeDisabled());
+    expect(screen.getByLabelText('Nome do modelo')).toBeDisabled();
+    expect(screen.getByLabelText('Descrição (opcional)')).toBeDisabled();
+    liberar(new Response(JSON.stringify({ id: ID, revisao: 4 }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    await waitFor(() => expect(screen.getByLabelText('Texto do modelo')).toBeEnabled());
+  });
+
+  it('criar modelo: os campos também travam enquanto o pedido está em andamento', async () => {
+    let liberar: (r: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => {
+      liberar = resolve;
+    })));
+    render(<EditorDoModelo templateId="novo" />);
+    fireEvent.change(screen.getByLabelText('Nome do modelo'), { target: { value: 'Loja' } });
+    fireEvent.change(screen.getByLabelText('Texto do modelo'), { target: { value: 'Oi [Nome]' } });
+    fireEvent.click(screen.getByRole('button', { name: /Criar modelo/ }));
+    await waitFor(() => expect(screen.getByLabelText('Texto do modelo')).toBeDisabled());
+    liberar(new Response(JSON.stringify({ id: 'criado' }), { status: 201, headers: { 'content-type': 'application/json' } }));
+    await waitFor(() => expect(navegar).toHaveBeenCalledWith('/platform/agent-templates/criado'));
+  });
+
   it('com mudanças não salvas, Arquivar fica travado com o motivo e nada é enviado', async () => {
     const fetchMock = vi.fn(() => responder({ ...MODELO, prompt: 'Oi' }));
     vi.stubGlobal('fetch', fetchMock);

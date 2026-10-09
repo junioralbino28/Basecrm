@@ -12,6 +12,7 @@ import type {
   VersaoCompleta,
 } from '@/lib/agents/tiposDoEditor';
 import type { ResultadoDaVerificacao } from '@/lib/agents/verificarPrompt';
+import type { CursorDeClientes } from '@/lib/platform/cursorDeClientes';
 
 /** Erro de uma rota da Central, com o código e, no 422 de publicar, a verificação feita pelo servidor. */
 export class ErroDaApi extends Error {
@@ -45,13 +46,28 @@ type CorpoDoModeloNovo =
   | { nome: string; descricao?: string; prompt: string }
   | { nome: string; descricao?: string; deAgente: { tenantId: string; agenteId: string; versaoEsperada: number } };
 
+export type { CursorDeClientes };
+
 export const agentesApi = {
   /** Bloco 2: cria um agente neste cliente; em modelo e cópia o texto é montado no servidor. */
   criar: (tenantId: string, corpo: { nome: string; inicio: InicioDoAgente }) =>
     pedir<{ agenteId: string }>(base(tenantId), { method: 'POST', body: JSON.stringify(corpo) }),
-  /** Os clientes da agência, para a origem de uma cópia: os 100 mais recentes, ou os que casam com a busca por nome. */
-  clientes: (busca = '') =>
-    pedir<{ tenants: Array<{ id: string; name: string }> }>(`/api/platform/tenants${busca ? `?busca=${encodeURIComponent(busca)}` : ''}`),
+  /**
+   * Os clientes da agência, para a origem de uma cópia: 100 por página, do mais novo ao mais antigo. `busca` filtra pelo
+   * nome; `proxima` (o cursor que a página anterior devolveu) traz a página seguinte.
+   */
+  clientes: (busca = '', proxima?: CursorDeClientes | null) => {
+    const q = new URLSearchParams();
+    if (busca) q.set('busca', busca);
+    if (proxima) {
+      q.set('antesDe', proxima.antesDe);
+      q.set('antesDeId', proxima.antesDeId);
+    }
+    const sufixo = q.toString();
+    return pedir<{ tenants: Array<{ id: string; name: string }>; proxima?: CursorDeClientes | null }>(
+      `/api/platform/tenants${sufixo ? `?${sufixo}` : ''}`,
+    );
+  },
   modelos: {
     listar: (arquivados = false) => pedir<{ modelos: ModeloNaLista[] }>(`${MODELOS}${arquivados ? '?arquivados=1' : ''}`),
     ler: (id: string) => pedir<ModeloCompleto>(`${MODELOS}/${id}`),

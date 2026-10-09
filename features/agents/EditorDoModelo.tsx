@@ -43,7 +43,11 @@ function Formulario({ templateId }: { templateId: string }) {
   const [texto, setTexto] = React.useState('');
   /** A revisão em que o texto se baseou: um salvar comum nunca passa por cima do que outra pessoa salvou depois. */
   const [base, setBase] = React.useState<number | null>(null);
-  const [conflito, setConflito] = React.useState<string | null>(null);
+  /**
+   * Conflito de salvar (409). `atual` é a versão do servidor relida DEPOIS do conflito; enquanto ela não chega (ou a
+   * releitura falhou), nenhuma escolha que mexa no texto fica disponível (revisão do Codex, código, rodada 2, achado 1).
+   */
+  const [conflito, setConflito] = React.useState<{ mensagem: string; atual: ModeloCompleto | null } | null>(null);
   const [salvando, setSalvando] = React.useState(false);
 
   const aplicar = React.useCallback((m: ModeloCompleto) => {
@@ -67,12 +71,14 @@ function Formulario({ templateId }: { templateId: string }) {
     }
   }, [aplicar, novo, templateId]);
 
-  /** Depois de um 409: só a cópia do servidor muda; o que a pessoa escreveu fica nos campos (revisão do Codex, código, rodada 1). */
-  const atualizarSoOServidor = React.useCallback(async () => {
+  /** Relê só a cópia do servidor; os campos não mudam. Devolve null se a leitura falhar. */
+  const lerAtual = React.useCallback(async (): Promise<ModeloCompleto | null> => {
     try {
-      setModelo(await agentesApi.modelos.ler(templateId));
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao carregar o modelo.');
+      const m = await agentesApi.modelos.ler(templateId);
+      setModelo(m);
+      return m;
+    } catch {
+      return null;
     }
   }, [templateId]);
 
@@ -88,6 +94,8 @@ function Formulario({ templateId }: { templateId: string }) {
     : modelo !== null && (nome !== modelo.nome || descricao !== (modelo.descricao ?? '') || texto !== modelo.prompt);
   const camposValidos = nome.trim().length > 0 && texto.length > 0 && desconhecidas.length === 0;
   const podeSalvar = !salvando && !modelo?.arquivado && conflito === null && mudou && camposValidos;
+  /** Durante o salvar os campos travam: o que fosse digitado ali sumiria na releitura (código, rodada 2, achado 2). */
+  const camposTravados = salvando || Boolean(modelo?.arquivado);
   const motivoSemArquivar = conflito !== null || (mudou && !novo) ? 'Salve ou descarte as mudanças antes de arquivar.' : null;
 
   const salvar = async (porCima = false) => {
@@ -102,15 +110,17 @@ function Formulario({ templateId }: { templateId: string }) {
         return;
       }
       if (!modelo || base === null) return;
-      // Só "Salvar o meu por cima" manda a revisão atual do servidor; o salvar comum manda a revisão de base.
-      await agentesApi.modelos.salvar(modelo.id, { ...corpo, revisaoEsperada: porCima ? modelo.revisao : base });
+      // Só "Salvar o meu por cima" manda a revisão da versão relida no conflito; o salvar comum manda a revisão de base.
+      const revisaoEsperada = porCima && conflito?.atual ? conflito.atual.revisao : base;
+      await agentesApi.modelos.salvar(modelo.id, { ...corpo, revisaoEsperada });
       addToast('Modelo salvo.', 'success');
       setConflito(null);
       await carregar();
     } catch (e) {
       if (e instanceof ErroDaApi && e.status === 409) {
-        setConflito(e.message);
-        await atualizarSoOServidor();
+        setConflito({ mensagem: e.message, atual: null });
+        const atual = await lerAtual();
+        setConflito({ mensagem: e.message, atual });
       } else {
         setErro(e instanceof Error ? e.message : 'Falha ao salvar o modelo.');
       }
@@ -120,8 +130,15 @@ function Formulario({ templateId }: { templateId: string }) {
   };
 
   const descartarOMeu = () => {
-    if (modelo) aplicar(modelo);
+    if (!conflito?.atual) return;
+    aplicar(conflito.atual);
     setConflito(null);
+  };
+
+  const tentarLerDeNovo = async () => {
+    if (!conflito) return;
+    const atual = await lerAtual();
+    setConflito((c) => (c ? { ...c, atual } : c));
   };
 
   const arquivar = async (arquivo: boolean) => {
@@ -169,15 +186,24 @@ function Formulario({ templateId }: { templateId: string }) {
           role="alert"
           className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
         >
-          <p>{`${conflito} O seu texto continua aqui, sem salvar.`}</p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void salvar(true)} disabled={salvando || modelo?.arquivado} className={BOTAO_SECUNDARIO}>
-              Salvar o meu por cima
-            </button>
-            <button type="button" onClick={descartarOMeu} disabled={salvando} className={BOTAO_SECUNDARIO}>
-              Descartar o meu e ver o atual
-            </button>
-          </div>
+          <p>{`${conflito.mensagem} O seu texto continua aqui, sem salvar.`}</p>
+          {conflito.atual ? (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void salvar(true)} disabled={salvando || conflito.atual.arquivado} className={BOTAO_SECUNDARIO}>
+                Salvar o meu por cima
+              </button>
+              <button type="button" onClick={descartarOMeu} disabled={salvando} className={BOTAO_SECUNDARIO}>
+                Descartar o meu e ver o atual
+              </button>
+            </div>
+          ) : salvando ? null : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Não deu para carregar a versão atual agora.</span>
+              <button type="button" onClick={() => void tentarLerDeNovo()} className={BOTAO_SECUNDARIO}>
+                Tentar de novo
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -193,7 +219,7 @@ function Formulario({ templateId }: { templateId: string }) {
             <label htmlFor="nome-do-modelo" className="mb-1 block text-sm font-medium text-slate-800 dark:text-slate-100">
               Nome do modelo
             </label>
-            <input id="nome-do-modelo" value={nome} maxLength={80} disabled={modelo?.arquivado} onChange={(e) => setNome(e.target.value)} className={CAMPO} />
+            <input id="nome-do-modelo" value={nome} maxLength={80} disabled={camposTravados} onChange={(e) => setNome(e.target.value)} className={CAMPO} />
           </div>
           <div>
             <label htmlFor="descricao-do-modelo" className="mb-1 block text-sm font-medium text-slate-800 dark:text-slate-100">
@@ -203,7 +229,7 @@ function Formulario({ templateId }: { templateId: string }) {
               id="descricao-do-modelo"
               value={descricao}
               maxLength={280}
-              disabled={modelo?.arquivado}
+              disabled={camposTravados}
               onChange={(e) => setDescricao(e.target.value)}
               className={CAMPO}
             />
@@ -216,7 +242,7 @@ function Formulario({ templateId }: { templateId: string }) {
               id="texto-do-modelo"
               value={texto}
               maxLength={50_000}
-              disabled={modelo?.arquivado}
+              disabled={camposTravados}
               onChange={(e) => setTexto(e.target.value)}
               rows={22}
               className={`${CAMPO} font-mono`}
