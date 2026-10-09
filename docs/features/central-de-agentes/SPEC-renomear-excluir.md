@@ -1,4 +1,4 @@
-# Central de Agentes — renomear e excluir agente (SPEC curta + plano)
+# Central de Agentes — renomear e excluir agente (SPEC curta + plano), v2
 
 Decisão do Junior (09/10/2026 ~16h55), depois de criar um agente de teste em produção e não ter como apagar:
 - **excluir de vez:** somem o agente, o rascunho e as versões; as conversas e o histórico de respostas continuam;
@@ -8,26 +8,51 @@ Decisão do Junior (09/10/2026 ~16h55), depois de criar um agente de teste em pr
 
 O renomear e o excluir tinham ficado fora do bloco 2 (`SPEC-bloco-2.md`, "fora do escopo") e de todos os blocos do roteiro.
 
+v2: a revisão do Codex da rodada 1 (`devolutiva-codex-1-renomear-excluir.md`) está respondida na seção do fim.
+
 ## O que muda para quem usa
 
 Na página do agente (só agência, como todo o editor):
-- **Renomear:** um botão de lápis ao lado do nome abre o diálogo "Renomear agente", com o campo "Nome do agente" (1 a 80 caracteres, sem espaço nas pontas). Salvar troca o nome na hora.
+
+- **Renomear:** um lápis ao lado do nome abre o diálogo "Renomear agente", com o campo "Nome do agente" (1 a 80 caracteres, sem espaço nas pontas). Salvar troca o nome. Se duas pessoas renomearem ao mesmo tempo, vale o último.
 - **Excluir:** o botão "Excluir" no cabeçalho fica travado durante a edição do texto, com o motivo "Salve ou cancele a edição antes de excluir." Ele abre um diálogo:
-  - **com número ligado:** "Este agente atende {n} número(s): {nomes}. Desligue o número antes de excluir." Só o botão Fechar; nada é enviado;
-  - **sem número:** "Excluir o agente {nome}? Somem o agente, o rascunho e {as N versões publicadas | a versão publicada | (nada, se não houver)}. As conversas e o histórico de respostas continuam. Não dá para desfazer." Botões Cancelar e **"Excluir de vez"**. No sucesso: aviso "Agente excluído." e volta para a lista de agentes do cliente.
-- **Corrida:** se o número for ligado entre abrir o diálogo e confirmar, o servidor recusa com 409. O diálogo mostra a mensagem do servidor e recarrega o agente.
+  - **com número ligado:** "Este agente atende {n} número(s): {nomes}. Desligue o número antes de excluir." Só o botão Fechar; nada é enviado.
+  - **sem número:** "Excluir o agente {nome}? Somem o agente, o rascunho e todas as versões publicadas. As conversas e o histórico de respostas continuam. Não dá para desfazer." Botões Cancelar e **"Excluir de vez"**.
+  - **Sucesso:** aviso "Agente excluído." e volta para a lista de agentes do cliente.
+- **O que a tela mostrou vale:** a confirmação manda o nome, a revisão do rascunho e a versão publicada que a pessoa viu.
+  - Se outra pessoa salvou, publicou ou renomeou no meio, o servidor recusa com 409 e nada é apagado.
+  - O diálogo mostra "O agente mudou desde que você abriu esta confirmação. A tela foi atualizada; confira e confirme de novo." e recarrega o agente.
+  - Se um número foi ligado no meio, também 409, com a mensagem do número.
 
 ## Banco: migration `20261009180000_central_agentes_renomear_excluir.sql`
 
-- **ADITIVA:** só duas funções novas; nenhuma tabela muda.
+- **ADITIVA:** uma tabela nova (o registro das exclusões) e duas funções; nenhuma tabela existente muda.
 - **Sem barra invertida no arquivo.**
 - **Cabeçalho igual ao das funções do bloco 2:**
   - `security definer`, `set search_path = ''`;
   - gate `is_agency_admin_role()` (`42501`) antes da primeira leitura;
-  - organização de destino com `deleted_at is null` e `for share` (`cliente_inexistente`, `P0002`);
+  - organização com `deleted_at is null` e `for share` (`cliente_inexistente`, `P0002`);
   - `revoke all ... from public, anon, authenticated, service_role` e `grant execute ... to authenticated`.
 
 ```sql
+-- Registro das exclusões: gravado DENTRO da função, na mesma transação do delete. Sem ele, nada é apagado.
+-- Só a chave de serviço lê (RLS ligada, sem policy). deleted_by e agent_id sem FK: o registro sobrevive à
+-- remoção da pessoa e do agente.
+create table if not exists public.ai_agent_deletions (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  agent_id uuid not null,
+  agent_name text not null,
+  draft_revision integer not null,
+  published_version_id uuid null,
+  versions_deleted integer not null,
+  deleted_by uuid null,
+  deleted_at timestamptz not null default now()
+);
+alter table public.ai_agent_deletions enable row level security;
+revoke all on table public.ai_agent_deletions from anon, authenticated;
+grant all on table public.ai_agent_deletions to service_role;
+
 create or replace function public.rename_ai_agent(p_organization_id uuid, p_agent_id uuid, p_name text)
 returns text language plpgsql security definer set search_path = '' as $$
 declare
@@ -53,11 +78,21 @@ begin
 end;
 $$;
 
-create or replace function public.delete_ai_agent(p_organization_id uuid, p_agent_id uuid)
+create or replace function public.delete_ai_agent(
+  p_organization_id uuid,
+  p_agent_id uuid,
+  p_expected_name text,
+  p_expected_draft_revision integer,
+  p_expected_published_version_id uuid
+)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
+  v_nome text;
+  v_revisao integer;
+  v_publicada uuid;
   v_numeros integer;
   v_versoes integer;
+  v_restricao text;
 begin
   if not public.is_agency_admin_role() then
     raise exception 'sem_permissao' using errcode = '42501';
@@ -66,10 +101,20 @@ begin
   if not found then
     raise exception 'cliente_inexistente' using errcode = 'P0002';
   end if;
-  -- FOR UPDATE: duas exclusões, ou exclusão e salvamento do rascunho, não se cruzam.
-  perform 1 from public.ai_agents a where a.organization_id = p_organization_id and a.id = p_agent_id for update;
+  -- FOR UPDATE: salvar rascunho, publicar, renomear e ligar número (que trava o agente FOR SHARE) esperam
+  -- esta transação, ou esta espera a deles; depois da espera, a comparação abaixo vê o estado novo.
+  select a.name, a.draft_revision, a.published_version_id
+    into v_nome, v_revisao, v_publicada
+  from public.ai_agents a
+  where a.organization_id = p_organization_id and a.id = p_agent_id
+  for update;
   if not found then
     raise exception 'agente_inexistente' using errcode = 'P0002';
+  end if;
+  if v_nome is distinct from p_expected_name
+     or v_revisao is distinct from p_expected_draft_revision
+     or v_publicada is distinct from p_expected_published_version_id then
+    raise exception 'agente_mudou' using errcode = 'P0001';
   end if;
   select count(*) into v_numeros from public.channel_connections c
    where c.organization_id = p_organization_id and c.ai_agent_id = p_agent_id;
@@ -78,85 +123,187 @@ begin
   end if;
   select count(*) into v_versoes from public.ai_agent_versions v
    where v.organization_id = p_organization_id and v.agent_id = p_agent_id;
-  -- A FK de channel_connections (on delete no action) é a rede: um número ligado por outra transação entre a
-  -- contagem e o delete faz o delete falhar, e a falha vira o mesmo erro da tela.
+  -- Defesa a mais, não o caminho comum: com as travas acima, um número ligado por outra transação é visto pela
+  -- contagem. Só a FK do número vira o erro da tela; qualquer outra violação sobe como veio.
   begin
     delete from public.ai_agents a where a.organization_id = p_organization_id and a.id = p_agent_id;
   exception when foreign_key_violation then
-    raise exception 'agente_com_numero' using errcode = 'P0001';
+    get stacked diagnostics v_restricao = constraint_name;
+    if v_restricao = 'channel_connections_ai_agent_fk' then
+      raise exception 'agente_com_numero' using errcode = 'P0001';
+    end if;
+    raise;
   end;
+  insert into public.ai_agent_deletions
+    (organization_id, agent_id, agent_name, draft_revision, published_version_id, versions_deleted, deleted_by)
+  values
+    (p_organization_id, p_agent_id, v_nome, v_revisao, v_publicada, v_versoes, auth.uid());
   return v_versoes;
 end;
 $$;
 ```
 
-O que o `delete` leva junto:
-- As versões, pela FK `on delete cascade` da fundação. O gatilho das versões não recusa `delete`, de propósito: a fundação já previa a cascata de apagar um agente sem número.
+### O que o `delete` leva junto e o que fica
 
-O que fica:
-- **`ai_reply_events.agent_id`:** sem FK, o histórico de respostas fica com o id.
-- **Origem de modelos e agentes copiados:** a `origin` de quem nasceu deste agente (modelo salvo dele, cópia dele) é JSON e fica como prova de derivação.
-- **Cópia local da tela:** a cópia de recuperação do rascunho em outra aba fica até expirar (7 dias). Ao abrir, o agente não existe mais e a tela mostra "Agente não encontrado".
+**Leva junto:** as versões, pela FK `on delete cascade` da fundação. O gatilho das versões só atua em `update`.
 
-**Volta (`docs/features/central-de-agentes/volta-renomear-excluir.sql`):**
-- `begin`, `drop function` das duas, `delete` da linha `20261009180000` em `supabase_migrations.schema_migrations`, `commit`;
-- o código que chama as funções sai do ar antes;
-- a volta não devolve agentes apagados enquanto as funções estiveram no ar: para isso existe o dump do rito.
+**Fica:**
+- **Histórico de respostas:** `ai_reply_events.agent_id` (sem FK).
+- **Mensagens enviadas:** `conversation_messages.metadata`, com `agent_id` e `agent_version` (JSON).
+- **Origem de quem nasceu deste agente:** a `origin` do modelo salvo dele e das cópias dele (JSON).
+- **Registro novo** em `ai_agent_deletions`.
+
+Nas migrations versionadas não há outra FK para `ai_agents` além da das versões e da do número (conferido também pelo Codex).
+
+**Cópia local da tela:** a de recuperação do rascunho, em outra aba, fica até expirar (7 dias). Ao abrir, a tela mostra "Agente não encontrado".
+
+### Travas: o que acontece em cada ordem
+
+Medido pela análise das travas, conferida pelo Codex; o teste local prova as duas ordens.
+
+- **Ligar primeiro:** a ligação trava o agente `FOR SHARE` (`fundacao.sql`, função de ligar) e a FK trava `FOR KEY SHARE`.
+  - A exclusão espera no `FOR UPDATE`.
+  - Com o commit da ligação, a exclusão segue, a contagem vê o número e recusa com `agente_com_numero`.
+- **Excluir primeiro:** a exclusão segura o `FOR UPDATE`.
+  - A ligação espera.
+  - Com o commit da exclusão, a ligação falha do lado dela: o agente não existe mais.
+- **O `exception when foreign_key_violation`** fica como defesa a mais, não provada por essas duas ordens. Só converte a violação da `channel_connections_ai_agent_fk`.
+
+### Volta (`docs/features/central-de-agentes/volta-renomear-excluir.sql`)
+
+`begin`, depois:
+1. recusa se `ai_agent_deletions` tiver linhas: apagar o registro é decisão do Junior;
+2. `drop function` das duas;
+3. `drop table ai_agent_deletions`;
+4. `delete` da linha `20261009180000` em `supabase_migrations.schema_migrations`;
+
+e `commit`.
+
+O código que chama as funções sai do ar antes. A volta não devolve agentes apagados; para isso existe o dump do rito.
 
 ## Servidor e rotas
 
 **`lib/agents/editorAgentes.ts`:**
-- `renomearAgente(c, { tenantId, agentId, nome })`: `c.usuario.rpc('rename_ai_agent')`, devolve `{ nome }`;
-- `excluirAgente(c, { tenantId, agentId, usuarioId })`: `c.usuario.rpc('delete_ai_agent')`, devolve `{ versoesExcluidas }`;
-- nenhuma das duas usa `c.admin`;
-- `ERROS_DO_BANCO` ganha `agente_com_numero`: 409 `AGENTE_COM_NUMERO`, "Este agente atende um número. Desligue o número dele antes de excluir.";
-- a exclusão bem-sucedida registra no log do servidor uma linha estruturada (G24), só com ids e números: organização, agente, quem excluiu e quantas versões; nenhum texto do agente.
+- `renomearAgente(c, { tenantId, agentId, nome })`: `c.usuario.rpc('rename_ai_agent')`, devolve `{ nome }`.
+- `excluirAgente(c, { tenantId, agentId, nomeEsperado, revisaoEsperada, versaoPublicadaEsperada })`: `c.usuario.rpc('delete_ai_agent')`, devolve `{ versoesExcluidas }`.
+- Nenhuma das duas usa `c.admin`.
+- `ERROS_DO_BANCO` ganha:
+  - `agente_com_numero`: 409 `AGENTE_COM_NUMERO`, "Este agente atende um número. Desligue o número dele antes de excluir.";
+  - `agente_mudou`: 409 `AGENTE_MUDOU`, "O agente mudou desde que você abriu esta confirmação. A tela foi atualizada; confira e confirme de novo."
 
-**`app/api/platform/tenants/[tenantId]/agents/[agentId]/route.ts`:**
-- ganha `PATCH` (corpo estrito `{ nome: string }`, até 200 caracteres no zod; o banco confere 1 a 80 depois do `btrim`) e `DELETE` (sem corpo);
-- os dois abrem com `abrirRotaDoAgente(req, params, { escreve: true })`: origem (`isAllowedOrigin`, 403), id do agente como UUID (400) e `requireTenantAccess(tenantId, { adminOnly: true })`;
-- respostas: 200 `{ nome }` e 200 `{ excluido: true, versoesExcluidas }`.
+**Rotas novas, no mesmo padrão de `/publish`, `/restore` e do `/archive` dos modelos:**
+- `POST /api/platform/tenants/[tenantId]/agents/[agentId]/rename`: corpo estrito `{ nome }`, até 200 caracteres no zod; o banco confere de 1 a 80 depois do `btrim`.
+- `POST .../[agentId]/delete`: corpo estrito `{ nomeEsperado: string, revisaoEsperada: inteiro >= 0, versaoPublicadaEsperada: uuid | null }`.
+- **Ordem das recusas, a de `abrirRotaDoAgente`:**
+  1. id do agente fora do formato UUID: 400 (antes de tudo, sem tocar no banco);
+  2. origem (`isAllowedOrigin`): 403;
+  3. `requireTenantAccess(tenantId, { adminOnly: true })`;
+  4. corpo: 400.
+- **Respostas:** 200 `{ nome }` e 200 `{ excluido: true, versoesExcluidas }`.
 
-**`features/agents/agentesApi.ts`:** `renomear(tenantId, agenteId, nome)` e `excluir(tenantId, agenteId)`.
+**`features/agents/agentesApi.ts`:** `renomear(tenantId, agenteId, nome)` e `excluir(tenantId, agenteId, esperado)`.
 
 ## Tela
 
-- **`features/agents/AgentEditorPage.tsx`:** o lápis de "Renomear agente" ao lado do `h1` e o botão "Excluir" no cabeçalho.
+- **`features/agents/AgentEditorPage.tsx`:** o lápis "Renomear agente" ao lado do `h1` e o botão "Excluir" no cabeçalho.
 - **Diálogos novos:** `features/agents/DialogoRenomearAgente.tsx` e `features/agents/DialogoExcluirAgente.tsx`, com o `Modal` do app.
-- **Contagem de versões do texto:** é a `versao` da publicada. As versões são numeradas em sequência e a restauração cria versão nova, então a publicada é sempre a última.
+- **Estado esperado mandado pelo diálogo de excluir:** `agente.nome`, `agente.rascunho.revisao` e `agente.publicada?.id ?? null`, do agente carregado.
+- **No 409, o diálogo:**
+  - pede ao editor que recarregue o agente;
+  - continua aberto com o estado novo e a mensagem;
+  - só exclui com um novo clique.
 
 ## Testes, com o que cada um prova
 
-1. **Contrato estático da migration** (`test/centralAgentesRenomearExcluirMigration.test.ts`):
-   - o cabeçalho das duas;
-   - o gate antes da primeira leitura;
-   - revoke e grant;
-   - `for update` no agente, a contagem de números antes do `delete` e o `exception when foreign_key_violation`;
-   - nenhuma barra invertida e nenhum `alter`, `drop` ou `delete` fora da função.
-2. **Local, no Supabase de verdade** (`test/centralAgentesRenomearExcluir.local.test.ts`, JWT real):
-   - renomear: apara o nome; `nome_invalido` com vazio e com 81; agente de outro cliente dá `agente_inexistente`; cliente apagado dá `cliente_inexistente`; `clinic_admin` e `agency_staff` dão `42501`;
-   - excluir sem número: o agente e as versões somem, a função devolve o número de versões, e a `origin` de um modelo salvo dele continua;
-   - excluir com número: `agente_com_numero`, e o agente continua;
-   - **corrida, com duas conexões `pg`:**
-     - T1 liga o número sem fazer commit;
-     - T2 chama a exclusão, que passa pela contagem e espera na FK;
-     - T1 faz commit;
-     - T2 recebe `agente_com_numero`, e o agente continua;
-   - agente de outro cliente dá `agente_inexistente`; `42501` para quem não é agência;
-   - catálogo: nenhuma FK de `ai_reply_events` para `ai_agents`;
-   - **provas contrárias:** sem o `exception when foreign_key_violation`, a corrida sai com `23503` cru; sem a contagem, o caso "com número" também sai com `23503`.
-3. **Camada:** as duas funções chamam `c.usuario.rpc` com `c.admin` como `Proxy` que lança erro; o 409 é traduzido; dado fora do tipo vira 500.
-4. **Rota:**
-   - `PATCH` e `DELETE` com origem recusada dão 403 sem chamar nada;
-   - agente fora do formato UUID dá 400;
-   - corpo inválido no `PATCH` (sobra de campo, tipo errado) dá 400;
-   - sucesso com a forma da resposta.
-5. **Tela:**
-   - renomear manda o `PATCH` e o cabeçalho troca;
-   - excluir com número mostra o bloqueio, sem botão de excluir, e nenhum pedido sai;
-   - excluir sem número manda o `DELETE`, avisa e volta para a lista;
-   - 409 do servidor mostra a mensagem e recarrega o agente;
-   - em edição, "Excluir" fica travado com o motivo.
+### 1. Contrato estático da migration
+
+Arquivo: `test/centralAgentesRenomearExcluirMigration.test.ts`. Confere:
+- o cabeçalho das duas funções e o gate antes da primeira leitura;
+- revoke e grant;
+- a tabela de registro com RLS, sem policy e sem grant para `anon` nem `authenticated`;
+- no `delete`:
+  - `for update` no agente e a comparação dos três esperados antes da contagem de números;
+  - a contagem antes do `delete`;
+  - o `exception` restrito a `channel_connections_ai_agent_fk`, com `raise;` para o resto;
+  - o `insert` do registro depois do `delete`, na mesma função;
+- nenhuma barra invertida;
+- nenhum `alter` nem `drop` de tabela existente.
+
+### 2. Local, no Supabase de verdade
+
+Arquivo: `test/centralAgentesRenomearExcluir.local.test.ts`, com JWT real.
+
+**Renomear:**
+- apara o nome;
+- `nome_invalido` com vazio e com 81 caracteres;
+- agente de outro cliente: `agente_inexistente`;
+- cliente apagado: `cliente_inexistente`;
+- `clinic_admin` e `agency_staff`: `42501`.
+
+**Excluir, caminho certo** (RPC chamada direto com o JWT da agência, sem a rota):
+- o agente e as versões somem;
+- a função devolve o número de versões;
+- fica exatamente uma linha em `ai_agent_deletions`, com `deleted_by` = o usuário, o nome, a revisão, a publicada e a contagem;
+- a `origin` de um modelo salvo dele continua;
+- uma mensagem com `metadata.agent_id` dele continua.
+
+**Excluir com estado desatualizado:**
+- três casos: rascunho salvo depois da leitura, versão publicada depois e nome trocado depois;
+- os três dão `agente_mudou`;
+- o agente continua, sem linha de registro.
+
+**Excluir com número:** `agente_com_numero`; o agente continua, sem registro.
+
+**Registro que falha:**
+- numa transação de teste, um gatilho que recusa `insert` em `ai_agent_deletions`;
+- a exclusão falha e o agente continua;
+- é a prova de que o registro e a exclusão são atômicos.
+
+**As duas ordens das travas, com duas conexões `pg`:**
+- *ligar primeiro:*
+  - T1 liga o número sem fazer commit;
+  - T2 chama a exclusão e fica esperando; o teste conferirá a espera em `pg_stat_activity`, com `wait_event_type = 'Lock'`;
+  - T1 faz commit;
+  - T2 recebe `agente_com_numero`, e o agente continua;
+- *excluir primeiro:*
+  - T2 exclui numa transação aberta;
+  - T1 tenta ligar e espera;
+  - T2 faz commit;
+  - T1 falha, o agente não existe e o número fica sem agente.
+
+**Outros:**
+- agente de outro cliente: `agente_inexistente`;
+- `42501` para quem não é agência;
+- catálogo: nenhuma FK de `ai_reply_events` nem de `conversation_messages` para `ai_agents`.
+
+**Provas contrárias:**
+- sem a comparação dos esperados, os três casos desatualizados apagam;
+- com o `insert` do registro movido para fora da função, o caso do registro que falha apaga;
+- sem a contagem, o caso "com número" ainda dá `agente_com_numero` pelo `exception`; sem a contagem e sem o `exception`, dá `23503` cru;
+- as duas últimas provam que o `exception` funciona quando é alcançado.
+
+### 3. Camada
+
+- As duas funções chamam `c.usuario.rpc`, com `c.admin` como `Proxy` que lança erro.
+- Os dois 409 são traduzidos.
+- Dado fora do tipo vira 500.
+
+### 4. Rota
+
+- **`rename` e `delete`:**
+  - origem recusada: 403, sem chamar nada;
+  - agente fora do formato UUID: 400;
+  - origem recusada junto com UUID inválido: 400 (a ordem real);
+  - corpo inválido (campo a mais, tipo errado, `versaoPublicadaEsperada` que não é uuid nem null): 400.
+- **Sucesso,** com a forma da resposta.
+
+### 5. Tela
+
+- Renomear manda o pedido e o cabeçalho troca.
+- Excluir com número mostra o bloqueio, sem botão de excluir, e nenhum pedido sai.
+- Excluir sem número manda o estado que a tela mostrou, avisa e volta para a lista.
+- 409 `AGENTE_MUDOU`: a mensagem aparece, o agente é recarregado e nenhuma navegação acontece.
+- Em edição, "Excluir" fica travado com o motivo.
 
 Suíte completa, tsc, lint e build antes de cada commit, com o resultado lido em comando separado.
 
@@ -168,20 +315,37 @@ Suíte completa, tsc, lint e build antes de cada commit, com o resultado lido em
    - migration pelo `aplicar_migration.py teste`, com a entrada no manifesto;
    - push em `feat/aurora-implantacao`;
    - prévia provada pelo login;
-   - telas com descartável: renomear um agente do ensaio do bloco 2; excluir outro; tentar excluir a Aurora de teste, que tem número, e ver o bloqueio;
+   - telas com descartável: renomear um agente do ensaio do bloco 2, excluir outro, tentar excluir a Aurora de teste (que tem número) e ver o bloqueio;
+   - registro de exclusão conferido por leitura;
    - contagens;
    - descartável apagado.
 4. **OK do Junior para publicar E para esta migration:**
-   - dump, `ciclo_g23` com a migration e a volta;
+   - dump e `ciclo_g23` com a migration e a volta;
    - `aplicar_migration.py producao`, com a migration antes do código;
    - push `main`;
    - alias de teste de volta;
    - `prova_login`.
 5. **Depois de publicado,** o Junior apaga pela tela o agente de teste que criou em produção. Nada é apagado em produção pelo agente.
 
-## Fora do escopo
+## Fora do escopo e limites declarados
 
-- Excluir pela lista de agentes: só pela página do agente.
-- Lixeira ou restaurar agente: a decisão foi excluir de vez.
-- Desligar número pela tela: é do bloco 8. Hoje desligar número é pelo rito (`migrar-agentes.ts --desligar`).
-- Renomear modelo: o editor do modelo já tem o campo nome.
+- **Excluir pela lista de agentes:** só pela página do agente.
+- **Lixeira ou restaurar agente:** a decisão foi excluir de vez.
+- **Desligar número pela tela:** é do bloco 8. Hoje desligar número é pelo rito (`migrar-agentes.ts --desligar`).
+- **Renomear modelo:** o editor do modelo já tem o campo nome.
+- **G24:** o registro durável da exclusão não é um G24 completo; faltam alerta, retenção formal e exercício.
+- **Resposta já em geração quando o número é desligado** (rodada 1, achado 4): ver a resposta ao achado 4, abaixo.
+
+## Revisão do Codex, rodada 1 (09/10, NO-GO) — como ficou
+
+Parecer literal no cérebro: `devolutiva-codex-1-renomear-excluir.md`.
+
+| Achado | Como ficou |
+|---|---|
+| 1. Exclusão de um estado diferente do confirmado | **Aceito.** A função recebe nome, `draft_revision` e `published_version_id` esperados e compara sob o `FOR UPDATE`; diferença = `agente_mudou` (409). A tela manda o que mostrou, recarrega no 409 e pede nova confirmação. O renomear fica livre (vale o último), como o Codex aceitou. Testes de salvar, publicar e renomear concorrentes |
+| 2. Registro contornável por RPC direta | **Aceito.** `ai_agent_deletions` gravada DENTRO da função, depois do `delete`, na mesma transação: falha no registro desfaz a exclusão. Testes da RPC direta (com o JWT, sem a rota) e da falha do registro. O log no servidor saiu (redundante). G24 **não** fica PASS por isso (limite declarado) |
+| 3. A prova de corrida não alcançava o `exception` | **Aceito.** A SPEC descreve onde a espera acontece em cada ordem, e o teste prova as duas (com a espera conferida em `pg_stat_activity`). O `exception` fica como defesa a mais, restrito a `channel_connections_ai_agent_fk`, com `raise;` para o resto. Que ele funciona é provado pelas provas contrárias (sem a contagem, ele ainda devolve `agente_com_numero`; sem os dois, `23503`) |
+| 4. Resposta em geração pode sair depois de desligar e excluir | **Não entra nesta entrega,** com o motivo. A corrida é do **desligar**: a fatia 1 já a tem hoje, sem exclusão nenhuma, porque o gate da entrega confere `aiEnabled`, não o agente. Excluir não a cria nem a piora: para excluir é preciso desligar antes, e a resposta que sairia é a mesma (o texto já foi gerado; `ai_reply_events` e a mensagem não têm FK para o agente). A correção sugerida mexe no caminho de entrega de todos os clientes, inclusive a Aurora em produção, e tem custo de produto: descartar a resposta deixa a mensagem do lead sem resposta, ou pede uma nova geração. Hoje desligar é um passo manual do rito, raro e com janela de segundos. **Fica registrado como limite, e entra no bloco 8,** quando desligar virar botão e a janela ficar comum |
+| 5. Faltava `conversation_messages.metadata` em "O que fica" | **Aceito.** Na lista, e o teste local confere que a mensagem continua |
+| 6. `publicada.versao` não garante a contagem | **Aceito.** A confirmação diz "todas as versões publicadas", sem número |
+| 7. Ordem das recusas da rota | **Aceito.** A SPEC descreve a ordem real de `abrirRotaDoAgente` (UUID 400, origem 403, acesso, corpo), e o teste prova a combinação de origem recusada com UUID inválido (400). As duas recusas acontecem antes de qualquer leitura |
