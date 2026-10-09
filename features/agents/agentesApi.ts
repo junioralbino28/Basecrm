@@ -64,7 +64,7 @@ export const agentesApi = {
       q.set('antesDeId', proxima.antesDeId);
     }
     const sufixo = q.toString();
-    return pedir<{ tenants: Array<{ id: string; name: string }>; proxima?: CursorDeClientes | null }>(
+    return pedir<{ tenants: Array<{ id: string; name: string; created_at?: string }>; proxima?: CursorDeClientes | null }>(
       `/api/platform/tenants${sufixo ? `?${sufixo}` : ''}`,
     );
   },

@@ -5,10 +5,22 @@ import { Loader2, Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import type { AgenteNaLista, InicioDoAgente, ModeloNaLista } from '@/lib/agents/tiposDoEditor';
 import { ErroDaApi, agentesApi, type CursorDeClientes } from './agentesApi';
+import { formatarDataHora } from './formatos';
 
 type Comeco = 'modelo' | 'branco' | 'copia';
 const PROIBIDOS = ['{', '}', '[', ']'];
 const respostaInvalida = (v: string) => v.length > 500 || PROIBIDOS.some((c) => v.includes(c));
+
+type ClienteDaLista = { id: string; name: string; created_at?: string };
+
+/**
+ * O nome do cliente não é único. A data de criação (a mesma da tela Clientes) e o começo do id (o mesmo da URL do
+ * cliente) separam homônimos na lista e na confirmação (revisão do Codex, código, rodada 3).
+ */
+function rotuloDoCliente(c: ClienteDaLista): string {
+  const quando = c.created_at ? `criado em ${formatarDataHora(c.created_at)}, ` : '';
+  return `${c.name} (${quando}id ${c.id.slice(0, 8)})`;
+}
 
 /**
  * Bloco 2: cria um agente neste cliente. Três começos: um modelo da agência (com uma resposta por lacuna), o padrão em
@@ -27,7 +39,7 @@ export function DialogoNovoAgente(props: {
   const [modelos, setModelos] = React.useState<ModeloNaLista[] | null>(null);
   const [modeloId, setModeloId] = React.useState<string | null>(null);
   const [respostas, setRespostas] = React.useState<Record<string, string>>({});
-  const [clientes, setClientes] = React.useState<Array<{ id: string; name: string }> | null>(null);
+  const [clientes, setClientes] = React.useState<ClienteDaLista[] | null>(null);
   const [buscaCliente, setBuscaCliente] = React.useState('');
   const [proximaClientes, setProximaClientes] = React.useState<CursorDeClientes | null>(null);
   const [carregandoMais, setCarregandoMais] = React.useState(false);
@@ -59,13 +71,15 @@ export function DialogoNovoAgente(props: {
   React.useEffect(() => {
     if (comeco !== 'copia') return;
     let valido = true;
+    // Busca nova: o cursor e o "carregando" da busca anterior deixam de valer (revisão do Codex, código, rodada 3).
     setProximaClientes(null);
+    setCarregandoMais(false);
     const espera = setTimeout(() => {
       agentesApi
         .clientes(buscaCliente.trim())
         .then((r) => {
           if (!valido) return;
-          const lista = r.tenants.map((t) => ({ id: t.id, name: t.name }));
+          const lista = r.tenants.map((t) => ({ id: t.id, name: t.name, created_at: t.created_at }));
           setClientes(lista);
           setProximaClientes(r.proxima ?? null);
           setOrigemId((atual) => (atual && lista.some((c) => c.id === atual) ? atual : null));
@@ -88,13 +102,17 @@ export function DialogoNovoAgente(props: {
       if (geracao !== geracaoDaBusca.current) return;
       setClientes((atual) => {
         const vistos = new Set((atual ?? []).map((c) => c.id));
-        return [...(atual ?? []), ...r.tenants.filter((t) => !vistos.has(t.id)).map((t) => ({ id: t.id, name: t.name }))];
+        return [
+          ...(atual ?? []),
+          ...r.tenants.filter((t) => !vistos.has(t.id)).map((t) => ({ id: t.id, name: t.name, created_at: t.created_at })),
+        ];
       });
       setProximaClientes(r.proxima ?? null);
     } catch (e) {
       if (geracao === geracaoDaBusca.current) setErro(e instanceof Error ? e.message : 'Falha ao carregar os clientes.');
     } finally {
-      setCarregandoMais(false);
+      // Só a busca que pediu esta página pode encerrar o "carregando"; uma busca nova já o encerrou.
+      if (geracao === geracaoDaBusca.current) setCarregandoMais(false);
     }
   };
 
@@ -274,7 +292,7 @@ export function DialogoNovoAgente(props: {
               <option value="">{clientes ? 'Escolha o cliente' : 'Carregando...'}</option>
               {(clientes ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {rotuloDoCliente(c)}
                 </option>
               ))}
             </select>
@@ -313,7 +331,7 @@ export function DialogoNovoAgente(props: {
           ) : null}
           {agenteOrigem?.publicada && clienteOrigem ? (
             <p className="text-sm text-slate-700 dark:text-slate-200">
-              Copiar a versão {agenteOrigem.publicada.versao} de {agenteOrigem.nome}, do cliente {clienteOrigem.name}, para o cliente{' '}
+              Copiar a versão {agenteOrigem.publicada.versao} de {agenteOrigem.nome}, do cliente {rotuloDoCliente(clienteOrigem)}, para o cliente{' '}
               {clienteNome ?? 'atual'}.
             </p>
           ) : null}

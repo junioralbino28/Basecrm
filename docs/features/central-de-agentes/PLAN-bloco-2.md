@@ -1099,7 +1099,7 @@ Commits locais, nesta ordem: `192c573` (Task 1), `602fbca` (Task 2), `a25a4a8` (
 
 ## Revisão do Codex, código (09/10) — como ficou
 
-Pareceres literais no cérebro: `devolutiva-codex-5-bloco-2.md` (rodada 1, NO-GO, 2 achados) e `devolutiva-codex-6-bloco-2.md` (rodada 2, NO-GO, 3 achados). Todos aceitos.
+Pareceres literais no cérebro: `devolutiva-codex-5-bloco-2.md` (rodada 1, NO-GO, 2 achados) `devolutiva-codex-6-bloco-2.md` (rodada 2, NO-GO, 3 achados) e `devolutiva-codex-7-bloco-2.md` (rodada 3, GO técnico para o ensaio, 3 achados para antes de publicar). Todos aceitos; os da rodada 3 foram corrigidos antes do ensaio.
 
 | Rodada e achado | Como ficou |
 |---|---|
@@ -1108,3 +1108,6 @@ Pareceres literais no cérebro: `devolutiva-codex-5-bloco-2.md` (rodada 1, NO-GO
 | 2.1 409 seguido de releitura falhando deixava "Descartar" aplicar a versão VELHA | O conflito guarda `atual` só depois de uma releitura bem-sucedida; sem ela, nenhuma das duas escolhas aparece, só "Tentar de novo". Prova contrária: com o fallback para a versão velha, o teste quebra. |
 | 2.2 Texto digitado durante o salvamento sumia na releitura | Os três campos ficam `disabled` enquanto salva (também ao criar). Prova contrária: sem o `salvando` na trava, dois testes quebram. |
 | 2.3 Mais de 100 clientes com o mesmo nome continuavam fora de alcance | Página seguinte por cursor composto `(created_at, id)` em `lib/platform/cursorDeClientes.ts`: os dois valores só passam por regex ancorada (entram no texto de um filtro `.or()` do PostgREST), a ordem ganhou o id como desempate e a resposta traz `proxima` quando a página vem cheia. O diálogo ganhou "Mostrar mais clientes", que descarta página atrasada depois de uma busca nova. Provado contra o PostgREST local em `test/cursorDeClientes.local.test.ts` (3 clientes no mesmo instante; só com a data, 2 deles sumiam). |
+| 3.1 Busca nova com a página antiga pendente deixava "Mostrar mais clientes" travado | A busca nova encerra o "carregando" na hora; o `finally` do "mostrar mais" só o encerra se a busca ainda for a que pediu a página. Teste com a página antiga chegando no meio do carregamento novo. |
+| 3.2 Clientes com o mesmo nome não se distinguiam na lista nem na confirmação | Rótulo "Nome (criado em dd/mm/aaaa às hh:mm, id 8 primeiros caracteres)": a data é a mesma da tela Clientes (Brasília) e o id é o da URL do cliente. |
+| 3.3 Cursor com data impossível (`2026-99-99T99:99:99Z`) passava pelo formato e virava erro 500 | `instanteValido` confere mês, dia do mês, hora, minuto, segundo e fuso; 400 sem consultar a lista de organizações. |

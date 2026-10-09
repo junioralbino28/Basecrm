@@ -113,7 +113,7 @@ describe('DialogoNovoAgente', () => {
     await screen.findByRole('option', { name: 'Aurora' });
     expect(screen.queryByRole('option', { name: 'Rascunho' })).toBeNull();
     fireEvent.change(agente, { target: { value: PUBLICADO.id } });
-    expect(screen.getByText('Copiar a versão 3 de Aurora, do cliente Loja B, para o cliente Loja A.')).toBeInTheDocument();
+    expect(screen.getByText('Copiar a versão 3 de Aurora, do cliente Loja B (id 33333333), para o cliente Loja A.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Nome do agente'), { target: { value: 'Aurora da A' } });
     fireEvent.click(botaoCriar());
     await waitFor(() => expect(onCriado).toHaveBeenCalled());
@@ -153,10 +153,10 @@ describe('DialogoNovoAgente: cópia alcança cliente além dos 100 mais recentes
     render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={onCriado} />);
     await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
     fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
-    await screen.findByRole('option', { name: 'Cliente 99' });
-    expect(screen.queryByRole('option', { name: 'Loja Antiga' })).toBeNull();
+    await screen.findByRole('option', { name: 'Cliente 99 (id id-99)' });
+    expect(screen.queryByRole('option', { name: 'Loja Antiga (id 66666666)' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Antiga' } });
-    await screen.findByRole('option', { name: 'Loja Antiga' }, { timeout: 2000 });
+    await screen.findByRole('option', { name: 'Loja Antiga (id 66666666)' }, { timeout: 2000 });
     fireEvent.change(screen.getByLabelText('Cliente de origem'), { target: { value: ANTIGO } });
     await screen.findByRole('option', { name: 'Aurora' });
     fireEvent.change(screen.getByLabelText('Agente'), { target: { value: PUBLICADO.id } });
@@ -175,7 +175,8 @@ describe('DialogoNovoAgente: "Mostrar mais clientes" (revisão do Codex, código
   const CURSOR = { antesDe: '2026-01-01T00:00:00.000001+00:00', antesDeId: 'id-99' };
   const paginaSeguinte = `/api/platform/tenants?${new URLSearchParams({ antesDe: CURSOR.antesDe, antesDeId: CURSOR.antesDeId }).toString()}`;
   // 100 clientes com o MESMO nome do alvo: a busca por nome não o separa, só a página seguinte o alcança.
-  const iguais = Array.from({ length: 100 }, (_, i) => ({ id: `id-${i}`, name: 'Loja' }));
+  const iguais = Array.from({ length: 100 }, (_, i) => ({ id: `id-${i}`, name: 'Loja', created_at: '2026-01-02T12:00:00Z' }));
+  const opcoesLoja = () => screen.getAllByRole('option').filter((o) => (o.textContent ?? '').startsWith('Loja ('));
 
   it('traz a página seguinte, junta à lista, e a cópia sai com o cliente que estava nela', async () => {
     const pedidos: Array<{ url: string; metodo: string; corpo: unknown }> = [];
@@ -184,7 +185,7 @@ describe('DialogoNovoAgente: "Mostrar mais clientes" (revisão do Codex, código
       pedidos.push({ url, metodo, corpo: init?.body ? JSON.parse(String(init.body)) : null });
       if (url === '/api/platform/agency/agent-templates') return responder({ modelos: [] });
       if (url === '/api/platform/tenants') return responder({ tenants: iguais, proxima: CURSOR });
-      if (url === paginaSeguinte) return responder({ tenants: [{ id: ALVO, name: 'Loja' }], proxima: null });
+      if (url === paginaSeguinte) return responder({ tenants: [{ id: ALVO, name: 'Loja', created_at: '2025-01-02T12:00:00Z' }], proxima: null });
       if (url === `/api/platform/tenants/${ALVO}/agents`) return responder({ cliente: { id: ALVO, nome: 'Loja' }, agentes: [PUBLICADO] });
       if (url === `/api/platform/tenants/${TENANT}/agents` && metodo === 'POST') return responder({ agenteId: 'novo-id' }, 201);
       return responder({ error: 'nao esperado' }, 500);
@@ -193,15 +194,21 @@ describe('DialogoNovoAgente: "Mostrar mais clientes" (revisão do Codex, código
     render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={onCriado} />);
     await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
     fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
-    await waitFor(() => expect(screen.getAllByRole('option', { name: 'Loja' })).toHaveLength(100));
+    await waitFor(() => expect(opcoesLoja()).toHaveLength(100));
     expect(screen.getByLabelText('Cliente de origem').querySelector(`option[value="${ALVO}"]`)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais clientes' }));
-    await waitFor(() => expect(screen.getAllByRole('option', { name: 'Loja' })).toHaveLength(101));
+    await waitFor(() => expect(opcoesLoja()).toHaveLength(101));
+    // Homônimos se distinguem na tela: cada rótulo é único e o do alvo traz a data (Brasília) e o começo do id.
+    expect(new Set(opcoesLoja().map((o) => o.textContent)).size).toBe(101);
+    expect(screen.getByRole('option', { name: 'Loja (criado em 02/01/2025 às 09:00, id 77777777)' })).toHaveValue(ALVO);
     expect(pedidos.some((p) => p.url === paginaSeguinte)).toBe(true);
     expect(screen.queryByRole('button', { name: 'Mostrar mais clientes' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Cliente de origem'), { target: { value: ALVO } });
     await screen.findByRole('option', { name: 'Aurora' });
     fireEvent.change(screen.getByLabelText('Agente'), { target: { value: PUBLICADO.id } });
+    expect(
+      screen.getByText('Copiar a versão 3 de Aurora, do cliente Loja (criado em 02/01/2025 às 09:00, id 77777777), para o cliente Loja A.'),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Nome do agente'), { target: { value: 'Copia da pagina 2' } });
     fireEvent.click(botaoCriar());
     await waitFor(() => expect(onCriado).toHaveBeenCalledWith('novo-id'));
@@ -225,13 +232,52 @@ describe('DialogoNovoAgente: "Mostrar mais clientes" (revisão do Codex, código
     fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
     fireEvent.click(await screen.findByRole('button', { name: 'Mostrar mais clientes' }));
     fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Sol' } });
-    await screen.findByRole('option', { name: 'Loja Sol' }, { timeout: 2000 });
+    await screen.findByRole('option', { name: 'Loja Sol (id sol)' }, { timeout: 2000 });
     soltarPagina(new Response(JSON.stringify({ tenants: [{ id: ALVO, name: 'Loja Atrasada' }], proxima: null }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     }));
     await new Promise((r) => setTimeout(r, 50));
-    expect(screen.queryByRole('option', { name: 'Loja Atrasada' })).toBeNull();
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Escolha o cliente', 'Loja Sol']);
+    expect(screen.queryByRole('option', { name: /Loja Atrasada/ })).toBeNull();
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Escolha o cliente', 'Loja Sol (id sol)']);
+  });
+
+  it('busca nova com página antiga ainda pendente: o "Mostrar mais" da busca nova não fica travado (rodada 3, achado 1)', async () => {
+    const CURSOR_SOL = { antesDe: '2025-06-01T00:00:00+00:00', antesDeId: 's0000099' };
+    const solMais = `/api/platform/tenants?${new URLSearchParams({ busca: 'Sol', antesDe: CURSOR_SOL.antesDe, antesDeId: CURSOR_SOL.antesDeId }).toString()}`;
+    const sois = Array.from({ length: 100 }, (_, i) => ({ id: `s${String(i).padStart(7, '0')}`, name: 'Loja Sol' }));
+    const pedidos: string[] = [];
+    let soltarAntiga: (r: Response) => void = () => undefined;
+    let soltarNova: (r: Response) => void = () => undefined;
+    const corpo = (dados: unknown) => new Response(JSON.stringify(dados), { status: 200, headers: { 'content-type': 'application/json' } });
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      pedidos.push(url);
+      if (url === '/api/platform/agency/agent-templates') return responder({ modelos: [] });
+      if (url === '/api/platform/tenants') return responder({ tenants: iguais, proxima: CURSOR });
+      if (url === paginaSeguinte) return new Promise<Response>((resolve) => { soltarAntiga = resolve; });
+      if (url === '/api/platform/tenants?busca=Sol') return responder({ tenants: sois, proxima: CURSOR_SOL });
+      if (url === solMais) return new Promise<Response>((resolve) => { soltarNova = resolve; });
+      return responder({ error: 'nao esperado' }, 500);
+    }));
+    render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={vi.fn()} />);
+    await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
+    fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mostrar mais clientes' }));
+    expect(await screen.findByRole('button', { name: 'Carregando mais clientes...' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Sol' } });
+    await screen.findByRole('option', { name: 'Loja Sol (id s0000099)' }, { timeout: 2000 });
+    const mais = await screen.findByRole('button', { name: 'Mostrar mais clientes' });
+    expect(mais).toBeEnabled();
+    fireEvent.click(mais);
+    expect(await screen.findByRole('button', { name: 'Carregando mais clientes...' })).toBeDisabled();
+    expect(pedidos).toContain(solMais);
+    // A página da busca ANTIGA chega agora: não pode reabrir o botão enquanto a da busca nova ainda carrega.
+    soltarAntiga(corpo({ tenants: [{ id: 'velha', name: 'Loja Velha' }], proxima: null }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByRole('button', { name: 'Carregando mais clientes...' })).toBeDisabled();
+    expect(screen.queryByRole('option', { name: /Loja Velha/ })).toBeNull();
+    soltarNova(corpo({ tenants: [{ id: 'sol-alvo', name: 'Loja Sol' }], proxima: null }));
+    await screen.findByRole('option', { name: 'Loja Sol (id sol-alvo)' });
+    expect(screen.queryByRole('button', { name: /Mostrar mais clientes|Carregando mais clientes/ })).toBeNull();
   });
 });

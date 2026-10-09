@@ -7,8 +7,18 @@ export const PAGINA_DE_CLIENTES = 100;
 
 export type CursorDeClientes = { antesDe: string; antesDeId: string };
 
-const INSTANTE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,6})?(?:Z|[+-][0-9]{2}(?::?[0-9]{2})?)$/;
+const INSTANTE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[T ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:[.][0-9]{1,6})?(?:Z|[+-]([0-9]{2})(?::?([0-9]{2}))?)$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** O formato e os valores: 2026-99-99T99:99:99Z tem o formato certo e chegaria ao banco como erro 500. */
+function instanteValido(texto: string): boolean {
+  const m = INSTANTE.exec(texto);
+  if (!m) return false;
+  const [ano, mes, dia, hora, minuto, segundo] = m.slice(1, 7).map(Number);
+  const diasNoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  const fusoOk = m[7] === undefined || (Number(m[7]) <= 14 && Number(m[8] ?? '0') <= 59);
+  return mes >= 1 && mes <= 12 && dia >= 1 && dia <= diasNoMes && hora <= 23 && minuto <= 59 && segundo <= 59 && fusoOk;
+}
 
 /**
  * Lê o cursor da URL. `null` é a primeira página; `'invalido'` é um só dos dois parâmetros, ou um fora do formato
@@ -19,7 +29,7 @@ export function lerCursorDeClientes(parametros: URLSearchParams): CursorDeClient
   const antesDeId = parametros.get('antesDeId');
   if (antesDe === null && antesDeId === null) return null;
   if (antesDe === null || antesDeId === null) return 'invalido';
-  if (!INSTANTE.test(antesDe) || !UUID.test(antesDeId)) return 'invalido';
+  if (!instanteValido(antesDe) || !UUID.test(antesDeId)) return 'invalido';
   return { antesDe, antesDeId };
 }
 

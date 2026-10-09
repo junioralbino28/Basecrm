@@ -82,7 +82,7 @@ describe('GET /api/platform/tenants: busca opcional por nome', () => {
     ]);
   });
 
-  it('cursor fora do formato ou pela metade: 400, sem nenhuma consulta', async () => {
+  it('cursor fora do formato, com data impossível ou pela metade: 400, sem consultar a lista de organizações', async () => {
     const ruins: Array<[string | null, string | null]> = [
       [INSTANTE, null],
       [null, ID],
@@ -90,12 +90,25 @@ describe('GET /api/platform/tenants: busca opcional por nome', () => {
       ['ontem', ID],
       [INSTANTE, `${ID})`],
       [INSTANTE, 'id-1'],
+      ['2026-99-99T99:99:99Z', ID],
+      ['2026-02-30T00:00:00Z', ID],
+      ['2026-01-01T24:00:00Z', ID],
+      ['2026-01-01T00:00:00+15:00', ID],
     ];
     for (const [antesDe, antesDeId] of ruins) {
       const r = await GET(comCursor(antesDe, antesDeId));
       expect(r.status, `${antesDe} | ${antesDeId}`).toBe(400);
     }
     expect(chamadas).toEqual([]);
+  });
+
+  it('data de fevereiro em ano bissexto e fuso com minutos passam', async () => {
+    for (const antesDe of ['2024-02-29T23:59:59.999999+00:00', '2026-12-31 00:00:00-03:30', '2026-01-01T00:00:00Z']) {
+      chamadas.length = 0;
+      const r = await GET(comCursor(antesDe, ID));
+      expect(r.status, antesDe).toBe(200);
+      expect(chamadas.some(([n]) => n === 'or'), antesDe).toBe(true);
+    }
   });
 
   it('termoDeBusca tira %, _, * e a barra invertida, apara e corta em 80', () => {
