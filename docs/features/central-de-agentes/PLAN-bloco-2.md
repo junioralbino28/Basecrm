@@ -1086,3 +1086,13 @@ Parecer literal no cérebro: `devolutiva-codex-3-bloco-2.md`. Os cinco achados f
 ## Revisão do Codex, rodada 2 do PLAN (09/10): GO
 
 Parecer literal no cérebro: `devolutiva-codex-4-bloco-2.md`. Os cinco achados da rodada 1 fechados; a melhoria (ambiguidade com `[Nome][ref]`) entrou no caso 8 da Task 3. Condição registrada pelo Codex: sem o teste local da Task 3 rodando de verdade (paridade SQL × TypeScript e a expressão no Postgres), não há sinal verde para o ensaio.
+
+## Execução (09/10) — o que mudou em relação ao texto do plano
+
+Commits locais, nesta ordem: `192c573` (Task 1), `602fbca` (Task 2), `a25a4a8` (Task 3), `be38f26` (Task 4), `1e51937` (Task 5), `d7b4dfb` (Task 6). Nada foi publicado. A migration está aplicada só no banco local.
+
+1. **Forma da lacuna nas rotas (Task 5):** em vez da expressão regular do plano (com barra invertida), o schema aceita uma chave quando `ocorrenciasDeLacunas(chave)` devolve exatamente a própria chave, e a resposta é recusada se tiver `{`, `}`, `[` ou `]` por `includes`. Mesma regra, sem escape para estragar, e a mesma fonte do detector.
+2. **Teste local (Task 3):** além dos 12 casos, o 13º chama `criarAgente` (Task 4) com o JWT real da agência e o admin como `Proxy` que lança erro. Duas provas contrárias feitas no banco local e desfeitas: lista de lacunas com `distinct` (pega pelos casos 7 e 11) e `create_ai_agent_blank` sem `for share` (pega pelo 2b). A volta foi aplicada, conferida (8 funções e a tabela fora, histórico sem a versão, a auxiliar da fatia 2 intacta) e a migration reaplicada.
+3. **Camada (Task 4):** `ERROS_DO_BANCO`, `MENSAGEM_ERRO_INTERNO`, `comoFalha` e `nomesDasPessoas` passaram a ser exportados de `editorAgentes.ts` para a camada nova reaproveitar. Prova contrária: uma chamada trocada para `c.admin.rpc` derrubou 4 testes.
+4. **Telas (Task 6):** "Novo modelo" abre o editor em `/platform/agent-templates/novo` (o mesmo componente cria ao salvar). A lista de clientes da cópia usa `GET /api/platform/tenants` (a mesma da tela de clientes, só agência, até 100 clientes). O diálogo usa o `Modal` do app (camada `z-[9999]`, acima da barra de navegação do celular).
+5. **Verificação (Task 7):** suíte completa 374 arquivos e 2.553 testes, 0 falhas; testes locais da Central (modelos, editor, fundação) 41 de 41; tsc 0; lint do projeto 0; build 0, com as rotas novas na lista (`/api/platform/agency/agent-templates`, `/[templateId]`, `/[templateId]/archive`, `/platform/agent-templates`, `/platform/agent-templates/[templateId]`).
