@@ -1,7 +1,16 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { lerAgente, listarVersoes, publicarComVerificacao, restaurarVersao, salvarRascunho, traduzirErroDoBanco } from './editorAgentes';
+import {
+  excluirAgente,
+  lerAgente,
+  listarVersoes,
+  publicarComVerificacao,
+  renomearAgente,
+  restaurarVersao,
+  salvarRascunho,
+  traduzirErroDoBanco,
+} from './editorAgentes';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const AGENTE = '22222222-2222-4222-8222-222222222222';
@@ -242,5 +251,54 @@ describe('salvarRascunho e restaurarVersao', () => {
     expect(rpc).toHaveBeenCalledWith('restore_ai_agent_version', {
       p_organization_id: TENANT, p_agent_id: AGENTE, p_version: 1, p_expected_version: 2, p_expected_revision: 1, p_note: null,
     });
+  });
+});
+
+describe('renomearAgente e excluirAgente (SPEC-renomear-excluir.md)', () => {
+  /** A escrita é sempre com o JWT de quem pediu: qualquer uso do cliente de serviço derruba o teste. */
+  const adminProibido = new Proxy({}, {
+    get() {
+      throw new Error('a escrita usou o cliente de servico');
+    },
+  }) as unknown as SupabaseClient;
+
+  it('renomear chama rename_ai_agent com o usuário e devolve o nome gravado; resposta sem texto vira 500', async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: 'Nome novo', error: null }).mockResolvedValueOnce({ data: null, error: null });
+    const clientes = { usuario: fakeCliente({}, rpc), admin: adminProibido };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await renomearAgente(clientes, { tenantId: TENANT, agentId: AGENTE, nome: '  Nome novo ' }))
+      .toEqual({ ok: true, dados: { nome: 'Nome novo' } });
+    expect(rpc).toHaveBeenCalledWith('rename_ai_agent', { p_organization_id: TENANT, p_agent_id: AGENTE, p_name: '  Nome novo ' });
+    expect(await renomearAgente(clientes, { tenantId: TENANT, agentId: AGENTE, nome: 'x' })).toMatchObject({ status: 500 });
+  });
+
+  it('excluir manda o estado que a tela mostrou e devolve quantas versões saíram; resposta sem número vira 500', async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: 3, error: null }).mockResolvedValueOnce({ data: 'x', error: null });
+    const clientes = { usuario: fakeCliente({}, rpc), admin: adminProibido };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const pedido = { tenantId: TENANT, agentId: AGENTE, nomeEsperado: 'Aurora', revisaoEsperada: 4, versaoPublicadaEsperada: V1 };
+    expect(await excluirAgente(clientes, pedido)).toEqual({ ok: true, dados: { versoesExcluidas: 3 } });
+    expect(rpc).toHaveBeenCalledWith('delete_ai_agent', {
+      p_organization_id: TENANT,
+      p_agent_id: AGENTE,
+      p_expected_name: 'Aurora',
+      p_expected_draft_revision: 4,
+      p_expected_published_version_id: V1,
+    });
+    expect(await excluirAgente(clientes, pedido)).toMatchObject({ status: 500 });
+  });
+
+  it('os dois 409 do banco viram as mensagens da tela; sem permissão vira 403', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'agente_com_numero' } })
+      .mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'agente_mudou' } })
+      .mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'sem_permissao' } });
+    const clientes = { usuario: fakeCliente({}, rpc), admin: adminProibido };
+    const pedido = { tenantId: TENANT, agentId: AGENTE, nomeEsperado: 'A', revisaoEsperada: 1, versaoPublicadaEsperada: null };
+    expect(await excluirAgente(clientes, pedido)).toMatchObject({
+      status: 409, codigo: 'AGENTE_COM_NUMERO', erro: 'Este agente atende um número. Desligue o número dele antes de excluir.',
+    });
+    expect(await excluirAgente(clientes, pedido)).toMatchObject({ status: 409, codigo: 'AGENTE_MUDOU' });
+    expect(await excluirAgente(clientes, pedido)).toMatchObject({ status: 403, codigo: 'SEM_PERMISSAO' });
   });
 });

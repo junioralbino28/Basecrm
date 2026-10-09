@@ -492,3 +492,94 @@ describe('AgentEditorPage: Salvar como modelo (bloco 2)', () => {
     expect(screen.queryByRole('button', { name: /Salvar como modelo/ })).toBeNull();
   });
 });
+
+describe('AgentEditorPage: renomear e excluir (SPEC-renomear-excluir.md)', () => {
+  it('renomear: manda o nome aparado, avisa e o cabeçalho troca depois de recarregar', async () => {
+    let leituras = 0;
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => {
+        leituras += 1;
+        return responder({ agente: agente(leituras > 1 ? { nome: 'Aurora 2' } : {}) });
+      },
+      [`POST ${URL_AGENTE}/rename`]: () => responder({ nome: 'Aurora 2' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Renomear agente' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Renomear agente' });
+    fireEvent.change(within(dialogo).getByLabelText('Nome do agente'), { target: { value: '  Aurora 2 ' } });
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Salvar nome' }));
+    expect(await screen.findByRole('heading', { name: 'Aurora 2' })).toBeInTheDocument();
+    expect(corpoDe(fetchMock, '/rename')).toEqual({ nome: 'Aurora 2' });
+    expect(toast).toHaveBeenCalledWith('Nome salvo.', 'success');
+    expect(screen.queryByRole('dialog', { name: 'Renomear agente' })).not.toBeInTheDocument();
+  });
+
+  it('excluir com número ligado: mostra o bloqueio, sem botão de excluir, e nenhum pedido sai', async () => {
+    const fetchMock = fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente() }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Excluir agente' });
+    expect(within(dialogo).getByText('Este agente atende 1 número: Comercial. Desligue o número antes de excluir.')).toBeInTheDocument();
+    expect(within(dialogo).queryByRole('button', { name: 'Excluir de vez' })).toBeNull();
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Fechar' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('excluir sem número: manda o estado que a tela mostrou, avisa e volta para a lista', async () => {
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => responder({ agente: agente({ numeros: [], rascunho: { prompt: 'novo', revisao: 4, atualizadoEm: null, atualizadoPor: null } }) }),
+      [`POST ${URL_AGENTE}/delete`]: () => responder({ excluido: true, versoesExcluidas: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Excluir agente' });
+    expect(within(dialogo).getByText(
+      'Excluir o agente Aurora? Somem o agente, o rascunho e todas as versões publicadas. As conversas e o histórico de respostas continuam. Não dá para desfazer.',
+    )).toBeInTheDocument();
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir de vez' }));
+    await waitFor(() => expect(navegar).toHaveBeenCalledWith(`/platform/tenants/${TENANT}/agents`));
+    expect(corpoDe(fetchMock, '/delete')).toEqual({ nomeEsperado: 'Aurora', revisaoEsperada: 4, versaoPublicadaEsperada: 'v1' });
+    expect(toast).toHaveBeenCalledWith('Agente excluído.', 'success');
+  });
+
+  it('409 AGENTE_MUDOU: a mensagem aparece, o agente é recarregado no diálogo e nada navega', async () => {
+    navegar.mockClear();
+    let leituras = 0;
+    const fetchMock = fetchFalso({
+      [`GET ${URL_AGENTE}`]: () => {
+        leituras += 1;
+        return responder({ agente: agente({ numeros: [], ...(leituras > 1 ? { nome: 'Aurora renomeada' } : {}) }) });
+      },
+      [`POST ${URL_AGENTE}/delete`]: () => responder({
+        error: 'O agente mudou desde que você abriu esta confirmação. A tela foi atualizada; confira e confirme de novo.',
+        code: 'AGENTE_MUDOU',
+      }, 409),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Excluir agente' })).getByRole('button', { name: 'Excluir de vez' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Excluir agente' });
+    expect(await within(dialogo).findByRole('alert')).toHaveTextContent('O agente mudou desde que você abriu esta confirmação.');
+    expect(await within(dialogo).findByText(/^Excluir o agente Aurora renomeada\?/)).toBeInTheDocument();
+    expect(leituras).toBe(2);
+    expect(navegar).not.toHaveBeenCalled();
+  });
+
+  it('em edição, Excluir fica travado com o motivo', async () => {
+    vi.stubGlobal('fetch', fetchFalso({ [`GET ${URL_AGENTE}`]: () => responder({ agente: agente({ numeros: [] }) }) }));
+    render(<AgentEditorPage tenantId={TENANT} agentId={AGENTE_ID} />);
+    await screen.findByText(/Versão 1 publicada/);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    const excluir = screen.getByRole('button', { name: 'Excluir' });
+    expect(excluir).toBeDisabled();
+    expect(excluir).toHaveAttribute('title', 'Salve ou cancele a edição antes de excluir.');
+  });
+});

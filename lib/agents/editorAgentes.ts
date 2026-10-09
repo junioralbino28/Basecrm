@@ -87,6 +87,17 @@ export const ERROS_DO_BANCO: Record<string, { status: number; codigo: string; er
     codigo: 'LACUNA_INVALIDA',
     erro: 'Uma resposta formaria uma lacuna ou variável nova junto do texto do modelo. Ajuste a resposta.',
   },
+  // Renomear e excluir agente (migration 20261009180000).
+  agente_com_numero: {
+    status: 409,
+    codigo: 'AGENTE_COM_NUMERO',
+    erro: 'Este agente atende um número. Desligue o número dele antes de excluir.',
+  },
+  agente_mudou: {
+    status: 409,
+    codigo: 'AGENTE_MUDOU',
+    erro: 'O agente mudou desde que você abriu esta confirmação. A tela foi atualizada; confira e confirme de novo.',
+  },
 };
 
 export const MENSAGEM_ERRO_INTERNO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise o suporte.';
@@ -455,4 +466,36 @@ export async function restaurarVersao(
     return traduzirErroDoBanco({ message: 'restaurar sem linha de volta' }, 'restaurar');
   }
   return { ok: true, dados: { versao: linha.out_version, versaoId: linha.out_version_id, revisao: linha.out_draft_revision } };
+}
+
+/** Renomeia o agente (SPEC-renomear-excluir.md). Sem trava de revisão: se duas pessoas renomearem juntas, vale a última. */
+export async function renomearAgente(
+  c: Clientes,
+  p: { tenantId: string; agentId: string; nome: string },
+): Promise<Resultado<{ nome: string }>> {
+  const r = await c.usuario.rpc('rename_ai_agent', { p_organization_id: p.tenantId, p_agent_id: p.agentId, p_name: p.nome });
+  if (r.error) return traduzirErroDoBanco(r.error, 'renomear agente');
+  if (typeof r.data !== 'string') return traduzirErroDoBanco({ message: 'renomear sem nome de volta' }, 'renomear agente');
+  return { ok: true, dados: { nome: r.data } };
+}
+
+/**
+ * Exclui o agente DE VEZ (decisão do Junior, 09/10). Manda o estado que a tela mostrou: se o nome, a revisão do
+ * rascunho ou a versão publicada mudaram, o banco recusa (409) e nada é apagado. O registro da exclusão é gravado pelo
+ * próprio banco, na mesma transação.
+ */
+export async function excluirAgente(
+  c: Clientes,
+  p: { tenantId: string; agentId: string; nomeEsperado: string; revisaoEsperada: number; versaoPublicadaEsperada: string | null },
+): Promise<Resultado<{ versoesExcluidas: number }>> {
+  const r = await c.usuario.rpc('delete_ai_agent', {
+    p_organization_id: p.tenantId,
+    p_agent_id: p.agentId,
+    p_expected_name: p.nomeEsperado,
+    p_expected_draft_revision: p.revisaoEsperada,
+    p_expected_published_version_id: p.versaoPublicadaEsperada,
+  });
+  if (r.error) return traduzirErroDoBanco(r.error, 'excluir agente');
+  if (typeof r.data !== 'number') return traduzirErroDoBanco({ message: 'excluir sem contagem de volta' }, 'excluir agente');
+  return { ok: true, dados: { versoesExcluidas: r.data } };
 }

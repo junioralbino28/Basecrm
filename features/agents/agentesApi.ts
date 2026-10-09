@@ -81,6 +81,18 @@ export const agentesApi = {
     pedir<{ cliente: { id: string; nome: string }; agentes: AgenteNaLista[] }>(base(tenantId)),
   ler: (tenantId: string, agentId: string) =>
     pedir<{ agente: AgenteNoEditor }>(`${base(tenantId)}/${agentId}`),
+  /** Renomear e excluir (SPEC-renomear-excluir.md). Excluir manda o estado que a tela mostrou; se mudou, 409. */
+  renomear: (tenantId: string, agentId: string, nome: string) =>
+    pedir<{ nome: string }>(`${base(tenantId)}/${agentId}/rename`, { method: 'POST', body: JSON.stringify({ nome }) }),
+  excluir: (
+    tenantId: string,
+    agentId: string,
+    esperado: { nomeEsperado: string; revisaoEsperada: number; versaoPublicadaEsperada: string | null },
+  ) =>
+    pedir<{ excluido: true; versoesExcluidas: number }>(`${base(tenantId)}/${agentId}/delete`, {
+      method: 'POST',
+      body: JSON.stringify(esperado),
+    }),
   salvarRascunho: (tenantId: string, agentId: string, corpo: { prompt: string; revisao: number }) =>
     pedir<{ revisao: number }>(`${base(tenantId)}/${agentId}/draft`, { method: 'PUT', body: JSON.stringify(corpo) }),
   publicar: (

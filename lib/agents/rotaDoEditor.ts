@@ -41,6 +41,16 @@ export const RestaurarSchema = z.object({
   nota: z.string().max(200).optional(),
 }).strict();
 
+/** Renomear e excluir agente (SPEC-renomear-excluir.md). O banco confere o nome de 1 a 80 depois do btrim. */
+export const RenomearSchema = z.object({ nome: z.string().max(200) }).strict();
+
+/** O estado que a tela mostrou na confirmação; diferente do atual, o banco recusa com 409 e nada é apagado. */
+export const ExcluirSchema = z.object({
+  nomeEsperado: z.string().max(200),
+  revisaoEsperada: z.number().int().min(0),
+  versaoPublicadaEsperada: Uuid.nullable(),
+}).strict();
+
 /** Bloco 2: corpo das rotas de criar agente e dos modelos (G5/G19: estrito; origem e autor nunca vêm daqui). */
 export const LIMITE_DO_MODELO_BYTES = 256 * 1024;
 const NomeCurto = z.string().trim().min(1).max(80);

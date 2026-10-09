@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, ChevronRight, FlaskConical, Library, Loader2, Pencil, Save, Send, X } from 'lucide-react';
+import { Bot, ChevronRight, FlaskConical, Library, Loader2, Pencil, Save, Send, Trash2, X } from 'lucide-react';
 import { AccessDenied } from '@/components/AccessDenied';
 import { PageLoader } from '@/components/PageLoader';
 import { useAuth } from '@/context/AuthContext';
@@ -12,7 +12,9 @@ import { isAgencyAdminRole } from '@/lib/auth/scope';
 import type { AgenteNoEditor } from '@/lib/agents/tiposDoEditor';
 import { VARIAVEIS_DO_PROMPT, verificarPrompt } from '@/lib/agents/verificarPrompt';
 import { ErroDaApi, agentesApi } from './agentesApi';
+import { DialogoExcluirAgente } from './DialogoExcluirAgente';
 import { DialogoPublicar } from './DialogoPublicar';
+import { DialogoRenomearAgente } from './DialogoRenomearAgente';
 import { DialogoSalvarComoModelo } from './DialogoSalvarComoModelo';
 import { HistoricoDeVersoes } from './HistoricoDeVersoes';
 import { LeituraDoPrompt } from './LeituraDoPrompt';
@@ -162,6 +164,8 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
   const [publicando, setPublicando] = React.useState(false);
   const [testando, setTestando] = React.useState(false);
   const [salvandoModelo, setSalvandoModelo] = React.useState(false);
+  const [renomeando, setRenomeando] = React.useState(false);
+  const [excluindo, setExcluindo] = React.useState(false);
   const router = useRouter();
   const [aba, setAba] = React.useState<'instrucoes' | 'versoes'>('instrucoes');
   // Outra aba ou pessoa salvou antes: a mensagem fica na tela e o texto de quem editava continua no campo.
@@ -334,6 +338,15 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Bot size={22} aria-hidden="true" className="text-brand-700 dark:text-brand-300" />
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{agente.nome}</h1>
+          <button
+            type="button"
+            onClick={() => setRenomeando(true)}
+            aria-label="Renomear agente"
+            title="Renomear agente"
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <Pencil size={16} aria-hidden="true" />
+          </button>
           <span
             className={
               agente.numeros.length > 0
@@ -347,6 +360,17 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Excluir de vez (SPEC-renomear-excluir.md): travado em edição, para não descartar texto em silêncio. */}
+          <button
+            type="button"
+            onClick={() => setExcluindo(true)}
+            disabled={edicao.ativa}
+            title={edicao.ativa ? 'Salve ou cancele a edição antes de excluir.' : undefined}
+            className={BOTAO_SECUNDARIO}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            Excluir
+          </button>
           {/* O teste usa o texto SALVO (rascunho ou publicada): em edição, o que está no campo ainda não existe lá. */}
           <button
             type="button"
@@ -608,6 +632,34 @@ function EditorDoAgente({ tenantId, agentId }: { tenantId: string; agentId: stri
             addToast(mensagem, 'error');
             void carregar();
           }}
+        />
+      ) : null}
+
+      {renomeando ? (
+        <DialogoRenomearAgente
+          tenantId={tenantId}
+          agenteId={agente.id}
+          nomeAtual={agente.nome}
+          onFechar={() => setRenomeando(false)}
+          onRenomeado={() => {
+            setRenomeando(false);
+            addToast('Nome salvo.', 'success');
+            void carregar();
+          }}
+        />
+      ) : null}
+
+      {excluindo ? (
+        <DialogoExcluirAgente
+          tenantId={tenantId}
+          agente={agente}
+          onFechar={() => setExcluindo(false)}
+          onExcluido={() => {
+            setExcluindo(false);
+            addToast('Agente excluído.', 'success');
+            router.push(`/platform/tenants/${tenantId}/agents`);
+          }}
+          onMudou={() => carregar()}
         />
       ) : null}
     </div>
