@@ -149,3 +149,11 @@ Parecer literal no cérebro: `devolutiva-codex-1-bloco-2.md`. Os seis achados fo
 | 6. Default `{}` contra o `kind` prometido; "escrita só por função" | `origin` sem default, com `kind` obrigatório por check; a garantia é dita como do caminho da aplicação, com a `service_role` mantendo `all`. |
 
 Decisões do Codex: aprovou a lacuna = `PENDENCIA` (com o detector exportado), modelo sem versões (com o achado 3), cópia entre clientes por ação explícita (tela com cliente de origem e de destino; organização e agente conferidos juntos) e a biblioteca vazia. A decisão 3 (texto montado fora do banco) foi revista pelo achado 1.
+
+## Rodada 2 do Codex (09/10, GO para o PLAN) — o que o PLAN resolve
+
+Parecer literal no cérebro: `devolutiva-codex-2-bloco-2.md`. Três pontos, aceitos, resolvidos no PLAN:
+
+1. **`replace()` mexeria em link Markdown.** Com a lacuna `[Nome]` e um link `[Nome](url)` no mesmo modelo, a troca textual viraria o link em `Ana(url)`, e a conferência das lacunas restantes não pegaria. Decisão: **recusar a ambiguidade**. Se uma lacuna respondida também aparece seguida de `(` ou `[` (rótulo de link), `create_ai_agent_from_template` recusa com `lacuna_ambigua` (22023) e a tela do modelo lista essa lacuna como ambígua. Teste com os dois usos do mesmo texto no mesmo modelo.
+2. **409 antes de 400.** A rota confere a revisão do modelo antes de conferir se as chaves são lacunas dele: modelo mudado entre a leitura da tela e o envio devolve 409 `modelo_mudou`, nunca 400. O banco repete as duas conferências sob trava, nessa ordem. Teste da ordem na rota e no banco.
+3. **Validações por função.** As funções do modelo (`save_ai_agent_template`, `set_ai_agent_template_archived`) não recebem organização; o PLAN descreve as validações de cada função separadamente.
