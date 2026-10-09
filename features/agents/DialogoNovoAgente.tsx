@@ -14,8 +14,9 @@ const respostaInvalida = (v: string) => v.length > 500 || PROIBIDOS.some((c) => 
 type ClienteDaLista = { id: string; name: string; created_at?: string };
 
 /**
- * O nome do cliente não é único. A data de criação (a mesma da tela Clientes) e o começo do id (o mesmo da URL do
- * cliente) separam homônimos na lista e na confirmação (revisão do Codex, código, rodada 3).
+ * O nome do cliente não é único. A data de criação, sempre em Brasília (a tela Clientes mostra a mesma data no fuso
+ * do navegador), e o começo do id (o mesmo da URL do cliente) separam homônimos na lista e na confirmação (revisão do
+ * Codex, código, rodadas 3 e 4).
  */
 function rotuloDoCliente(c: ClienteDaLista): string {
   const quando = c.created_at ? `criado em ${formatarDataHora(c.created_at)}, ` : '';
