@@ -1,4 +1,4 @@
-# Central de Agentes — renomear e excluir agente (SPEC curta + plano), v2
+# Central de Agentes — renomear e excluir agente (SPEC curta + plano), v2.1
 
 Decisão do Junior (09/10/2026 ~16h55), depois de criar um agente de teste em produção e não ter como apagar:
 - **excluir de vez:** somem o agente, o rascunho e as versões; as conversas e o histórico de respostas continuam;
@@ -8,7 +8,7 @@ Decisão do Junior (09/10/2026 ~16h55), depois de criar um agente de teste em pr
 
 O renomear e o excluir tinham ficado fora do bloco 2 (`SPEC-bloco-2.md`, "fora do escopo") e de todos os blocos do roteiro.
 
-v2: a revisão do Codex da rodada 1 (`devolutiva-codex-1-renomear-excluir.md`) está respondida na seção do fim.
+v2: a revisão do Codex da rodada 1 (`devolutiva-codex-1-renomear-excluir.md`) está respondida na seção do fim. v2.1: as três notas da rodada 2 (GO para implementar, `devolutiva-codex-2-renomear-excluir.md`).
 
 ## O que muda para quem usa
 
@@ -151,7 +151,8 @@ $$;
 - **Histórico de respostas:** `ai_reply_events.agent_id` (sem FK).
 - **Mensagens enviadas:** `conversation_messages.metadata`, com `agent_id` e `agent_version` (JSON).
 - **Origem de quem nasceu deste agente:** a `origin` do modelo salvo dele e das cópias dele (JSON).
-- **Registro novo** em `ai_agent_deletions`.
+- **Registro novo** em `ai_agent_deletions`, com o **nome** do agente, os ids, a revisão, a versão publicada, a contagem e quem excluiu. "Excluir de vez" apaga o agente e o texto dele; o nome fica nesse registro, que só a chave de serviço lê.
+- **Prazo de vida do registro:** acompanha o cliente. A FK `organization_id ... on delete cascade` apaga o registro numa exclusão física do cliente; enquanto o cliente existir (inclusive com a exclusão lógica, `deleted_at`), o registro fica.
 
 Nas migrations versionadas não há outra FK para `ai_agents` além da das versões e da do número (conferido também pelo Codex).
 
@@ -333,8 +334,8 @@ Suíte completa, tsc, lint e build antes de cada commit, com o resultado lido em
 - **Lixeira ou restaurar agente:** a decisão foi excluir de vez.
 - **Desligar número pela tela:** é do bloco 8. Hoje desligar número é pelo rito (`migrar-agentes.ts --desligar`).
 - **Renomear modelo:** o editor do modelo já tem o campo nome.
-- **G24:** o registro durável da exclusão não é um G24 completo; faltam alerta, retenção formal e exercício.
-- **Resposta já em geração quando o número é desligado** (rodada 1, achado 4): ver a resposta ao achado 4, abaixo.
+- **G24:** o registro durável da exclusão não é um G24 completo; faltam alerta, retenção formal, integridade, responsável e exercício. Não fica PASS.
+- **Resposta já em geração quando o número é desligado** (rodada 1, achado 4; rodada 2, nota 1): ver a resposta ao achado 4, abaixo. Tem uma janela em que excluir muda o tratamento: entre ler o vínculo do número e ler a versão publicada (`aiReply.ts`, `agentRuntime.ts`), se o agente for desligado **e excluído**, a leitura da versão devolve `agent_unavailable` e o webhook pode acionar o fallback, se configurado; sem a exclusão, a versão ainda carregaria. A mudança no fluxo de entrega fica para o bloco 8, como o Codex aceitou.
 
 ## Revisão do Codex, rodada 1 (09/10, NO-GO) — como ficou
 
@@ -345,7 +346,17 @@ Parecer literal no cérebro: `devolutiva-codex-1-renomear-excluir.md`.
 | 1. Exclusão de um estado diferente do confirmado | **Aceito.** A função recebe nome, `draft_revision` e `published_version_id` esperados e compara sob o `FOR UPDATE`; diferença = `agente_mudou` (409). A tela manda o que mostrou, recarrega no 409 e pede nova confirmação. O renomear fica livre (vale o último), como o Codex aceitou. Testes de salvar, publicar e renomear concorrentes |
 | 2. Registro contornável por RPC direta | **Aceito.** `ai_agent_deletions` gravada DENTRO da função, depois do `delete`, na mesma transação: falha no registro desfaz a exclusão. Testes da RPC direta (com o JWT, sem a rota) e da falha do registro. O log no servidor saiu (redundante). G24 **não** fica PASS por isso (limite declarado) |
 | 3. A prova de corrida não alcançava o `exception` | **Aceito.** A SPEC descreve onde a espera acontece em cada ordem, e o teste prova as duas (com a espera conferida em `pg_stat_activity`). O `exception` fica como defesa a mais, restrito a `channel_connections_ai_agent_fk`, com `raise;` para o resto. Que ele funciona é provado pelas provas contrárias (sem a contagem, ele ainda devolve `agente_com_numero`; sem os dois, `23503`) |
-| 4. Resposta em geração pode sair depois de desligar e excluir | **Não entra nesta entrega,** com o motivo. A corrida é do **desligar**: a fatia 1 já a tem hoje, sem exclusão nenhuma, porque o gate da entrega confere `aiEnabled`, não o agente. Excluir não a cria nem a piora: para excluir é preciso desligar antes, e a resposta que sairia é a mesma (o texto já foi gerado; `ai_reply_events` e a mensagem não têm FK para o agente). A correção sugerida mexe no caminho de entrega de todos os clientes, inclusive a Aurora em produção, e tem custo de produto: descartar a resposta deixa a mensagem do lead sem resposta, ou pede uma nova geração. Hoje desligar é um passo manual do rito, raro e com janela de segundos. **Fica registrado como limite, e entra no bloco 8,** quando desligar virar botão e a janela ficar comum |
+| 4. Resposta em geração pode sair depois de desligar e excluir | **Não entra nesta entrega,** com o motivo. A corrida é do **desligar**: a fatia 1 já a tem hoje, sem exclusão nenhuma, porque o gate da entrega confere `aiEnabled`, não o agente. Excluir não a cria (para excluir é preciso desligar antes), mas **muda o tratamento numa janela rara** (corrigido na rodada 2, nota 1): se desligar e excluir acontecerem entre a leitura do vínculo e a leitura da versão, a geração cai em `agent_unavailable` e no fallback do webhook, se configurado. Fora dessa janela, a resposta que sairia é a mesma (o texto já foi gerado; `ai_reply_events` e a mensagem não têm FK para o agente). A correção sugerida mexe no caminho de entrega de todos os clientes, inclusive a Aurora em produção, e tem custo de produto: descartar a resposta deixa a mensagem do lead sem resposta, ou pede uma nova geração. Hoje desligar é um passo manual do rito, raro e com janela de segundos. **Fica registrado como limite, e entra no bloco 8,** quando desligar virar botão e a janela ficar comum |
 | 5. Faltava `conversation_messages.metadata` em "O que fica" | **Aceito.** Na lista, e o teste local confere que a mensagem continua |
 | 6. `publicada.versao` não garante a contagem | **Aceito.** A confirmação diz "todas as versões publicadas", sem número |
 | 7. Ordem das recusas da rota | **Aceito.** A SPEC descreve a ordem real de `abrirRotaDoAgente` (UUID 400, origem 403, acesso, corpo), e o teste prova a combinação de origem recusada com UUID inválido (400). As duas recusas acontecem antes de qualquer leitura |
+
+## Revisão do Codex, rodada 2 (09/10): GO para implementar
+
+Parecer literal no cérebro: `devolutiva-codex-2-renomear-excluir.md`. Os bloqueios da rodada 1 fechados. As três notas entraram na v2.1:
+
+| Nota | Como ficou |
+|---|---|
+| 1. "Excluir não a piora" não é verdade numa janela | Corrigido no limite declarado e na resposta ao achado 4: entre ler o vínculo e ler a versão, desligar e excluir levam a `agent_unavailable` e ao fallback do webhook. Fica para o bloco 8 |
+| 2. Prazo de vida do registro e o nome guardado | Declarado: o registro acompanha o cliente (`on delete cascade` numa exclusão física; fica com a exclusão lógica). O nome do agente fica no registro, só para a chave de serviço; explicitado em "O que fica" |
+| 3. Ressalva do G24 incompleta | A lista agora tem alerta, retenção formal, integridade, responsável e exercício. Não fica PASS |
