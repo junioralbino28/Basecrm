@@ -3,6 +3,7 @@ import { createClient, createStaticAdminClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { runProvisioning } from '@/lib/provisioning/runProvisioning';
 import { isAgencyAdminRole, normalizeAppUserRole } from '@/lib/auth/scope';
+import { termoDeBusca } from '@/lib/platform/termoDeBusca';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -42,12 +43,13 @@ async function requireAdminProfile() {
   return { profile };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAdminProfile();
   if ('error' in auth) return auth.error;
 
+  const busca = termoDeBusca(new URL(req.url).searchParams.get('busca'));
   const admin = createStaticAdminClient();
-  const { data, error } = await admin
+  let consulta = admin
     .from('organizations')
     .select(`
       id,
@@ -56,9 +58,9 @@ export async function GET() {
       organization_editions(edition_key, branding_config, enabled_modules),
       provisioning_runs(id, status, created_at, result_payload)
     `)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(100);
+    .is('deleted_at', null);
+  if (busca) consulta = consulta.ilike('name', `%${busca}%`);
+  const { data, error } = await consulta.order('created_at', { ascending: false }).limit(100);
 
   if (error) return json({ error: error.message }, 500);
 

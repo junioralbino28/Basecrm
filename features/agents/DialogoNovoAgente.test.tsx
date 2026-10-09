@@ -133,3 +133,39 @@ describe('DialogoNovoAgente', () => {
     expect(screen.getByLabelText('Modelo')).toHaveValue('');
   });
 });
+
+describe('DialogoNovoAgente: cópia alcança cliente além dos 100 mais recentes (revisão do Codex, código, rodada 1)', () => {
+  it('a busca por nome traz o cliente antigo, e a cópia sai com ele como origem', async () => {
+    const ANTIGO = '66666666-6666-4666-8666-666666666666';
+    const recentes = Array.from({ length: 100 }, (_, i) => ({ id: `id-${i}`, name: `Cliente ${i}` }));
+    const pedidos: Array<{ url: string; metodo: string; corpo: unknown }> = [];
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      const metodo = init?.method ?? 'GET';
+      pedidos.push({ url, metodo, corpo: init?.body ? JSON.parse(String(init.body)) : null });
+      if (url === '/api/platform/agency/agent-templates') return responder({ modelos: [] });
+      if (url === '/api/platform/tenants') return responder({ tenants: recentes });
+      if (url === '/api/platform/tenants?busca=Antiga') return responder({ tenants: [{ id: ANTIGO, name: 'Loja Antiga' }] });
+      if (url === `/api/platform/tenants/${ANTIGO}/agents`) return responder({ cliente: { id: ANTIGO, nome: 'Loja Antiga' }, agentes: [PUBLICADO] });
+      if (url === `/api/platform/tenants/${TENANT}/agents` && metodo === 'POST') return responder({ agenteId: 'novo-id' }, 201);
+      return responder({ error: 'nao esperado' }, 500);
+    }));
+    const onCriado = vi.fn();
+    render(<DialogoNovoAgente tenantId={TENANT} clienteNome="Loja A" onFechar={() => undefined} onCriado={onCriado} />);
+    await screen.findByText('Nenhum modelo ainda. Crie em Modelos de agente.');
+    fireEvent.click(screen.getByLabelText('Copiar de outro agente'));
+    await screen.findByRole('option', { name: 'Cliente 99' });
+    expect(screen.queryByRole('option', { name: 'Loja Antiga' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Antiga' } });
+    await screen.findByRole('option', { name: 'Loja Antiga' }, { timeout: 2000 });
+    fireEvent.change(screen.getByLabelText('Cliente de origem'), { target: { value: ANTIGO } });
+    await screen.findByRole('option', { name: 'Aurora' });
+    fireEvent.change(screen.getByLabelText('Agente'), { target: { value: PUBLICADO.id } });
+    fireEvent.change(screen.getByLabelText('Nome do agente'), { target: { value: 'Copia da antiga' } });
+    fireEvent.click(botaoCriar());
+    await waitFor(() => expect(onCriado).toHaveBeenCalledWith('novo-id'));
+    expect(pedidos.find((p) => p.metodo === 'POST')?.corpo).toEqual({
+      nome: 'Copia da antiga',
+      inicio: { tipo: 'copia', clienteDeOrigemId: ANTIGO, agenteId: PUBLICADO.id, versaoEsperada: 3 },
+    });
+  });
+});

@@ -49,8 +49,9 @@ export const agentesApi = {
   /** Bloco 2: cria um agente neste cliente; em modelo e cópia o texto é montado no servidor. */
   criar: (tenantId: string, corpo: { nome: string; inicio: InicioDoAgente }) =>
     pedir<{ agenteId: string }>(base(tenantId), { method: 'POST', body: JSON.stringify(corpo) }),
-  /** Os clientes da agência, para escolher a origem de uma cópia (a mesma lista da tela de clientes). */
-  clientes: () => pedir<{ tenants: Array<{ id: string; name: string }> }>('/api/platform/tenants'),
+  /** Os clientes da agência, para a origem de uma cópia: os 100 mais recentes, ou os que casam com a busca por nome. */
+  clientes: (busca = '') =>
+    pedir<{ tenants: Array<{ id: string; name: string }> }>(`/api/platform/tenants${busca ? `?busca=${encodeURIComponent(busca)}` : ''}`),
   modelos: {
     listar: (arquivados = false) => pedir<{ modelos: ModeloNaLista[] }>(`${MODELOS}${arquivados ? '?arquivados=1' : ''}`),
     ler: (id: string) => pedir<ModeloCompleto>(`${MODELOS}/${id}`),

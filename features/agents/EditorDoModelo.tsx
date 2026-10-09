@@ -34,30 +34,47 @@ function Formulario({ templateId }: { templateId: string }) {
   const novo = templateId === 'novo';
   const router = useRouter();
   const { addToast } = useToast();
+  /** O que o servidor tem agora. Os campos abaixo são o que a pessoa está escrevendo; um 409 nunca os sobrescreve. */
   const [modelo, setModelo] = React.useState<ModeloCompleto | null>(null);
   const [carregando, setCarregando] = React.useState(!novo);
   const [erro, setErro] = React.useState<string | null>(null);
   const [nome, setNome] = React.useState('');
   const [descricao, setDescricao] = React.useState('');
   const [texto, setTexto] = React.useState('');
+  /** A revisão em que o texto se baseou: um salvar comum nunca passa por cima do que outra pessoa salvou depois. */
+  const [base, setBase] = React.useState<number | null>(null);
+  const [conflito, setConflito] = React.useState<string | null>(null);
   const [salvando, setSalvando] = React.useState(false);
+
+  const aplicar = React.useCallback((m: ModeloCompleto) => {
+    setModelo(m);
+    setNome(m.nome);
+    setDescricao(m.descricao ?? '');
+    setTexto(m.prompt);
+    setBase(m.revisao);
+  }, []);
 
   const carregar = React.useCallback(async () => {
     if (novo) return;
     setCarregando(true);
     setErro(null);
     try {
-      const m = await agentesApi.modelos.ler(templateId);
-      setModelo(m);
-      setNome(m.nome);
-      setDescricao(m.descricao ?? '');
-      setTexto(m.prompt);
+      aplicar(await agentesApi.modelos.ler(templateId));
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao carregar o modelo.');
     } finally {
       setCarregando(false);
     }
-  }, [novo, templateId]);
+  }, [aplicar, novo, templateId]);
+
+  /** Depois de um 409: só a cópia do servidor muda; o que a pessoa escreveu fica nos campos (revisão do Codex, código, rodada 1). */
+  const atualizarSoOServidor = React.useCallback(async () => {
+    try {
+      setModelo(await agentesApi.modelos.ler(templateId));
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Falha ao carregar o modelo.');
+    }
+  }, [templateId]);
 
   React.useEffect(() => {
     void carregar();
@@ -69,10 +86,11 @@ function Formulario({ templateId }: { templateId: string }) {
   const mudou = novo
     ? texto.length > 0 || nome.length > 0
     : modelo !== null && (nome !== modelo.nome || descricao !== (modelo.descricao ?? '') || texto !== modelo.prompt);
-  const podeSalvar =
-    !salvando && !modelo?.arquivado && mudou && nome.trim().length > 0 && texto.length > 0 && desconhecidas.length === 0;
+  const camposValidos = nome.trim().length > 0 && texto.length > 0 && desconhecidas.length === 0;
+  const podeSalvar = !salvando && !modelo?.arquivado && conflito === null && mudou && camposValidos;
+  const motivoSemArquivar = conflito !== null || (mudou && !novo) ? 'Salve ou descarte as mudanças antes de arquivar.' : null;
 
-  const salvar = async () => {
+  const salvar = async (porCima = false) => {
     setSalvando(true);
     setErro(null);
     try {
@@ -83,14 +101,16 @@ function Formulario({ templateId }: { templateId: string }) {
         router.replace(`/platform/agent-templates/${r.id}`);
         return;
       }
-      if (!modelo) return;
-      await agentesApi.modelos.salvar(modelo.id, { ...corpo, revisaoEsperada: modelo.revisao });
+      if (!modelo || base === null) return;
+      // Só "Salvar o meu por cima" manda a revisão atual do servidor; o salvar comum manda a revisão de base.
+      await agentesApi.modelos.salvar(modelo.id, { ...corpo, revisaoEsperada: porCima ? modelo.revisao : base });
       addToast('Modelo salvo.', 'success');
+      setConflito(null);
       await carregar();
     } catch (e) {
       if (e instanceof ErroDaApi && e.status === 409) {
-        addToast(e.message, 'error');
-        await carregar();
+        setConflito(e.message);
+        await atualizarSoOServidor();
       } else {
         setErro(e instanceof Error ? e.message : 'Falha ao salvar o modelo.');
       }
@@ -99,8 +119,14 @@ function Formulario({ templateId }: { templateId: string }) {
     }
   };
 
+  const descartarOMeu = () => {
+    if (modelo) aplicar(modelo);
+    setConflito(null);
+  };
+
   const arquivar = async (arquivo: boolean) => {
-    if (!modelo) return;
+    // Com mudanças não salvas o botão fica travado; esta conferência é a mesma regra, para não perder texto em silêncio.
+    if (!modelo || motivoSemArquivar) return;
     setSalvando(true);
     setErro(null);
     try {
@@ -109,6 +135,7 @@ function Formulario({ templateId }: { templateId: string }) {
       await carregar();
     } catch (e) {
       if (e instanceof ErroDaApi && e.status === 409) {
+        // Sem mudanças pendentes (o botão exige isso), recarregar não apaga nada que a pessoa escreveu.
         addToast(e.message, 'error');
         await carregar();
       } else {
@@ -134,6 +161,23 @@ function Formulario({ templateId }: { templateId: string }) {
       {modelo?.arquivado ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
           Este modelo está arquivado: não aparece no Novo agente e não pode ser editado. Restaure para voltar a usar.
+        </div>
+      ) : null}
+
+      {conflito ? (
+        <div
+          role="alert"
+          className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+        >
+          <p>{`${conflito} O seu texto continua aqui, sem salvar.`}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void salvar(true)} disabled={salvando || modelo?.arquivado} className={BOTAO_SECUNDARIO}>
+              Salvar o meu por cima
+            </button>
+            <button type="button" onClick={descartarOMeu} disabled={salvando} className={BOTAO_SECUNDARIO}>
+              Descartar o meu e ver o atual
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -180,7 +224,13 @@ function Formulario({ templateId }: { templateId: string }) {
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {modelo ? (
-              <button type="button" onClick={() => void arquivar(!modelo.arquivado)} disabled={salvando} className={BOTAO_SECUNDARIO}>
+              <button
+                type="button"
+                onClick={() => void arquivar(!modelo.arquivado)}
+                disabled={salvando || motivoSemArquivar !== null}
+                title={motivoSemArquivar ?? undefined}
+                className={BOTAO_SECUNDARIO}
+              >
                 {modelo.arquivado ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}
                 {modelo.arquivado ? 'Restaurar' : 'Arquivar'}
               </button>

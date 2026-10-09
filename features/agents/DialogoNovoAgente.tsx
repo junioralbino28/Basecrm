@@ -28,6 +28,7 @@ export function DialogoNovoAgente(props: {
   const [modeloId, setModeloId] = React.useState<string | null>(null);
   const [respostas, setRespostas] = React.useState<Record<string, string>>({});
   const [clientes, setClientes] = React.useState<Array<{ id: string; name: string }> | null>(null);
+  const [buscaCliente, setBuscaCliente] = React.useState('');
   const [origemId, setOrigemId] = React.useState<string | null>(null);
   const [agentesDaOrigem, setAgentesDaOrigem] = React.useState<AgenteNaLista[] | null>(null);
   const [agenteId, setAgenteId] = React.useState<string | null>(null);
@@ -49,13 +50,26 @@ export function DialogoNovoAgente(props: {
     void carregarModelos();
   }, [carregarModelos]);
 
+  // A lista do servidor para em 100 clientes; a busca por nome alcança os outros (revisão do Codex, código, rodada 1).
   React.useEffect(() => {
-    if (comeco !== 'copia' || clientes) return;
-    agentesApi
-      .clientes()
-      .then((r) => setClientes(r.tenants.map((t) => ({ id: t.id, name: t.name }))))
-      .catch((e) => setErro(e instanceof Error ? e.message : 'Falha ao carregar os clientes.'));
-  }, [comeco, clientes]);
+    if (comeco !== 'copia') return;
+    let valido = true;
+    const espera = setTimeout(() => {
+      agentesApi
+        .clientes(buscaCliente.trim())
+        .then((r) => {
+          if (!valido) return;
+          const lista = r.tenants.map((t) => ({ id: t.id, name: t.name }));
+          setClientes(lista);
+          setOrigemId((atual) => (atual && lista.some((c) => c.id === atual) ? atual : null));
+        })
+        .catch((e) => valido && setErro(e instanceof Error ? e.message : 'Falha ao carregar os clientes.'));
+    }, buscaCliente ? 300 : 0);
+    return () => {
+      valido = false;
+      clearTimeout(espera);
+    };
+  }, [comeco, buscaCliente]);
 
   React.useEffect(() => {
     setAgentesDaOrigem(null);
@@ -206,6 +220,20 @@ export function DialogoNovoAgente(props: {
 
       {comeco === 'copia' ? (
         <div className="space-y-3">
+          <div>
+            <label htmlFor="busca-de-cliente" className="mb-1 block text-sm font-medium text-slate-800 dark:text-slate-100">
+              Buscar cliente
+            </label>
+            <input
+              id="busca-de-cliente"
+              value={buscaCliente}
+              maxLength={80}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+              placeholder="Parte do nome do cliente"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-white/15 dark:bg-white/5 dark:text-white"
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sem busca, a lista mostra os 100 clientes mais recentes.</p>
+          </div>
           <div>
             <label htmlFor="cliente-de-origem" className="mb-1 block text-sm font-medium text-slate-800 dark:text-slate-100">
               Cliente de origem
